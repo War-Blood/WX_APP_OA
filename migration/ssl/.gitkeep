@@ -1,6 +1,0 @@
-# SSL 证书存放目录
-# 请将以下文件放在此目录:
-# - fullchain.pem (证书链)
-# - privkey.pem (私钥)
-# - chain.pem (证书链)
-# - cert.pem (证书)

@@ -1,0 +1,52 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom",
+        "navigationBarBackgroundColor": "#2B6DE8",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "工作台",
+        "navigationBarBackgroundColor": "#2B6DE8",
+        "navigationBarTextStyle": "white",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/features/index",
+      "style": {
+        "navigationBarTitleText": "功能中心",
+        "navigationBarBackgroundColor": "#2B6DE8",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "个人中心",
+        "navigationBarBackgroundColor": "#2B6DE8",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/approval/index/index",
+      "style": {
+        "navigationBarTitleText": "审批中心",
+        "navigationStyle": "custom",
+        "navigationBarBackgroundColor": "#FFFFFF",
+        "navigationBarTextStyle": "black"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarBackgroundColor": "#2B6DE8",
+    "backgroundColor": "#F7F7F7"
+  }
+}

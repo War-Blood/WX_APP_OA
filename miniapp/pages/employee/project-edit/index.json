@@ -1,6 +1,0 @@
-{
-  "usingComponents": {
-    "status-tag": "/components/status-tag/index"
-  },
-  "navigationBarTitleText": "填写项目日报"
-}

@@ -1,7 +1,0 @@
-{
-  "navigationBarTitleText": "历史日报",
-  "backgroundColor": "#f5f5f5",
-  "usingComponents": {
-    "status-tag": "/components/status-tag/index"
-  }
-}
