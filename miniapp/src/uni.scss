@@ -7,7 +7,7 @@ $primary-bg: #EDF2FF;
 
 $success-color: #22C55E;
 $warning-color: #F59E0B;
-$danger-color: #FA5151;
+$danger-color: #EF4444;
 $info-color: #909399;
 
 $text-primary: #333333;
@@ -41,3 +41,24 @@ $font-lg: 32rpx;
 $font-xl: 36rpx;
 $font-xxl: 40rpx;
 $font-title: 48rpx;
+
+// ===== 全局 .card 类 =====
+.card {
+  background: #FFFFFF;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.card-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333333;
+}
