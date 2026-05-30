@@ -9,34 +9,29 @@
       :aria-label="tab.label"
       :aria-current="activeTab === tab.key ? 'page' : undefined"
     >
-      <Home
+      <uni-icons
         v-if="tab.key === 'home'"
-        :theme="activeTab === 'home' ? 'filled' : 'outline'"
-        size="24"
-        :fill="activeTab === 'home' ? '#2B6DE8' : '#999999'"
+        :type="activeTab === 'home' ? 'home-filled' : 'home'"
+        size="56"
+        :color="activeTab === 'home' ? '#2B6DE8' : '#999999'"
       />
-      <AllApplication
+      <uni-icons
         v-if="tab.key === 'features'"
-        :theme="activeTab === 'features' ? 'filled' : 'outline'"
-        size="24"
-        :fill="activeTab === 'features' ? '#2B6DE8' : '#999999'"
+        :type="activeTab === 'features' ? 'grid-filled' : 'grid'"
+        size="56"
+        :color="activeTab === 'features' ? '#2B6DE8' : '#999999'"
       />
-      <User
+      <uni-icons
         v-if="tab.key === 'profile'"
-        :theme="activeTab === 'profile' ? 'filled' : 'outline'"
-        size="24"
-        :fill="activeTab === 'profile' ? '#2B6DE8' : '#999999'"
+        :type="activeTab === 'profile' ? 'person-filled' : 'person'"
+        size="56"
+        :color="activeTab === 'profile' ? '#2B6DE8' : '#999999'"
       />
-      <text :class="['tab-text', { 'tab-text-active': activeTab === tab.key }]">
-        {{ tab.label }}
-      </text>
     </view>
   </view>
 </template>
 
 <script setup>
-import { Home, AllApplication, User } from '@icon-park/vue-next'
-
 const props = defineProps({
   activeTab: {
     type: String,
@@ -44,6 +39,8 @@ const props = defineProps({
     validator: (value) => ['home', 'features', 'profile'].includes(value)
   }
 })
+
+const emit = defineEmits(['change'])
 
 const tabs = [
   { key: 'home', label: '首页', route: '/pages/home/index' },
@@ -55,6 +52,8 @@ function switchTab(tabKey) {
   if (tabKey === props.activeTab) {
     return
   }
+
+  emit('change', tabKey)
 
   const targetRoute = tabs.find(tab => tab.key === tabKey)?.route
   if (targetRoute) {
@@ -68,7 +67,7 @@ function switchTab(tabKey) {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  height: 112rpx;
+  height: 100rpx;
   background: #FFFFFF;
   border-top: 1rpx solid #F0F0F0;
   padding-bottom: env(safe-area-inset-bottom);
@@ -80,7 +79,6 @@ function switchTab(tabKey) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8rpx;
   flex: 1;
   height: 100%;
   transition: all 0.2s ease;
@@ -88,16 +86,5 @@ function switchTab(tabKey) {
 
 .tab-item:active {
   opacity: 0.7;
-}
-
-.tab-text {
-  font-size: 22rpx;
-  color: #999999;
-  line-height: 1;
-}
-
-.tab-text-active {
-  color: #2B6DE8;
-  font-weight: 500;
 }
 </style>
