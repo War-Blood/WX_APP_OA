@@ -1,568 +1,456 @@
 <template>
-  <view class="page">
-    <NavBar
+  <view class="home-page">
+    <!-- Status Bar 44px placeholder -->
+    <view class="status-bar" />
+
+    <nav-bar
       title="智慧办公助手"
       :showLogo="true"
-      :showNotification="true"
-      :showSetting="true"
+      :leftCustom="true"
+      rightIcon="notification"
+      rightIcon2="search"
       :unreadCount="unreadCount"
+      @rightClick="handleRightClick"
     />
 
-    <!-- 顶部渐变背景区域 -->
-    <view class="header-bg">
-      <view class="stats-row" role="region" aria-label="待办统计">
+    <scroll-view
+      class="content"
+      scroll-y
+      refresher-enabled
+      :refresher-triggered="isRefreshing"
+      @refresherrefresh="onRefresh"
+      @scrolltolower="onLoadMore"
+    >
+      <!-- Stats card: 4 stats in a row -->
+      <view class="stats-card">
         <view
-          v-for="(stat, index) in stats"
-          :key="stat.key"
+          v-for="stat in stats"
+          :key="stat.label"
           class="stat-item"
-          :class="{ 'stat-item-last': index === stats.length - 1 }"
           @tap="goToStat(stat)"
-          role="button"
-          tabindex="0"
-          :aria-label="`${stat.label}：${stat.count}件`"
         >
-          <text class="stat-num" aria-hidden="true">{{ stat.count }}</text>
+          <text class="stat-number" :style="{ color: stat.color }">{{ stat.value }}</text>
           <text class="stat-label">{{ stat.label }}</text>
         </view>
       </view>
-    </view>
 
-    <!-- 内容区域 -->
-    <scroll-view
-      class="content-scroll"
-      scroll-y
-      :scroll-with-animation="true"
-      @scrolltolower="onLoadMore"
-      :refresher-enabled="true"
-      :refresher-triggered="isRefreshing"
-      @refresherrefresh="onRefresh"
-      role="main"
-      aria-label="首页内容"
-    >
-      <view class="content-area">
-        <!-- 快捷入口卡片 -->
-        <view class="card quick-card" role="region" aria-labelledby="quick-title">
-          <view class="card-header">
-            <text id="quick-title" class="card-title">快捷入口</text>
-          </view>
-          <view class="quick-grid" role="list">
-            <view
-              v-for="entry in quickEntries"
-              :key="entry.key"
-              class="quick-item"
-              hover-class="quick-hover"
-              :hover-stay-time="100"
-              @tap="goToFeature(entry)"
-              role="listitem"
-              tabindex="0"
-              :aria-label="entry.label"
-            >
-              <view class="quick-icon-wrap" :style="{ background: entry.bg }" aria-hidden="true">
-                <IconPark :name="entry.icon" size="56" />
-              </view>
-              <text class="quick-label">{{ entry.label }}</text>
+      <!-- Quick actions: 4-icon grid -->
+      <view class="quick-card">
+        <text class="section-title">常用功能</text>
+        <view class="quick-grid">
+          <view
+            v-for="action in quickActions"
+            :key="action.label"
+            class="quick-item"
+            @tap="goToFeature(action.route)"
+          >
+            <view class="quick-icon" :style="{ backgroundColor: action.bg }">
+              <!-- 审批: clipboard -->
+              <svg v-if="action.icon === 'clipboard'" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <rect x="7" y="3" width="10" height="3" rx="1" stroke="#2B6DE8" stroke-width="1.8" stroke-linecap="round" />
+                <rect x="5" y="6" width="14" height="15" rx="2" stroke="#2B6DE8" stroke-width="1.8" stroke-linecap="round" />
+                <line x1="9" y1="11" x2="15" y2="11" stroke="#2B6DE8" stroke-width="1.8" stroke-linecap="round" />
+                <line x1="9" y1="15" x2="15" y2="15" stroke="#2B6DE8" stroke-width="1.8" stroke-linecap="round" />
+              </svg>
+              <!-- 日志: document -->
+              <svg v-if="action.icon === 'document'" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M8 2H16L20 6V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4C4 2.89543 4.89543 2 6 2H8Z" stroke="#22C55E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                <line x1="8" y1="13" x2="16" y2="13" stroke="#22C55E" stroke-width="1.8" stroke-linecap="round" />
+                <line x1="8" y1="17" x2="12" y2="17" stroke="#22C55E" stroke-width="1.8" stroke-linecap="round" />
+                <polyline points="8,2 8,6 16,6 16,2" stroke="#22C55E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <!-- 消息: bell -->
+              <svg v-if="action.icon === 'bell'" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M8 17.5H4C3.44772 17.5 3 17.0523 3 16.5C3 15.9477 3.44772 15.5 4 15.5H5V10C5 6.68629 7.68629 4 11 4H13C16.3137 4 19 6.68629 19 10V15.5H20C20.5523 15.5 21 15.9477 21 16.5C21 17.0523 20.5523 17.5 20 17.5H16" stroke="#6366F1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M16 20.5C16 21.6046 15.1046 22.5 14 22.5H10C8.89543 22.5 8 21.6046 8 20.5" stroke="#6366F1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <!-- 审核: check-circle -->
+              <svg v-if="action.icon === 'check-circle'" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="#2B6DE8" stroke-width="1.8" />
+                <polyline points="7,12 10.5,15.5 17,9" stroke="#2B6DE8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
             </view>
+            <text class="quick-label">{{ action.label }}</text>
           </view>
-        </view>
-
-        <!-- 待办事项卡片 -->
-        <view class="card task-card" role="region" aria-labelledby="task-title">
-          <view class="card-header">
-            <text id="task-title" class="card-title">待办事项</text>
-            <button class="card-more" @tap="goToTasks" aria-label="查看全部待办事项">
-              详情 <text class="arrow" aria-hidden="true">›</text>
-            </button>
-          </view>
-          <view class="task-grid" role="list">
-            <view
-              v-for="task in tasks"
-              :key="task.key"
-              class="task-item"
-              :style="{ background: task.bgColor }"
-              @tap="goToPending(task)"
-              role="listitem"
-              tabindex="0"
-              :aria-label="`${task.label}：${task.count}件`"
-            >
-              <text class="task-num" :style="{ color: task.color }" aria-hidden="true">{{ task.count }}</text>
-              <text class="task-label">{{ task.label }}</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 最近动态卡片 -->
-        <view class="card activity-card" role="region" aria-labelledby="activity-title">
-          <view class="card-header">
-            <text id="activity-title" class="card-title">最近动态</text>
-          </view>
-          <view class="activity-list" role="list">
-            <view
-              v-for="(activity, index) in activities"
-              :key="activity.id"
-              class="activity-item"
-              :class="{ 'activity-item-last': index === activities.length - 1 }"
-              hover-class="activity-hover"
-              :hover-stay-time="100"
-              @tap="goToActivity(activity)"
-              role="listitem"
-              tabindex="0"
-              :aria-label="`${activity.text}，${activity.time}，${activity.date}`"
-            >
-              <view class="activity-icon-wrap" :style="{ background: activity.iconBg }" aria-hidden="true">
-                <image class="activity-icon-img" :src="activity.iconSrc" mode="aspectFit" />
-              </view>
-              <view class="activity-body">
-                <text class="activity-text">{{ activity.text }}</text>
-                <text class="activity-time">{{ activity.time }}</text>
-              </view>
-              <text class="activity-date" aria-hidden="true">{{ activity.date }}</text>
-            </view>
-          </view>
-        </view>
-
-        <view v-if="isLoadingMore" class="loading-more" role="status" aria-live="polite">
-          <view class="loading-spinner" aria-hidden="true"></view>
-          <text class="loading-text">加载中...</text>
-        </view>
-        <view v-else-if="noMoreData" class="no-more" role="status">
-          <text class="no-more-text">已经到底啦</text>
         </view>
       </view>
+
+      <!-- Activities: icon + content layout -->
+      <view class="activity-card">
+        <view class="activity-header">
+          <text class="section-title">最近动态</text>
+          <text class="more-link" @tap="goToMore">更多 ></text>
+        </view>
+        <view v-for="(item, index) in activities" :key="item.id">
+          <view class="activity-item" @tap="goToActivity(item)">
+            <view class="activity-icon" :style="{ backgroundColor: item.iconBg || '#EDF2FF' }">
+              <!-- Default activity icon: clock -->
+              <svg v-if="!item.iconType || item.iconType === 'default'" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="#2B6DE8" stroke-width="1.8" />
+                <polyline points="12,7 12,12 16,14" stroke="#2B6DE8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <!-- Approval icon -->
+              <svg v-else-if="item.iconType === 'approval'" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect x="7" y="3" width="10" height="3" rx="1" stroke="#2B6DE8" stroke-width="1.8" />
+                <rect x="5" y="6" width="14" height="15" rx="2" stroke="#2B6DE8" stroke-width="1.8" />
+                <line x1="9" y1="11" x2="15" y2="11" stroke="#2B6DE8" stroke-width="1.8" />
+              </svg>
+              <!-- Report icon -->
+              <svg v-else-if="item.iconType === 'report'" width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M8 2H16L20 6V20C20 21.1046 19.1046 22 18 22H6C4.89543 22 4 21.1046 4 20V4C4 2.89543 4.89543 2 6 2H8Z" stroke="#22C55E" stroke-width="1.8" />
+                <line x1="8" y1="13" x2="16" y2="13" stroke="#22C55E" stroke-width="1.8" />
+              </svg>
+            </view>
+            <view class="activity-content">
+              <text class="activity-title">{{ item.title }}</text>
+              <text class="activity-desc">{{ item.desc }}</text>
+            </view>
+            <text class="activity-time">{{ item.time }}</text>
+          </view>
+          <view v-if="index < activities.length - 1" class="divider" />
+        </view>
+      </view>
+
+      <view v-if="isLoadingMore" class="loading-more">加载中...</view>
+      <view v-else-if="noMoreData" class="no-more">— 没有更多了 —</view>
     </scroll-view>
 
-    <TabBar activeTab="home" />
+    <tab-bar activeTab="home" @change="handleTabChange" />
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import TabBar from '@/components/tab-bar/tab-bar.vue'
-import IconPark from '@/components/icon-park/icon-park.vue'
+import { statsApi, messageApi } from '@/services'
 
 const userStore = useUserStore()
-const isRefreshing = ref(false)
+
+// Stats (4 items with routes + colors)
+const stats = ref([
+  { label: '待审批', value: 0, color: '#2B6DE8', route: '/pages/approval/index/index?tab=pending' },
+  { label: '待提交', value: 0, color: '#F59E0B', route: '/pages/employee/report-edit/index' },
+  { label: '已处理', value: 0, color: '#22C55E', route: '/pages/approval/index/index?tab=done' },
+  { label: '待阅读', value: 0, color: '#6366F1', route: '/pages/message/index' },
+])
+
+// Quick actions (4 items with icon bg + SVG type)
+const quickActions = [
+  { label: '审批', icon: 'clipboard', bg: '#EDF2FF', route: '/pages/approval/index/index' },
+  { label: '日志', icon: 'document', bg: '#F0FDF4', route: '/pages/employee/report-history/index' },
+  { label: '消息', icon: 'bell', bg: '#F3E8FF', route: '/pages/message/index' },
+  { label: '审核', icon: 'check-circle', bg: '#E6F7FF', route: '/pages/admin/review-list/index' },
+]
+
+const activities = ref([])
+const unreadCount = ref(0)
+const activityPage = ref(1)
 const isLoadingMore = ref(false)
 const noMoreData = ref(false)
-const unreadCount = ref(5)
+const isRefreshing = ref(false)
 
-const stats = ref([
-  { key: 'pending', label: '待审批', count: 3 },
-  { key: 'submit', label: '待提交', count: 1 },
-  { key: 'processed', label: '已处理', count: 28 },
-  { key: 'unread', label: '待阅读', count: 5 }
-])
+onMounted(() => {
+  loadPageData()
+})
 
-const quickEntries = ref([
-  { key: 'approval', icon: 'approval', label: '审批管理', bg: 'linear-gradient(135deg, #EDF2FF 0%, #E0E7FF 100%)' },
-  { key: 'report', icon: 'report', label: '日报提交', bg: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)' },
-  { key: 'announcement', icon: 'announcement', label: '通知公告', bg: 'linear-gradient(135deg, #F3E8FF 0%, #EDE9FE 100%)' },
-  { key: 'contacts', icon: 'contacts', label: '通讯录', bg: 'linear-gradient(135deg, #E6F7FF 0%, #DBEAFE 100%)' }
-])
+async function loadPageData() {
+  try {
+    const role = userStore.isAdmin ? 'admin' : 'employee'
+    const [statsRes, activitiesRes, unreadRes] = await Promise.all([
+      statsApi.getHomeStats(role),
+      statsApi.getActivities({ page: 1 }),
+      messageApi.getUnreadCount(),
+    ])
 
-const tasks = ref([
-  { key: 'approval', label: '待审批', count: 3, color: '#22C55E', bgColor: '#F0FDF4' },
-  { key: 'report', label: '待提交日报', count: 1, color: '#2B6DE8', bgColor: '#EDF2FF' },
-  { key: 'message', label: '未读消息', count: 12, color: '#6366F1', bgColor: '#EEF2FF' }
-])
+    const statsData = statsRes.data
 
-const activities = ref([
-  {
-    id: 1,
-    iconSrc: '/static/images/home/icon_daily_green.png',
-    iconBg: '#F0FDF4',
-    text: '完成审批 王明 的请假申请',
-    time: '10:30',
-    date: '今天'
-  },
-  {
-    id: 2,
-    iconSrc: '/static/images/home/icon_pending_blue_1.png',
-    iconBg: '#EDF2FF',
-    text: '设计部 提交了05-26日报',
-    time: '09:15',
-    date: '今天'
-  },
-  {
-    id: 3,
-    iconSrc: '/static/images/home/icon_pending_orange_1.png',
-    iconBg: '#FFF7ED',
-    text: '任务提醒 · 设计方案',
-    time: '昨天',
-    date: '昨天'
-  },
-  {
-    id: 4,
-    iconSrc: '/static/images/home/icon_pending_pink_1.png',
-    iconBg: '#FDF2F8',
-    text: '日报待补 · 05-26',
-    time: '昨天',
-    date: '昨天'
-  }
-])
+    if (userStore.isAdmin) {
+      stats.value[0].value = statsData.pendingCount || 0
+      stats.value[1].value = statsData.reviewCount || 0
+      stats.value[1].label = '待审核'
+      stats.value[1].route = '/pages/admin/review-list/index'
+      stats.value[2].value = statsData.processedCount || 0
+      stats.value[3].value = statsData.unreadCount || 0
+    } else {
+      stats.value[0].value = statsData.pendingCount || 0
+      stats.value[1].value = statsData.submitCount || 0
+      stats.value[1].label = '待提交'
+      stats.value[1].route = '/pages/employee/report-edit/index'
+      stats.value[2].value = statsData.processedCount || 0
+      stats.value[3].value = statsData.unreadCount || 0
+    }
 
-function onRefresh() {
-  isRefreshing.value = true
-  setTimeout(() => {
-    stats.value = stats.value.map(s => ({
-      ...s,
-      count: Math.floor(Math.random() * 10) + 1
+    const activityList = activitiesRes.data.list || []
+    activities.value = activityList.map((item) => ({
+      id: item.id,
+      title: item.title || item.text || '',
+      desc: item.desc || item.subtitle || '',
+      time: item.time || '',
+      iconBg: item.iconBg || '#EDF2FF',
+      iconType: item.type || 'default',
+      route: item.route || '',
+      type: item.type || 'default',
     }))
-    isRefreshing.value = false
-    uni.showToast({ title: '刷新成功', icon: 'success', duration: 1500 })
-  }, 1000)
+
+    unreadCount.value = unreadRes.data.count || 0
+    activityPage.value = 1
+    noMoreData.value = false
+  } catch (err) {
+    console.error('首页数据加载失败', err)
+  }
 }
 
-function onLoadMore() {
+async function onRefresh() {
+  isRefreshing.value = true
+  await loadPageData()
+  isRefreshing.value = false
+}
+
+async function onLoadMore() {
   if (isLoadingMore.value || noMoreData.value) return
   isLoadingMore.value = true
-  setTimeout(() => {
+  try {
+    activityPage.value++
+    const res = await statsApi.getActivities({ page: activityPage.value })
+    const list = res.data.list || []
+    if (list.length === 0) {
+      noMoreData.value = true
+    } else {
+      const mapped = list.map((item) => ({
+        id: item.id,
+        title: item.title || item.text || '',
+        desc: item.desc || item.subtitle || '',
+        time: item.time || '',
+        iconBg: item.iconBg || '#EDF2FF',
+        iconType: item.type || 'default',
+        route: item.route || '',
+        type: item.type || 'default',
+      }))
+      activities.value = [...activities.value, ...mapped]
+    }
+  } catch {
+    activityPage.value--
+  } finally {
     isLoadingMore.value = false
-    noMoreData.value = true
-  }, 1000)
+  }
+}
+
+function handleRightClick(icon) {
+  if (icon === 'notification') {
+    uni.navigateTo({ url: '/pages/message/index' })
+  } else if (icon === 'search') {
+    uni.showToast({ title: '搜索功能开发中', icon: 'none' })
+  }
+}
+
+function handleTabChange(tab) {
+  const routeMap = {
+    home: '/pages/home/index',
+    features: '/pages/features/index',
+    profile: '/pages/profile/index',
+  }
+  const url = routeMap[tab]
+  if (url && tab !== 'home') {
+    uni.switchTab({ url })
+  }
 }
 
 function goToStat(stat) {
-  uni.showToast({ title: `查看${stat.label}`, icon: 'none' })
-}
-
-function goToFeature(entry) {
-  const featureMap = {
-    approval: '/pages/approval/index',
-    report: '/pages/employee/report-history/index',
-    announcement: '/pages/announcement/index',
-    contacts: '/pages/contacts/index'
-  }
-  const url = featureMap[entry.key]
-  if (url) {
-    uni.navigateTo({ url })
+  if (stat.route) {
+    uni.navigateTo({ url: stat.route })
   } else {
-    uni.showToast({ title: entry.label, icon: 'none' })
+    uni.showToast({ title: '功能待开发', icon: 'none' })
   }
 }
 
-function goToPending(task) {
-  uni.showToast({ title: task.label, icon: 'none' })
-}
-
-function goToTasks() {
-  uni.navigateTo({ url: '/pages/task/index' })
+function goToFeature(route) {
+  uni.navigateTo({ url: route })
 }
 
 function goToActivity(activity) {
-  uni.showToast({ title: '查看动态详情', icon: 'none' })
+  const routeMap = {
+    approval: '/pages/approval/index/index',
+    report: userStore.isAdmin
+      ? '/pages/admin/review-list/index'
+      : '/pages/employee/report-history/index',
+  }
+  const url = routeMap[activity.type]
+  if (url) {
+    uni.navigateTo({ url })
+  } else {
+    uni.showToast({ title: '功能待开发', icon: 'none' })
+  }
+}
+
+function goToMore() {
+  uni.showToast({ title: '更多动态开发中', icon: 'none' })
 }
 </script>
 
 <style lang="scss" scoped>
-$color-primary: #2B6DE8;
-$bg-page: #F7F7F7;
-$bg-card: #FFFFFF;
-$bg-hover: #F5F5F5;
-$text-primary: rgba(0, 0, 0, 0.9);
-$text-secondary: rgba(0, 0, 0, 0.6);
-$text-tertiary: rgba(0, 0, 0, 0.4);
-$text-white: #FFFFFF;
-$border-color: #ECECEC;
-$radius-sm: 8rpx;
-$radius-md: 12rpx;
-$radius-lg: 16rpx;
-$transition-fast: 150ms ease;
-$transition-normal: 200ms ease;
+@import '@/uni.scss';
 
-.page {
-  width: 100%;
-  height: 100vh;
-  background: $bg-page;
+.home-page {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  height: 100vh;
+  background: $bg-color;
 }
 
-.header-bg {
-  background: linear-gradient(180deg, #2B6DE8 0%, #3B77EA 60%, #5B8DF0 100%);
-  padding: 24rpx 24rpx 32rpx;
-  flex-shrink: 0;
+.status-bar {
+  height: 88rpx;
+  background: $bg-card;
 }
 
-.stats-row {
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24rpx;
+}
+
+/* ===== Stats Card ===== */
+.stats-card {
   display: flex;
-  background: rgba(255, 255, 255, 0.15);
+  justify-content: space-around;
+  background: $bg-card;
   border-radius: $radius-lg;
-  padding: 20rpx 0;
-  backdrop-filter: blur(8rpx);
+  padding: 28rpx 24rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 
 .stat-item {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6rpx;
-  border-right: 1rpx solid rgba(255, 255, 255, 0.2);
-  padding: 8rpx 0;
-  transition: background-color $transition-fast;
-
-  &:active {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: $radius-md;
-  }
-
-  &-last {
-    border-right: none;
-  }
+  gap: 8rpx;
 }
 
-.stat-num {
-  font-size: 48rpx;
+.stat-number {
+  font-size: $font-xxl;
   font-weight: 700;
-  color: $text-white;
-  line-height: 1.2;
 }
 
 .stat-label {
-  font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.85);
-  line-height: 1.3;
+  font-size: $font-sm;
+  color: $text-secondary;
 }
 
-.content-scroll {
-  flex: 1;
-  height: 0;
-}
-
-.content-area {
-  padding: 24rpx;
-  padding-bottom: calc(24rpx + 112rpx + env(safe-area-inset-bottom));
-}
-
-.card {
+/* ===== Quick Actions Card ===== */
+.quick-card {
   background: $bg-card;
   border-radius: $radius-lg;
   padding: 24rpx;
-  margin-bottom: 20rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
-  transition: transform $transition-normal, box-shadow $transition-normal;
-
-  &:active {
-    transform: translateY(-2rpx);
-    box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
-  }
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20rpx;
-}
-
-.card-title {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: $text-primary;
-  line-height: 1.4;
-}
-
-.card-more {
-  display: flex;
-  align-items: center;
-  gap: 4rpx;
-  font-size: 24rpx;
-  color: $text-tertiary;
-  background: transparent;
-  border: none;
-  padding: 8rpx 0;
-  margin: 0;
-  line-height: 1.3;
-
-  &::after {
-    border: none;
-  }
-
-  &:active {
-    color: $color-primary;
-  }
-}
-
-.arrow {
-  font-size: 28rpx;
-  line-height: 1;
+.section-title {
+  font-size: $font-sm;
+  color: $text-secondary;
+  margin-bottom: 24rpx;
 }
 
 .quick-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8rpx;
+  display: flex;
+  justify-content: space-around;
 }
 
 .quick-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12rpx;
-  padding: 16rpx 0;
-  border-radius: $radius-md;
-  transition: background-color $transition-fast;
-}
-
-.quick-hover {
-  background: $bg-hover;
-}
-
-.quick-icon-wrap {
-  width: 88rpx;
-  height: 88rpx;
-  border-radius: $radius-lg;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform $transition-fast;
-
-  .quick-item:active & {
-    transform: scale(0.95);
-  }
-}
-
-.quick-label {
-  font-size: 24rpx;
-  color: $text-primary;
-  text-align: center;
-  line-height: 1.3;
-}
-
-.task-grid {
-  display: flex;
   gap: 16rpx;
 }
 
-.task-item {
-  flex: 1;
-  border-radius: $radius-md;
-  padding: 24rpx 12rpx;
+.quick-icon {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 48rpx;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8rpx;
-  transition: transform $transition-fast, box-shadow $transition-fast;
-
-  &:active {
-    transform: translateY(-2rpx);
-    box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.08);
-  }
+  justify-content: center;
 }
 
-.task-num {
-  font-size: 40rpx;
-  font-weight: 700;
-  line-height: 1.2;
+.quick-label {
+  font-size: $font-sm;
+  color: $text-primary;
 }
 
-.task-label {
-  font-size: 22rpx;
-  color: $text-secondary;
-  text-align: center;
-  line-height: 1.3;
+/* ===== Activity Card ===== */
+.activity-card {
+  background: $bg-card;
+  border-radius: $radius-lg;
+  padding: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 
-.activity-list {
+.activity-header {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.more-link {
+  font-size: $font-xs;
+  color: $text-secondary;
 }
 
 .activity-item {
   display: flex;
   align-items: center;
-  gap: 16rpx;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid $border-color;
-  transition: background-color $transition-fast;
-
-  &-last {
-    border-bottom: none;
-  }
+  gap: 24rpx;
+  padding: 24rpx 0;
 }
 
-.activity-hover {
-  background: #FAFBFC;
-  margin: 0 -24rpx;
-  padding-left: 24rpx;
-  padding-right: 24rpx;
-}
-
-.activity-icon-wrap {
+.activity-icon {
   width: 72rpx;
   height: 72rpx;
-  border-radius: $radius-sm;
+  border-radius: 20rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.activity-icon-img {
-  width: 36rpx;
-  height: 36rpx;
-}
-
-.activity-body {
+.activity-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6rpx;
-  min-width: 0;
+  gap: 8rpx;
 }
 
-.activity-text {
-  font-size: 26rpx;
+.activity-title {
+  font-size: $font-base;
   color: $text-primary;
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 600;
+}
+
+.activity-desc {
+  font-size: $font-xs;
+  color: $text-regular;
 }
 
 .activity-time {
-  font-size: 22rpx;
-  color: $text-tertiary;
-  line-height: 1.3;
+  font-size: $font-xs;
+  color: $text-secondary;
 }
 
-.activity-date {
-  font-size: 22rpx;
-  color: $text-tertiary;
-  flex-shrink: 0;
-  line-height: 1.3;
+.divider {
+  height: 1rpx;
+  background: #ECECEC;
+  margin: 0 24rpx;
 }
 
+/* ===== Load More / No More ===== */
 .loading-more,
 .no-more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12rpx;
-  padding: 32rpx 0;
-}
-
-.loading-spinner {
-  width: 32rpx;
-  height: 32rpx;
-  border: 3rpx solid $border-color;
-  border-top-color: $color-primary;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.loading-text,
-.no-more-text {
-  font-size: 24rpx;
-  color: $text-tertiary;
+  text-align: center;
+  padding: 24rpx;
+  font-size: $font-sm;
+  color: $text-secondary;
 }
 </style>
