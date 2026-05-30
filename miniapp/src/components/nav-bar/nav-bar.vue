@@ -1,23 +1,30 @@
 <template>
-  <view class="nav-bar">
+  <view class="nav-bar" :class="{ 'nav-bar--brand': showLogo }">
     <view class="nav-left">
+      <view v-if="showBack" class="back-btn" @tap="goBack">
+        <image class="back-icon" src="/static/images/approval/back.png" mode="aspectFit" />
+      </view>
       <slot name="left">
-        <view v-if="showLogo" class="logo-badge">
-          <text class="logo-text">OA</text>
+        <view v-if="leftCustom" class="nav-left-brand">
+          <view class="logo-badge">
+            <text class="logo-text">OA</text>
+          </view>
+          <text v-if="title" class="nav-title">{{ title }}</text>
         </view>
-        <view v-if="title" class="nav-title">{{ title }}</view>
+        <text v-else-if="title" class="nav-title">{{ title }}</text>
       </slot>
     </view>
     <view class="nav-right">
       <slot name="right">
-        <view v-if="showNotification" class="nav-icon-btn" @tap="goToMessage">
-          <Remind theme="outline" size="24" fill="#ffffff" />
-          <view v-if="unreadCount > 0" class="notification-badge">
-            <text class="badge-text">{{ unreadCount > 99 ? '99+' : unreadCount }}</text>
+        <view
+          v-if="rightIcon"
+          class="nav-icon-btn"
+          @tap="onRightClick"
+        >
+          <uni-icons :type="rightIcon" size="44" color="#666666" />
+          <view v-if="rightIcon === 'notification' && unreadCount > 0" class="badge">
+            {{ unreadCount > 99 ? '99+' : unreadCount }}
           </view>
-        </view>
-        <view v-if="showSetting" class="nav-icon-btn" @tap="goToProfile">
-          <Setting theme="outline" size="24" fill="#ffffff" />
         </view>
       </slot>
     </view>
@@ -25,9 +32,7 @@
 </template>
 
 <script setup>
-import { Remind, Setting } from '@icon-park/vue-next'
-
-const props = defineProps({
+defineProps({
   title: {
     type: String,
     default: ''
@@ -36,11 +41,16 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  showNotification: {
+  showBack: {
     type: Boolean,
     default: false
   },
-  showSetting: {
+  rightIcon: {
+    type: String,
+    default: '',
+    validator: (value) => ['', 'search', 'notification', 'settings', 'filter'].includes(value)
+  },
+  leftCustom: {
     type: Boolean,
     default: false
   },
@@ -50,12 +60,15 @@ const props = defineProps({
   }
 })
 
-function goToMessage() {
-  uni.navigateTo({ url: '/pages/message/index' })
+const emit = defineEmits(['back', 'rightClick'])
+
+function goBack() {
+  emit('back')
+  uni.navigateBack()
 }
 
-function goToProfile() {
-  uni.navigateTo({ url: '/pages/profile/index' })
+function onRightClick() {
+  emit('rightClick')
 }
 </script>
 
@@ -64,7 +77,14 @@ function goToProfile() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20rpx 24rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  padding: 0 24rpx;
+  background: #FFFFFF;
+  flex-shrink: 0;
+}
+
+.nav-bar--brand {
   background: linear-gradient(180deg, #2B6DE8 0%, #3B77EA 100%);
 }
 
@@ -74,29 +94,50 @@ function goToProfile() {
   gap: 16rpx;
 }
 
-.logo-badge {
-  width: 72rpx;
-  height: 72rpx;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 16rpx;
+.nav-left-brand {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.back-btn {
+  width: 48rpx;
+  height: 48rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.1);
+}
+
+.back-icon {
+  width: 48rpx;
+  height: 48rpx;
+}
+
+.logo-badge {
+  width: 56rpx;
+  height: 56rpx;
+  background: #2B6DE8;
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logo-text {
-  font-size: 32rpx;
+  font-size: 28rpx;
   font-weight: 700;
-  color: #2B6DE8;
+  color: #FFFFFF;
   letter-spacing: 2rpx;
 }
 
 .nav-title {
   font-size: 34rpx;
   font-weight: 600;
+  color: #333333;
+}
+
+.nav-bar--brand .nav-title {
   color: #FFFFFF;
-  letter-spacing: 2rpx;
 }
 
 .nav-right {
@@ -111,33 +152,28 @@ function goToProfile() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.15);
+  background: #F5F5F5;
   border-radius: 50%;
   position: relative;
-  transition: all 0.2s ease;
 }
 
 .nav-icon-btn:active {
-  background: rgba(255, 255, 255, 0.25);
+  opacity: 0.8;
   transform: scale(0.95);
 }
 
-.notification-badge {
+.badge {
   position: absolute;
   top: 4rpx;
   right: 4rpx;
   min-width: 28rpx;
   height: 28rpx;
-  background: #FF4D4F;
+  background: #EF4444;
   border-radius: 14rpx;
   padding: 0 8rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2rpx solid #2B6DE8;
-}
-
-.badge-text {
   font-size: 18rpx;
   font-weight: 600;
   color: #FFFFFF;
