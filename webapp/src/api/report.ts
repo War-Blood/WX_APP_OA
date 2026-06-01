@@ -83,6 +83,6 @@ export function getReviewList(params: {
 }
 
 /** 审核日报(通过/驳回) */
-export function reviewAction(id: string, action: 'approve' | 'reject', note?: string): Promise<{ status: string }> {
-  return request.post('/project/reviewAction', { id, action, note })
+export function reviewAction(id: string, action: 'approve' | 'reject', opinion?: string): Promise<{ status: string }> {
+  return request.post('/project/reviewAction', { id, action, opinion })
 }
