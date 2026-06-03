@@ -55,3 +55,8 @@ export function approveUser(userId: string): Promise<{ userId: string; status: s
 export function setUserPassword(userId: string, password: string): Promise<{ userId: string }> {
   return request.post('/admin/setPassword', { userId, password })
 }
+
+/** 删除用户（管理员，软删除） */
+export function deleteUser(userId: string): Promise<{ userId: string; deleted: boolean }> {
+  return request.post('/admin/deleteUser', { userId })
+}

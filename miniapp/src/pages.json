@@ -5,33 +5,41 @@
       "style": {
         "navigationBarTitleText": "登录",
         "navigationStyle": "custom",
-        "navigationBarBackgroundColor": "#2B6DE8",
-        "navigationBarTextStyle": "white"
+        "componentPlaceholder": {}
       }
     },
     {
       "path": "pages/home/index",
       "style": {
         "navigationBarTitleText": "工作台",
-        "navigationBarBackgroundColor": "#2B6DE8",
-        "navigationBarTextStyle": "white",
-        "enablePullDownRefresh": true
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": true,
+        "componentPlaceholder": {
+          "nav-bar": "view",
+          "tab-bar": "view"
+        }
       }
     },
     {
       "path": "pages/features/index",
       "style": {
         "navigationBarTitleText": "功能中心",
-        "navigationBarBackgroundColor": "#2B6DE8",
-        "navigationBarTextStyle": "white"
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view",
+          "tab-bar": "view"
+        }
       }
     },
     {
       "path": "pages/profile/index",
       "style": {
         "navigationBarTitleText": "个人中心",
-        "navigationBarBackgroundColor": "#2B6DE8",
-        "navigationBarTextStyle": "white"
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view",
+          "tab-bar": "view"
+        }
       }
     },
     {
@@ -39,11 +47,170 @@
       "style": {
         "navigationBarTitleText": "审批中心",
         "navigationStyle": "custom",
-        "navigationBarBackgroundColor": "#FFFFFF",
-        "navigationBarTextStyle": "black"
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/approval/detail",
+      "style": {
+        "navigationBarTitleText": "审批详情",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/approval/create/index",
+      "style": {
+        "navigationBarTitleText": "发起审批",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view",
+          "approval-type-picker": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/employee/report-history/index",
+      "style": {
+        "navigationBarTitleText": "日报历史",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/employee/report-detail/index",
+      "style": {
+        "navigationBarTitleText": "日报详情",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/employee/report-edit/index",
+      "style": {
+        "navigationBarTitleText": "写日报",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view",
+          "date-picker": "view",
+          "image-uploader": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/employee/rejected-edit/index",
+      "style": {
+        "navigationBarTitleText": "编辑日报",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/admin/review-list/index",
+      "style": {
+        "navigationBarTitleText": "审核管理",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/admin/review-detail/index",
+      "style": {
+        "navigationBarTitleText": "审核详情",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view",
+          "opinion-input": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/admin/review-reject/index",
+      "style": {
+        "navigationBarTitleText": "驳回填写",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/message/index/index",
+      "style": {
+        "navigationBarTitleText": "消息中心",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/message/detail",
+      "style": {
+        "navigationBarTitleText": "消息详情",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
+      "path": "pages/settings/notification/index",
+      "style": {
+        "navigationBarTitleText": "消息通知",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/settings/security/index",
+      "style": {
+        "navigationBarTitleText": "账号安全",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/settings/help/index",
+      "style": {
+        "navigationBarTitleText": "帮助反馈",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/settings/about/index",
+      "style": {
+        "navigationBarTitleText": "关于我们",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
       }
     }
   ],
+  "tabBar": {
+    "custom": true,
+    "color": "#B0B0B0",
+    "selectedColor": "#2B6DE8",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "工作台" },
+      { "pagePath": "pages/features/index", "text": "功能" },
+      { "pagePath": "pages/profile/index", "text": "我的" }
+    ]
+  },
   "globalStyle": {
     "navigationBarTextStyle": "white",
     "navigationBarBackgroundColor": "#2B6DE8",

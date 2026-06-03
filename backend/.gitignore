@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+logs/
+
+# Uploads
+uploads/*.xlsx
+uploads/*.jpg
+uploads/*.png
+uploads/*.pdf
+
+# Coverage
+coverage/
+
+# Build dist
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# Temp
+tmp/
+temp/

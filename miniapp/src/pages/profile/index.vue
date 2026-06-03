@@ -28,8 +28,12 @@
             :hover-stay-time="100"
             @tap="goToStat(stat)"
           >
-            <text class="stat-value" :style="{ color: stat.color }">{{ stat.value }}</text>
-            <text class="stat-label">{{ stat.label }}</text>
+            <view class="stat-num-box">
+              <text class="stat-num" :style="{ color: stat.color }">{{ stat.value ?? 0 }}</text>
+            </view>
+            <view class="stat-label-box">
+              <text class="stat-label">{{ stat.label }}</text>
+            </view>
           </view>
         </view>
       </view>
@@ -45,7 +49,7 @@
             @tap="goToSetting(item)"
           >
             <view class="setting-icon" :style="{ backgroundColor: item.iconBg }">
-              <uni-icons :type="getSettingIcon(item.icon)" size="36" :color="item.iconColor" />
+              <image class="setting-icon-img" :src="item.iconSrc" mode="aspectFit" />
             </view>
             <text class="setting-label">{{ item.label }}</text>
             <view class="setting-right">
@@ -54,6 +58,13 @@
             </view>
           </view>
         </view>
+      </view>
+
+      <view class="section">
+        <button class="invite-btn" open-type="share" hover-class="invite-btn-hover">
+          <image class="invite-icon" src="/static/icons/invite.svg" mode="aspectFit" />
+          <text class="invite-text">邀请同事</text>
+        </button>
       </view>
 
       <view class="section">
@@ -82,23 +93,24 @@ const roleLabel = computed(() => {
 })
 
 const stats = ref([
-  { key: 'pending', label: '待审批', value: 3, color: '#2B6DE8', route: '/pages/approval/index' },
-  { key: 'submit', label: '待提交', value: 1, color: '#F59E0B', route: '/pages/employee/report-history/index' },
-  { key: 'processed', label: '已处理', value: 28, color: '#22C55E', route: '' },
-  { key: 'unread', label: '待阅读', value: 5, color: '#6366F1', route: '/pages/message/index' }
+  { key: 'pending', label: '待审批', value: 0, color: '#2B6DE8', route: '/pages/approval/index/index' },
+  { key: 'submit', label: '待提交', value: 0, color: '#F59E0B', route: '/pages/employee/report-edit/index' },
+  { key: 'processed', label: '已处理', value: 0, color: '#22C55E', route: '' },
+  { key: 'unread', label: '待阅读', value: 0, color: '#6366F1', route: '/pages/message/index/index' }
 ])
+
+const SET = '/static/icons/set-'
 
 const settingsList = computed(() => {
   const common = [
-    { icon: 'notification', label: '消息通知设置', iconBg: '#F0F0FF', iconColor: '#6366F1', route: 'notification' },
-    { icon: 'locked', label: '账号安全', iconBg: '#FFF0F0', iconColor: '#EF4444', route: 'security' },
-    { icon: 'trash', label: '缓存清理', value: '12.5MB', iconBg: '#E6F7FF', iconColor: '#2B6DE8', route: 'cache' },
-    { icon: 'help', label: '帮助与反馈', iconBg: '#F0FDF4', iconColor: '#22C55E', route: 'help' },
-    { icon: 'info', label: '关于我们', value: 'v1.0.0', iconBg: '#F5F5F5', iconColor: '#999999', route: 'about' }
+    { label: '消息通知', iconSrc: `${SET}notification.svg`, iconBg: '#F0F0FF', route: '/pages/settings/notification/index' },
+    { label: '账号安全', iconSrc: `${SET}shield.svg`, iconBg: '#FFF0F0', route: '/pages/settings/security/index' },
+    { label: '帮助反馈', iconSrc: `${SET}help.svg`, iconBg: '#F0FDF4', route: '/pages/settings/help/index' },
+    { label: '关于我们', value: 'v1.0.0', iconSrc: `${SET}info.svg`, iconBg: '#F5F5F5', route: '/pages/settings/about/index' }
   ]
   if (userStore.isAdmin) {
     return [
-      { icon: 'person', label: '用户管理', iconBg: '#EDF2FF', iconColor: '#2B6DE8', route: 'user-manage' },
+      { label: '用户管理', iconSrc: `${SET}person.svg`, iconBg: '#EDF2FF', route: '/pages/admin/review-list/index' },
       ...common
     ]
   }
@@ -123,37 +135,27 @@ async function loadStats() {
 
     const data = statsRes.data
     const unreadCount = unreadRes.data?.count || 0
+    console.log('[Profile] statsRes.data:', JSON.stringify(data))
+    console.log('[Profile] submitCount:', data.submitCount)
 
     if (role === 'admin') {
       stats.value = [
-        { key: 'pending', label: '待审批', value: data.pendingCount, color: '#2B6DE8', route: '/pages/approval/index' },
-        { key: 'review', label: '待审核', value: data.reviewCount, color: '#F59E0B', route: '/pages/admin/review-list/index' },
-        { key: 'processed', label: '已处理', value: data.processedCount, color: '#22C55E', route: '' },
-        { key: 'unread', label: '待阅读', value: unreadCount, color: '#6366F1', route: '/pages/message/index' }
+        { key: 'pending', label: '待审批', value: data.pendingCount || 0, color: '#2B6DE8', route: '/pages/approval/index/index' },
+        { key: 'review', label: '待审核', value: data.reviewCount || 0, color: '#F59E0B', route: '/pages/admin/review-list/index' },
+        { key: 'processed', label: '已处理', value: data.processedCount || 0, color: '#22C55E', route: '' },
+        { key: 'unread', label: '待阅读', value: unreadCount || 0, color: '#6366F1', route: '/pages/message/index/index' }
       ]
     } else {
       stats.value = [
-        { key: 'pending', label: '待审批', value: data.pendingCount, color: '#2B6DE8', route: '/pages/approval/index' },
-        { key: 'submit', label: '待提交', value: data.submitCount, color: '#F59E0B', route: '/pages/employee/report-history/index' },
-        { key: 'processed', label: '已处理', value: data.processedCount, color: '#22C55E', route: '' },
-        { key: 'unread', label: '待阅读', value: unreadCount, color: '#6366F1', route: '/pages/message/index' }
+        { key: 'pending', label: '待审批', value: data.pendingCount || 0, color: '#2B6DE8', route: '/pages/approval/index/index' },
+        { key: 'submit', label: '待提交', value: data.submitCount || 0, color: '#F59E0B', route: '/pages/employee/report-history/index' },
+        { key: 'processed', label: '已处理', value: data.processedCount || 0, color: '#22C55E', route: '' },
+        { key: 'unread', label: '待阅读', value: unreadCount || 0, color: '#6366F1', route: '/pages/message/index/index' }
       ]
     }
   } catch (err) {
     // 保持默认值
   }
-}
-
-function getSettingIcon(name) {
-  const map = {
-    notification: 'notification',
-    locked: 'locked',
-    trash: 'trash',
-    help: 'help',
-    info: 'info',
-    person: 'person'
-  }
-  return map[name] || 'help'
 }
 
 function editProfile() {
@@ -169,7 +171,7 @@ function goToStat(stat) {
 }
 
 function goToSetting(item) {
-  uni.showToast({ title: '功能待开发', icon: 'none' })
+  if (item.route) uni.navigateTo({ url: item.route })
 }
 
 function handleLogout() {
@@ -183,18 +185,24 @@ function handleLogout() {
     }
   })
 }
+
+// 微信分享 — 邀请同事
+import { onShareAppMessage } from '@dcloudio/uni-app'
+
+onShareAppMessage(() => {
+  return {
+    title: '智慧办公助手 — 高效协同，一手掌握',
+    path: '/pages/login/index',
+    imageUrl: ''
+  }
+})
 </script>
 
 <style lang="scss" scoped>
 @import '@/uni.scss';
 
 .page {
-  width: 100%;
-  height: 100vh;
-  background: $bg-color;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  width: 100%; height: 100vh; background: #F7F7F7; display: flex; flex-direction: column; overflow: hidden;
 }
 
 .content {
@@ -289,7 +297,7 @@ function handleLogout() {
 /* === Stats Row === */
 .stats-row {
   background: $bg-card;
-  border-radius: 20rpx;
+  border-radius: 16rpx;
   padding: 28rpx 0;
   display: flex;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
@@ -300,8 +308,9 @@ function handleLogout() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8rpx;
+  gap: 4rpx;
   border-right: 1rpx solid #F0F0F0;
+  padding: 8rpx 0;
 }
 
 .stat-item:last-child {
@@ -313,10 +322,29 @@ function handleLogout() {
   border-radius: 12rpx;
 }
 
-.stat-value {
+.stat-num-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48rpx;
+}
+
+.stat-num {
   font-size: 40rpx;
   font-weight: 700;
   line-height: 1.2;
+}
+
+.stat-label-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-label {
+  font-size: 22rpx;
+  color: #999999;
+  line-height: 1.3;
 }
 
 .stat-label {
@@ -328,7 +356,7 @@ function handleLogout() {
 /* === Settings List === */
 .settings-list {
   background: $bg-card;
-  border-radius: 20rpx;
+  border-radius: 16rpx;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
 }
 
@@ -336,7 +364,7 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 20rpx;
-  padding: 24rpx 28rpx;
+  padding: 24rpx;
   border-bottom: 1rpx solid #F5F5F5;
 }
 
@@ -357,6 +385,7 @@ function handleLogout() {
   justify-content: center;
   flex-shrink: 0;
 }
+.setting-icon-img { width: 40rpx; height: 40rpx; }
 
 .setting-label {
   flex: 1;
@@ -384,11 +413,31 @@ function handleLogout() {
   line-height: 1;
 }
 
+/* === Invite Button === */
+.invite-btn {
+  width: 100%;
+  height: 88rpx;
+  background: $bg-card;
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+  border: none;
+  padding: 0;
+  line-height: 88rpx;
+}
+.invite-btn::after { border: none; }
+.invite-btn-hover { background: #EDF2FF; }
+.invite-icon { width: 36rpx; height: 36rpx; }
+.invite-text { font-size: 30rpx; color: $primary-color; font-weight: 500; }
+
 /* === Logout Button (C类) === */
 .logout-btn {
   height: 88rpx;
   background: $bg-card;
-  border-radius: 20rpx;
+  border-radius: 16rpx;
   display: flex;
   align-items: center;
   justify-content: center;

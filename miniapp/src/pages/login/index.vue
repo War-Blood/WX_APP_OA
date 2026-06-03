@@ -1,45 +1,29 @@
 <template>
-  <view class="login-page">
-    <view class="hero-section">
-      <view class="logo-wrapper">
-        <view class="logo-icon">
-          <text class="logo-text">OA</text>
-        </view>
+  <view class="login-page" :style="{ paddingTop: statusBarHeight + 'px' }">
+    <!-- Spacer: 200px from Ardot Status bottom (62px total status area - 44px native = 18px extra) -->
+    <view class="top-spacer" />
+
+    <!-- Logo centered: 80×80 white square + title + slogan -->
+    <view class="logo-section">
+      <view class="logo-box" @tap="devKnock">
+        <text class="logo-oa">OA</text>
       </view>
       <text class="app-name">智慧办公助手</text>
       <text class="slogan">轻量化办公 · 高效能协作</text>
     </view>
 
-    <view class="feature-section">
-      <view class="feature-card" v-for="(item, index) in features" :key="index">
-        <view class="feature-icon" :style="{ background: item.bg }">
-          <OaIcon :name="item.icon" size="36" />
-        </view>
-        <text class="feature-title">{{ item.title }}</text>
-        <text class="feature-desc">{{ item.desc }}</text>
-      </view>
-    </view>
-
+    <!-- Bottom actions: fills remaining, aligned to bottom -->
     <view class="action-section">
-      <button class="login-btn" @tap="handleLogin" :loading="isLogging">
-        <text class="login-btn-text">微信一键登录</text>
-      </button>
-
-      <view class="dev-skip" @tap="handleDevLogin">
-        <text class="dev-skip-text">跳过登录，进入首页 ›</text>
+      <view class="login-btn" @tap="handleLogin" :class="{ 'login-btn--loading': isLogging }">
+        <text class="login-text">{{ isLogging ? '登录中...' : '微信一键登录' }}</text>
       </view>
 
-      <view class="agreement">
-        <label class="agreement-checkbox" @tap="toggleAgreement">
-          <view :class="['checkbox-box', { checked: agreed }]">
-            <text v-if="agreed" class="checkbox-tick">✓</text>
-          </view>
-        </label>
+      <view class="agreement" @tap="toggleAgreement">
+        <view :class="['checkbox', { checked: agreed }]">
+          <text v-if="agreed" class="check-tick">✓</text>
+        </view>
         <text class="agreement-text">
-          登录即同意
-          <text class="agreement-link">《用户协议》</text>
-          和
-          <text class="agreement-link">《隐私政策》</text>
+          登录即同意<text class="agreement-link">《用户协议》</text>和<text class="agreement-link">《隐私政策》</text>
         </text>
       </view>
     </view>
@@ -47,270 +31,165 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { authApi } from '@/services/modules/auth'
 
+const statusBarHeight = ref(0)
 const agreed = ref(false)
 const isLogging = ref(false)
+// 开发后门：连击 logo 5 次，仅 dev 生效；生产构建 process.env.NODE_ENV 为 production，条件编译移除
+const devTapCount = ref(0)
+let devTapTimer = null
 
-const features = [
-  {
-    icon: 'approval',
-    title: '审批管理',
-    desc: '流程审批，高效流转',
-    bg: 'linear-gradient(135deg, #EDF2FF 0%, #D6E4FF 100%)'
-  },
-  {
-    icon: 'report',
-    title: '日报提交',
-    desc: '工作报告，一键提交',
-    bg: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)'
-  },
-  {
-    icon: 'notification',
-    title: '消息通知',
-    desc: '实时提醒，及时处理',
-    bg: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)'
+ // #ifdef MP-WEIXIN
+const isQywx = typeof wx.qy !== 'undefined'
+ // #endif
+ // #ifndef MP-WEIXIN
+const isQywx = false
+ // #endif
+
+onMounted(() => {
+  const sys = uni.getSystemInfoSync()
+  statusBarHeight.value = sys.statusBarHeight || 44
+})
+
+function devKnock() {
+  // #ifndef PRODUCTION
+  devTapCount.value++
+  clearTimeout(devTapTimer)
+  if (devTapCount.value >= 5) {
+    devTapCount.value = 0
+    showDevRolePicker()
+    return
   }
-]
-
-function toggleAgreement() {
-  agreed.value = !agreed.value
+  devTapTimer = setTimeout(() => { devTapCount.value = 0 }, 2000)
+  // #endif
 }
 
-function goHome() {
-  uni.redirectTo({ url: '/pages/home/index' })
-}
+function toggleAgreement() { agreed.value = !agreed.value }
 
-function handleDevLogin() {
-  uni.setStorageSync('token', 'dev-mode-token')
-  uni.setStorageSync('userInfo', {
-    nickName: '开发用户',
-    avatarUrl: '',
-    role: 'employee',
-    department: '技术部'
+function goHome() { uni.switchTab({ url: '/pages/home/index' }) }
+
+function showDevRolePicker() {
+  uni.showActionSheet({
+    itemList: ['员工模式', '管理员模式'],
+    success: (res) => {
+      const roleConfig = [
+        { role: 'employee', nickName: '开发用户(员工)', department: '技术部' },
+        { role: 'admin', nickName: '开发用户(管理员)', department: '管理部' }
+      ]
+      const config = roleConfig[res.tapIndex]
+      uni.setStorageSync('token', 'dev-mode-token')
+      uni.setStorageSync('userInfo', {
+        nickName: config.nickName, avatarUrl: '', role: config.role, department: config.department
+      })
+      goHome()
+    }
   })
-  goHome()
 }
 
 async function handleLogin() {
-  if (!agreed.value) {
-    uni.showToast({
-      title: '请先阅读并同意协议',
-      icon: 'none'
-    })
-    return
-  }
-
+  if (!agreed.value) { uni.showToast({ title: '请先阅读并同意协议', icon: 'none' }); return }
   isLogging.value = true
   try {
-    const { code } = await uni.login({ provider: 'weixin' })
-    const res = await uni.request({
-      url: 'https://warblood.online/api/auth/login',
-      method: 'POST',
-      data: { code }
-    })
+    let res
+    if (isQywx) {
+      const qywxCode = await new Promise((resolve, reject) => {
+        wx.qy.login({ success: (r) => resolve(r.code), fail: reject })
+      })
+      res = await authApi.qywxLogin(qywxCode)
+    } else {
+      const { code } = await uni.login({ provider: 'weixin' })
+      res = await authApi.login(code)
+    }
     if (res.data?.token) {
       uni.setStorageSync('token', res.data.token)
-      uni.setStorageSync('userInfo', res.data.userInfo)
+      uni.setStorageSync('userInfo', res.data.user)
       goHome()
-    } else {
-      uni.showToast({ title: '登录失败，请重试', icon: 'none' })
+      // 首次登录无昵称，弹窗设置
+      if (!res.data.user?.nickname) {
+        setTimeout(() => askNickname(), 500)
+      }
     }
-  } catch {
-    uni.showToast({ title: '网络异常，请稍后重试', icon: 'none' })
-  } finally {
-    isLogging.value = false
-  }
+  } catch (err) {
+    if (err?.message) {
+      uni.showToast({ title: err.message, icon: 'none' })
+    }
+  } finally { isLogging.value = false }
+}
+
+async function askNickname() {
+  uni.showModal({
+    title: '设置昵称',
+    content: '请输入您的姓名，方便同事识别',
+    editable: true,
+    placeholderText: '请输入真实姓名',
+    success: async (modalRes) => {
+      if (modalRes.confirm && modalRes.content?.trim()) {
+        try {
+          await authApi.updateProfile({ nickname: modalRes.content.trim() })
+          const info = uni.getStorageSync('userInfo') || {}
+          info.nickname = modalRes.content.trim()
+          uni.setStorageSync('userInfo', info)
+          uni.showToast({ title: '昵称设置成功', icon: 'success' })
+        } catch { uni.showToast({ title: '设置失败，稍后在个人中心修改', icon: 'none' }) }
+      }
+    }
+  })
 }
 </script>
 
 <style lang="scss" scoped>
 .login-page {
-  min-height: 100vh;
-  background: #FFFFFF;
-  display: flex;
-  flex-direction: column;
+  width: 100%; height: 100vh; display: flex; flex-direction: column; align-items: center;
+  background: linear-gradient(180deg, #144EC2 0%, #3373EB 100%);
+  overflow: hidden;
 }
 
-.hero-section {
-  background: linear-gradient(180deg, #2B6DE8 0%, #3B77EA 52%, #5B8DF0 100%);
-  border-radius: 0 0 48rpx 48rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 120rpx;
-  padding-bottom: 80rpx;
+/* Spacer: Ardot from Status(62px)→Logo(262px) = 200px */
+.top-spacer {
+  height: 400rpx;
+  flex-shrink: 0;
 }
 
-.logo-wrapper {
-  width: 140rpx;
-  height: 140rpx;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 36rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8rpx 32rpx rgba(43, 109, 232, 0.3);
-  margin-bottom: 28rpx;
+/* Logo: 80×80 white, 20px radius, blue "OA" text */
+.logo-section {
+  display: flex; flex-direction: column; align-items: center; gap: 36rpx; flex-shrink: 0;
 }
-
-.logo-icon {
-  width: 104rpx;
-  height: 104rpx;
-  background: linear-gradient(135deg, #2B6DE8 0%, #5B8DF0 100%);
-  border-radius: 24rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.logo-box {
+  width: 160rpx; height: 160rpx; background: #FFFFFF; border-radius: 40rpx;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 16rpx 56rpx rgba(13, 46, 148, 0.45);
 }
+.logo-oa { font-size: 60rpx; font-weight: 700; color: #1B5AD0; }
+.app-name { font-size: 52rpx; font-weight: 700; color: #FFFFFF; letter-spacing: 4rpx; }
+.slogan { font-size: 28rpx; color: rgba(255, 255, 255, 0.9); letter-spacing: 2rpx; }
 
-.logo-text {
-  font-size: 44rpx;
-  font-weight: 700;
-  color: #FFFFFF;
-  letter-spacing: 4rpx;
-}
-
-.app-name {
-  font-size: 40rpx;
-  font-weight: 700;
-  color: #FFFFFF;
-  letter-spacing: 2rpx;
-  margin-bottom: 10rpx;
-}
-
-.slogan {
-  font-size: 26rpx;
-  color: rgba(255, 255, 255, 0.85);
-  letter-spacing: 4rpx;
-}
-
-.feature-section {
-  display: flex;
-  gap: 20rpx;
-  padding: 0 32rpx;
-  margin-top: -36rpx;
-  margin-bottom: 48rpx;
-  z-index: 1;
-}
-
-.feature-card {
-  flex: 1;
-  background: #FFFFFF;
-  border-radius: 20rpx;
-  padding: 28rpx 16rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
-}
-
-.feature-icon {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 20rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 16rpx;
-}
-
-.feature-title {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #333333;
-  margin-bottom: 6rpx;
-}
-
-.feature-desc {
-  font-size: 22rpx;
-  color: #999999;
-}
-
+/* Bottom: fills remaining space, items aligned to bottom */
 .action-section {
-  padding: 0 48rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-top: auto;
-  padding-bottom: 60rpx;
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  padding-bottom: 80rpx; gap: 36rpx; width: 100%;
 }
 
+/* Button: 311×52px, white 0.96, 26px radius, blue #1B5AD0 */
 .login-btn {
-  width: 100%;
-  height: 96rpx;
-  background: linear-gradient(135deg, #2B6DE8 0%, #5B8DF0 100%);
-  border-radius: 48rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12rpx;
-  box-shadow: 0 8rpx 32rpx rgba(43, 109, 232, 0.35);
-  border: none;
-  margin-bottom: 20rpx;
+  width: 622rpx; height: 104rpx; background: rgba(255, 255, 255, 0.96); border-radius: 52rpx;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8rpx 32rpx rgba(13, 46, 148, 0.35);
+  transition: opacity 0.2s;
 }
+.login-btn:active { opacity: 0.85; }
+.login-btn--loading { opacity: 0.7; }
+.login-text { font-size: 34rpx; font-weight: 600; color: #1B5AD0; letter-spacing: 2rpx; }
 
-.login-btn::after {
-  border: none;
+/* Agreement: 16×16 checkbox, 8px radius, white text */
+.agreement { display: flex; align-items: center; gap: 16rpx; }
+.checkbox {
+  width: 32rpx; height: 32rpx; border-radius: 16rpx; border: 2rpx solid rgba(255, 255, 255, 0.5);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-
-.login-btn-text {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #FFFFFF;
-  letter-spacing: 2rpx;
-}
-
-.dev-skip {
-  margin-bottom: 32rpx;
-}
-
-.dev-skip-text {
-  font-size: 26rpx;
-  color: #2B6DE8;
-  letter-spacing: 1rpx;
-}
-
-.agreement {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-}
-
-.agreement-checkbox {
-  display: flex;
-  align-items: center;
-}
-
-.checkbox-box {
-  width: 30rpx;
-  height: 30rpx;
-  border-radius: 50%;
-  border: 2rpx solid #D0D5DD;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.checkbox-box.checked {
-  background: #2B6DE8;
-  border-color: #2B6DE8;
-}
-
-.checkbox-tick {
-  font-size: 18rpx;
-  color: #FFFFFF;
-  font-weight: 700;
-}
-
-.agreement-text {
-  font-size: 24rpx;
-  color: #999999;
-}
-
-.agreement-link {
-  color: #2B6DE8;
-}
+.checkbox.checked { background: #FFFFFF; border-color: #FFFFFF; }
+.check-tick { font-size: 20rpx; color: #1B5AD0; font-weight: 700; }
+.agreement-text { font-size: 24rpx; color: rgba(255, 255, 255, 0.9); }
+.agreement-link { color: #FFFFFF; text-decoration: underline; }
 </style>

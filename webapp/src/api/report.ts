@@ -86,3 +86,20 @@ export function getReviewList(params: {
 export function reviewAction(id: string, action: 'approve' | 'reject', opinion?: string): Promise<{ status: string }> {
   return request.post('/project/reviewAction', { id, action, opinion })
 }
+
+/** 删除日报 */
+export function deleteReport(id: string): Promise<void> {
+  return request.post('/report/delete', { id })
+}
+
+export interface WorkerStatItem {
+  name: string
+  total: number
+  monthCount: number
+  lastDate: string
+}
+
+/** 人员统计看板 */
+export function getWorkerStats(params: { page?: number; pageSize?: number; keyword?: string }): Promise<{ total: number; list: WorkerStatItem[] }> {
+  return request.post('/report/workerStats', params)
+}

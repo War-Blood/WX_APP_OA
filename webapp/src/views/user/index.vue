@@ -2,7 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { getUserList, setAdminRole, toggleUserStatus, createUser, approveUser, type UserItem } from '@/api/user'
+import { getUserList, setAdminRole, toggleUserStatus, createUser, approveUser, deleteUser, type UserItem } from '@/api/user'
+import request from '@/utils/request'
 
 // 搜索与筛选
 const keyword = ref('')
@@ -20,6 +21,11 @@ const pageSize = ref(20)
 const createVisible = ref(false)
 const createLoading = ref(false)
 const createForm = ref({ openid: '', userName: '', department: '', role: 'employee' })
+
+// 邀请用户弹窗（直接激活）
+const inviteVisible = ref(false)
+const inviteLoading = ref(false)
+const inviteForm = ref({ openid: '', userName: '', department: '' })
 
 // 角色选项
 const roleOptions = [
@@ -76,6 +82,19 @@ async function handleToggleStatus(row: UserItem) {
   } catch { /* cancel */ }
 }
 
+async function handleDelete(row: UserItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除「${row.nickName}」吗？此操作不可撤销！`,
+      '删除用户',
+      { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'error' }
+    )
+    await deleteUser(row.userId)
+    ElMessage.success('已删除')
+    loadUsers()
+  } catch { /* cancel */ }
+}
+
 async function handleApprove(row: UserItem) {
   try {
     await ElMessageBox.confirm(`确定审核通过「${row.nickName}」吗？审核通过后用户即可登录使用。`, '审核用户', { confirmButtonText: '确定通过', cancelButtonText: '取消', type: 'success' })
@@ -95,6 +114,19 @@ async function handleCreateUser() {
     loadUsers()
   } catch { /* error handled by interceptor */ }
   finally { createLoading.value = false }
+}
+
+async function handleInviteUser() {
+  if (!inviteForm.value.openid.trim()) { ElMessage.warning('请填写微信 OpenID'); return }
+  inviteLoading.value = true
+  try {
+    await request.post('/admin/inviteUser', inviteForm.value)
+    ElMessage.success('用户已邀请成功，即刻激活')
+    inviteVisible.value = false
+    inviteForm.value = { openid: '', userName: '', department: '' }
+    loadUsers()
+  } catch { /* error handled by interceptor */ }
+  finally { inviteLoading.value = false }
 }
 
 function getRoleTagType(role: string) {
@@ -136,6 +168,7 @@ onMounted(() => { loadUsers() })
       </div>
       <div class="toolbar-right">
         <el-button type="primary" :icon="Plus" @click="createVisible = true">注册新用户</el-button>
+        <el-button type="success" :icon="Plus" @click="inviteVisible = true">邀请用户</el-button>
         <el-button :icon="Refresh" @click="loadUsers">刷新</el-button>
       </div>
     </div>
@@ -160,8 +193,7 @@ onMounted(() => { loadUsers() })
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
           <template v-if="row.status === 'pending'">
-            <el-button size="small" type="success" link @click="handleApprove(row)">审核通过</el-button>
-            <el-button size="small" type="danger" link @click="handleToggleStatus(row)">拒绝</el-button>
+            <el-button size="small" type="warning" plain disabled>已自动激活</el-button>
           </template>
           <template v-else>
             <el-button v-if="row.role !== 'superadmin'" size="small" :type="row.role === 'admin' ? 'warning' : 'primary'" link @click="handleRoleSwitch(row)">
@@ -169,6 +201,9 @@ onMounted(() => { loadUsers() })
             </el-button>
             <el-button size="small" :type="row.status === 'active' ? 'danger' : 'success'" link @click="handleToggleStatus(row)">
               {{ row.status === 'active' ? '禁用' : '启用' }}
+            </el-button>
+            <el-button size="small" type="danger" link @click="handleDelete(row)">
+              删除
             </el-button>
           </template>
         </template>
@@ -183,9 +218,14 @@ onMounted(() => { loadUsers() })
 
     <!-- 创建用户弹窗 -->
     <el-dialog v-model="createVisible" title="注册新用户" width="480px" destroy-on-close>
+      <el-alert type="info" :closable="false" style="margin-bottom:16px">
+        <template #title>
+          用户打开小程序即自动注册激活，无需手动审核。<br/>管理员可在此预注册用户并指定角色和部门。
+        </template>
+      </el-alert>
       <el-form :model="createForm" label-width="80px">
         <el-form-item label="微信OpenID" required>
-          <el-input v-model="createForm.openid" placeholder="用户微信小程序的 OpenID" />
+          <el-input v-model="createForm.openid" placeholder="仅在需要提前注册时填写" />
         </el-form-item>
         <el-form-item label="姓名">
           <el-input v-model="createForm.userName" placeholder="用户姓名（可选）" />
@@ -199,16 +239,38 @@ onMounted(() => { loadUsers() })
             <el-option label="财务部" value="财务部" />
           </el-select>
         </el-form-item>
-        <el-form-item label="角色">
-          <el-select v-model="createForm.role" style="width:100%">
-            <el-option label="员工" value="employee" />
-            <el-option label="管理员" value="admin" />
-          </el-select>
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
         <el-button type="primary" :loading="createLoading" @click="handleCreateUser">注册</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 邀请用户弹窗（直接激活，跳过审核） -->
+    <el-dialog v-model="inviteVisible" title="邀请用户" width="480px" destroy-on-close>
+      <el-alert type="success" :closable="false" style="margin-bottom:16px">
+        <template #title>邀请后用户即刻激活，无需等待审核。需要用户的微信 OpenID。</template>
+      </el-alert>
+      <el-form :model="inviteForm" label-width="80px">
+        <el-form-item label="微信OpenID" required>
+          <el-input v-model="inviteForm.openid" placeholder="填写用户的微信 OpenID" />
+        </el-form-item>
+        <el-form-item label="姓名">
+          <el-input v-model="inviteForm.userName" placeholder="用户姓名" />
+        </el-form-item>
+        <el-form-item label="部门">
+          <el-select v-model="inviteForm.department" placeholder="选择部门" style="width:100%">
+            <el-option label="管理部" value="管理部" />
+            <el-option label="技术部" value="技术部" />
+            <el-option label="工程运维部" value="工程运维部" />
+            <el-option label="市场部" value="市场部" />
+            <el-option label="财务部" value="财务部" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="inviteVisible = false">取消</el-button>
+        <el-button type="success" :loading="inviteLoading" @click="handleInviteUser">邀请</el-button>
       </template>
     </el-dialog>
   </div>

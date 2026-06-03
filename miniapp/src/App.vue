@@ -15,7 +15,7 @@ onLaunch(() => {
   const token = uni.getStorageSync('token')
   const pages = getCurrentPages()
   if (token && (!pages.length || pages[0].route === 'pages/login/index')) {
-    uni.redirectTo({ url: '/pages/home/index' })
+    uni.switchTab({ url: '/pages/home/index' })
   }
 })
 
@@ -30,8 +30,6 @@ onShow(() => {
 </script>
 
 <style>
-@import './static/fonts/iconfont.css';
-
 page {
   background-color: #F7F7F7;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;

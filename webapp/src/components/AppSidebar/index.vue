@@ -29,7 +29,7 @@ const menuItems = [
   },
   {
     path: '/report',
-    title: '日报管理',
+    title: '公出日志管理',
     icon: 'Document'
   },
   {

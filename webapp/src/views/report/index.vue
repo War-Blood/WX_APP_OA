@@ -1,227 +1,289 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Refresh, View } from '@element-plus/icons-vue'
-import { getReviewList, reviewAction, getReportDetail, type ReviewItem, type ReportDetail } from '@/api/report'
+import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
+import { getReportStats } from '@/api/stats'
+import { getReportList, getWorkerStats, deleteReport } from '@/api/report'
+import { reviewAction } from '@/api/report'
+import request from '@/utils/request'
 
-const activeTab = ref('pending')
-const keyword = ref('')
+// --- 状态 ---
+const activeTab = ref('query')
 const loading = ref(false)
-const list = ref<ReviewItem[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
+const statsLoading = ref(true)
 
-// Stats
-const stats = ref({ pending: 0, todayReviewed: 0, avgTime: '--' })
+// 统计看板
+const stats = ref({ total: 0, monthCount: 0, pendingCount: 0, approvedCount: 0, approvalRate: '0%', trend: [] })
 
-// Detail dialog
+// 日报查询
+const keyword = ref('')
+const statusFilter = ref('')
+const startDate = ref('')
+const endDate = ref('')
+const reportList = ref<any[]>([])
+const reportTotal = ref(0)
+const reportPage = ref(1)
+const reportPageSize = ref(50)
+
+// 人员看板
+const workerKeyword = ref('')
+const workerList = ref<any[]>([])
+const workerTotal = ref(0)
+const workerPage = ref(1)
+const workerPageSize = ref(20)
+
+// 详情弹窗
 const detailVisible = ref(false)
-const detailLoading = ref(false)
-const detail = ref<ReportDetail | null>(null)
+const detailData = ref<any>({})
 
-const tabs = [
-  { key: 'pending', label: '待审核' },
-  { key: 'approved', label: '已通过' },
-  { key: 'rejected', label: '已驳回' }
+const statusOptions = [
+  { label: '全部', value: '' },
+  { label: '已提交', value: 'submitted' },
+  { label: '待审核', value: 'pending' },
+  { label: '已通过', value: 'approved' },
+  { label: '已驳回', value: 'rejected' },
 ]
 
-async function loadList() {
+const tabItems = [
+  { label: '统计看板', name: 'stats' },
+  { label: '日报查询', name: 'query' },
+  { label: '人员看板', name: 'workers' },
+]
+
+// --- 统计看板 ---
+async function loadStats() {
+  statsLoading.value = true
+  try {
+    const res = await getReportStats()
+    stats.value = res as any
+  } catch { ElMessage.warning('统计加载失败') }
+  finally { statsLoading.value = false }
+}
+
+// --- 日报查询 ---
+async function loadReports() {
   loading.value = true
   try {
-    const res = await getReviewList({
-      status: activeTab.value,
+    const res = await getReportList({
+      page: reportPage.value, pageSize: reportPageSize.value,
       keyword: keyword.value || undefined,
-      page: page.value,
-      pageSize: pageSize.value
+      status: statusFilter.value || undefined,
+      startDate: startDate.value || undefined,
+      endDate: endDate.value || undefined,
     })
-    list.value = res.list
-    total.value = res.total
-    if (res.stats) stats.value = res.stats
-  } catch {
-    list.value = []
-  } finally {
-    loading.value = false
-  }
+    reportList.value = res.list || []
+    reportTotal.value = res.total || 0
+  } catch { reportList.value = [] }
+  finally { loading.value = false }
 }
 
-function switchTab(key: string) {
-  activeTab.value = key
-  page.value = 1
-  loadList()
-}
+function handleSearch() { reportPage.value = 1; loadReports() }
+function handleReportPageChange(p: number) { reportPage.value = p; loadReports() }
 
-function handleSearch() {
-  page.value = 1
-  loadList()
-}
-
-function handlePageChange(p: number) {
-  page.value = p
-  loadList()
-}
-
-async function viewDetail(id: string) {
-  detailVisible.value = true
-  detailLoading.value = true
+async function handleExport() {
   try {
-    detail.value = await getReportDetail(id)
-  } catch {
-    detail.value = null
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-async function handleApprove(row: ReviewItem) {
-  try {
-    await ElMessageBox.confirm(`确定通过「${row.user} - ${row.project}」的日报吗？`, '审核通过', {
-      confirmButtonText: '确定通过', cancelButtonText: '取消', type: 'success'
+    const params: any = {}
+    if (statusFilter.value) params.status = statusFilter.value
+    if (startDate.value) params.startDate = startDate.value
+    if (endDate.value) params.endDate = endDate.value
+    if (keyword.value) params.keyword = keyword.value
+    const token = localStorage.getItem('token') || ''
+    const res = await fetch('/api/report/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(params)
     })
-    await reviewAction(row.id, 'approve')
-    ElMessage.success('审核通过')
-    loadList()
-  } catch { /* cancel */ }
+    if (!res.ok) throw new Error('导出失败')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'report.csv'
+    a.click(); URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch { ElMessage.error('导出失败') }
 }
 
-async function handleReject(row: ReviewItem) {
+async function handleDelete(row: any) {
   try {
-    const { value } = await ElMessageBox.prompt('请输入驳回原因', '驳回日报', {
-      confirmButtonText: '确认驳回', cancelButtonText: '取消',
-      inputType: 'textarea', inputPlaceholder: '请填写驳回原因...',
-      inputValidator: (v: string) => v?.trim() ? true : '驳回原因不能为空'
+    await ElMessageBox.confirm('确定删除该条记录？', '删除确认', { type: 'warning' })
+    await deleteReport(row.id)
+    ElMessage.success('已删除')
+    loadReports()
+  } catch { /* cancelled */ }
+}
+
+async function handleReview(row: any, action: 'approve' | 'reject') {
+  const label = action === 'approve' ? '通过' : '驳回'
+  try {
+    await ElMessageBox.confirm(`确定${label}该条日报？`, '审核确认', { type: 'warning' })
+    await reviewAction(row.id, action)
+    ElMessage.success(`已${label}`)
+    loadReports()
+  } catch { /* cancelled */ }
+}
+
+function showDetail(row: any) { detailData.value = row; detailVisible.value = true }
+
+// --- 人员看板 ---
+async function loadWorkers() {
+  loading.value = true
+  try {
+    const res = await getWorkerStats({
+      page: workerPage.value, pageSize: workerPageSize.value,
+      keyword: workerKeyword.value || undefined,
     })
-    await reviewAction(row.id, 'reject', value)
-    ElMessage.success('已驳回')
-    loadList()
-  } catch { /* cancel */ }
+    workerList.value = res.list || []
+    workerTotal.value = res.total || 0
+  } catch { workerList.value = [] }
+  finally { loading.value = false }
 }
 
-function getStatusType(status: string) {
-  return status === 'approved' ? 'success' : status === 'rejected' ? 'danger' : 'warning'
+function handleWorkerSearch() { workerPage.value = 1; loadWorkers() }
+function handleWorkerPageChange(p: number) { workerPage.value = p; loadWorkers() }
+
+// 人员看板 → 搜该人员日报
+function searchPersonReports(name: string) {
+  activeTab.value = 'query'
+  keyword.value = name
+  handleSearch()
 }
 
-onMounted(() => { loadList() })
+function handleTabChange(tab: string) {
+  activeTab.value = tab
+  if (tab === 'stats') loadStats()
+  else if (tab === 'query') loadReports()
+  else if (tab === 'workers') loadWorkers()
+}
+
+onMounted(() => { loadStats(); loadReports() })
 </script>
 
 <template>
   <div class="report-page">
-    <!-- Header Stats -->
-    <div class="stats-bar">
-      <div class="stat-item">
-        <span class="stat-value" style="color:#F59E0B">{{ stats.pending }}</span>
-        <span class="stat-label">待审核</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value" style="color:#22C55E">{{ stats.todayReviewed }}</span>
-        <span class="stat-label">今日已审</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value" style="color:#6366F1">{{ stats.avgTime }}</span>
-        <span class="stat-label">平均耗时</span>
-      </div>
-    </div>
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+      <el-tab-pane v-for="t in tabItems" :key="t.name" :label="t.label" :name="t.name" />
+    </el-tabs>
 
-    <!-- Tabs -->
-    <div class="tabs-bar">
-      <span
-        v-for="tab in tabs" :key="tab.key"
-        class="tab-item"
-        :class="{ active: activeTab === tab.key }"
-        @click="switchTab(tab.key)"
-      >{{ tab.label }}</span>
-    </div>
+    <!-- ====== Tab 1: 统计看板 ====== -->
+    <template v-if="activeTab === 'stats'">
+      <el-row :gutter="16" class="stats-row" v-loading="statsLoading">
+        <el-col :span="4"><el-card class="stat-card" shadow="hover"><div class="stat-val">{{ stats.total }}</div><div class="stat-lbl">总日报数</div></el-card></el-col>
+        <el-col :span="4"><el-card class="stat-card" shadow="hover"><div class="stat-val" style="color:#409EFF">{{ stats.monthCount }}</div><div class="stat-lbl">本月提交</div></el-card></el-col>
+        <el-col :span="4"><el-card class="stat-card" shadow="hover"><div class="stat-val" style="color:#E6A23C">{{ stats.pendingCount }}</div><div class="stat-lbl">待审核</div></el-card></el-col>
+        <el-col :span="4"><el-card class="stat-card" shadow="hover"><div class="stat-val" style="color:#67C23A">{{ stats.approvedCount }}</div><div class="stat-lbl">已通过</div></el-card></el-col>
+        <el-col :span="8"><el-card class="stat-card" shadow="hover"><div class="stat-val" style="color:#6366F1">{{ stats.approvalRate }}</div><div class="stat-lbl">通过率</div></el-card></el-col>
+      </el-row>
+    </template>
 
-    <!-- Search -->
-    <div class="toolbar">
-      <el-input v-model="keyword" placeholder="搜索用户名/项目" clearable :prefix-icon="Search" style="width:260px" @keyup.enter="handleSearch" @clear="handleSearch" />
-      <el-button type="primary" @click="handleSearch">搜索</el-button>
-      <el-button :icon="Refresh" @click="loadList">刷新</el-button>
-    </div>
-
-    <!-- Table -->
-    <el-table :data="list" v-loading="loading" stripe border>
-      <el-table-column prop="user" label="提交人" width="100" />
-      <el-table-column prop="project" label="项目名称" min-width="180" show-overflow-tooltip />
-      <el-table-column prop="time" label="提交时间" width="140" />
-      <el-table-column label="状态" width="90" align="center">
-        <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)" size="small">{{ row.statusText }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="280" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" :icon="View" link type="primary" @click="viewDetail(row.id)">详情</el-button>
-          <template v-if="row.status === 'pending'">
-            <el-button size="small" type="success" link @click="handleApprove(row)">通过</el-button>
-            <el-button size="small" type="danger" link @click="handleReject(row)">驳回</el-button>
+    <!-- ====== Tab 2: 日报查询 ====== -->
+    <template v-if="activeTab === 'query'">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <el-input v-model="keyword" placeholder="搜索项目/人员/工作内容" clearable :prefix-icon="Search" style="width:260px" @clear="handleSearch" @keyup.enter="handleSearch" />
+          <el-select v-model="statusFilter" placeholder="状态" style="width:120px" @change="handleSearch"><el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" /></el-select>
+          <el-date-picker v-model="startDate" type="date" placeholder="开始日期" style="width:140px" @change="handleSearch" value-format="YYYY-MM-DD" />
+          <el-date-picker v-model="endDate" type="date" placeholder="结束日期" style="width:140px" @change="handleSearch" value-format="YYYY-MM-DD" />
+          <el-button :icon="Refresh" @click="handleSearch">刷新</el-button>
+          <el-button type="success" :icon="Download" @click="handleExport">导出CSV</el-button>
+        </div>
+      </div>
+      <el-table :data="reportList" v-loading="loading" stripe border highlight-current-row @row-click="showDetail" style="cursor:pointer">
+        <el-table-column prop="reportDate" label="日报时间" width="110" fixed="left" />
+        <el-table-column prop="submitter" label="填写人" width="100" show-overflow-tooltip />
+        <el-table-column prop="entryDate" label="入场时间" width="110" />
+        <el-table-column prop="initialBizTripDate" label="初始出差" width="110" />
+        <el-table-column prop="project" label="项目名称" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="area" label="项目区域" width="100" show-overflow-tooltip />
+        <el-table-column prop="relatedParty" label="相关方" width="120" show-overflow-tooltip />
+        <el-table-column prop="workers" label="作业人员" width="130" show-overflow-tooltip />
+        <el-table-column prop="machineModel" label="机型" width="100" show-overflow-tooltip />
+        <el-table-column prop="workerCount" label="人数" width="60" align="center" />
+        <el-table-column prop="workContent" label="工作内容" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="requiredQty" label="需完成量" width="80" align="center" />
+        <el-table-column prop="completedQty" label="累计完成量" width="90" align="center" />
+        <el-table-column prop="progressPercent" label="进度" width="70" align="center" />
+        <el-table-column prop="todayWork" label="今日工作" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="tomorrowPlan" label="明日计划" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="todayWorkType" label="今日类型" width="80" />
+        <el-table-column prop="tomorrowWorkType" label="明日类型" width="80" />
+        <el-table-column prop="remark" label="备注" width="120" show-overflow-tooltip />
+        <el-table-column prop="personalBizTripDays" label="个人出差天数" width="110" align="center" />
+        <el-table-column label="状态" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.status === 'submitted'" type="info" size="small">已提交</el-tag>
+            <el-tag v-else-if="row.status === 'pending'" type="warning" size="small">待审核</el-tag>
+            <el-tag v-else-if="row.status === 'approved'" type="success" size="small">已通过</el-tag>
+            <el-tag v-else-if="row.status === 'rejected'" type="danger" size="small">已驳回</el-tag>
+            <el-tag v-else size="small">{{ row.status }}</el-tag>
           </template>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <!-- Pagination -->
-    <div class="pagination-wrap">
-      <span class="total-text">共 {{ total }} 条</span>
-      <el-pagination v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev, pager, next" background @current-change="handlePageChange" />
-    </div>
-
-    <!-- Detail Dialog -->
-    <el-dialog v-model="detailVisible" title="日报详情" width="640px" destroy-on-close>
-      <div v-loading="detailLoading">
-        <template v-if="detail">
-          <el-descriptions :column="2" border size="small">
-            <el-descriptions-item label="日期">{{ detail.date }}</el-descriptions-item>
-            <el-descriptions-item label="提交人">{{ detail.submitter || detail.workers }}</el-descriptions-item>
-            <el-descriptions-item label="项目">{{ detail.project }}</el-descriptions-item>
-            <el-descriptions-item label="区域">{{ detail.area || '--' }}</el-descriptions-item>
-            <el-descriptions-item label="作业人员">{{ detail.workers }}</el-descriptions-item>
-            <el-descriptions-item label="机型">{{ detail.machineModel || '--' }}</el-descriptions-item>
-            <el-descriptions-item label="工作类型">{{ detail.todayWorkType }}</el-descriptions-item>
-            <el-descriptions-item label="人数">{{ detail.workerCount || '1' }} 人</el-descriptions-item>
-            <el-descriptions-item label="工作内容" :span="2">{{ detail.workContent || '--' }}</el-descriptions-item>
-            <el-descriptions-item label="当日小结" :span="2">{{ detail.todayWork || detail.summary || '--' }}</el-descriptions-item>
-            <el-descriptions-item label="明日计划" :span="2">{{ detail.tomorrowPlan || '--' }}</el-descriptions-item>
-            <el-descriptions-item label="审核信息" :span="2">
-              {{ detail.reviewer ? `${detail.reviewer} · ${detail.reviewTime}` : '待审核' }}
-              <template v-if="detail.reviewOpinion"><br/>意见：{{ detail.reviewOpinion }}</template>
-            </el-descriptions-item>
-          </el-descriptions>
-        </template>
-        <el-empty v-else description="暂无数据" />
+        </el-table-column>
+        <el-table-column label="操作" width="160" fixed="right">
+          <template #default="{ row }">
+            <el-button v-if="row.status === 'pending'" size="small" type="success" @click.stop="handleReview(row, 'approve')">通过</el-button>
+            <el-button v-if="row.status === 'pending'" size="small" type="danger" @click.stop="handleReview(row, 'reject')">驳回</el-button>
+            <el-button size="small" type="danger" link :icon="Delete" @click.stop="handleDelete(row)" />
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pagination-wrap">
+        <span class="total-text">共 {{ reportTotal }} 条</span>
+        <el-pagination v-model:current-page="reportPage" :page-size="reportPageSize" :total="reportTotal" layout="prev, pager, next" background @current-change="handleReportPageChange" />
       </div>
+    </template>
+
+    <!-- ====== Tab 3: 人员看板 ====== -->
+    <template v-if="activeTab === 'workers'">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <el-input v-model="workerKeyword" placeholder="搜索人员姓名" clearable :prefix-icon="Search" style="width:240px" @clear="handleWorkerSearch" @keyup.enter="handleWorkerSearch" />
+          <el-button :icon="Refresh" @click="handleWorkerSearch">刷新</el-button>
+        </div>
+      </div>
+      <el-table :data="workerList" v-loading="loading" stripe border>
+        <el-table-column prop="name" label="人员" width="120" />
+        <el-table-column prop="total" label="日报总数" width="100" align="center" sortable />
+        <el-table-column prop="monthCount" label="本月数" width="100" align="center" sortable />
+        <el-table-column prop="lastDate" label="最后提交" width="120" align="center" sortable />
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button size="small" type="primary" link @click="searchPersonReports(row.name)">查看日报</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pagination-wrap">
+        <span class="total-text">共 {{ workerTotal }} 人</span>
+        <el-pagination v-model:current-page="workerPage" :page-size="workerPageSize" :total="workerTotal" layout="prev, pager, next" background @current-change="handleWorkerPageChange" />
+      </div>
+    </template>
+
+    <!-- 详情弹窗 -->
+    <el-dialog v-model="detailVisible" title="日报详情" width="700px" destroy-on-close>
+      <el-descriptions :column="2" border size="small">
+        <el-descriptions-item label="日期">{{ detailData.reportDate || detailData.date || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag v-if="detailData.status === 'submitted'" type="info" size="small">已提交</el-tag>
+          <el-tag v-else-if="detailData.status === 'pending'" type="warning" size="small">待审核</el-tag>
+          <el-tag v-else-if="detailData.status === 'approved'" type="success" size="small">已通过</el-tag>
+          <el-tag v-else-if="detailData.status === 'rejected'" type="danger" size="small">已驳回</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="项目">{{ detailData.project || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="区域">{{ detailData.area || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="作业人员">{{ detailData.workers || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="机型">{{ detailData.machineModel || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="工作类型">{{ detailData.todayWorkType || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="人数">{{ detailData.workerCount || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="今日工作" :span="2">{{ detailData.todayWork || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="明日计划" :span="2">{{ detailData.tomorrowPlan || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="工作内容" :span="2">{{ detailData.workContent || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ detailData.remark || '-' }}</el-descriptions-item>
+      </el-descriptions>
     </el-dialog>
   </div>
 </template>
 
 <style scoped lang="scss">
 .report-page { padding: 20px; }
-
-.stats-bar {
-  display: flex; gap: 16px; margin-bottom: 20px;
-  .stat-item {
-    flex: 1; background: #fff; border-radius: 8px; padding: 16px 20px;
-    display: flex; flex-direction: column; gap: 4px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-    .stat-value { font-size: 28px; font-weight: 700; }
-    .stat-label { font-size: 13px; color: #999; }
-  }
-}
-
-.tabs-bar {
-  display: flex; gap: 4px; margin-bottom: 16px;
-  background: #fff; border-radius: 8px; padding: 4px;
-  .tab-item {
-    flex: 1; text-align: center; padding: 8px 0; font-size: 14px;
-    color: #666; cursor: pointer; border-radius: 6px; transition: all .2s;
-    &.active { background: #2B6DE8; color: #fff; font-weight: 500; }
-    &:hover:not(.active) { background: #f5f5f5; }
-  }
-}
-
-.toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
-
-.pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px;
-  .total-text { font-size: 14px; color: #999; }
-}
+.stats-row { margin-bottom: 16px; .stat-card { text-align: center; .stat-val { font-size: 28px; font-weight: 700; } .stat-lbl { font-size: 13px; color: #999; margin-top: 4px; } } }
+.toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; .toolbar-left { display: flex; gap: 12px; align-items: center; } }
+.pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; .total-text { font-size: 14px; color: #999; } }
 </style>
