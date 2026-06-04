@@ -23,6 +23,11 @@ const menuItems = [
     icon: 'User'
   },
   {
+    path: '/role',
+    title: '角色管理',
+    icon: 'Avatar'
+  },
+  {
     path: '/approval',
     title: '审批管理',
     icon: 'DocumentChecked'
@@ -36,6 +41,25 @@ const menuItems = [
     path: '/project',
     title: '项目管理',
     icon: 'FolderOpened'
+  },
+  {
+    path: '/compliance',
+    title: '合规管理',
+    icon: 'Verified',
+    children: [
+      {
+        path: '/compliance/dashboard',
+        title: '合规统计看板'
+      },
+      {
+        path: '/compliance/biz-trip',
+        title: '出差管理'
+      },
+      {
+        path: '/compliance/missing-review',
+        title: '缺失报告审核'
+      }
+    ]
   },
   {
     path: '/asset',
@@ -78,12 +102,28 @@ const toggleCollapse = () => {
       active-text-color="#2B6DE8"
       @select="handleSelect"
     >
-      <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">
-        <el-icon>
-          <component :is="item.icon" />
-        </el-icon>
-        <template #title>{{ item.title }}</template>
-      </el-menu-item>
+      <template v-for="item in menuItems" :key="item.path">
+        <!-- 有子菜单 -->
+        <el-sub-menu v-if="item.children" :index="item.path">
+          <template #title>
+            <el-icon>
+              <component :is="item.icon" />
+            </el-icon>
+            <span>{{ item.title }}</span>
+          </template>
+          <el-menu-item v-for="child in item.children" :key="child.path" :index="child.path">
+            {{ child.title }}
+          </el-menu-item>
+        </el-sub-menu>
+        
+        <!-- 无子菜单 -->
+        <el-menu-item v-else :index="item.path">
+          <el-icon>
+            <component :is="item.icon" />
+          </el-icon>
+          <template #title>{{ item.title }}</template>
+        </el-menu-item>
+      </template>
     </el-menu>
     
     <div class="collapse-btn" @click="toggleCollapse">

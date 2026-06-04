@@ -126,6 +126,10 @@ app.use('/api/message', messageRoutes);
 const wpsRoutes = require('./features/routes/wps.routes');
 app.use('/api', wpsRoutes);
 
+// 合规管理路由
+const complianceRoutes = require('./features/compliance/routes/compliance.routes');
+app.use('/api/compliance', complianceRoutes);
+
 // 10. 404 处理
 app.use((req, res) => {
   res.status(404).json({
@@ -164,7 +168,10 @@ if (!config.isTest) {
     }
   });
 
-  // 13. 优雅退出
+  // 13. 启动定时任务
+  require('./common/tasks/scheduler');
+
+  // 14. 优雅退出
   async function shutdown(signal) {
     logger.info(`收到 ${signal} 信号，开始优雅退出...`, { module: 'APP' });
 

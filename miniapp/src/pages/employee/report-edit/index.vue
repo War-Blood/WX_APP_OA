@@ -260,6 +260,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { onUnload, onHide } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { reportApi } from '@/services/modules/report'
+import { complianceApi } from '@/services/modules/compliance'
 
 const todayWorkLength = ref(0)
 const workTypeOptions = ['工作', '待工', '在途']
@@ -380,6 +381,9 @@ onMounted(async () => {
 
   // 加载作业人员名单
   await loadWorkerList()
+  
+  // 检查出差状态（功能未开发完毕，暂时隐藏）
+  // checkBizTripStatus()
 })
 
 // 编辑中自动保存草稿（防抖2s）
@@ -477,6 +481,28 @@ async function loadWorkerList() {
   } catch { /* fail silently */ }
 }
 
+// 检查出差状态
+async function checkBizTripStatus() {
+  try {
+    const res = await complianceApi.checkMyBizTripStatus()
+    if (!res.data.isOnTrip) {
+      uni.showModal({
+        title: '提示',
+        content: '您当前不在出差状态,是否需要申请出差?',
+        showCancel: true,
+        success: (modalRes) => {
+          if (modalRes.confirm) {
+            // TODO: 跳转到出差申请页面(后续实现)
+            uni.showToast({ title: '功能开发中', icon: 'none' })
+          }
+        }
+      })
+    }
+  } catch (err) {
+    console.error('检查出差状态失败:', err)
+  }
+}
+
 function toggleWorker(name) {
   const idx = selectedWorkers.value.indexOf(name)
   if (idx > -1) {
@@ -560,7 +586,18 @@ async function handleSubmit() {
     const res = await reportApi.submit(payload)
     if (res.data?.id) {
       uni.hideLoading()
-      uni.showToast({ title: '提交成功', icon: 'success' })
+      // 根据timeliness显示不同提示
+      if (res.data.timeliness === 'delayed') {
+        uni.showToast({ title: '提交成功(延迟上传)', icon: 'none', duration: 2000 })
+      } else if (res.data.timeliness === 'missing') {
+        uni.showModal({
+          title: '提交成功',
+          content: '您的日志已超过2天,将进入人工审核流程',
+          showCancel: false
+        })
+      } else {
+        uni.showToast({ title: '提交成功', icon: 'success' })
+      }
       uni.removeStorageSync('report_auto_draft')
       // 保存本次提交用于下次自动回填
       uni.setStorageSync('report_last_submission', JSON.stringify(formData.value))

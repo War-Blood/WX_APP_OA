@@ -1,0 +1,21 @@
+# ---- Backend API ----
+FROM node:18-alpine
+
+WORKDIR /app
+
+# 安装依赖
+COPY backend/package*.json ./
+RUN npm ci --production
+
+# 复制源码
+COPY backend/src ./src
+COPY backend/ecosystem.config.js ./
+
+EXPOSE 3100
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3100/api/health', r => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# PM2 生产运行
+RUN npm install -g pm2
+CMD ["pm2-runtime", "start", "ecosystem.config.js"]

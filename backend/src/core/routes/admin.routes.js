@@ -2,24 +2,68 @@
 
 const router = require('express').Router();
 const adminController = require('../controllers/admin.controller');
-const { authenticate, requireRole } = require('../../common/middleware/auth');
+const { authenticate, requireRole, requirePermission } = require('../../common/middleware/auth');
 
-/**
- * 管理员路由
- * POST /api/admin/users        - 用户列表（需 admin/superadmin）
- * POST /api/admin/setAdmin     - 设置管理员角色
- * POST /api/admin/toggleUser   - 启用/禁用用户
- * POST /api/admin/createUser   - 预注册用户（openid + 基本信息）
- * POST /api/admin/approveUser  - 审核通过 pending 用户
- * POST /api/admin/setPassword  - 为用户设置密码
- */
-router.post('/admin/users', authenticate, requireRole('admin', 'superadmin'), adminController.userList);
-router.post('/admin/setAdmin', authenticate, requireRole('admin', 'superadmin'), adminController.setAdmin);
-router.post('/admin/toggleUser', authenticate, requireRole('admin', 'superadmin'), adminController.toggleUser);
-router.post('/admin/createUser', authenticate, requireRole('admin', 'superadmin'), adminController.createUser);
-router.post('/admin/approveUser', authenticate, requireRole('admin', 'superadmin'), adminController.approveUser);
-router.post('/admin/inviteUser', authenticate, requireRole('admin', 'superadmin'), adminController.inviteUser);
-router.post('/admin/setPassword', authenticate, requireRole('admin', 'superadmin'), adminController.setPassword);
-router.post('/admin/deleteUser', authenticate, requireRole('admin', 'superadmin'), adminController.deleteUser);
+// 管理员及以上权限
+const adminAuth = [authenticate, requireRole('admin', 'superadmin')];
+// 超级管理员专属权限
+const superAuth = [authenticate, requireRole('superadmin')];
+
+// ==============================
+// 用户管理
+// ==============================
+// 查看用户列表 — admin+
+router.post('/admin/users',        ...adminAuth, adminController.userList);
+router.get('/admin/users/:id',     ...adminAuth, adminController.getUserDetail);
+
+// 编辑用户 — admin+
+router.put('/admin/users/:id',     ...adminAuth, adminController.updateUser);
+router.post('/admin/users/batch',  ...adminAuth, adminController.batchImportUsers);
+router.post('/admin/createUser',   ...adminAuth, adminController.createUser);
+router.post('/admin/approveUser',  ...adminAuth, adminController.approveUser);
+router.post('/admin/inviteUser',   ...adminAuth, adminController.inviteUser);
+router.post('/admin/setPassword',  ...adminAuth, adminController.setPassword);
+
+// 设置管理员角色 — 仅 superadmin
+router.post('/admin/setAdmin',     ...superAuth, adminController.setAdmin);
+// 启用/禁用用户 — admin+
+router.post('/admin/toggleUser',   ...adminAuth, adminController.toggleUser);
+// 删除用户 — admin+
+router.post('/admin/deleteUser',   ...adminAuth, adminController.deleteUser);
+
+// ==============================
+// 部门管理 — admin+
+// ==============================
+router.get('/admin/departments',        ...adminAuth, adminController.getDepartments);
+router.post('/admin/departments',       ...adminAuth, adminController.createDepartment);
+router.put('/admin/departments/:id',    ...adminAuth, adminController.updateDepartment);
+router.delete('/admin/departments/:id', ...adminAuth, adminController.deleteDepartment);
+
+// ==============================
+// 角色管理 — 仅 superadmin
+// ==============================
+router.get('/admin/roles',                    ...superAuth, adminController.getRoles);
+router.get('/admin/roles/:id',                ...superAuth, adminController.getRoleDetail);
+router.post('/admin/roles',                   ...superAuth, adminController.createRole);
+router.put('/admin/roles/:id',                ...superAuth, adminController.updateRole);
+router.delete('/admin/roles/:id',             ...superAuth, adminController.deleteRole);
+router.put('/admin/roles/:id/permissions',    ...superAuth, adminController.setRolePermissions);
+
+// ==============================
+// 权限管理 — 仅 superadmin
+// ==============================
+router.get('/admin/permissions', ...superAuth, adminController.getPermissions);
+
+// ==============================
+// 审批类型管理 — admin+
+// ==============================
+router.get('/admin/approval-types',       ...adminAuth, adminController.getApprovalTypes);
+router.put('/admin/approval-types/:id',   ...adminAuth, adminController.updateApprovalType);
+
+// ==============================
+// 系统设置 — 仅 superadmin
+// ==============================
+router.get('/admin/settings',  ...superAuth, adminController.getSettings);
+router.put('/admin/settings',  ...superAuth, adminController.updateSettings);
 
 module.exports = router;

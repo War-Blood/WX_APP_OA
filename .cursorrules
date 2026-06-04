@@ -1,0 +1,28 @@
+# WX-APP-OA 智慧办公助手
+
+## AI Rules System
+
+本项目使用统一 `.AI/` 规则体系，请按以下优先级加载：
+
+1. `.AI/rules/core.md` — 核心规则入口（全局铁律 + 文件清单，必读）
+2. `.AI/rules/coding-standards.md` — 编码规范（命名/格式/分层架构）
+3. `.AI/rules/git-workflow.md` — Git 工作流（分支/Commit/推送策略）
+4. `COLLABORATION-RULES.md` — 全局协作规则（R001-R013）
+
+根据任务类型按需加载：
+
+| 任务 | 额外加载 |
+|------|---------|
+| 后端开发 | `.AI/rules/backend-rules.md` |
+| 小程序开发 | `.AI/rules/miniapp-rules.md` |
+| Web 管理后台 | `.AI/rules/webapp-rules.md` |
+| Code Review | `.AI/rules/review-checklist.md` |
+
+## Project Context
+
+- **项目名称**: 智慧办公助手 OA 系统
+- **架构**: 后端 Express API + 微信小程序 + Web 管理后台
+- **后端地址**: https://warblood.online
+- **技术栈**: Node.js 18 / Vue 3 + TS / MySQL 8.0 / Redis 6.x
+- **术语表**: `.AI/Wiki/glossary.md`
+- **Wiki 入口**: `.AI/Wiki/_index.md`

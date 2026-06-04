@@ -40,7 +40,7 @@ describe('全局错误处理中间件 - errorHandler.js', () => {
   });
 
   describe('AppError 子类（客户端错误 4xx）', () => {
-    it('ValidationError（400）应记录 warn 并返回 400', () => {
+    it('ValidationError（400）应记录 warn 并返回 200（body.code 含错误码）', () => {
       const err = new ValidationError('参数校验失败', { field: 'email' });
 
       errorHandler(err, req, res, next);
@@ -50,18 +50,18 @@ describe('全局错误处理中间件 - errorHandler.js', () => {
         expect.stringContaining('请求错误'),
         expect.objectContaining({ url: '/api/test', method: 'GET' })
       );
-      // 返回 400
-      expect(res.status).toHaveBeenCalledWith(400);
+      // 统一返回 HTTP 200，通过 body.code 区分错误
+      expect(res.status).toHaveBeenCalledWith(200);
       expect(fail).toHaveBeenCalledWith(1001, '参数校验失败', { field: 'email' });
     });
 
-    it('AuthError（401）应返回 401 状态码', () => {
+    it('AuthError（401）应返回 200（body.code 含错误码）', () => {
       const err = new AuthError('未授权');
 
       errorHandler(err, req, res, next);
 
       expect(logger.warn).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.status).toHaveBeenCalledWith(200);
       expect(fail).toHaveBeenCalledWith(401, '未授权', null);
     });
 
@@ -99,18 +99,18 @@ describe('全局错误处理中间件 - errorHandler.js', () => {
           code: 5000,
         })
       );
-      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.status).toHaveBeenCalledWith(200);
     });
   });
 
   describe('未知错误（非 AppError）', () => {
-    it('普通 Error 应返回 500', () => {
+    it('普通 Error 应返回 200（body.code 含错误码）', () => {
       const err = new Error('未知错误');
 
       errorHandler(err, req, res, next);
 
       expect(logger.error).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.status).toHaveBeenCalledWith(200);
       expect(fail).toHaveBeenCalledWith(500, '未知错误', null);
     });
 
@@ -151,7 +151,7 @@ describe('全局错误处理中间件 - errorHandler.js', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           code: 500,
-          message: '服务器内部错误，请稍后重试',
+          message: '服务器内部错误',
         })
       );
     });

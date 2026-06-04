@@ -2,7 +2,7 @@
 
 const bcrypt = require('bcryptjs');
 const db = require('../../common/config/database');
-const { BusinessError } = require('../../common/utils/errors');
+const { BusinessError, ValidationError } = require('../../common/utils/errors');
 const logger = require('../../common/utils/logger');
 
 /**
@@ -43,7 +43,7 @@ async function getUserList({ page = 1, pageSize = 20, keyword, role, department,
   // 分页数据
   const offset = (page - 1) * pageSize;
   const dataSql = `SELECT id, openid, nickname, user_name, email, phone,
-    avatar_url, role, department, position, status, last_login_at, created_at
+    avatar_url, role, department, department_id, position, status, last_login_at, created_at
     FROM users ${whereClause}
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?`;
@@ -59,12 +59,13 @@ async function getUserList({ page = 1, pageSize = 20, keyword, role, department,
     avatarUrl: row.avatar_url || '',
     role: row.role,
     department: row.department || '',
+    departmentId: row.department_id,
     position: row.position || '',
     phone: row.phone || '',
     email: row.email || '',
     status: row.status,
     lastLoginTime: row.last_login_at ? formatDate(row.last_login_at) : '',
-    createdAt: row.created_at ? formatDate(row.created_at) : ''
+    createdAt: row.created_at ? formatDate(row.created_at) : '',
   }));
 
   return { total, page, pageSize, list };
@@ -220,6 +221,538 @@ function formatDate(d) {
 }
 
 /**
+ * 获取单个用户详情
+ */
+async function getUserDetail(userId) {
+  const rows = await db.query(
+    `SELECT id, openid, nickname, user_name, email, phone, avatar_url,
+      role, department, department_id, position, status, last_login_at, created_at
+    FROM users WHERE id = ? AND deleted_at IS NULL`,
+    [userId]
+  );
+  if (rows.length === 0) throw new BusinessError('用户不存在');
+
+  const row = rows[0];
+  return {
+    userId: String(row.id),
+    nickName: row.nickname || row.user_name || '未知',
+    userName: row.user_name,
+    avatarUrl: row.avatar_url || '',
+    role: row.role,
+    department: row.department || '',
+    departmentId: row.department_id,
+    position: row.position || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    status: row.status,
+    lastLoginTime: row.last_login_at ? formatDate(row.last_login_at) : '',
+    createdAt: row.created_at ? formatDate(row.created_at) : '',
+  };
+}
+
+/**
+ * 更新用户信息
+ */
+async function updateUser(userId, { userName, email, phone, departmentId, position, role }) {
+  const users = await db.query('SELECT id, role FROM users WHERE id = ? AND deleted_at IS NULL', [userId]);
+  if (users.length === 0) throw new BusinessError('用户不存在');
+
+  if (users[0].role === 'superadmin' && role && role !== 'superadmin') {
+    throw new BusinessError('不能修改超级管理员的角色');
+  }
+
+  const updates = [];
+  const params = [];
+
+  if (userName !== undefined) {
+    updates.push('user_name = ?, nickname = ?');
+    params.push(userName, userName);
+  }
+  if (email !== undefined) {
+    updates.push('email = ?');
+    params.push(email || null);
+  }
+  if (phone !== undefined) {
+    updates.push('phone = ?');
+    params.push(phone || null);
+  }
+  if (departmentId !== undefined) {
+    updates.push('department_id = ?');
+    params.push(departmentId || null);
+    // 同步更新 department 名称字段（冗余字段）
+    if (departmentId) {
+      const depts = await db.query('SELECT name FROM departments WHERE id = ?', [departmentId]);
+      if (depts.length > 0) {
+        updates.push('department = ?');
+        params.push(depts[0].name);
+      }
+    } else {
+      updates.push('department = ?');
+      params.push(null);
+    }
+  }
+  if (position !== undefined) {
+    updates.push('position = ?');
+    params.push(position || null);
+  }
+  if (role !== undefined) {
+    updates.push('role = ?');
+    params.push(role);
+  }
+
+  if (updates.length === 0) throw new BusinessError('没有需要更新的字段');
+
+  params.push(userId);
+  await db.execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+
+  logger.info('管理员更新用户信息', { module: 'ADMIN', userId, fields: Object.keys({ userName, email, phone, departmentId, position, role }).filter(k => ({userName, email, phone, departmentId, position, role})[k] !== undefined) });
+  return { userId: String(userId) };
+}
+
+/**
+ * 批量导入用户
+ * @param {Array} users - [{ openid, userName, department, departmentId, role }]
+ */
+async function batchImportUsers(users) {
+  if (!Array.isArray(users) || users.length === 0) {
+    throw new BusinessError('导入数据不能为空');
+  }
+  if (users.length > 500) {
+    throw new BusinessError('单次导入不能超过500条');
+  }
+
+  const results = { total: users.length, success: 0, skipped: 0, failed: 0, details: [] };
+
+  for (const u of users) {
+    try {
+      if (!u.openid || !u.openid.trim()) {
+        results.failed++;
+        results.details.push({ openid: u.openid || '', reason: 'OpenID 为空' });
+        continue;
+      }
+
+      const existing = await db.query('SELECT id, status FROM users WHERE openid = ?', [u.openid.trim()]);
+      if (existing.length > 0) {
+        results.skipped++;
+        results.details.push({ openid: u.openid, reason: '用户已存在' });
+        continue;
+      }
+
+      await db.execute(
+        `INSERT INTO users (openid, user_name, nickname, department, department_id, role, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', NOW())`,
+        [
+          u.openid.trim(),
+          u.userName || null,
+          u.userName || null,
+          u.department || null,
+          u.departmentId || null,
+          u.role || 'employee',
+        ]
+      );
+      results.success++;
+    } catch (err) {
+      results.failed++;
+      results.details.push({ openid: u.openid || '', reason: err.message });
+    }
+  }
+
+  logger.info('批量导入用户', { module: 'ADMIN', ...results });
+  return results;
+}
+
+/**
+ * 获取部门树
+ */
+async function getDepartmentTree() {
+  const rows = await db.query(
+    'SELECT id, name, parent_id, manager_id, sort_order, description, status FROM departments WHERE deleted_at IS NULL ORDER BY sort_order ASC, id ASC'
+  );
+
+  // 构建树形结构
+  const map = {};
+  const tree = [];
+
+  rows.forEach(row => {
+    map[row.id] = {
+      id: row.id,
+      name: row.name,
+      parentId: row.parent_id,
+      managerId: row.manager_id,
+      sortOrder: row.sort_order,
+      description: row.description,
+      status: row.status,
+      children: [],
+    };
+  });
+
+  rows.forEach(row => {
+    const node = map[row.id];
+    if (row.parent_id && map[row.parent_id]) {
+      map[row.parent_id].children.push(node);
+    } else {
+      tree.push(node);
+    }
+  });
+
+  // 移除空的 children 数组
+  function cleanChildren(nodes) {
+    nodes.forEach(node => {
+      if (node.children.length === 0) {
+        delete node.children;
+      } else {
+        cleanChildren(node.children);
+      }
+    });
+  }
+  cleanChildren(tree);
+
+  return tree;
+}
+
+/**
+ * 获取部门列表（扁平，用于下拉选择）
+ */
+async function getDepartmentList() {
+  const rows = await db.query(
+    'SELECT id, name, parent_id, sort_order, status FROM departments WHERE deleted_at IS NULL ORDER BY sort_order ASC, id ASC'
+  );
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    parentId: r.parent_id,
+    sortOrder: r.sort_order,
+    status: r.status,
+  }));
+}
+
+/**
+ * 创建部门
+ */
+async function createDepartment({ name, parentId, managerId, sortOrder, description }) {
+  if (!name || !name.trim()) throw new ValidationError('部门名称不能为空');
+
+  if (parentId) {
+    const parents = await db.query('SELECT id FROM departments WHERE id = ? AND deleted_at IS NULL', [parentId]);
+    if (parents.length === 0) throw new BusinessError('上级部门不存在');
+  }
+
+  const result = await db.execute(
+    `INSERT INTO departments (name, parent_id, manager_id, sort_order, description)
+     VALUES (?, ?, ?, ?, ?)`,
+    [name.trim(), parentId || null, managerId || null, sortOrder || 0, description || null]
+  );
+
+  logger.info('创建部门', { module: 'ADMIN', deptId: result[0].insertId, name });
+  return { id: result[0].insertId, name: name.trim() };
+}
+
+/**
+ * 更新部门
+ */
+async function updateDepartment(id, { name, parentId, managerId, sortOrder, description }) {
+  const depts = await db.query('SELECT id FROM departments WHERE id = ? AND deleted_at IS NULL', [id]);
+  if (depts.length === 0) throw new BusinessError('部门不存在');
+
+  if (parentId === id) throw new BusinessError('上级部门不能是自己');
+
+  const updates = [];
+  const params = [];
+
+  if (name !== undefined) {
+    updates.push('name = ?');
+    params.push(name.trim());
+  }
+  if (parentId !== undefined) {
+    updates.push('parent_id = ?');
+    params.push(parentId || null);
+  }
+  if (managerId !== undefined) {
+    updates.push('manager_id = ?');
+    params.push(managerId || null);
+  }
+  if (sortOrder !== undefined) {
+    updates.push('sort_order = ?');
+    params.push(sortOrder);
+  }
+  if (description !== undefined) {
+    updates.push('description = ?');
+    params.push(description);
+  }
+
+  if (updates.length === 0) throw new BusinessError('没有需要更新的字段');
+
+  params.push(id);
+  await db.execute(`UPDATE departments SET ${updates.join(', ')} WHERE id = ?`, params);
+
+  logger.info('更新部门', { module: 'ADMIN', deptId: id });
+  return { id };
+}
+
+/**
+ * 软删除部门
+ */
+async function deleteDepartment(id) {
+  const depts = await db.query('SELECT id, name FROM departments WHERE id = ? AND deleted_at IS NULL', [id]);
+  if (depts.length === 0) throw new BusinessError('部门不存在');
+
+  // 检查是否有子部门
+  const children = await db.query('SELECT COUNT(*) AS cnt FROM departments WHERE parent_id = ? AND deleted_at IS NULL', [id]);
+  if (children[0].cnt > 0) throw new BusinessError('该部门下还有子部门，请先删除子部门');
+
+  // 检查是否有用户属于此部门
+  const users = await db.query('SELECT COUNT(*) AS cnt FROM users WHERE department_id = ? AND deleted_at IS NULL', [id]);
+  if (users[0].cnt > 0) throw new BusinessError('该部门下还有用户，请先迁移用户');
+
+  await db.execute('UPDATE departments SET deleted_at = NOW() WHERE id = ?', [id]);
+
+  logger.info('删除部门', { module: 'ADMIN', deptId: id, deptName: depts[0].name });
+  return { id };
+}
+
+/**
+ * 获取角色列表（用于下拉选择）
+ */
+async function getRoleList() {
+  const rows = await db.query(
+    'SELECT id, code, name, description, is_system, status FROM roles WHERE deleted_at IS NULL ORDER BY id ASC'
+  );
+  return rows.map(r => ({
+    id: r.id,
+    code: r.code,
+    name: r.name,
+    description: r.description,
+    isSystem: !!r.is_system,
+    status: r.status,
+  }));
+}
+
+/**
+ * 获取角色详情（含权限列表）
+ */
+async function getRoleDetail(id) {
+  const rows = await db.query(
+    'SELECT id, code, name, description, is_system, status FROM roles WHERE id = ? AND deleted_at IS NULL', [id]
+  );
+  if (rows.length === 0) throw new BusinessError('角色不存在');
+
+  const role = rows[0];
+
+  // 获取角色的权限列表
+  const perms = await db.query(
+    `SELECT p.id, p.code, p.name, p.group_code, p.group_name
+     FROM permissions p
+     JOIN role_permissions rp ON rp.permission_id = p.id
+     WHERE rp.role_id = ?
+     ORDER BY p.group_code, p.sort_order`,
+    [id]
+  );
+
+  return {
+    id: role.id,
+    code: role.code,
+    name: role.name,
+    description: role.description,
+    isSystem: !!role.is_system,
+    status: role.status,
+    permissions: perms.map(p => ({
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      groupCode: p.group_code,
+      groupName: p.group_name,
+    })),
+  };
+}
+
+/**
+ * 创建角色
+ */
+async function createRole({ code, name, description }) {
+  if (!code || !code.trim()) throw new ValidationError('角色标识不能为空');
+  if (!name || !name.trim()) throw new ValidationError('角色名称不能为空');
+  if (!/^[a-z_][a-z0-9_]*$/.test(code)) throw new ValidationError('角色标识只能包含小写字母、数字和下划线');
+
+  const existing = await db.query('SELECT id FROM roles WHERE code = ? AND deleted_at IS NULL', [code.trim()]);
+  if (existing.length > 0) throw new BusinessError('角色标识已存在');
+
+  const result = await db.execute(
+    'INSERT INTO roles (code, name, description) VALUES (?, ?, ?)',
+    [code.trim(), name.trim(), description || null]
+  );
+
+  logger.info('创建角色', { module: 'ADMIN', roleCode: code, roleId: result[0].insertId });
+  return { id: result[0].insertId, code: code.trim(), name: name.trim() };
+}
+
+/**
+ * 更新角色
+ */
+async function updateRole(id, { name, description, status }) {
+  const rows = await db.query('SELECT id, is_system FROM roles WHERE id = ? AND deleted_at IS NULL', [id]);
+  if (rows.length === 0) throw new BusinessError('角色不存在');
+
+  const updates = [];
+  const params = [];
+
+  if (name !== undefined) { updates.push('name = ?'); params.push(name.trim()); }
+  if (description !== undefined) { updates.push('description = ?'); params.push(description); }
+  if (status !== undefined) {
+    if (!['active', 'disabled'].includes(status)) throw new ValidationError('状态值无效');
+    updates.push('status = ?');
+    params.push(status);
+  }
+
+  if (updates.length === 0) throw new BusinessError('没有需要更新的字段');
+
+  params.push(id);
+  await db.execute(`UPDATE roles SET ${updates.join(', ')} WHERE id = ?`, params);
+
+  // 清除权限缓存
+  const { clearPermissionCache } = require('../../common/middleware/auth');
+  clearPermissionCache(rows[0].code);
+
+  logger.info('更新角色', { module: 'ADMIN', roleId: id });
+  return { id };
+}
+
+/**
+ * 软删除角色
+ */
+async function deleteRole(id) {
+  const rows = await db.query('SELECT id, code, is_system FROM roles WHERE id = ? AND deleted_at IS NULL', [id]);
+  if (rows.length === 0) throw new BusinessError('角色不存在');
+  if (rows[0].is_system) throw new BusinessError('系统角色不可删除');
+
+  // 检查是否有用户使用此角色
+  const users = await db.query('SELECT COUNT(*) AS cnt FROM users WHERE role = ? AND deleted_at IS NULL', [rows[0].code]);
+  if (users[0].cnt > 0) throw new BusinessError(`该角色下有 ${users[0].cnt} 个用户，请先迁移用户角色`);
+
+  await db.execute('UPDATE roles SET deleted_at = NOW() WHERE id = ?', [id]);
+
+  const { clearPermissionCache } = require('../../common/middleware/auth');
+  clearPermissionCache(rows[0].code);
+
+  logger.info('删除角色', { module: 'ADMIN', roleId: id, roleCode: rows[0].code });
+  return { id };
+}
+
+/**
+ * 获取所有权限列表（分组）
+ */
+async function getPermissionList() {
+  const rows = await db.query(
+    'SELECT id, code, name, group_code, group_name, description, sort_order FROM permissions ORDER BY group_code, sort_order'
+  );
+
+  // 按分组整理
+  const groups = {};
+  rows.forEach(p => {
+    if (!groups[p.group_code]) {
+      groups[p.group_code] = {
+        groupCode: p.group_code,
+        groupName: p.group_name,
+        permissions: [],
+      };
+    }
+    groups[p.group_code].permissions.push({
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      description: p.description,
+    });
+  });
+
+  return Object.values(groups);
+}
+
+/**
+ * 设置角色的权限
+ */
+async function setRolePermissions(roleId, permissionIds) {
+  const rows = await db.query('SELECT id, code FROM roles WHERE id = ? AND deleted_at IS NULL', [roleId]);
+  if (rows.length === 0) throw new BusinessError('角色不存在');
+
+  // 使用事务
+  await db.transaction(async (conn) => {
+    // 清除现有权限
+    await conn.execute('DELETE FROM role_permissions WHERE role_id = ?', [roleId]);
+    // 批量插入新权限
+    if (permissionIds && permissionIds.length > 0) {
+      const values = permissionIds.map(pid => [roleId, pid]);
+      // 简单批量 INSERT
+      for (const [rid, pid] of values) {
+        await conn.execute(
+          'INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)',
+          [rid, pid]
+        );
+      }
+    }
+  });
+
+  const { clearPermissionCache } = require('../../common/middleware/auth');
+  clearPermissionCache(rows[0].code);
+
+  logger.info('设置角色权限', { module: 'ADMIN', roleId, permissionCount: permissionIds?.length || 0 });
+  return { roleId, permissionCount: permissionIds?.length || 0 };
+}
+
+/**
+ * 获取审批类型列表（管理员）
+ */
+async function getApprovalTypes() {
+  const rows = await db.query(
+    `SELECT id, type_key, name, icon, sort_order, need_attachment, need_remark,
+      form_template, status, created_at, updated_at
+     FROM approval_types WHERE deleted_at IS NULL ORDER BY sort_order ASC, id ASC`
+  );
+  return rows.map(r => ({
+    id: r.id,
+    typeKey: r.type_key,
+    name: r.name,
+    icon: r.icon,
+    sortOrder: r.sort_order,
+    needAttachment: !!r.need_attachment,
+    needRemark: !!r.need_remark,
+    formTemplate: r.form_template,
+    status: r.status,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }));
+}
+
+/**
+ * 更新审批类型配置
+ */
+async function updateApprovalType(id, { name, icon, sortOrder, needAttachment, needRemark, formTemplate, status }) {
+  const rows = await db.query('SELECT id FROM approval_types WHERE id = ? AND deleted_at IS NULL', [id]);
+  if (rows.length === 0) throw new BusinessError('审批类型不存在');
+
+  const updates = [];
+  const params = [];
+
+  if (name !== undefined) { updates.push('name = ?'); params.push(name); }
+  if (icon !== undefined) { updates.push('icon = ?'); params.push(icon); }
+  if (sortOrder !== undefined) { updates.push('sort_order = ?'); params.push(sortOrder); }
+  if (needAttachment !== undefined) { updates.push('need_attachment = ?'); params.push(needAttachment ? 1 : 0); }
+  if (needRemark !== undefined) { updates.push('need_remark = ?'); params.push(needRemark ? 1 : 0); }
+  if (formTemplate !== undefined) { updates.push('form_template = ?'); params.push(JSON.stringify(formTemplate)); }
+  if (status !== undefined) {
+    if (!['active', 'disabled'].includes(status)) throw new ValidationError('状态值无效');
+    updates.push('status = ?');
+    params.push(status);
+  }
+
+  if (updates.length === 0) throw new BusinessError('没有需要更新的字段');
+
+  params.push(id);
+  await db.execute(`UPDATE approval_types SET ${updates.join(', ')} WHERE id = ?`, params);
+
+  logger.info('更新审批类型', { module: 'ADMIN', typeId: id });
+  return { id };
+}
+
+/**
  * 管理员删除用户（软删除：设 deleted_at）
  * 不允许删除自己
  */
@@ -231,4 +764,51 @@ async function deleteUser(userId) {
   return { userId: String(userId), deleted: true };
 }
 
-module.exports = { getUserList, setAdminRole, toggleUserStatus, createUser, approveUser, setUserPassword, inviteUser, deleteUser };
+/**
+ * 获取系统配置
+ */
+async function getSystemConfig() {
+  const rows = await db.query(
+    'SELECT id, config_key, config_value, config_group, description FROM system_config ORDER BY config_group, id'
+  );
+  return rows.map(r => ({
+    id: r.id,
+    key: r.config_key,
+    value: r.config_value,
+    group: r.config_group,
+    description: r.description,
+  }));
+}
+
+/**
+ * 更新系统配置
+ */
+async function updateSystemConfig(configs) {
+  if (!Array.isArray(configs) || configs.length === 0) {
+    throw new ValidationError('configs 必须为非空数组');
+  }
+
+  for (const item of configs) {
+    if (!item.key) continue;
+    await db.execute(
+      `INSERT INTO system_config (config_key, config_value, config_group, description)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE config_value = VALUES(config_value), config_group = VALUES(config_group)`,
+      [item.key, item.value || '', item.group || 'general', item.description || '']
+    );
+  }
+
+  logger.info('更新系统配置', { module: 'ADMIN', count: configs.length });
+  return { updated: configs.length };
+}
+
+module.exports = {
+  getUserList, getUserDetail, updateUser, batchImportUsers,
+  setAdminRole, toggleUserStatus, createUser, approveUser, inviteUser,
+  setUserPassword, deleteUser,
+  getDepartmentTree, getDepartmentList, createDepartment, updateDepartment, deleteDepartment,
+  getRoleList, getRoleDetail, createRole, updateRole, deleteRole,
+  getPermissionList, setRolePermissions,
+  getApprovalTypes, updateApprovalType,
+  getSystemConfig, updateSystemConfig,
+};

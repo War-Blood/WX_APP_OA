@@ -197,6 +197,15 @@
         "navigationStyle": "custom",
         "componentPlaceholder": { "nav-bar": "view" }
       }
+    },
+    {
+      "path": "pages/compliance/my-compliance/index",
+      "style": {
+        "navigationBarTitleText": "我的合规记录",
+        "navigationStyle": "custom",
+        "enablePullDownRefresh": false,
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
     }
   ],
   "tabBar": {

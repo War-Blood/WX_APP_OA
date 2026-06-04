@@ -28,6 +28,12 @@ def n(v):
     try: return str(int(float(str(v))))
     except: return 'NULL'
 
+def f(v):
+    """float/decimal or NULL"""
+    if v is None: return 'NULL'
+    try: return str(float(str(v)))
+    except: return 'NULL'
+
 sql_lines = []
 
 for row in ws.iter_rows(min_row=2, values_only=True):
@@ -46,7 +52,7 @@ for row in ws.iter_rows(min_row=2, values_only=True):
     work_content = s(row[11]) if len(row) > 11 else "''"
     required_qty = n(row[12]) if len(row) > 12 else '0'
     completed_qty = n(row[13]) if len(row) > 13 else '0'
-    progress    = n(row[14]) if len(row) > 14 else '0'
+    progress    = f(row[14]) if len(row) > 14 else 'NULL'
     today_work  = s(row[15]) if len(row) > 15 else "''"
     tomorrow    = s(row[16]) if len(row) > 16 else "''"
     today_type  = s(row[17]) if len(row) > 17 else "''"

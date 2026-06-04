@@ -29,6 +29,12 @@ const router = createRouter({
           meta: { title: '用户管理', icon: 'User' }
         },
         {
+          path: 'role',
+          name: 'Role',
+          component: () => import('@/views/role/index.vue'),
+          meta: { title: '角色管理', icon: 'Avatar' }
+        },
+        {
           path: 'approval',
           name: 'Approval',
           component: () => import('@/views/approval/index.vue'),
@@ -45,6 +51,38 @@ const router = createRouter({
           name: 'Project',
           component: () => import('@/views/project/index.vue'),
           meta: { title: '项目管理', icon: 'FolderOpened' }
+        },
+        {
+          path: 'compliance',
+          name: 'Compliance',
+          redirect: '/compliance/dashboard',
+          meta: { title: '合规管理', icon: 'DocumentChecked' },
+          children: [
+            {
+              path: 'dashboard',
+              name: 'ComplianceDashboard',
+              component: () => import('@/views/compliance/Dashboard.vue'),
+              meta: { title: '合规统计看板' }
+            },
+            {
+              path: 'biz-trip',
+              name: 'BizTripManage',
+              component: () => import('@/views/compliance/BizTripManage.vue'),
+              meta: { title: '出差管理' }
+            },
+            {
+              path: 'missing-review',
+              name: 'MissingReview',
+              component: () => import('@/views/compliance/MissingReview.vue'),
+              meta: { title: '缺失报告审核' }
+            }
+          ]
+        },
+        {
+          path: 'settings',
+          name: 'Settings',
+          component: () => import('@/views/settings/index.vue'),
+          meta: { title: '系统设置', icon: 'Setting' }
         }
       ]
     },

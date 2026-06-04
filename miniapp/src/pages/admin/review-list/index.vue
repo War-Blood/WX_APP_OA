@@ -30,6 +30,12 @@
           hover-class="card-hover"
           @tap="goToDetail(item)"
         >
+          <!-- 缺失报告标识 -->
+          <view v-if="activeTab === 'missing'" class="missing-tag">
+            <text class="tag-icon">⚠️</text>
+            <text class="tag-text">缺失报告(T+{{ item.daysLate || 2 }})</text>
+          </view>
+          
           <view class="card-header">
             <view class="user-info">
               <view class="avatar-circle">
@@ -67,6 +73,7 @@ import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { useUserStore } from '@/stores/user'
 import { reviewApi } from '@/services/modules/review'
+import { complianceApi } from '@/services/modules/compliance'
 
 const userStore = useUserStore()
 
@@ -85,6 +92,7 @@ const tabs = [
   { key: 'pending', label: '待审核' },
   { key: 'approved', label: '已通过' },
   { key: 'rejected', label: '已驳回' },
+  { key: 'missing', label: '缺失报告' }
 ]
 
 const reviewList = ref([])
@@ -146,10 +154,20 @@ async function loadAll(reset = true) {
       pageSize: 20,
     }
 
-    const [listRes] = await Promise.all([
-      reviewApi.getList(params),
-      reviewApi.getReviewStats().catch(() => ({ data: {} })),
-    ])
+    let listRes
+    // 如果是缺失报告Tab,调用不同的API
+    if (activeTab.value === 'missing') {
+      listRes = await complianceApi.getMissingReports({
+        page: currentPage.value,
+        pageSize: 20
+      })
+    } else {
+      const [res] = await Promise.all([
+        reviewApi.getList(params),
+        reviewApi.getReviewStats().catch(() => ({ data: {} })),
+      ])
+      listRes = res
+    }
 
     const list = listRes.data.list || []
     if (reset) { reviewList.value = list }
@@ -226,6 +244,26 @@ async function loadAll(reset = true) {
 
 .card-hover {
   background: #FAFBFC;
+}
+
+.missing-tag {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 12rpx 20rpx;
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  border-radius: 8rpx;
+  margin-bottom: 16rpx;
+}
+
+.tag-icon {
+  font-size: 28rpx;
+}
+
+.tag-text {
+  font-size: 26rpx;
+  color: #d32f2f;
+  font-weight: 600;
 }
 
 .card-header {

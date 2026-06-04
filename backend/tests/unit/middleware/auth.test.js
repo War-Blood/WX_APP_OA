@@ -5,9 +5,34 @@ jest.mock('jsonwebtoken');
 jest.mock('../../../src/common/config/env', () => ({
   jwt: { secret: 'test-secret' },
   nodeEnv: 'test',
+  isTest: true,
+  logDir: './logs',
+  oaDb: {
+    host: '127.0.0.1',
+    port: 3306,
+    user: 'test',
+    password: 'test',
+    name: 'test',
+    poolMin: 1,
+    poolMax: 2,
+  },
+  oldDb: {
+    host: '127.0.0.1',
+    port: 3306,
+    user: 'test',
+    password: 'test',
+    name: 'test',
+    poolMin: 1,
+    poolMax: 2,
+  },
+}));
+
+jest.mock('../../../src/common/config/database', () => ({
+  query: jest.fn(),
 }));
 
 const jwt = require('jsonwebtoken');
+const db = require('../../../src/common/config/database');
 const { authenticate, requireRole } = require('../../../src/common/middleware/auth');
 const { AuthError, ForbiddenError } = require('../../../src/common/utils/errors');
 
@@ -21,6 +46,8 @@ describe('认证鉴权中间件 - auth.js', () => {
     req = { headers: {}, user: null };
     res = {};
     next = jest.fn();
+    // Default mock: return active user
+    db.query.mockResolvedValue([{ status: 'active', role: 'admin' }]);
   });
 
   describe('authenticate（JWT 认证）', () => {
@@ -75,12 +102,12 @@ describe('认证鉴权中间件 - auth.js', () => {
       expect(err.message).toBe('Token 已过期，请重新登录');
     });
 
-    it('有效 token 时应挂载 req.user 并调用 next()', () => {
+    it('有效 token 时应挂载 req.user 并调用 next()', async () => {
       req.headers.authorization = 'Bearer valid-token';
       const decodedPayload = { id: 1, username: 'testuser', role: 'admin' };
       jwt.verify.mockReturnValue(decodedPayload);
 
-      authenticate(req, res, next);
+      await authenticate(req, res, next);
 
       expect(jwt.verify).toHaveBeenCalledWith('valid-token', 'test-secret');
       expect(req.user).toEqual(decodedPayload);
@@ -88,11 +115,11 @@ describe('认证鉴权中间件 - auth.js', () => {
       expect(next).toHaveBeenCalledWith(); // 无参数
     });
 
-    it('应使用 config 中的 jwt.secret 验证 token', () => {
+    it('应使用 config 中的 jwt.secret 验证 token', async () => {
       req.headers.authorization = 'Bearer token123';
       jwt.verify.mockReturnValue({ id: 1 });
 
-      authenticate(req, res, next);
+      await authenticate(req, res, next);
 
       expect(jwt.verify).toHaveBeenCalledWith('token123', 'test-secret');
     });

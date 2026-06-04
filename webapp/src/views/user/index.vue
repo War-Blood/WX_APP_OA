@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { getUserList, setAdminRole, toggleUserStatus, createUser, approveUser, deleteUser, type UserItem } from '@/api/user'
+import { Search, Refresh, Plus, Edit } from '@element-plus/icons-vue'
+import {
+  getUserList, updateUser, setAdminRole, toggleUserStatus,
+  createUser, approveUser, deleteUser, getDepartmentList, getRoleList,
+  type UserItem, type DepartmentItem, type RoleItem
+} from '@/api/user'
 import request from '@/utils/request'
 
 // 搜索与筛选
@@ -17,23 +21,28 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 
+// 动态数据
+const departmentList = ref<DepartmentItem[]>([])
+const roleList = ref<RoleItem[]>([])
+
 // 创建用户弹窗
 const createVisible = ref(false)
 const createLoading = ref(false)
 const createForm = ref({ openid: '', userName: '', department: '', role: 'employee' })
 
-// 邀请用户弹窗（直接激活）
+// 邀请用户弹窗
 const inviteVisible = ref(false)
 const inviteLoading = ref(false)
 const inviteForm = ref({ openid: '', userName: '', department: '' })
 
-// 角色选项
-const roleOptions = [
-  { label: '全部角色', value: '' },
-  { label: '超级管理员', value: 'superadmin' },
-  { label: '管理员', value: 'admin' },
-  { label: '员工', value: 'employee' }
-]
+// 编辑用户弹窗
+const editVisible = ref(false)
+const editLoading = ref(false)
+const editUser = ref<UserItem | null>(null)
+const editForm = ref({ userName: '', email: '', phone: '', departmentId: null as number | null, position: '', role: '' })
+
+// 角色选项（动态）
+const roleOptions = ref<{ label: string; value: string }[]>([])
 
 const statusOptions = [
   { label: '全部状态', value: '' },
@@ -41,6 +50,22 @@ const statusOptions = [
   { label: '待审核', value: 'pending' },
   { label: '已禁用', value: 'disabled' }
 ]
+
+async function loadDepartments() {
+  try {
+    departmentList.value = await getDepartmentList()
+  } catch { departmentList.value = [] }
+}
+
+async function loadRoles() {
+  try {
+    roleList.value = await getRoleList()
+    roleOptions.value = [
+      { label: '全部角色', value: '' },
+      ...roleList.value.map(r => ({ label: r.name, value: r.code }))
+    ]
+  } catch { roleList.value = [] }
+}
 
 async function loadUsers() {
   loading.value = true
@@ -60,6 +85,33 @@ async function loadUsers() {
 function handleSearch() { page.value = 1; loadUsers() }
 function handlePageChange(p: number) { page.value = p; loadUsers() }
 
+// 编辑用户
+function openEditDialog(row: UserItem) {
+  editUser.value = row
+  editForm.value = {
+    userName: row.userName || row.nickName || '',
+    email: row.email || '',
+    phone: row.phone || '',
+    departmentId: row.departmentId ?? null,
+    position: row.position || '',
+    role: row.role
+  }
+  editVisible.value = true
+}
+
+async function handleEditUser() {
+  if (!editUser.value) return
+  editLoading.value = true
+  try {
+    await updateUser(editUser.value.userId, editForm.value)
+    ElMessage.success('用户信息已更新')
+    editVisible.value = false
+    loadUsers()
+  } catch { /* error handled by interceptor */ }
+  finally { editLoading.value = false }
+}
+
+// 角色切换
 async function handleRoleSwitch(row: UserItem) {
   const targetRole = row.role === 'admin' ? 'employee' : 'admin'
   const action = targetRole === 'admin' ? '设为管理员' : '取消管理员'
@@ -71,6 +123,7 @@ async function handleRoleSwitch(row: UserItem) {
   } catch { /* cancel */ }
 }
 
+// 启用/禁用
 async function handleToggleStatus(row: UserItem) {
   const targetStatus = row.status === 'active' ? 'disabled' : 'active'
   const action = targetStatus === 'active' ? '启用' : '禁用'
@@ -82,6 +135,7 @@ async function handleToggleStatus(row: UserItem) {
   } catch { /* cancel */ }
 }
 
+// 删除
 async function handleDelete(row: UserItem) {
   try {
     await ElMessageBox.confirm(
@@ -95,15 +149,17 @@ async function handleDelete(row: UserItem) {
   } catch { /* cancel */ }
 }
 
+// 审核
 async function handleApprove(row: UserItem) {
   try {
-    await ElMessageBox.confirm(`确定审核通过「${row.nickName}」吗？审核通过后用户即可登录使用。`, '审核用户', { confirmButtonText: '确定通过', cancelButtonText: '取消', type: 'success' })
+    await ElMessageBox.confirm(`确定审核通过「${row.nickName}」吗？`, '审核用户', { confirmButtonText: '确定通过', cancelButtonText: '取消', type: 'success' })
     await approveUser(row.userId)
-    ElMessage.success('审核通过，用户现在可以登录了')
+    ElMessage.success('审核通过')
     loadUsers()
   } catch { /* cancel */ }
 }
 
+// 创建用户
 async function handleCreateUser() {
   createLoading.value = true
   try {
@@ -116,12 +172,13 @@ async function handleCreateUser() {
   finally { createLoading.value = false }
 }
 
+// 邀请用户
 async function handleInviteUser() {
   if (!inviteForm.value.openid.trim()) { ElMessage.warning('请填写微信 OpenID'); return }
   inviteLoading.value = true
   try {
     await request.post('/admin/inviteUser', inviteForm.value)
-    ElMessage.success('用户已邀请成功，即刻激活')
+    ElMessage.success('用户已邀请成功')
     inviteVisible.value = false
     inviteForm.value = { openid: '', userName: '', department: '' }
     loadUsers()
@@ -135,8 +192,8 @@ function getRoleTagType(role: string) {
 }
 
 function getRoleLabel(role: string) {
-  const map: Record<string, string> = { superadmin: '超级管理员', admin: '管理员', employee: '员工' }
-  return map[role] || role
+  const found = roleList.value.find(r => r.code === role)
+  return found?.name || role
 }
 
 function getStatusLabel(status: string) {
@@ -149,7 +206,11 @@ function getStatusType(status: string) {
   return map[status] || 'info'
 }
 
-onMounted(() => { loadUsers() })
+onMounted(() => {
+  loadDepartments()
+  loadRoles()
+  loadUsers()
+})
 </script>
 
 <template>
@@ -190,21 +251,20 @@ onMounted(() => { loadUsers() })
       <el-table-column prop="phone" label="手机号" width="130"><template #default="{ row }">{{ row.phone || '-' }}</template></el-table-column>
       <el-table-column prop="email" label="邮箱" min-width="150"><template #default="{ row }">{{ row.email || '-' }}</template></el-table-column>
       <el-table-column prop="lastLoginTime" label="最后登录" width="160"><template #default="{ row }">{{ row.lastLoginTime || '-' }}</template></el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column label="操作" width="260" fixed="right">
         <template #default="{ row }">
           <template v-if="row.status === 'pending'">
-            <el-button size="small" type="warning" plain disabled>已自动激活</el-button>
+            <el-button size="small" type="success" link @click="handleApprove(row)">审核通过</el-button>
           </template>
           <template v-else>
+            <el-button size="small" type="primary" link :icon="Edit" @click="openEditDialog(row)">编辑</el-button>
             <el-button v-if="row.role !== 'superadmin'" size="small" :type="row.role === 'admin' ? 'warning' : 'primary'" link @click="handleRoleSwitch(row)">
               {{ row.role === 'admin' ? '取消管理员' : '设为管理员' }}
             </el-button>
             <el-button size="small" :type="row.status === 'active' ? 'danger' : 'success'" link @click="handleToggleStatus(row)">
               {{ row.status === 'active' ? '禁用' : '启用' }}
             </el-button>
-            <el-button size="small" type="danger" link @click="handleDelete(row)">
-              删除
-            </el-button>
+            <el-button size="small" type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </template>
       </el-table-column>
@@ -216,12 +276,48 @@ onMounted(() => { loadUsers() })
       <el-pagination v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev, pager, next" background @current-change="handlePageChange" />
     </div>
 
+    <!-- 编辑用户弹窗 -->
+    <el-dialog v-model="editVisible" title="编辑用户信息" width="500px" destroy-on-close>
+      <el-form :model="editForm" label-width="80px">
+        <el-form-item label="姓名">
+          <el-input v-model="editForm.userName" placeholder="用户姓名" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="editForm.email" placeholder="邮箱地址" />
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="editForm.phone" placeholder="手机号码" />
+        </el-form-item>
+        <el-form-item label="部门">
+          <el-tree-select
+            v-model="editForm.departmentId"
+            :data="departmentList"
+            :props="{ value: 'id', label: 'name', children: 'children' }"
+            placeholder="选择部门"
+            check-strictly
+            clearable
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="职位">
+          <el-input v-model="editForm.position" placeholder="职位" />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="editForm.role" placeholder="选择角色" style="width: 100%">
+            <el-option v-for="r in roleList" :key="r.code" :label="r.name" :value="r.code" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editLoading" @click="handleEditUser">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 创建用户弹窗 -->
     <el-dialog v-model="createVisible" title="注册新用户" width="480px" destroy-on-close>
       <el-alert type="info" :closable="false" style="margin-bottom:16px">
-        <template #title>
-          用户打开小程序即自动注册激活，无需手动审核。<br/>管理员可在此预注册用户并指定角色和部门。
-        </template>
+        <template #title>用户打开小程序即自动注册激活。管理员可在此预注册用户并指定角色和部门。</template>
       </el-alert>
       <el-form :model="createForm" label-width="80px">
         <el-form-item label="微信OpenID" required>
@@ -231,13 +327,15 @@ onMounted(() => { loadUsers() })
           <el-input v-model="createForm.userName" placeholder="用户姓名（可选）" />
         </el-form-item>
         <el-form-item label="部门">
-          <el-select v-model="createForm.department" placeholder="选择部门" style="width:100%">
-            <el-option label="管理部" value="管理部" />
-            <el-option label="技术部" value="技术部" />
-            <el-option label="工程运维部" value="工程运维部" />
-            <el-option label="市场部" value="市场部" />
-            <el-option label="财务部" value="财务部" />
-          </el-select>
+          <el-tree-select
+            v-model="createForm.department"
+            :data="departmentList"
+            :props="{ value: 'name', label: 'name', children: 'children' }"
+            placeholder="选择部门"
+            check-strictly
+            clearable
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -246,7 +344,7 @@ onMounted(() => { loadUsers() })
       </template>
     </el-dialog>
 
-    <!-- 邀请用户弹窗（直接激活，跳过审核） -->
+    <!-- 邀请用户弹窗 -->
     <el-dialog v-model="inviteVisible" title="邀请用户" width="480px" destroy-on-close>
       <el-alert type="success" :closable="false" style="margin-bottom:16px">
         <template #title>邀请后用户即刻激活，无需等待审核。需要用户的微信 OpenID。</template>
@@ -259,13 +357,15 @@ onMounted(() => { loadUsers() })
           <el-input v-model="inviteForm.userName" placeholder="用户姓名" />
         </el-form-item>
         <el-form-item label="部门">
-          <el-select v-model="inviteForm.department" placeholder="选择部门" style="width:100%">
-            <el-option label="管理部" value="管理部" />
-            <el-option label="技术部" value="技术部" />
-            <el-option label="工程运维部" value="工程运维部" />
-            <el-option label="市场部" value="市场部" />
-            <el-option label="财务部" value="财务部" />
-          </el-select>
+          <el-tree-select
+            v-model="inviteForm.department"
+            :data="departmentList"
+            :props="{ value: 'name', label: 'name', children: 'children' }"
+            placeholder="选择部门"
+            check-strictly
+            clearable
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>

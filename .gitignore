@@ -29,7 +29,7 @@ logs/
 pm2-*.log
 
 # Workspace (local dev data)
-.trae/
+# AI collaboration files are in .AI/ (tracked by git)
 
 # System files
 nul
@@ -43,6 +43,9 @@ uploads/
 
 # Design backup (large files)
 design-backup/
+
+# RepoWiki output (junctioned to .AI/Wiki/)
+.qoder/repowiki/zh/content/
 
 # Test coverage
 coverage/
