@@ -53,7 +53,7 @@
       <el-form :model="form" label-width="100px">
         <el-form-item label="员工" required>
           <el-select v-model="form.userId" placeholder="请选择员工" style="width: 100%">
-            <el-option v-for="user in users" :key="user.id" :label="user.name" :value="user.id" />
+            <el-option v-for="user in users" :key="user.id" :label="user.user_name" :value="user.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="项目名称">

@@ -186,18 +186,23 @@ async function getMyCompliance(req, res, next) {
   try {
     const userId = req.user.userId;
 
+    // 获取用户名
+    const [userRows] = await db.query('SELECT user_name FROM users WHERE id = ?', [userId]);
+    const userName = userRows && userRows.length > 0 ? userRows[0].user_name : '';
+
     // 获取本月统计
     const stats = await statsService.getUserComplianceStats(userId);
 
-    // 获取合规记录列表
+    // 通过 worker_compliance 找到用户参与的合规记录
     const rows = await db.query(
-      `SELECT rc.*, dr.content, dr.project
-       FROM report_compliance rc
-       JOIN daily_reports dr ON rc.report_id = dr.id
-       WHERE rc.user_id = ?
+      `SELECT rc.*, dr.content, dr.project as dr_project
+       FROM worker_compliance wc
+       JOIN report_compliance rc ON wc.compliance_id = rc.id
+       LEFT JOIN daily_reports dr ON rc.report_id = dr.id
+       WHERE wc.worker_name = ?
        ORDER BY rc.report_date DESC
        LIMIT 50`,
-      [userId]
+      [userName]
     );
 
     res.json({

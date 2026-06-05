@@ -7,16 +7,33 @@
         </div>
       </template>
       
+      <!-- 日期筛选 -->
+      <el-form inline style="margin-bottom: 16px;">
+        <el-form-item label="日期范围">
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            @change="loadMissingList"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="loadMissingList">查询</el-button>
+        </el-form-item>
+      </el-form>
+      
       <el-table :data="missingList" v-loading="loading" stripe>
-        <el-table-column prop="user_name" label="员工" />
-        <el-table-column prop="report_date" label="日报日期" />
-        <el-table-column label="逾期天数">
+        <el-table-column prop="project" label="项目" min-width="150" />
+        <el-table-column prop="workers" label="作业人员" min-width="200" />
+        <el-table-column prop="report_date" label="日报日期" width="120" />
+        <el-table-column label="缺失天数" width="100">
           <template #default="{ row }">
             <el-tag type="danger">{{ calculateDaysLate(row.report_date) }} 天</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="submit_time" label="提交时间" />
-        <el-table-column prop="project_name" label="项目" />
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
             <el-button size="small" type="primary" @click="handleReview(row, 'approve')">通过</el-button>
@@ -25,7 +42,6 @@
         </el-table-column>
       </el-table>
       
-      <!-- 分页 -->
       <el-pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
@@ -38,8 +54,11 @@
     <!-- 审核对话框 -->
     <el-dialog v-model="showReviewDialog" title="审核缺失报告" width="500px">
       <el-form :model="reviewForm" label-width="100px">
-        <el-form-item label="员工">
-          <span>{{ currentRow?.user_name }}</span>
+        <el-form-item label="项目">
+          <span>{{ currentRow?.project }}</span>
+        </el-form-item>
+        <el-form-item label="作业人员">
+          <span>{{ currentRow?.workers }}</span>
         </el-form-item>
         <el-form-item label="日报日期">
           <span>{{ currentRow?.report_date }}</span>
@@ -75,6 +94,7 @@ const pageSize = ref(20)
 const total = ref(0)
 const currentRow = ref<any>(null)
 const reviewAction = ref<'approve' | 'reject'>('approve')
+const dateRange = ref<[string, string] | null>(null)
 
 const reviewForm = ref({
   comment: ''
@@ -87,10 +107,15 @@ onMounted(() => {
 async function loadMissingList() {
   loading.value = true
   try {
-    const res = await complianceApi.getMissingReports({
+    const params: any = {
       page: currentPage.value,
       pageSize: pageSize.value
-    })
+    }
+    if (dateRange.value) {
+      params.startDate = dateRange.value[0]
+      params.endDate = dateRange.value[1]
+    }
+    const res = await complianceApi.getMissingReports(params)
     missingList.value = res.data.list || []
     total.value = res.data.total || 0
   } catch (err: any) {

@@ -6,7 +6,7 @@
         <el-card>
           <div class="stat-card">
             <div class="stat-value">{{ dashboard.overallRate }}%</div>
-            <div class="stat-label">本月整体及时率</div>
+            <div class="stat-label">整体及时率</div>
           </div>
         </el-card>
       </el-col>
@@ -25,7 +25,7 @@
       <el-col :span="6">
         <el-card>
           <div class="stat-card warning">
-            <div class="stat-value">{{ dashboard.delayedCount || 0 }}</div>
+            <div class="stat-value">{{ dashboard.delayedCount }}</div>
             <div class="stat-label">延迟提交</div>
           </div>
         </el-card>
@@ -35,7 +35,7 @@
       <el-col :span="6">
         <el-card>
           <div class="stat-card danger">
-            <div class="stat-value">{{ dashboard.missingCount || 0 }}</div>
+            <div class="stat-value">{{ dashboard.missingCount }}</div>
             <div class="stat-label">缺失报告</div>
           </div>
         </el-card>
@@ -43,38 +43,43 @@
     </el-row>
     
     <el-row :gutter="20" style="margin-top: 20px;">
-      <!-- 部门及时率排名 -->
+      <!-- 项目缺失排名 -->
       <el-col :span="12">
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>部门及时率排名</span>
+              <span>项目缺失排名</span>
             </div>
           </template>
-          <el-table :data="departmentRanking" stripe>
-            <el-table-column prop="department" label="部门" />
-            <el-table-column prop="rate" label="及时率">
+          <el-table :data="projectMissing" stripe>
+            <el-table-column prop="project" label="项目" min-width="180" />
+            <el-table-column prop="missing_count" label="缺失次数" sortable width="120">
               <template #default="{ row }">
-                <el-progress :percentage="parseFloat(row.rate)" :color="getProgressColor(row.rate)" />
+                <el-tag type="danger">{{ row.missing_count }}</el-tag>
               </template>
             </el-table-column>
           </el-table>
+          <el-empty v-if="!projectMissing.length" description="暂无缺失数据" />
         </el-card>
       </el-col>
       
-      <!-- 缺失报告TOP10 -->
+      <!-- 人员缺失TOP10 -->
       <el-col :span="12">
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>缺失报告TOP10</span>
+              <span>人员缺失TOP10</span>
             </div>
           </template>
           <el-table :data="missingTop10" stripe>
-            <el-table-column prop="user_name" label="员工" />
-            <el-table-column prop="department" label="部门" />
-            <el-table-column prop="missing_count" label="缺失次数" sortable />
+            <el-table-column prop="worker_name" label="人员" />
+            <el-table-column prop="missing_count" label="缺失次数" sortable width="120">
+              <template #default="{ row }">
+                <el-tag type="danger">{{ row.missing_count }}</el-tag>
+              </template>
+            </el-table-column>
           </el-table>
+          <el-empty v-if="!missingTop10.length" description="暂无缺失数据" />
         </el-card>
       </el-col>
     </el-row>
@@ -105,8 +110,8 @@ const dashboard = ref({
   missingCount: 0
 })
 
-const departmentRanking = ref<any[]>([])
 const missingTop10 = ref<any[]>([])
+const projectMissing = ref<any[]>([])
 const trendData = ref<any[]>([])
 const trendChart = ref<HTMLDivElement>()
 
@@ -117,15 +122,21 @@ onMounted(() => {
 async function loadDashboard() {
   try {
     const res = await complianceApi.getDashboard()
-    dashboard.value = res.data
+    const data = res.data
     
-    // 计算延迟和缺失数量
-    dashboard.value.delayedCount = res.data.totalReports - res.data.onTimeCount - (res.data.missingCount || 0)
-    dashboard.value.missingCount = res.data.missingCount || 0
+    dashboard.value = {
+      overallRate: data.overallRate || 0,
+      totalReports: data.totalReports || 0,
+      onTimeCount: data.onTimeCount || 0,
+      delayedCount: data.delayedCount || 0,
+      missingCount: data.missingCount || 0
+    }
     
-    departmentRanking.value = res.data.departmentRanking || []
-    missingTop10.value = res.data.missingTop10 || []
-    trendData.value = res.data.trendData || []
+    missingTop10.value = data.missingTop10 || []
+    trendData.value = data.trendData || []
+    
+    // 项目维度缺失统计(从 report_compliance 聚合)
+    loadProjectMissing()
     
     renderTrendChart()
   } catch (err: any) {
@@ -133,11 +144,22 @@ async function loadDashboard() {
   }
 }
 
-function getProgressColor(rate: string) {
-  const num = parseFloat(rate)
-  if (num >= 90) return '#67c23a'
-  if (num >= 70) return '#e6a23c'
-  return '#f56c6c'
+async function loadProjectMissing() {
+  try {
+    const res = await complianceApi.getMissingReports({ page: 1, pageSize: 1000 })
+    const allRecords = res.data.list || []
+    // 按项目聚合缺失次数
+    const projectMap = new Map<string, number>()
+    for (const item of allRecords) {
+      const proj = item.project || '(未指定)'
+      projectMap.set(proj, (projectMap.get(proj) || 0) + 1)
+    }
+    projectMissing.value = Array.from(projectMap.entries())
+      .map(([project, missing_count]) => ({ project, missing_count }))
+      .sort((a, b) => b.missing_count - a.missing_count)
+  } catch {
+    // fallback: use missing reports list to compute
+  }
 }
 
 function renderTrendChart() {
@@ -186,7 +208,6 @@ function renderTrendChart() {
   
   chart.setOption(option)
   
-  // 响应式调整
   window.addEventListener('resize', () => {
     chart.resize()
   })

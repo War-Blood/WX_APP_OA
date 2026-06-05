@@ -41,7 +41,7 @@
           </view>
         </view>
         <view class="record-info">
-          <text class="info-item">项目: {{ item.project_name || '未指定' }}</text>
+          <text class="info-item">项目: {{ item.project || item.dr_project || '未指定' }}</text>
           <text class="info-item">提交时间: {{ formatDateTime(item.submit_time) }}</text>
           <text class="info-item" v-if="item.is_auto_approved">✓ 自动审核通过</text>
           <text class="info-item pending" v-else>⏳ 待人工审核</text>

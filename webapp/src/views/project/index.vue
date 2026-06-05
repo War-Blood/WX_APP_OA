@@ -2,14 +2,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
-import { getReviewList, getReportDetail, type ReportDetail } from '@/api/report'
+import { getReviewList } from '@/api/report'
 
 const allData = ref<any[]>([])
 const loading = ref(true)
 const keyword = ref('')
-const detailVisible = ref(false)
-const detail = ref<ReportDetail | null>(null)
-const detailLoading = ref(false)
 
 // Group reports by project
 const projectList = computed(() => {

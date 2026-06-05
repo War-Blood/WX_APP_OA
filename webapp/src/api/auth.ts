@@ -3,6 +3,7 @@ import request from '@/utils/request'
 export interface AdminLoginParams {
   account: string
   password: string
+  totp?: string
 }
 
 export interface AdminLoginResult {

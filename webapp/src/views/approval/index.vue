@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { Search, Refresh, Setting } from '@element-plus/icons-vue'
+import { Refresh, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getApprovalTypes, updateApprovalType, type ApprovalTypeItem } from '@/api/approval-type'
 
@@ -37,8 +37,8 @@ async function loadApprovals() {
   try {
     const { default: request } = await import('@/utils/request')
     const res = await request.post('/approval/list', { tab: activeTab.value, page: 1, pageSize: 50 })
-    list.value = res.list || []
-    total.value = res.total || 0
+    list.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch { list.value = [] }
   finally { loading.value = false }
 }

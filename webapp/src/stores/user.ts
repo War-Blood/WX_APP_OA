@@ -35,6 +35,19 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('token')
   }
 
+  const refreshProfile = async () => {
+    const { getProfile } = await import('@/api/auth')
+    const user = await getProfile()
+    setUserInfo({
+      userId: String(user.id),
+      nickName: user.nickname || user.userName,
+      avatarUrl: user.avatar_url || '',
+      role: user.role || '',
+      department: user.department || '',
+      permissions: []
+    })
+  }
+
   // 检查权限
   const hasPermission = (permission: string) => {
     return userInfo.value?.permissions?.includes(permission) || false
@@ -48,6 +61,7 @@ export const useUserStore = defineStore('user', () => {
     setToken,
     setUserInfo,
     logout,
-    hasPermission
+    hasPermission,
+    refreshProfile
   }
 })

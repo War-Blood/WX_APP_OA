@@ -32,12 +32,20 @@
         >
           <!-- 缺失报告标识 -->
           <view v-if="activeTab === 'missing'" class="missing-tag">
-            <text class="tag-icon">⚠️</text>
-            <text class="tag-text">缺失报告(T+{{ item.daysLate || 2 }})</text>
+            <text class="tag-icon">!</text>
+            <text class="tag-text">缺失报告({{ daysLate(item.report_date) }}天)</text>
           </view>
           
           <view class="card-header">
-            <view class="user-info">
+            <!-- 缺失报告用项目维度展示 -->
+            <view v-if="activeTab === 'missing'" class="user-info">
+              <view class="name-block" style="flex: 1;">
+                <text class="user-name">{{ item.project || '(未指定项目)' }}</text>
+                <text class="project-name">人员: {{ item.workers || '-' }}</text>
+              </view>
+            </view>
+            <!-- 普通审核用用户维度展示 -->
+            <view v-else class="user-info">
               <view class="avatar-circle">
                 <image
                   v-if="item.avatar"
@@ -107,13 +115,20 @@ function getInitial(name) {
   return name ? name.slice(0, 1) : '?'
 }
 
+function daysLate(dateStr) {
+  if (!dateStr) return 0
+  const d = new Date(dateStr)
+  const now = new Date()
+  return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
+}
+
 function getStatusBg(status) {
-  const map = { pending: '#FFF8F0', approved: '#EFFDF5', rejected: '#FFF0F0' }
+  const map = { pending: '#FFF8F0', approved: '#EFFDF5', rejected: '#FFF0F0', missing: '#FFF0F0' }
   return map[status] || '#F5F5F5'
 }
 
 function getStatusColor(status) {
-  const map = { pending: '#F59E0B', approved: '#22C55E', rejected: '#EF4444' }
+  const map = { pending: '#F59E0B', approved: '#22C55E', rejected: '#EF4444', missing: '#EF4444' }
   return map[status] || '#999999'
 }
 
@@ -123,6 +138,7 @@ function switchTab(key) {
 }
 
 function goToDetail(item) {
+  if (activeTab.value === 'missing') return
   uni.navigateTo({ url: '/pages/admin/review-detail/index?id=' + item.id })
 }
 
@@ -155,7 +171,6 @@ async function loadAll(reset = true) {
     }
 
     let listRes
-    // 如果是缺失报告Tab,调用不同的API
     if (activeTab.value === 'missing') {
       listRes = await complianceApi.getMissingReports({
         page: currentPage.value,
@@ -170,8 +185,11 @@ async function loadAll(reset = true) {
     }
 
     const list = listRes.data.list || []
-    if (reset) { reviewList.value = list }
-    else { reviewList.value = [...reviewList.value, ...list] }
+    const normalizedList = activeTab.value === 'missing'
+      ? list.map(item => ({ ...item, status: 'missing', statusText: '缺失' }))
+      : list
+    if (reset) { reviewList.value = normalizedList }
+    else { reviewList.value = [...reviewList.value, ...normalizedList] }
     if (list.length < 20) { noMoreData.value = true }
   } catch (err) {
     console.error('加载审核数据失败', err)

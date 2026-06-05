@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getReportStats } from '@/api/stats'
-import { getReportList, getWorkerStats, deleteReport } from '@/api/report'
-import { reviewAction } from '@/api/report'
-import request from '@/utils/request'
+import { getReportList, getWorkerStats, deleteReport, reviewAction } from '@/api/report'
 
 // --- 状态 ---
 const activeTab = ref('query')
@@ -113,13 +111,29 @@ async function handleDelete(row: any) {
 }
 
 async function handleReview(row: any, action: 'approve' | 'reject') {
-  const label = action === 'approve' ? '通过' : '驳回'
-  try {
-    await ElMessageBox.confirm(`确定${label}该条日报？`, '审核确认', { type: 'warning' })
-    await reviewAction(row.id, action)
-    ElMessage.success(`已${label}`)
-    loadReports()
-  } catch { /* cancelled */ }
+  if (action === 'approve') {
+    try {
+      await ElMessageBox.confirm('确定通过该条日报？', '审核确认', { type: 'warning' })
+      await reviewAction(row.id, action)
+      ElMessage.success('已通过')
+      loadReports()
+    } catch { /* cancelled */ }
+  } else {
+    try {
+      const { value: opinion } = await ElMessageBox.prompt('请输入驳回原因', '驳回确认', {
+        inputType: 'textarea',
+        inputPlaceholder: '请详细说明驳回原因，帮助提交者了解需要修改的内容',
+        inputValidator: (val: string) => !!val.trim(),
+        inputErrorMessage: '驳回原因不能为空',
+        confirmButtonText: '确定驳回',
+        cancelButtonText: '取消',
+        distinguishCancelAndClose: true,
+      })
+      await reviewAction(row.id, action, opinion)
+      ElMessage.success('已驳回')
+      loadReports()
+    } catch { /* cancelled or closed */ }
+  }
 }
 
 function showDetail(row: any) { detailData.value = row; detailVisible.value = true }

@@ -4,34 +4,38 @@ const db = require('../../../common/config/database');
 const logger = require('../../../common/utils/logger');
 
 /**
- * 更新月度合规统计
- * @param {number} userId - 用户ID
+ * 更新月度合规统计(按人员维度,从 worker_compliance 聚合)
+ * @param {string} workerName - 作业人员姓名
  * @param {string} month - 月份 (YYYY-MM)
  */
-async function updateMonthlyStats(userId, month) {
+async function updateMonthlyStats(workerName, month) {
   try {
-    // 聚合计算该月的统计数据
     const rows = await db.query(
       `SELECT 
          COUNT(*) as total_reports,
          SUM(CASE WHEN timeliness = 'on_time' THEN 1 ELSE 0 END) as on_time_count,
          SUM(CASE WHEN timeliness = 'delayed' THEN 1 ELSE 0 END) as delayed_count,
          SUM(CASE WHEN timeliness = 'missing' THEN 1 ELSE 0 END) as missing_count
-       FROM report_compliance
-       WHERE user_id = ? AND DATE_FORMAT(report_date, '%Y-%m') = ?`,
-      [userId, month]
+       FROM worker_compliance
+       WHERE worker_name = ? AND DATE_FORMAT(report_date, '%Y-%m') = ?`,
+      [workerName, month]
     );
 
-    if (!rows || rows.length === 0) {
-      return;
-    }
+    if (!rows || rows.length === 0) return;
 
     const stats = rows[0];
-    const onTimeRate = stats.total_reports > 0 
+    const onTimeRate = stats.total_reports > 0
       ? ((stats.on_time_count / stats.total_reports) * 100).toFixed(2)
       : 0;
 
-    // 插入或更新统计
+    // 查找 user_id (by user_name)
+    const [userRows] = await db.query(
+      'SELECT id FROM users WHERE user_name = ?',
+      [workerName]
+    );
+    const userId = userRows && userRows.length > 0 ? userRows[0].id : null;
+    if (!userId) return;
+
     await db.query(
       `INSERT INTO user_compliance_stats 
        (user_id, stat_month, total_reports, on_time_count, delayed_count, missing_count, on_time_rate)
@@ -45,69 +49,52 @@ async function updateMonthlyStats(userId, month) {
       [userId, month, stats.total_reports, stats.on_time_count, stats.delayed_count, stats.missing_count, onTimeRate]
     );
 
-    console.log(`[Stats] 用户${userId}的${month}统计已更新`);
+    logger.info(`[Stats] ${workerName} (userId=${userId}) ${month}统计已更新`);
   } catch (err) {
-    console.error('[Stats] 更新月度统计失败:', err);
+    logger.error('[Stats] 更新月度统计失败:', err);
     throw err;
   }
 }
 
 /**
  * 获取合规统计看板
- * @param {Object} params - 查询参数
- * @param {string} params.startDate - 开始日期
- * @param {string} params.endDate - 结束日期
- * @returns {Promise<Object>} 看板数据
  */
 async function getComplianceDashboard({ startDate, endDate }) {
   try {
+    const sd = startDate || '2026-01-01';
+    const ed = endDate || new Date().toISOString().split('T')[0];
+
     // 1. 整体及时率
     const overallRows = await db.query(
       `SELECT 
          COUNT(*) as total,
-         SUM(CASE WHEN timeliness = 'on_time' THEN 1 ELSE 0 END) as on_time_count
+         SUM(CASE WHEN timeliness = 'on_time' THEN 1 ELSE 0 END) as on_time_count,
+         SUM(CASE WHEN timeliness = 'delayed' THEN 1 ELSE 0 END) as delayed_count,
+         SUM(CASE WHEN timeliness = 'missing' THEN 1 ELSE 0 END) as missing_count
        FROM report_compliance
        WHERE report_date BETWEEN ? AND ?`,
-      [startDate || '2026-01-01', endDate || new Date().toISOString().split('T')[0]]
+      [sd, ed]
     );
 
     const overall = overallRows[0];
-    const overallRate = overall.total > 0 
+    const overallRate = overall.total > 0
       ? ((overall.on_time_count / overall.total) * 100).toFixed(2)
       : 0;
 
-    // 2. 部门排名
-    const departmentRanking = await db.query(
-      `SELECT 
-         u.department,
-         COUNT(*) as total,
-         SUM(CASE WHEN rc.timeliness = 'on_time' THEN 1 ELSE 0 END) as on_time_count,
-         ROUND(SUM(CASE WHEN rc.timeliness = 'on_time' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as rate
-       FROM report_compliance rc
-       JOIN users u ON rc.user_id = u.id
-       WHERE rc.report_date BETWEEN ? AND ?
-       GROUP BY u.department
-       ORDER BY rate DESC`,
-      [startDate || '2026-01-01', endDate || new Date().toISOString().split('T')[0]]
-    );
-
-    // 3. 缺失报告TOP10
+    // 2. 人员缺失TOP10 (从 worker_compliance 聚合)
     const missingTop10 = await db.query(
       `SELECT 
-         u.id as user_id,
-         u.user_name as user_name,
-         u.department,
+         worker_name,
          COUNT(*) as missing_count
-       FROM report_compliance rc
-       JOIN users u ON rc.user_id = u.id
-       WHERE rc.timeliness = 'missing' AND rc.report_date BETWEEN ? AND ?
-       GROUP BY u.id, u.user_name, u.department
+       FROM worker_compliance
+       WHERE timeliness = 'missing' AND report_date BETWEEN ? AND ?
+       GROUP BY worker_name
        ORDER BY missing_count DESC
        LIMIT 10`,
-      [startDate || '2026-01-01', endDate || new Date().toISOString().split('T')[0]]
+      [sd, ed]
     );
 
-    // 4. 近6个月趋势数据
+    // 3. 近6个月趋势
     const trendData = await db.query(
       `SELECT 
          DATE_FORMAT(report_date, '%Y-%m') as month,
@@ -123,52 +110,64 @@ async function getComplianceDashboard({ startDate, endDate }) {
       overallRate,
       totalReports: overall.total,
       onTimeCount: overall.on_time_count,
-      departmentRanking,
+      delayedCount: overall.delayed_count,
+      missingCount: overall.missing_count,
       missingTop10,
       trendData
     };
   } catch (err) {
-    console.error('[Stats] 获取合规统计看板失败:', err);
+    logger.error('[Stats] 获取合规统计看板失败:', err);
     throw err;
   }
 }
 
 /**
  * 获取个人合规统计
- * @param {number} userId - 用户ID
- * @returns {Promise<Object>} 个人统计数据
+ * 通过 userId → user_name 匹配 worker_compliance
  */
 async function getUserComplianceStats(userId) {
   try {
-    const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
+    // 1. 获取用户名
+    const [userRows] = await db.query('SELECT user_name FROM users WHERE id = ?', [userId]);
+    if (!userRows || userRows.length === 0) {
+      return {
+        totalReports: 0, onTimeCount: 0, delayedCount: 0, missingCount: 0, onTimeRate: 0
+      };
+    }
+    const userName = userRows[0].user_name;
 
+    const currentMonth = new Date().toISOString().substring(0, 7);
     const rows = await db.query(
-      'SELECT * FROM user_compliance_stats WHERE user_id = ? AND stat_month = ?',
-      [userId, currentMonth]
+      `SELECT 
+         COUNT(*) as total_reports,
+         SUM(CASE WHEN timeliness = 'on_time' THEN 1 ELSE 0 END) as on_time_count,
+         SUM(CASE WHEN timeliness = 'delayed' THEN 1 ELSE 0 END) as delayed_count,
+         SUM(CASE WHEN timeliness = 'missing' THEN 1 ELSE 0 END) as missing_count
+       FROM worker_compliance
+       WHERE worker_name = ? AND DATE_FORMAT(report_date, '%Y-%m') = ?`,
+      [userName, currentMonth]
     );
 
-    if (!rows || rows.length === 0) {
+    if (!rows || rows.length === 0 || !rows[0].total_reports) {
       return {
         month: currentMonth,
-        totalReports: 0,
-        onTimeCount: 0,
-        delayedCount: 0,
-        missingCount: 0,
-        onTimeRate: 0
+        totalReports: 0, onTimeCount: 0, delayedCount: 0, missingCount: 0, onTimeRate: 0
       };
     }
 
     const stats = rows[0];
     return {
-      month: stats.stat_month,
+      month: currentMonth,
       totalReports: stats.total_reports,
       onTimeCount: stats.on_time_count,
       delayedCount: stats.delayed_count,
       missingCount: stats.missing_count,
-      onTimeRate: stats.on_time_rate
+      onTimeRate: stats.total_reports > 0
+        ? ((stats.on_time_count / stats.total_reports) * 100).toFixed(2)
+        : 0
     };
   } catch (err) {
-    console.error('[Stats] 获取个人合规统计失败:', err);
+    logger.error('[Stats] 获取个人合规统计失败:', err);
     throw err;
   }
 }
@@ -178,26 +177,25 @@ async function getUserComplianceStats(userId) {
  */
 async function updateLastMonthStats() {
   try {
-    // 计算上个月
     const lastMonth = new Date();
     lastMonth.setMonth(lastMonth.getMonth() - 1);
-    const monthStr = lastMonth.toISOString().substring(0, 7); // YYYY-MM
-    
+    const monthStr = lastMonth.toISOString().substring(0, 7);
+
     logger.info(`[Stats] 开始更新${monthStr}的统计数据`);
-    
-    // 获取所有有合规记录的用户
+
+    // 从 worker_compliance 获取所有有记录的人员
     const rows = await db.query(
-      'SELECT DISTINCT user_id FROM report_compliance WHERE DATE_FORMAT(report_date, "%Y-%m") = ?',
+      'SELECT DISTINCT worker_name FROM worker_compliance WHERE DATE_FORMAT(report_date, "%Y-%m") = ?',
       [monthStr]
     );
-    
+
     let updatedCount = 0;
     for (const row of rows) {
-      await updateMonthlyStats(row.user_id, monthStr);
+      await updateMonthlyStats(row.worker_name, monthStr);
       updatedCount++;
     }
-    
-    logger.info(`[Stats] ${monthStr}统计更新完成,共${updatedCount}个用户`);
+
+    logger.info(`[Stats] ${monthStr}统计更新完成,共${updatedCount}人`);
     return { updatedCount, month: monthStr };
   } catch (err) {
     logger.error('[Stats] 更新上月统计失败:', err);
