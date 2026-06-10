@@ -1,4 +1,11 @@
-# WX-APP-OA 智慧办公助手
+# WX-APP-OA 智慧办公助手 — Claude Code
+
+## 快速入口
+
+- **项目文档**: `CLAUDE.md`（Claude Code 项目入口）
+- **全局规则**: `.AI/rules/core.md`（全局铁律，必读）
+- **协作规则**: `COLLABORATION-RULES.md`（R001-R013）
+- **Wiki 入口**: `.AI/Wiki/_index.md`
 
 ## AI Rules System
 

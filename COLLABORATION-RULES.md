@@ -1,66 +1,62 @@
-# 智慧办公助手 AI 协作规则体系
+# 智慧办公助手 Claude Code 协作规则
 
-> 版本: v1.0 | 最后更新: 2026-06-03
-> 本文件定义了项目协作中 AI 智能体（Trae、Work Buddy、Qoder）与专家团队的完整分工、执行流程和档案归档规则。
+> 版本: v2.0 | 最后更新: 2026-06-10
+> 本文件定义了 Claude Code 在本项目中的协作规则、执行流程和文档归档规范。
+> 已从多 AI 工具（Trae、Work Buddy、Qoder）迁移到 Claude Code 统一管理。
 
 ---
 
 ## 目录
 
-- [1. 角色定义与分工矩阵](#1-角色定义与分工矩阵)
-- [2. 重叠能力优先级](#2-重叠能力优先级)
+- [1. Claude Code 角色定义](#1-claude-code-角色定义)
+- [2. 执行优先级](#2-执行优先级)
 - [3. 规则清单（R001-R013）](#3-规则清单r001-r013)
 - [4. 文件夹结构规范](#4-文件夹结构规范)
 - [5. 迭代档案标准](#5-迭代档案标准)
-- [6. 仓库工具隔离原则](#6-仓库工具隔离原则)
-- [附录A: AI 执行全流程](#附录a-ai-执行全流程)
+- [6. 仓库管理原则](#6-仓库管理原则)
+- [附录A: 开发执行流程](#附录a-开发执行流程)
 - [附录B: 变更摘要模板](#附录b-变更摘要模板)
 
 ---
 
-## 1. 角色定义与分工矩阵
+## 1. Claude Code 角色定义
 
-### 1.1 角色总览
+本项目使用 **Claude Code** 作为唯一的 AI 开发助手，承担以下全部职责：
 
-| 角色类型 | 角色名称 | 来源 | 主要职责 |
-|---------|---------|------|---------|
-| **协调者** | Project Orchestrator | `.AI/skills/project-orchestrator/` | 任务路由、跨项目协调、迭代归档 |
-| **AI 智能体** | Work Buddy | `.AI/skills/` | 默认 AI 助手，处理常规开发任务、子项目约束执行 |
-| **AI 智能体** | Trae | `.AI/rules/` | Spec 驱动开发、代码生成/重构/审查 |
-| **AI 智能体** | Qoder | `.AI/Wiki/` | Wiki 知识库维护、跨文档索引 |
-| **专家团队** | 测试专家 | `.AI/skills/api-testing-expert/` | API 回归测试、Bug 生命周期管理 |
-| **专家团队** | UI/UX 专家 | `.AI/skills/ui-ux-pro-max/` | 界面设计规范、无障碍评审 |
-| **专家团队** | 后端调试专家 | `.AI/skills/backend-debug/` | 日志分析、性能诊断、内存泄漏排查 |
+| 职责领域 | 说明 |
+|---------|------|
+| **任务路由** | 分析任务影响范围，匹配子项目和加载对应规则文件 |
+| **全栈开发** | 后端 API、微信小程序、Web 管理后台的代码生成/修改/重构/审查 |
+| **知识库维护** | `.AI/Wiki/` 文档更新、跨文档索引 |
+| **项目记忆** | 迭代记录归档到 Claude memory 系统 |
+| **部署运维** | 生产环境部署、健康检查、问题诊断 |
 
-### 1.2 分工矩阵
+### 规则加载策略
 
-| 工作环节 | 主要负责人 | 协助方 | 输入 | 输出 | 交接标准 |
-|---------|-----------|--------|------|------|---------|
-| **任务接收与分析** | Project Orchestrator | - | 用户命令 | 任务分配决策树 | 输出影响范围和 skill 加载列表 |
-| **后端 API 开发** | backend-project (WB) | Trae（代码生成辅助） | API 需求 / PRD | 后端代码 + API 文档 | API 通过单元测试 + Swagger 更新 |
-| **前端页面对接** | miniapp/webapp-project (WB) | ui-ux-pro-max（设计评审） | API 文档 + 设计稿 | 页面代码 | 无硬编码数据 + UI 评审通过 |
-| **API 回归测试** | api-testing-expert (Skill) | test-project (WB) | API 文档 + 测试用例 | 测试报告 + Bug 记录 | 测试报告生成 |
-| **Bug 修复** | 对应子项目 skill | bugpack-manager（状态跟踪） | Bug 报告 | 修复代码 + 验证 | Bug 状态 → fixed + 测试通过 |
-| **UI/UX 评审** | ui-ux-pro-max | miniapp/webapp-project | 页面/组件代码 | 评审报告 + 改进建议 | 无 Critical 问题 |
-| **性能诊断** | backend-debug (Skill) | backend-project | 错误日志 + 指标 | 根因分析报告 | 问题定位 + 优化建议 |
-| **Wiki 文档更新** | Qoder (RepoWiki) | 各子项目 skill | 代码变更摘要 | Wiki 文档更新 | 文档与代码同步 |
-| **迭代档案生成** | Project Orchestrator | 所有参与方 | 本周期变更记录 | 归档到 memory/ | 档案模板字段齐全 |
-| **生产部署** | backend-project (WB) | Project Orchestrator | 版本发布计划 | 部署报告 | 健康检查通过 |
+Claude Code 按任务类型自动加载对应规则：
+
+| 任务 | 加载规则文件 |
+|------|-------------|
+| 所有任务 | `.AI/rules/core.md`（全局铁律） |
+| 后端开发 | + `.AI/rules/backend-rules.md` |
+| 小程序开发 | + `.AI/rules/miniapp-rules.md` |
+| Web 管理后台 | + `.AI/rules/webapp-rules.md` |
+| Code Review | + `.AI/rules/review-checklist.md` |
+| Git 操作 | + `.AI/rules/git-workflow.md` |
+| 技术选型 | + `.AI/rules/tech-stack.md` |
 
 ---
 
-## 2. 重叠能力优先级
+## 2. 执行优先级（原重叠能力优先级）
 
-当多个 AI 工具具备相同能力时，按以下优先级执行：
+Claude Code 统一执行全部任务，以下为任务处理优先级：
 
-| 能力领域 | 优先级顺序 | 说明 |
-|---------|-----------|------|
-| **任务路由与子项目约束** | Work Buddy > Trae > Qoder | project-orchestrator 是顶层入口 |
-| **Bug 管理** | Work Buddy = Trae | 两者共享 bugpack-manager 配置 |
-| **UI/UX 设计** | Work Buddy = Trae | 两者共享 ui-ux-pro-max 配置 |
-| **代码生成与重构** | Trae > Work Buddy | Trae 的 Spec 驱动更适合复杂重构 |
-| **知识库维护** | Qoder (RepoWiki) > Work Buddy (memory) | Qoder 专注文档，WB 专注项目记忆 |
-| **测试专家能力** | Skill (api-testing-expert) > WB (test-project) | Skill 提供更专业的测试流程 |
+| 优先级 | 任务类型 | 说明 |
+|--------|---------|------|
+| P0 | Bug 修复（Critical/High） | 立即处理 |
+| P1 | 核心功能开发 | 后端 API → 前端对接 → 测试验证 |
+| P2 | 文档/Wiki 更新 | 代码变更后同步更新 |
+| P3 | 优化重构 | 非紧急改进 |
 
 ---
 
@@ -230,11 +226,11 @@
 
 | 目录 | 存放内容 | 维护者 | 命名规范 | Git 纳入 |
 |------|---------|--------|---------|---------|
-| `.AI/rules/` | 通用规则 + 子项目专属规则 | Project Orchestrator | `kebab-case.md` | 是 |
-| `.AI/skills/` | 所有 AI 技能定义（SKILL.md） | 子项目 maintainer | `skill-name/SKILL.md` | 是 |
-| `.AI/Wiki/` | 项目知识库文档 | Qoder + 各子项目 skill | 中文命名，模块自包含 | 是 |
-| `.AI/memory/` | 项目记忆档案（迭代记录、经验总结） | Project Orchestrator | `YYYY-MM-DD.md` | 是 |
-| `sql/migrations/` | 增量数据库迁移脚本 | backend-project | `NNN_description.sql` | 是 |
+| `.AI/rules/` | 通用规则 + 子项目专属规则 | Claude Code | `kebab-case.md` | 是 |
+| `.AI/skills/` | 所有 AI 技能定义（SKILL.md） | Claude Code | `skill-name/SKILL.md` | 是 |
+| `.AI/Wiki/` | 项目知识库文档 | Claude Code | 中文命名，模块自包含 | 是 |
+| `sql/` | 数据库迁移脚本 | Claude Code | `NNN_description.sql` | 是 |
+| `~/.claude/.../memory/` | 项目记忆档案（迭代记录、经验总结） | Claude memory 系统 | `kebab-case.md` | 否（本地） |
 
 ### 4.3 子项目目录规范
 
@@ -300,9 +296,9 @@ test/
 
 | 触发条件 | 频率 | 负责人 |
 |---------|------|--------|
-| 每周迭代结束 | 每周一次 | Project Orchestrator |
-| 重大版本发布 | 按需 | Project Orchestrator |
-| 所有 Bug 修复完成 | 按需 | Project Orchestrator |
+| 每周迭代结束 | 每周一次 | Claude Code |
+| 重大版本发布 | 按需 | Claude Code |
+| 所有 Bug 修复完成 | 按需 | Claude Code |
 
 ### 5.2 档案模板
 
@@ -346,20 +342,6 @@ test/
 
 ---
 
-## Token 消耗记录
-
-| AI 工具 | 预估 Token | 主要用途 |
-|---------|-----------|---------|
-| Work Buddy | ~XXX,XXX | 任务路由、开发 |
-| Trae | ~XXX,XXX | Spec 驱动重构 |
-| Qoder | ~XX,XXX | Wiki 更新 |
-| **合计** | **~XXX,XXX** | - |
-
-### 效率改进建议
-- [建议1] 减少重复会话，合并相似任务
-- [建议2] 提前准备上下文文件，降低 Token 浪费
-
----
 
 ## Bug 统计
 
@@ -401,46 +383,43 @@ test/
 
 ---
 
-## 6. 仓库工具隔离原则
+## 6. 仓库管理原则
 
-### 6.1 统一管理
+### 6.1 统一 `.AI/` 目录
 
-从 v2.0 起，所有 AI 协作相关文件统一在 `.AI/` 目录下管理：
+所有 Claude Code 协作相关文件统一在 `.AI/` 目录下：
 
 ```
 .AI/
 ├── rules/          ← 规则文件（编码规范、Git 工作流、Review 清单、子项目规则）
-├── skills/         ← 技能定义（orchestrator、子项目 skill、专家 skill）
+├── skills/         ← 技能定义（子项目 skill、专家 skill）
 └── Wiki/           ← 项目知识库文档（API 文档、设计文档、共享文档）
 ```
 
-`.AI/memory/` 保留用于项目记忆档案（迭代记录、经验总结）。
+Claude 项目记忆使用 `~/.claude/projects/Y--AI-WX-APP-OA/memory/`（Claude memory 系统）。
 
 ### 6.2 Git 管理策略
 
-| 内容 | gitignore 策略 | 说明 |
-|------|---------------|------|
-| `.env` | 加入 `.gitignore` | 敏感信息，禁止提交 |
-| `node_modules/` | 加入 `.gitignore` | 依赖包，不纳入版本管理 |
+| 内容 | 策略 | 说明 |
+|------|------|------|
+| `.env` | `.gitignore` | 敏感信息，禁止提交 |
+| `node_modules/` | `.gitignore` | 依赖包，不纳入版本管理 |
 | `.AI/` | 纳入版本管理 | 规则、技能和 Wiki 是项目资产 |
-| `.AI/memory/` | 纳入版本管理 | 项目记忆是团队共享资产 |
+| `CLAUDE.md` | 纳入版本管理 | Claude Code 入口文档 |
 
-### 6.3 冲突处理原则
-
-当两个工具指令冲突时：
+### 6.3 规则冲突处理
 
 | 冲突类型 | 处理方式 |
 |---------|---------|
 | 规则冲突 | 以本文件 `COLLABORATION-RULES.md` 为准 |
-| 分工冲突 | 以第2节"重叠能力优先级"为准 |
 | 代码冲突 | 以最新的 Git commit 为准 |
 | 配置冲突 | 以 `.AI/rules/` 下的共享规则为准 |
 
 ---
 
-## 附录A: AI 执行全流程
+## 附录A: Claude Code 开发执行流程
 
-当你（AI）接收到一条命令时，按以下流程执行：
+当接收到一条命令时，按以下流程执行：
 
 ```
 用户命令
@@ -451,10 +430,10 @@ test/
   - 标注优先级（P0/P1/P2）
     ↓
 阶段二: 上下文加载与规则匹配
+  - 读取 CLAUDE.md（项目入口）
   - 读取项目记忆 (MEMORY.md)
   - 匹配协作规则 (COLLABORATION-RULES.md → R001-R013)
-  - 按 R001 路由到对应子项目 skill
-  - 按需加载 RepoWiki 文档（不加载全量，只加载目标模块）
+  - 按需加载 Wiki 文档（不加载全量，只加载目标模块）
     ↓
 阶段三: 任务分解与路径规划
   - 创建 TODO 清单（3-10 个子步骤）
