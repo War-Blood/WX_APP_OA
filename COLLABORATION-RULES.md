@@ -185,8 +185,8 @@ Claude Code 统一执行全部任务，以下为任务处理优先级：
 |------|------|
 | **适用对象** | Claude Code |
 | **触发场景** | 每次对话/开发会话结束 |
-| **执行步骤** | 1. 检查 `git status` 确认所有变更<br>2. 将变更文件 `git add` 暂存<br>3. 使用规范的 commit message 提交（格式: `type(scope): description`）<br>4. 禁止 `git push` 到远程仓库（除非用户明确要求） |
-| **预期产出** | 本地 Git 提交记录、干净的 working tree
+| **执行步骤** | 1. 检查 `git status` 确认所有变更<br>2. 将变更文件 `git add` 暂存<br>3. 使用规范的 commit message 提交到本地<br>4. 仅当用户明确要求时，push 到远程 `test` 分支<br>5. 禁止 push 到 `stable` / `main` 分支 |
+| **预期产出** | 本地 Git 提交记录，按需推送 test 分支
 
 ---
 

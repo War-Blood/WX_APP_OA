@@ -146,9 +146,16 @@ routes/ → controllers/ → services/ → config/(database.js + redis.js)
 31. **[R31] 提交必检查**: 每次 `git commit` 前运行 `npm run lint`，确保零错误
 32. **[R32] 一次一事**: 每次 commit 的变更范围不超过 3 个文件。若超过 3 个文件，必须在 commit body 中用 1 句话概括所有变更之间的逻辑关联
 
-### 推送策略（绝对红线）
-33. **[R33] 禁止自动 push**: AI 禁止执行 `git push`，推送必须由人工操作
-34. **[R34] 禁止 force push**: 任何情况下禁止 `git push --force`（即使人工要求也需二次确认）
+### 推送策略（按分支）
+
+| 分支 | AI 可 push 远程 |
+|------|:---:|
+| `test` | ✅ 允许 |
+| `stable` | ❌ 禁止 |
+| `main` | ❌ 禁止（红线） |
+
+33. **[R33] 仅 push test**: AI 只允许 `git push` 到 `test` 分支，禁止 push `main` / `stable`
+34. **[R34] 禁止 force push**: 任何情况下禁止 `git push --force`
 
 ### 分支命名
 35. **[R35] 分支前缀固定**: 功能=`feature/xxx`、修复=`fix/xxx`、紧急=`hotfix/xxx`、发布=`release/vX.Y.Z`

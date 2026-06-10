@@ -2,38 +2,59 @@
 
 ## 适用范围
 
-- **适用对象**: 所有 AI 工具（Qoder / Cursor / Claude Code / Trae）
-- **触发场景**: 任何 Git 操作（提交、分支、合并）
+- **适用对象**: Claude Code
+- **触发场景**: 任何 Git 操作（提交、分支、推送）
 - **预期产出**: 规范的 Git 历史记录
 
 ---
 
-## 分支策略
+## 分支策略（三支模型）
 
-### 长期分支
+```
+feature/fix → test → stable → main（用户手动）
+```
 
-| 分支 | 用途 | 保护规则 |
-|------|------|---------|
-| `main` | 生产环境代码 | 禁止直接推送，仅通过 PR 合并 |
-| `develop` | 开发集成分支 | 禁止直接推送，仅通过 PR 合并 |
+| 分支 | 用途 | AI 可 push 远程？ |
+|------|------|:---:|
+| `main` | 生产就绪代码，完整项目 | ❌ **禁止**（红线） |
+| `stable` | 验证通过的稳定可用版本 | ❌ **禁止** |
+| `test` | 功能集成测试环境 | ✅ 允许 |
 
 ### 短期分支
 
-| 分支类型 | 命名格式 | 来源 | 目标 |
-|---------|---------|------|------|
-| 功能分支 | `feature/xxx` | `develop` | `develop` |
-| Bug 修复 | `fix/xxx` | `develop` | `develop` |
-| 紧急修复 | `hotfix/xxx` | `main` | `main` + `develop` |
-| 发布分支 | `release/v*.*.*` | `develop` | `main` |
+| 分支类型 | 命名格式 | 来源 | 合并到 |
+|---------|---------|------|--------|
+| 功能分支 | `feature/xxx` | `test` | `test` |
+| Bug 修复 | `fix/xxx` | `test` | `test` |
 
 ### 命名规则
 
 ```
 feature/简短描述        → feature/add-export-report
-fix/问题编号-描述        → fix/142-fix-login-crash
-hotfix/紧急描述          → hotfix/critical-security-patch
-release/v主版本.次版本.修订 → release/v1.2.0
+fix/问题描述             → fix/login-crash
 ```
+
+---
+
+## AI 权限边界
+
+| 操作 | 本地 | 远程 |
+|------|:--:|:---:|
+| `git commit` | ✅ 自动 | — |
+| `git push test` | — | ✅ |
+| `git push stable` | — | ❌ |
+| `git push main` | — | ❌（红线） |
+| `git push --force`（任何分支） | — | ❌ 绝对禁止 |
+| 合并到 `stable` / `main` | ❌ | ❌ |
+
+---
+
+## 工作流
+
+1. AI 在 `feature/xxx` 或 `fix/xxx` 上开发，commit 到本地
+2. 用户说「推送到测试」→ AI 将当前分支合并到 `test` 并 push
+3. 测试验证通过 → **用户手动**合并 `test` → `stable`
+4. 确认可用 → **用户手动**合并 `stable` → `main` 并 push
 
 ---
 
@@ -42,61 +63,23 @@ release/v主版本.次版本.修订 → release/v1.2.0
 ### 提交格式
 
 ```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
+<type>(<scope>): <subject>    → 标题 ≤ 72 字符，中文描述
 ```
 
 ### Type 类型
 
-| Type | 说明 |
-|------|------|
-| `feat` | 新功能 |
-| `fix` | Bug 修复 |
-| `refactor` | 重构（既不修复 Bug 也不添加功能） |
-| `style` | 代码格式调整（不影响逻辑） |
-| `test` | 添加或修改测试 |
-| `docs` | 文档更新 |
-| `chore` | 构建/工具/依赖更新 |
-| `perf` | 性能优化 |
-
-### 示例
-
-```
-feat(approval): 新增审批抄送功能
-
-- 新增 approval_cc 表存储抄送关系
-- POST /api/approval/create 支持 ccIds 参数
-- 被抄送人可在审批详情查看
-
-Closes #142
-```
+| Type | 说明 | Type | 说明 |
+|------|------|------|------|
+| `feat` | 新功能 | `fix` | Bug 修复 |
+| `refactor` | 重构 | `docs` | 文档 |
+| `chore` | 构建/依赖 | `perf` | 性能优化 |
+| `style` | 格式调整 | `test` | 测试 |
 
 ### 规则
 
-- 标题不超过 72 字符
-- 正文每行不超过 72 字符
-- 使用中文描述（技术术语保留英文）
-- 一次提交只做一件事
-
----
-
-## 工作流约束
-
-### 提交前检查
-- [ ] 运行 `npm run lint` 无错误
-- [ ] 运行 `npm run test` 测试通过
-- [ ] Web 项目运行 `npm run type-check`
-- [ ] 无 `console.log` / `debugger` 残留
-- [ ] 无硬编码敏感信息（token、密码、密钥）
-
-### PR 合并条件
-- [ ] 所有 Check 通过
-- [ ] 至少 1 人 Code Review 通过
-- [ ] 无未解决的对话
-- [ ] 分支已 rebase 到目标分支
+- 标题 ≤ 72 字符，中文描述
+- 一次提交只做一件事（变更 ≤ 3 文件，超出需在 body 中说明逻辑关联）
+- 提交前通过 `npm run lint` / `npm run type-check`
 
 ---
 
@@ -108,24 +91,12 @@ Closes #142
 .env.prod      → 仅在生产服务器维护
 ```
 
-- `.env` 文件已加入 `.gitignore`
-- 新增环境变量时同步更新 `.env.example`
-
 ---
 
-## 推送策略
+## 推送前检查清单
 
-### AI 自动操作
-- 每次任务完成后自动执行 `git add` + `git commit`（仅本地仓库）
-- 提交信息遵循本文 Commit 规范
-
-### 需要人工确认的操作
-- `git push` 到远程仓库 → **严禁 AI 自动执行**
-- `git push --force` → **绝对禁止**（无论是否人工要求）
-- `git rebase` / `git reset --hard` → **必须人工确认**
-
-### 推送前检查清单
-- [ ] 代码已通过本地 lint/type-check/test
+- [ ] lint / type-check / test 通过
 - [ ] 无硬编码敏感信息（API key、密码、token）
+- [ ] 无 `console.log` / `debugger` 残留
 - [ ] commit message 清晰准确
-- [ ] 确认目标分支正确
+- [ ] 确认目标分支：仅 push 到 `test`
