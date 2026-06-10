@@ -1,147 +1,122 @@
-# 智慧办公助手 OA 系统 — CLAUDE.md
+# CLAUDE.md
 
-> 本文件是 Claude Code 的项目入口文档。每次会话自动加载。
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ---
 
-## 项目概览
+## 项目架构
 
-**智慧办公助手** — 面向企业的 OA 办公系统，三层架构：
+**智慧办公助手 OA 系统** — 三层架构，面向企业提供移动办公 + Web 管理能力。
 
-| 层 | 目录 | 技术栈 | 开发命令 |
-|-----|------|--------|---------|
-| 后端 API | `backend/` | Node.js 18 + Express 4 + MySQL 8.0 + Redis 6.x | `npm run dev` |
-| 微信小程序 | `miniapp/` | uni-app (Vue 3) + Pinia | `npm run dev:mp-weixin` |
-| Web 管理后台 | `webapp/` | Vue 3 + TypeScript + Element Plus + Pinia | `npm run dev` |
+| 层 | 目录 | 技术栈 | 入口 |
+|-----|------|--------|------|
+| 后端 API | `backend/` | Node.js 18 + Express 4 + MySQL 8.0 + Redis 6.x | `backend/src/app.js` |
+| 微信小程序 | `miniapp/` | uni-app (Vue 3 + Vite) + Pinia | `miniapp/src/` |
+| Web 管理后台 | `webapp/` | Vue 3 + TypeScript + Vite + Element Plus + Pinia | `webapp/src/` |
 
 - **生产地址**: https://warblood.online
 - **API 文档**: https://warblood.online/api-docs
 - **微信 AppID**: wx56609483f0ee55b6
+- **数据库**: MySQL `wx_app_oa`，关键表 `users`, `daily_reports`, `approvals`, `review_records`, `messages`, `compliance_records`
+- **部署**: Ubuntu 24.04 / PM2 fork 模式 / Nginx 反代到 3000 端口
 
 ---
 
-## 规则文件入口
+## 常用命令
 
-所有开发规则统一在 `.AI/` 目录下管理：
+```bash
+# 后端 (backend/)
+npm run dev              # nodemon 热重载开发
+npm start                # 生产启动
+npm run lint             # ESLint
+npm test                 # Jest 全量测试 + 覆盖率
+npm run test:unit        # 仅单元测试
+npm run test:integration # 仅集成测试
 
-| 规则文件 | 用途 | 何时加载 |
-|---------|------|---------|
-| `.AI/rules/core.md` | 全局铁律入口（命名/格式/输出标准） | **始终加载** |
-| `.AI/rules/tech-stack.md` | 技术栈单一来源 | 技术选型/环境配置时 |
-| `.AI/rules/coding-standards.md` | 分层架构/响应格式/API 设计 | 代码修改时 |
-| `.AI/rules/git-workflow.md` | 分支/Commit/推送策略 | Git 操作时 |
-| `.AI/rules/backend-rules.md` | 后端分层约束/文档索引 | `backend/` 操作时 |
-| `.AI/rules/miniapp-rules.md` | 小程序页面层级/设计令牌/API 调用 | `miniapp/` 操作时 |
-| `.AI/rules/webapp-rules.md` | Web 后台技术栈/里程碑/目录规范 | `webapp/` 操作时 |
-| `.AI/rules/review-checklist.md` | 功能/安全/性能/测试审查清单 | Code Review 时 |
+# 小程序 (miniapp/)
+npm run dev:mp-weixin    # 开发编译（微信开发者工具打开 dist/dev/mp-weixin）
+npm run build:mp-weixin  # 生产构建
 
----
-
-## Wiki 知识库
-
-项目 Wiki 位于 `.AI/Wiki/`，入口为 `.AI/Wiki/_index.md`。
-
-主要模块：
-- **后端 API 服务** — 架构、认证、审批、日报、消息、统计、审核、合规模块
-- **小程序前端** — 页面结构、组件库、API 集成、状态管理、设计规范
-- **Web 管理后台** — 架构、里程碑、路由、API 集成
-- **数据库设计** — ER 图、表结构、迁移脚本、RBAC 权限系统
-- **部署配置** — Docker、Nginx、PM2、数据库部署
-- **开发规范** — 代码规范、Git 工作流、API 设计规范
-- **测试策略** — 单元测试、集成测试、测试配置
-- **故障排查** — 常见问题、性能分析、调试工具
-- **共享文档** — API 契约、前后端集成指南、技术规划
-
----
-
-## 后端架构要点
-
-```
-backend/src/
-├── app.js                     # 应用入口
-├── auth/                      # 认证模块（微信登录/JWT/企业微信）
-│   ├── controllers/
-│   ├── routes/
-│   └── services/
-├── core/                      # 核心业务模块
-│   ├── controllers/           # admin, approval, health, message, project, report
-│   ├── routes/                # 路由定义 + index.js 汇总
-│   └── services/              # 业务逻辑层
-├── features/                  # 功能模块
-│   ├── compliance/            # 合规管理（出差合规检查）
-│   ├── routes/                # stats, review, wps
-│   └── services/
-├── common/                    # 公共模块
-│   ├── config/                # database, env, redis, swagger
-│   ├── middleware/             # auth, errorHandler, validator
-│   ├── tasks/                 # 定时任务（提醒、合规检查）
-│   └── utils/                 # constants, errors, logger, response
-├── config/                    # ⚠️ 已废弃，待删除
-├── controllers/               # ⚠️ 旧的 health 控制器
-├── middleware/                 # ⚠️ 旧的中间件
-└── utils/                     # ⚠️ 旧的工具
+# Web 管理后台 (webapp/)
+npm run dev              # Vite 开发服务器
+npm run build            # vue-tsc 类型检查 + Vite 生产构建
+npm run lint             # ESLint + 自动修复
+npm run format           # Prettier 格式化
+npm run type-check       # vue-tsc --noEmit 类型检查
 ```
 
-> ⚠️ 标记的目录为旧架构残留，功能已迁移到 `common/` 和 `core/` 中。
+---
 
-### API 模块清单
+## 后端分层架构（强制）
 
-| 模块 | 路由前缀 | 状态 |
-|------|---------|------|
-| 认证 (Auth) | `/api/auth/*` | ✅ 完成 |
-| 审批 (Approval) | `/api/approval/*` | ✅ 完成 |
-| 日报 (Report) | `/api/report/*` | ✅ 完成 |
-| 消息 (Message) | `/api/message/*` | ✅ 完成 |
-| 统计 (Stats) | `/api/stats/*` | ✅ 完成 |
-| 审核 (Review) | `/api/review/*` | ✅ 完成 |
-| 项目管理 | `/api/project/*` | ✅ 完成 |
-| 合规管理 | `/api/compliance/*` | ✅ 完成 |
-| WPS 数据 | `/api/wps/*` | ✅ 完成 |
-| 管理员 | `/api/admin/*` | ✅ 完成 |
-| 健康检查 | `/api/health` | ✅ 完成 |
+```
+routes/       → 路由层：仅 URL 分发 + 中间件绑定，禁止业务逻辑
+controllers/  → 控制器层：Joi 参数校验 + 调用 service + 响应封装
+services/     → 服务层：全部业务逻辑 + 事务编排，可跨控制器复用
+common/config/database.js → 数据访问层：仅 SQL 执行
+```
+
+**统一响应格式**：`{ code: 0, message: "success", data: {...} }` — HTTP 状态码始终为 200，业务错误通过 `code` 区分。
+
+**源码目录**（`backend/src/`）：
+- `auth/` — 认证模块（微信登录/JWT/企业微信）
+- `core/` — 核心业务（admin, approval, report, message, project）
+- `features/` — 功能模块（compliance 合规管理, stats, review, wps）
+- `common/` — 公共模块（config, middleware, tasks, utils）
+- `config/`, `controllers/`, `middleware/`, `utils/` — ⚠️ 旧架构残留，新代码禁止写入
+
+**API 模块**（全部 `POST` + JSON body，前缀 `/api/`）：
+
+| 模块 | 前缀 | 模块 | 前缀 |
+|------|------|------|------|
+| Auth | `/api/auth/*` | Approval | `/api/approval/*` |
+| Report | `/api/report/*` | Message | `/api/message/*` |
+| Stats | `/api/stats/*` | Review | `/api/review/*` |
+| Project | `/api/project/*` | Compliance | `/api/compliance/*` |
+| Admin | `/api/admin/*` | WPS | `/api/wps/*` |
 
 ---
 
-## 数据库
+## 关键约束
 
-- **数据库名**: wx_app_oa (新) / daily_report (旧生产)
-- **关键表**: users, daily_reports, approvals, review_records, messages, compliance_records
-- **迁移脚本**: `sql/` 和 `backend/scripts/` 目录下
-- **最新迁移**: `sql/migration_v1_rbac.sql`
-
----
-
-## 部署信息
-
-| 项 | 值 |
-|----|-----|
-| 服务器 | Ubuntu 24.04, IP 111.229.107.123 |
-| SSH | `wx-app-server`, 密钥 `C:\Users\WarBlood\.ssh\wx_app_key.pem` |
-| 域名 | warblood.online |
-| 进程管理 | PM2 (fork 模式) |
-| Web 服务器 | Nginx (反代到 3000 端口) |
-| 部署脚本 | `deploy.sh` |
-| 验证脚本 | `verify-deploy.sh` |
+- **SQL 全部参数化查询**（`pool.execute()` 或 `pool.query()`），禁止字符串拼接。`pool.execute()` 不支持 LIMIT 占位符 → 改用 `pool.query()`
+- **PM2 只支持 fork 模式**，不支持 cluster；更新 `ecosystem.config.js` 后必须 `pm2 delete` + `pm2 start` 重新注册
+- **前端禁止硬编码假数据**，小程序统一通过 `services/modules/` 调用 API，Web 后台通过 `src/api/` 调用
+- **小程序使用 rpx 单位**，设计主题色 `#2B6DE8`（高效蓝）
+- **Web 后台 TypeScript 严格模式**，提交前必须 `npm run type-check`
+- **提交前清理**：禁止残留 `console.log`、`debugger`、注释掉的代码、硬编码密钥
+- **禁止自动 push**：Git 提交仅限本地，推送需人工确认
 
 ---
 
-## 全局铁律（摘要，详见 `.AI/rules/core.md`）
+## 规则文件索引
 
-1. **JS/TS 使用单引号 + 分号**
-2. **2 空格缩进，禁止 Tab**
-3. **文件名 kebab-case，变量 camelCase，常量 UPPER_SNAKE_CASE**
-4. **禁止硬编码密钥，统一用 `.env`**
-5. **禁止提交 console.log / debugger / 注释掉的代码**
-6. **先读后写 (Read → Edit)**
-7. **后端严格分层: routes → controllers → services**
-8. **前端禁止硬编码假数据，统一通过 services/modules 调用 API**
+所有开发规则统一在 `.AI/rules/` 下，`core.md` 为唯一入口（始终加载）：
+
+| 任务类型 | 额外加载的规则文件 |
+|---------|-------------------|
+| 后端开发 | `.AI/rules/backend-rules.md` |
+| 小程序开发 | `.AI/rules/miniapp-rules.md` |
+| Web 后台开发 | `.AI/rules/webapp-rules.md` |
+| Git 操作 | `.AI/rules/git-workflow.md` |
+| Code Review | `.AI/rules/review-checklist.md` |
+
+子目录专属文档：`backend/CLAUDE.md`、`miniapp/CLAUDE.md`、`webapp/CLAUDE.md`（进入子目录时加载）。
+
+Wiki 知识库入口：`.AI/Wiki/_index.md`。技能定义：`.AI/skills/`。
 
 ---
 
-## 开发工作流
+## Git 提交格式
 
-1. 阅读对应 `.AI/rules/` 规则文件
-2. 先理解现有代码 (Read)
-3. 进行修改 (Edit/Write)
-4. 运行 lint 和测试验证
-5. 生成变更摘要
+```
+<type>(<scope>): <subject>    → 标题 ≤ 72 字符，中文描述
+```
+
+| Type | 用途 | Type | 用途 |
+|------|------|------|------|
+| `feat` | 新功能 | `fix` | Bug 修复 |
+| `refactor` | 重构 | `docs` | 文档 |
+| `chore` | 构建/依赖 | `perf` | 性能优化 |
+
+分支命名：`feature/xxx`、`fix/xxx`、`hotfix/xxx`、`release/vX.Y.Z`。
