@@ -72,6 +72,7 @@
 ## 代码规范
 
 - 使用 Vue 3 Composition API + TypeScript
+- **分号**: 语句末尾不加分号 `;`（与后端风格区分，ESLint flat config 不检查分号，Prettier 负责格式化）
 - 严格类型检查：提交前运行 `npm run type-check`
 - 禁止使用 `any` 类型（特殊情况须加注释说明）
 - 组件使用 Element Plus 组件库

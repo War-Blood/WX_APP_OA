@@ -33,7 +33,7 @@
 ### 输出标准
 5. **[R5] 无死代码**: 提交的代码中禁止包含：被注释掉的行（单行或多行）、`console.log`、`debugger` 语句、已声明但未引用的变量
 6. **[R6] 无硬编码密钥**: 禁止硬编码任何密码、token、API key、密钥（统一用 `.env` 管理）
-7. **[R7] 单引号 + 分号**: JS/TS 代码使用单引号 `'`，语句末尾必须加分号 `;`
+7. **[R7] 单引号**: JS/TS 代码统一使用单引号 `'`
 8. **[R8] 缩进统一**: 使用 2 空格缩进，禁止 Tab；行尾使用 LF（Unix），禁止 CRLF
 
 ---
@@ -74,10 +74,11 @@
 routes/ → controllers/ → services/ → config/(database.js + redis.js)
 ```
 
-14. **[R14] 路由层只做分发**: 不得包含业务逻辑、数据库操作、参数校验
-15. **[R15] 控制器层负责校验**: 使用 Joi 校验入参，调用 service 后格式化响应
-16. **[R16] 服务层包含全部业务逻辑**: 可被多个 controller 复用
-17. **[R17] 数据层只做 SQL 执行**: 不得掺杂业务判断
+14. **[R14] 分号强制**: 语句末尾必须加分号 `;`（ESLint `semi: always` 强制检查）
+15. **[R15] 路由层只做分发**: 不得包含业务逻辑、数据库操作、参数校验
+16. **[R16] 控制器层负责校验**: 使用 Joi 校验入参，调用 service 后格式化响应
+17. **[R17] 服务层包含全部业务逻辑**: 可被多个 controller 复用
+18. **[R18] 数据层只做 SQL 执行**: 不得掺杂业务判断
 
 ### 统一响应格式（强制）
 ```javascript
@@ -86,15 +87,15 @@ routes/ → controllers/ → services/ → config/(database.js + redis.js)
 { code: 0, message: "success", data: { list: [...], total: 100 } }  // 分页
 ```
 
-18. **[R18] HTTP 状态码统一 200**: 所有业务错误通过 `code` 字段区分，HTTP 层面始终返回 200
-19. **[R19] 分页字段名固定**: 请求 `{ page, pageSize }`，响应 `{ list, total }`
+19. **[R19] HTTP 状态码统一 200**: 所有业务错误通过 `code` 字段区分，HTTP 层面始终返回 200
+20. **[R20] 分页字段名固定**: 请求 `{ page, pageSize }`，响应 `{ list, total }`
 
 ### API 路由规范（强制）
-20. **[R20] 前缀 `/api/`**: 所有接口路径以 `/api/` 开头
-21. **[R21] RESTful 方法**: GET=查询, POST=创建/操作, PATCH=部分更新, DELETE=删除
+21. **[R21] 前缀 `/api/`**: 所有接口路径以 `/api/` 开头
+22. **[R22] RESTful 方法**: GET=查询, POST=创建/操作, PATCH=部分更新, DELETE=删除
 
 ### SQL 安全
-22. **[R22] 参数化查询 100%**: 所有 SQL 使用 `mysql2` 的 prepared statements，禁止字符串拼接（此规则同时覆盖安全底线中的数据库安全要求）
+23. **[R23] 参数化查询 100%**: 所有 SQL 使用 `mysql2` 的 prepared statements，禁止字符串拼接（此规则同时覆盖安全底线中的数据库安全要求）
 
 ---
 
@@ -102,9 +103,10 @@ routes/ → controllers/ → services/ → config/(database.js + redis.js)
 
 > 完整规则见 `miniapp-rules.md`
 
-23. **[R23] Composition API**: 必须使用 `<script setup>` 语法
-24. **[R24] 数据来源**: 所有页面数据通过 `services/modules/*.js` 获取，禁止硬编码假数据
-25. **[R25] 样式单位**: 小程序使用 `rpx` 单位，Web/H5 使用 `px`
+24. **[R24] 无分号**: JS 代码不加分号 `;`（与后端风格区分，通过编辑器/Prettier 保持一致）
+25. **[R25] Composition API**: 必须使用 `<script setup>` 语法
+26. **[R26] 数据来源**: 所有页面数据通过 `services/modules/*.js` 获取，禁止硬编码假数据
+27. **[R27] 样式单位**: 小程序使用 `rpx` 单位，Web/H5 使用 `px`
 
 ### 设计令牌
 | 令牌 | 值 | 用途 |
@@ -118,8 +120,9 @@ routes/ → controllers/ → services/ → config/(database.js + redis.js)
 
 > 完整规则见 `webapp-rules.md`
 
-26. **[R26] TypeScript 严格模式**: 提交前运行 `npm run type-check`，确保零错误
-27. **[R27] 禁止 `any` 类型**: 禁止使用 `any` 类型。唯一例外：第三方库类型定义不完整时，允许使用 `any` 并在同一行上方加注释，格式为 `// any: <库名> 缺少 <类型名> 定义`
+28. **[R28] 无分号**: TS/JS 代码不加分号 `;`（与后端风格区分，ESLint flat config 不检查分号，Prettier 负责格式化）
+29. **[R29] TypeScript 严格模式**: 提交前运行 `npm run type-check`，确保零错误
+30. **[R30] 禁止 `any` 类型**: 禁止使用 `any` 类型。唯一例外：第三方库类型定义不完整时，允许使用 `any` 并在同一行上方加注释，格式为 `// any: <库名> 缺少 <类型名> 定义`
 
 ---
 
@@ -140,15 +143,15 @@ routes/ → controllers/ → services/ → config/(database.js + redis.js)
 | `docs` | 文档 |
 | `chore` | 构建/依赖 |
 
-28. **[R28] 提交必检查**: 每次 `git commit` 前运行 `npm run lint`，确保零错误
-29. **[R29] 一次一事**: 每次 commit 的变更范围不超过 3 个文件。若超过 3 个文件，必须在 commit body 中用 1 句话概括所有变更之间的逻辑关联
+31. **[R31] 提交必检查**: 每次 `git commit` 前运行 `npm run lint`，确保零错误
+32. **[R32] 一次一事**: 每次 commit 的变更范围不超过 3 个文件。若超过 3 个文件，必须在 commit body 中用 1 句话概括所有变更之间的逻辑关联
 
 ### 推送策略（绝对红线）
-30. **[R30] 禁止自动 push**: AI 禁止执行 `git push`，推送必须由人工操作
-31. **[R31] 禁止 force push**: 任何情况下禁止 `git push --force`（即使人工要求也需二次确认）
+33. **[R33] 禁止自动 push**: AI 禁止执行 `git push`，推送必须由人工操作
+34. **[R34] 禁止 force push**: 任何情况下禁止 `git push --force`（即使人工要求也需二次确认）
 
 ### 分支命名
-32. **[R32] 分支前缀固定**: 功能=`feature/xxx`、修复=`fix/xxx`、紧急=`hotfix/xxx`、发布=`release/vX.Y.Z`
+35. **[R35] 分支前缀固定**: 功能=`feature/xxx`、修复=`fix/xxx`、紧急=`hotfix/xxx`、发布=`release/vX.Y.Z`
 
 ---
 
@@ -156,10 +159,10 @@ routes/ → controllers/ → services/ → config/(database.js + redis.js)
 
 > 完整检查清单见 `review-checklist.md`
 
-33. **[R33] 输入校验**: 所有用户输入必须经过 Joi（后端）或表单验证（前端）后方可使用
-34. **[R34] 权限检查 100%**: 每个受保护的 API 端点必须有 JWT 验证中间件
-35. **[R35] 敏感信息不入日志**: 密码、token、身份证号不得出现在日志中
-36. **[R36] 无硬编码凭证**: 密钥/密码/API key 只能在 `.env` 中，且 `.env` 文件不得提交
+36. **[R36] 输入校验**: 所有用户输入必须经过 Joi（后端）或表单验证（前端）后方可使用
+37. **[R37] 权限检查 100%**: 每个受保护的 API 端点必须有 JWT 验证中间件
+38. **[R38] 敏感信息不入日志**: 密码、token、身份证号不得出现在日志中
+39. **[R39] 无硬编码凭证**: 密钥/密码/API key 只能在 `.env` 中，且 `.env` 文件不得提交
 
 ---
 

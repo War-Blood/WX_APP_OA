@@ -60,43 +60,43 @@ npm run type-check    # vue-tsc --noEmit（提交前必须通过）
 ```typescript
 // API 模块 — api/user.ts
 export interface UserItem {
-  id: string; username: string; nickName: string;
-  department: string; role: string; status: string; createTime: string;
+  id: string; username: string; nickName: string
+  department: string; role: string; status: string; createTime: string
 }
 export function getUserList(params: {
-  page?: number; pageSize?: number; keyword?: string;
+  page?: number; pageSize?: number; keyword?: string
 }): Promise<{ total: number; list: UserItem[] }> {
-  return request.post('/api/admin/users', params);
+  return request.post('/api/admin/users', params)
 }
 
 // Pinia Store — stores/user.ts
 export const useUserStore = defineStore('user', () => {
-  const token = ref(localStorage.getItem('token') || '');
-  const isLoggedIn = computed(() => !!token.value);
-  function setToken(t: string) { token.value = t; localStorage.setItem('token', t); }
-  return { token, isLoggedIn, setToken };
-});
+  const token = ref(localStorage.getItem('token') || '')
+  const isLoggedIn = computed(() => !!token.value)
+  function setToken(t: string) { token.value = t; localStorage.setItem('token', t) }
+  return { token, isLoggedIn, setToken }
+})
 ```
 
 ### 视图组件模式（列表页标准结构）
 
 ```vue
 <script setup lang="ts">
-const loading = ref(false);
-const list = ref<UserItem[]>([]);
-const page = ref(1);
-const total = ref(0);
+const loading = ref(false)
+const list = ref<UserItem[]>([])
+const page = ref(1)
+const total = ref(0)
 
 async function loadData() {
-  loading.value = true;
+  loading.value = true
   try {
-    const res = await getUserList({ page: page.value, pageSize: 20 });
-    list.value = res.list; total.value = res.total;
-  } catch { ElMessage.error('加载失败'); }
-  finally { loading.value = false; }
+    const res = await getUserList({ page: page.value, pageSize: 20 })
+    list.value = res.list; total.value = res.total
+  } catch { ElMessage.error('加载失败') }
+  finally { loading.value = false }
 }
 
-onMounted(() => loadData());
+onMounted(() => loadData())
 </script>
 <!-- 模板: el-input 搜索 + el-table + el-pagination -->
 ```

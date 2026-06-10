@@ -78,38 +78,38 @@ npm run dev:h5            # H5 开发（浏览器调试）
 
 ```js
 // API 模块 — services/modules/report.js
-import { post } from '../request';
+import { post } from '../request'
 export const reportApi = {
   getList: (params) => post('/api/report/list', params),
   submit:  (data)   => post('/api/report/submit', data),
-};
+}
 
 // Pinia Store — stores/user.js
 export const useUserStore = defineStore('user', () => {
-  const token = ref(uni.getStorageSync('token') || '');
-  const isLoggedIn = computed(() => !!token.value);
-  function setToken(t) { token.value = t; uni.setStorageSync('token', t); }
-  return { token, isLoggedIn, setToken };
-});
+  const token = ref(uni.getStorageSync('token') || '')
+  const isLoggedIn = computed(() => !!token.value)
+  function setToken(t) { token.value = t; uni.setStorageSync('token', t) }
+  return { token, isLoggedIn, setToken }
+})
 ```
 
 ### 页面组件模式
 
 ```vue
 <script setup>
-import { ref } from 'vue';
-import { reportApi } from '@/services/modules/report';
+import { ref } from 'vue'
+import { reportApi } from '@/services/modules/report'
 
-const submitting = ref(false);
+const submitting = ref(false)
 async function handleSubmit() {
-  submitting.value = true;
+  submitting.value = true
   try {
-    await reportApi.submit(form.value);
-    uni.showToast({ title: '提交成功', icon: 'success' });
-    uni.navigateBack();
+    await reportApi.submit(form.value)
+    uni.showToast({ title: '提交成功', icon: 'success' })
+    uni.navigateBack()
   } catch (err) {
-    uni.showToast({ title: err.message || '失败', icon: 'none' });
-  } finally { submitting.value = false; }
+    uni.showToast({ title: err.message || '失败', icon: 'none' })
+  } finally { submitting.value = false }
 }
 </script>
 ```

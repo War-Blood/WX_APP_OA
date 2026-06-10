@@ -53,6 +53,7 @@ config/redis.js    → 缓存层
 - 统一响应格式：`{ code: 0, message: "success", data: {...} }`
 - 所有 SQL 操作使用参数化查询（mysql2 prepared statements），防止 SQL 注入
 - 敏感信息通过 `.env` 环境变量管理，禁止硬编码
+- **分号**: 语句末尾必须加分号 `;`（ESLint `semi: always` 强制）
 - API 响应时间目标：90% 请求 ≤ 500ms
 - 使用 winston 进行结构化日志记录
 - 错误处理规范详见 `.AI/Wiki/开发规范/` 和 `.AI/rules/coding-standards.md`

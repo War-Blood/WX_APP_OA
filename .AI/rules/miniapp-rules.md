@@ -37,6 +37,7 @@
 
 ### 代码规范
 - 使用 Vue 3 Composition API（`<script setup>` 语法）
+- **分号**: JS 语句末尾不加分号 `;`（与后端风格区分）
 - 样式使用 SCSS + CSS 变量
 - 所有页面级数据通过 `services/` API 模块获取，禁止硬编码假数据
 - 使用 `composables/` 组合式函数复用逻辑（如 `useAuth.js`, `usePagination.js`）
