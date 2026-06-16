@@ -415,6 +415,12 @@ async function workers(req, res, next) {
       throw new ValidationError(`不支持的操作: ${action}，仅支持 ${validActions.join('/')}`);
     }
 
+    // list 仅需登录，其余操作需 admin+
+    const writeActions = ['create', 'update', 'toggle', 'toggleFieldWorker', 'generateCodes', 'delete'];
+    if (writeActions.includes(action) && req.user?.role !== 'admin' && req.user?.role !== 'superadmin') {
+      throw new (require('../../common/utils/errors').AuthError)('仅管理员可执行此操作');
+    }
+
     const result = await workerService.dispatch(action, data);
 
     // 按 action 返回不同的 success message

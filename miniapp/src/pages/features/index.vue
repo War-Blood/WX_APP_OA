@@ -2,10 +2,6 @@
   <view class="page">
     <NavBar title="功能中心" />
     <scroll-view class="content" scroll-y>
-      <view class="search-bar" @tap="handleSearch">
-        <text class="search-icon">🔍</text>
-        <text class="search-placeholder">搜索功能</text>
-      </view>
       <view class="section" v-for="group in featureGroups" :key="group.name">
         <view class="group-card">
           <view class="group-header">
@@ -91,15 +87,7 @@ const featureGroups = computed(() => {
 })
 
 function goToFeature(route) {
-  if (route) {
-    uni.navigateTo({ url: route })
-  } else {
-    uni.showToast({ title: '功能开发中', icon: 'none' })
-  }
-}
-
-function handleSearch() {
-  uni.showToast({ title: '功能开发中', icon: 'none' })
+  if (route) uni.navigateTo({ url: route })
 }
 </script>
 
@@ -109,13 +97,6 @@ function handleSearch() {
 }
 
 .content { flex: 1; height: 0; padding: 24rpx; }
-
-.search-bar {
-  height: 80rpx; background: #F5F5F5; border-radius: 40rpx;
-  display: flex; align-items: center; gap: 16rpx; padding: 0 24rpx; margin-bottom: 32rpx;
-}
-.search-icon { font-size: 28rpx; line-height: 1; }
-.search-placeholder { font-size: 26rpx; color: #C0C4CC; }
 
 .section { margin-bottom: 32rpx; }
 .section:last-child { margin-bottom: 0; }

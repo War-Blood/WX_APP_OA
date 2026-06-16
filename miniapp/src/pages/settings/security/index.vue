@@ -23,18 +23,9 @@ import NavBar from '@/components/nav-bar/nav-bar.vue'
 function changePassword() {
   uni.showModal({
     title: '修改密码',
-    content: '请输入新密码（至少8位，含字母和数字）',
-    editable: true,
-    placeholderText: '新密码',
-    success: (res) => {
-      if (res.confirm && res.content) {
-        if (res.content.length < 8 || !/[a-zA-Z]/.test(res.content) || !/[0-9]/.test(res.content)) {
-          uni.showToast({ title: '密码需8位以上，含字母和数字', icon: 'none' })
-          return
-        }
-        uni.showToast({ title: '密码已更新（需管理员操作）', icon: 'none' })
-      }
-    }
+    content: '请联系管理员在Web后台重置密码',
+    showCancel: false,
+    confirmText: '我知道了'
   })
 }
 </script>

@@ -190,11 +190,11 @@ function handleTabChange(tab) {
   const map = { home: '/pages/home/index', features: '/pages/features/index', profile: '/pages/profile/index' }
   if (map[tab] && tab !== 'home') uni.switchTab({ url: map[tab] })
 }
-function goToStat(stat) { stat.route ? uni.navigateTo({ url: stat.route }) : uni.showToast({ title: '功能待开发', icon: 'none' }) }
-function goToFeature(route) { route ? uni.navigateTo({ url: route }) : uni.showToast({ title: '功能开发中', icon: 'none' }) }
+function goToStat(stat) { if (stat.route) uni.navigateTo({ url: stat.route }) }
+function goToFeature(route) { if (route) uni.navigateTo({ url: route }) }
 function goToActivity(item) {
   const map = { approval: '/pages/approval/index/index', report: userStore.isAdmin ? '/pages/admin/review-list/index' : '/pages/employee/report-history/index' }
-  map[item.type] ? uni.navigateTo({ url: map[item.type] }) : uni.showToast({ title: '功能待开发', icon: 'none' })
+  if (map[item.type]) uni.navigateTo({ url: map[item.type] })
 }
 </script>
 

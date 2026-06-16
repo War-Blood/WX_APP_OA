@@ -12,9 +12,6 @@
             <text class="user-name">{{ userStore.userName }}</text>
             <text class="user-role">{{ roleLabel }}<text v-if="userStore.department"> · {{ userStore.department }}</text></text>
           </view>
-          <view class="edit-btn" hover-class="edit-btn-hover" :hover-stay-time="100" @tap="editProfile">
-            <text class="edit-icon">✎</text>
-          </view>
         </view>
       </view>
 
@@ -157,11 +154,6 @@ async function loadStats() {
     // 保持默认值
   }
 }
-
-function editProfile() {
-  uni.showToast({ title: '功能待开发', icon: 'none' })
-}
-
 function goToStat(stat) {
   if (stat.route) {
     uni.navigateTo({ url: stat.route })

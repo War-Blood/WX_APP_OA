@@ -61,10 +61,9 @@ router.get('/admin/approval-types',       ...adminAuth, adminController.getAppro
 router.put('/admin/approval-types/:id',   ...adminAuth, adminController.updateApprovalType);
 
 // ==============================
-// 花名册管理（v2.0 新增）— admin+
-// 统一入口 POST /api/admin/workers，通过 action 字段区分操作
+// 花名册管理（v2.0 新增）— list 仅需登录，增删改需 admin+
 // ==============================
-router.post('/admin/workers', ...adminAuth, adminController.workers);
+router.post('/admin/workers', authenticate, adminController.workers);
 
 // ==============================
 // 模块可见性管理 — 登录即可查看，仅 superadmin 可保存
