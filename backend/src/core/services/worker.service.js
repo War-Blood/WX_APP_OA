@@ -240,6 +240,8 @@ async function dispatch(action, data) {
       return toggle(data);
     case 'toggleFieldWorker':
       return toggleFieldWorker(data);
+    case 'generateCodes':
+      return generateCodes();
     case 'delete':
       return deleteWorker(data);
     default:
@@ -267,4 +269,21 @@ function formatDate(d) {
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
 }
 
-module.exports = { dispatch, list, create, update, toggle, toggleFieldWorker, deleteWorker };
+/**
+ * 自动生成工号（对所有无工号的在职用户）
+ */
+async function generateCodes() {
+  const users = await db.query(
+    "SELECT id, role FROM users WHERE (worker_code IS NULL OR worker_code = '') AND deleted_at IS NULL AND worker_status = 'active' ORDER BY role, id"
+  );
+  let adminIdx = 1, empIdx = 1;
+  for (const u of users) {
+    const prefix = u.role === 'admin' || u.role === 'superadmin' ? 'ADM' : 'BL';
+    const idx = u.role === 'admin' || u.role === 'superadmin' ? adminIdx++ : empIdx++;
+    const code = prefix + String(idx).padStart(3, '0');
+    await db.execute('UPDATE users SET worker_code = ?, updated_at = NOW() WHERE id = ?', [code, u.id]);
+  }
+  return { generated: users.length };
+}
+
+module.exports = { dispatch, list, create, update, toggle, toggleFieldWorker, generateCodes, deleteWorker };

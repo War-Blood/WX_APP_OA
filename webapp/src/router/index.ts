@@ -115,6 +115,12 @@ const router = createRouter({
           ]
         },
         {
+          path: 'modules',
+          name: 'Modules',
+          component: () => import('@/views/modules/index.vue'),
+          meta: { title: '模块管理', icon: 'Switch' }
+        },
+        {
           path: 'settings',
           name: 'Settings',
           component: () => import('@/views/settings/index.vue'),
