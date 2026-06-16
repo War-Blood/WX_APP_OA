@@ -16,7 +16,7 @@ async function loadModules() {
   loading.value = true
   try {
     const res: any = await request.post('/admin/modules', { action: 'getModules' })
-    modules.value = res.data || []
+    modules.value = res || []
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }
 }

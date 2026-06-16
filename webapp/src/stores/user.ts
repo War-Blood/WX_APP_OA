@@ -11,9 +11,11 @@ export interface UserInfo {
 }
 
 export const useUserStore = defineStore('user', () => {
-  // State
+  // State — 从 localStorage 恢复，防止刷新后丢失
   const token = ref<string>(localStorage.getItem('token') || '')
-  const userInfo = ref<UserInfo | null>(null)
+  const userInfo = ref<UserInfo | null>(
+    (() => { try { const s = localStorage.getItem('userInfo'); return s ? JSON.parse(s) : null } catch { return null } })()
+  )
 
   // Getters
   const isLoggedIn = computed(() => !!token.value)
@@ -27,12 +29,14 @@ export const useUserStore = defineStore('user', () => {
 
   const setUserInfo = (info: UserInfo) => {
     userInfo.value = info
+    localStorage.setItem('userInfo', JSON.stringify(info))
   }
 
   const logout = () => {
     token.value = ''
     userInfo.value = null
     localStorage.removeItem('token')
+    localStorage.removeItem('userInfo')
   }
 
   const refreshProfile = async () => {
