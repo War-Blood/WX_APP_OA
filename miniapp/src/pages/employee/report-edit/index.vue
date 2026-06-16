@@ -769,7 +769,6 @@ async function handleSubmit() {
       tomorrowPlan: formData.value.tomorrowWork || formData.value.tomorrowPlan,
       supplementDate: formData.value.supplementDate,
       supplementReason: formData.value.supplementReason,
-      tomorrowPlan: formData.value.tomorrowPlan,
       issues: formData.value.issues,
       coordination: formData.value.coordination
     }
