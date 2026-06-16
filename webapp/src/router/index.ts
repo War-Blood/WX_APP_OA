@@ -50,31 +50,30 @@ const router = createRouter({
               component: () => import('@/views/report/index.vue'),
               meta: { title: '日报管理' }
             },
-            // v2.0 routes — 待页面文件恢复后取消注释
-            // {
-            //   path: 'audit',
-            //   name: 'ReportAudit',
-            //   component: () => import('@/views/report/audit.vue'),
-            //   meta: { title: '补公出审核' }
-            // },
-            // {
-            //   path: 'stats',
-            //   name: 'ReportStats',
-            //   component: () => import('@/views/report/stats.vue'),
-            //   meta: { title: '公出统计' }
-            // },
-            // {
-            //   path: 'daily-status',
-            //   name: 'ReportDailyStatus',
-            //   component: () => import('@/views/report/daily-status.vue'),
-            //   meta: { title: '员工当日状态' }
-            // },
-            // {
-            //   path: 'monthly-summary',
-            //   name: 'ReportMonthlySummary',
-            //   component: () => import('@/views/report/monthly-summary.vue'),
-            //   meta: { title: '月度工作占比' }
-            // }
+            {
+              path: 'audit',
+              name: 'ReportAudit',
+              component: () => import('@/views/report/audit.vue'),
+              meta: { title: '补公出审核' }
+            },
+            {
+              path: 'stats',
+              name: 'ReportStats',
+              component: () => import('@/views/report/stats.vue'),
+              meta: { title: '公出统计' }
+            },
+            {
+              path: 'daily-status',
+              name: 'ReportDailyStatus',
+              component: () => import('@/views/report/daily-status.vue'),
+              meta: { title: '员工当日状态' }
+            },
+            {
+              path: 'monthly-summary',
+              name: 'ReportMonthlySummary',
+              component: () => import('@/views/report/monthly-summary.vue'),
+              meta: { title: '月度工作占比' }
+            }
           ]
         },
         {
