@@ -19,6 +19,10 @@ router.post('/auth/qywx-login', authController.qywxLogin);
 router.post('/auth/admin/login', authController.adminLogin);
 router.post('/auth/link-qywx', authenticate, requireRole('admin', 'superadmin'), authController.linkQywx);
 
+// 滑动验证（公开接口）
+router.get('/auth/captcha', authController.getCaptcha);
+router.post('/auth/captcha/verify', authController.verifyCaptcha);
+
 // TOTP 二次验证管理（需已登录 admin）
 router.post('/auth/totp-setup', authenticate, requireRole('admin', 'superadmin'), authController.totpSetup);
 router.post('/auth/totp-enable', authenticate, requireRole('admin', 'superadmin'), authController.totpEnable);

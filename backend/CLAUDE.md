@@ -20,14 +20,20 @@ common/config/redis.js    → 会话/缓存
 
 调用链：`app.js → routes → auth/validator 中间件 → controller → service → db/redis`
 
-### 源码组织
+### 源码组织 — Agent 归属
 
-| 目录 | 用途 | 关键文件 |
-|------|------|---------|
-| `src/auth/` | 认证模块（微信登录/JWT/企业微信） | routes + controllers + services |
-| `src/core/` | 核心业务 | routes + controllers + services（admin, approval, report, message, project） |
-| `src/features/` | 功能模块 | compliance/（合规管理）、routes/（stats, review, wps） |
-| `src/common/` | 公共模块 | config/（database, redis, env）、middleware/（auth, errorHandler, validator）、tasks/（定时任务）、utils/（response, errors, logger） |
+> **Agent 边界铁律（R40）**：每个目录由独立 Agent 管辖，跨目录修改需由 orchestrator 协调。
+
+| 目录 | 用途 | 归属 Agent | 技能文件 |
+|------|------|-----------|---------|
+| `src/auth/` | 认证模块 | **auth-agent** | `../.agents/skills/auth-agent/SKILL.md` |
+| `src/core/` | 核心业务（admin/approval/report/message） | **core-agent** | `../.agents/skills/core-agent/SKILL.md` |
+| `src/core/(project)` + `src/features/(review)` | 项目+审核 | **project-agent** | `../.agents/skills/project-agent/SKILL.md` |
+| `src/features/(stats, compliance/)` | 统计+合规 | **data-agent** | `../.agents/skills/data-agent/SKILL.md` |
+| `src/features/(wps)` | WPS 对接 | **wps-agent** | `../.agents/skills/wps-agent/SKILL.md` |
+| `src/common/` | 基础设施（DB/Redis/中间件/定时任务） | **common-agent** | `../.agents/skills/common-agent/SKILL.md` |
+
+> ⚠️ `src/config/`、`src/controllers/`、`src/middleware/`、`src/utils/`（非 common 下的）为旧架构残留，新代码禁止写入。
 
 > ⚠️ `src/config/`、`src/controllers/`、`src/middleware/`、`src/utils/`（非 common 下的）为旧架构残留，新代码禁止写入。
 

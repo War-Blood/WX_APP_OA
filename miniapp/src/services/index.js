@@ -1,5 +1,6 @@
 export { authApi } from './modules/auth'
 export { reportApi } from './modules/report'
+export { adminApi } from './modules/admin'
 export { approvalApi } from './modules/approval'
 export { messageApi } from './modules/message'
 export { reviewApi } from './modules/review'

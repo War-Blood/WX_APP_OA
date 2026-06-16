@@ -103,3 +103,209 @@ export interface WorkerStatItem {
 export function getWorkerStats(params: { page?: number; pageSize?: number; keyword?: string }): Promise<{ total: number; list: WorkerStatItem[] }> {
   return request.post('/report/workerStats', params)
 }
+
+// ==============================
+// v2.0 新增 — 公出日志模块升级
+// ==============================
+
+/** 提交参数 */
+export interface ReportSubmitParams {
+  reportType: 'biz_trip' | 'biz_trip_supplement' | 'office'
+  reportDate: string
+  project?: string
+  area?: string
+  relatedParty?: string
+  workerIds?: number[]
+  machineModel?: string
+  workContent?: string
+  requiredQty?: number
+  completedQty?: number
+  remark?: string
+  todayWork?: string
+  tomorrowPlan?: string
+  todayWorkType?: string
+  tomorrowWorkType?: string
+  entryDate?: string
+  initialBizTripDate?: string
+  /** 补公出 — 补录目标日期 */
+  supplementDate?: string
+  /** 补公出 — 补录原因 */
+  supplementReason?: string
+  /** 公司日报 — 问题反馈 */
+  issues?: string
+  /** 公司日报 — 协调事项 */
+  coordination?: string
+}
+
+/** 补公出审核判定参数 */
+export interface ReviewSupplementParams {
+  reportId: number
+  decision: 'special' | 'forget'
+  comment?: string
+}
+
+/** 统计看板 — 单人统计 (scope=user) */
+export interface ReportStats {
+  scope: 'user'
+  totalCount: number
+  monthCount: number
+  missingDays: number
+  missingDates: string[]
+  delayedCount: number
+  entryDate: string
+}
+
+/** 统计看板 — 全员汇总 (scope=all) */
+export interface AllStatsResponse {
+  scope: 'all'
+  totalLogs: number
+  monthNew: number
+  delayedTotal: number
+  missingPersonCount: number
+}
+
+/** 统计看板 — 按项目维度条目 */
+export interface ProjectStatsItem {
+  project: string
+  total: number
+  month: number
+  missing: number
+}
+
+/** 统计看板 — 按项目 (scope=project) */
+export interface ProjectStatsResponse {
+  scope: 'project'
+  projects: ProjectStatsItem[]
+}
+
+/** 补公出待审核条目 */
+export interface PendingReviewItem {
+  reportId: number
+  reportDate: string
+  supplementDate: string
+  submitterName: string
+  project: string
+  supplementReason: string
+  status: 'pending_review' | 'reviewed'
+  createdAt: string
+}
+
+/** 补公出待审核列表响应 */
+export interface PendingReviewsResult {
+  list: PendingReviewItem[]
+  total: number
+}
+
+/** 员工当日状态条目 */
+export interface DailyStatusWorker {
+  userId: number
+  userName: string
+  workerCode: string
+  project: string | null
+  workType: string | null
+  status: 'submitted' | 'supplement' | 'office' | 'substituted' | 'leave' | 'rest' | 'missing'
+  submittedAt: string | null
+  substituteBy: string | null
+}
+
+/** 当日状态汇总 */
+export interface DailyStatusSummary {
+  submitted: number
+  supplement: number
+  office: number
+  substituted: number
+  leave: number
+  rest: number
+  missing: number
+}
+
+/** 员工当日状态响应 */
+export interface DailyStatusResponse {
+  date: string
+  totalWorkers: number
+  summary: DailyStatusSummary
+  workers: DailyStatusWorker[]
+}
+
+/** 月度工作占比响应 */
+export interface MonthlySummaryResponse {
+  userId: number
+  userName: string
+  month: string
+  totalSubmitted: number
+  workDays: number
+  breakdown: Record<string, number>
+  ratio: Record<string, string>
+}
+
+/** 同组日志条目 */
+export interface TeamLog {
+  userId: number
+  userName: string
+  reportDate: string
+  todayWorkType: string
+  workContent: string
+  reportId: number
+}
+
+/** 同组日志响应 */
+export interface TeamLogsResult {
+  teamMembers: { userId: number; userName: string }[]
+  logs: TeamLog[]
+}
+
+// ==============================
+// v2.0 新增函数
+// ==============================
+
+/** 检查当日是否已被代填 */
+export function checkDuplicate(params: {
+  userId: number
+  reportDate: string
+}): Promise<{ canSubmit: boolean }> {
+  return request.post('/report/check-duplicate', params)
+}
+
+/** 公出统计看板 — 重载签名 */
+export function getStats(scope: 'user', userId: number): Promise<ReportStats>
+export function getStats(scope: 'all'): Promise<AllStatsResponse>
+export function getStats(scope: 'project'): Promise<ProjectStatsResponse>
+export function getStats(scope: 'user' | 'all' | 'project', userId?: number): Promise<ReportStats | AllStatsResponse | ProjectStatsResponse> {
+  return request.post('/report/stats', { scope, ...(userId ? { userId } : {}) })
+}
+
+/** 获取补公出待审核列表 */
+export function getPendingReviews(params: {
+  status?: 'pending' | 'reviewed' | 'all'
+  page?: number
+  pageSize?: number
+}): Promise<PendingReviewsResult> {
+  return request.post('/report/pending-reviews', params)
+}
+
+/** 补公出审核判定 */
+export function reviewSupplement(params: ReviewSupplementParams): Promise<void> {
+  return request.post('/report/supplement-review', params)
+}
+
+/** 管理层看板 — 员工当日状态 */
+export function getDailyStatus(params: {
+  date?: string
+  status?: string
+  keyword?: string
+}): Promise<DailyStatusResponse> {
+  return request.post('/report/daily-status', params)
+}
+
+/** 管理层看板 — 月度工作占比 */
+export function getMonthlySummary(params: {
+  userId: number
+  month: string
+}): Promise<MonthlySummaryResponse> {
+  return request.post('/report/monthly-summary', params)
+}
+
+/** 获取同组日志 */
+export function getTeamLogs(userId: number, days?: number): Promise<TeamLogsResult> {
+  return request.post('/report/team-logs', { userId, ...(days ? { days } : {}) })
+}

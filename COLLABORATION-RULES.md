@@ -188,6 +188,33 @@ Claude Code 统一执行全部任务，以下为任务处理优先级：
 | **执行步骤** | 1. 检查 `git status` 确认所有变更<br>2. 将变更文件 `git add` 暂存<br>3. 使用规范的 commit message 提交到本地<br>4. 仅当用户明确要求时，push 到远程 `test` 分支<br>5. 禁止 push 到 `stable` / `main` 分支 |
 | **预期产出** | 本地 Git 提交记录，按需推送 test 分支
 
+### R015: Agent 文件边界规则
+
+| 字段 | 内容 |
+|------|------|
+| **适用对象** | 所有 6 个后端 Agent（auth/core/project/data/wps/common）+ 前端 Agent |
+| **触发场景** | 任何代码修改操作 |
+| **执行步骤** | 1. 确认当前 Agent 身份<br>2. 检查目标文件是否在 `agent_boundary` 声明范围内<br>3. 如果在边界内 → 正常执行<br>4. 如果跨边界 → 停止，向 orchestrator 申请协调对应 Agent 执行<br>5. 禁止以"方便"为由直接修改其他 Agent 的文件 |
+| **预期产出** | 边界内代码修改，违规拦截记录 |
+
+### R016: Agent 间接口契约规则
+
+| 字段 | 内容 |
+|------|------|
+| **适用对象** | 所有 Agent |
+| **触发场景** | Agent A 需要消费 Agent B 的 API/数据/函数 |
+| **执行步骤** | 1. Agent A 读取 Agent B 的 SKILL.md 确认可用接口<br>2. 如果现有接口满足需求 → 直接调用<br>3. 如果需要新接口 → 向 orchestrator 申请，由 Agent B 先扩展接口<br>4. Agent B 扩展完成后更新 SKILL.md 中的 API 端点表<br>5. Agent A 在 Agent B 接口稳定后再对接<br>6. 禁止 Agent A 直接修改 Agent B 的代码来"适配"自己 |
+| **预期产出** | 清晰的接口依赖链，无跨 Agent 代码侵入 |
+
+### R017: Agent 独立提交规则
+
+| 字段 | 内容 |
+|------|------|
+| **适用对象** | 所有 Agent |
+| **触发场景** | Git 提交代码 |
+| **执行步骤** | 1. 每个 Agent 的变更独立 commit<br>2. commit scope 标注所属 Agent：`feat(core-agent): xxx`<br>3. 跨 Agent 需求拆分为多个 commit，每个 Agent 独立提交<br>4. 禁止一个 commit 混入多个 Agent 的变更<br>5. 接口文档（SKILL.md）的更新随代码变更一起提交 |
+| **预期产出** | 清晰的 Git 历史，每个 commit 可追溯到具体 Agent |
+
 ---
 
 ## 4. 文件夹结构规范

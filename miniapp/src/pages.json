@@ -43,6 +43,12 @@
       }
     },
     {
+      "path": "pages/profile/stats",
+      "style": {
+        "navigationBarTitleText": "公出统计"
+      }
+    },
+    {
       "path": "pages/approval/index/index",
       "style": {
         "navigationBarTitleText": "审批中心",

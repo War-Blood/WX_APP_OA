@@ -1,8 +1,22 @@
 ---
 name: backend-project
-description: 智慧办公助手 OA 后端 API 服务项目约束规则。对 backend/ 目录下的所有操作自动生效，确保行为符合项目规范。
+description: [已弃用] 后端 API 服务通用参考。后端已按领域拆分为 6 个独立 Agent：auth / core / project / data / wps / common。新任务请使用对应 Agent，主程 orchestrator 会自动路由。
 agent_created: true
+deprecated: true
+replaced_by:
+  - auth-agent (.agents/skills/auth-agent/SKILL.md)
+  - core-agent (.agents/skills/core-agent/SKILL.md)
+  - project-agent (.agents/skills/project-agent/SKILL.md)
+  - data-agent (.agents/skills/data-agent/SKILL.md)
+  - wps-agent (.agents/skills/wps-agent/SKILL.md)
+  - common-agent (.agents/skills/common-agent/SKILL.md)
 ---
+
+> ⚠️ **本 Skill 已弃用**。后端已按领域拆分为 6 个独立 Agent，每个 Agent 有精确的 `agent_boundary`（文件级边界）。
+>
+> 本文件保留为后端通用参考（分层架构、代码模式、里程碑），具体模块开发请使用对应的 Agent。
+>
+> 新 Agent 列表见 `orchestrator` SKILL.md 或 `memory/agent-index.md`。
 
 # 后端服务项目约束规则
 

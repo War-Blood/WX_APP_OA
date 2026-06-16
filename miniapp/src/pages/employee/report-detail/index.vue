@@ -7,39 +7,104 @@
         <text class="loading-text">加载中...</text>
       </view>
       <template v-else-if="report">
+        <!-- 头部卡片 -->
         <view class="header-card">
           <view class="header-row">
-            <text class="header-date">{{ report.date }}</text>
-            <view class="status-badge" :style="{ background: getStatusBg(report.status) }">
-              <text class="status-badge-text" :style="{ color: getStatusColor(report.status) }">{{ report.statusText }}</text>
+            <text class="header-date">{{ report.date || report.reportDate }}</text>
+            <view class="status-badge" :style="{ background: getStatusBg(report) }">
+              <text class="status-badge-text" :style="{ color: getStatusColor(report) }">{{ getStatusText(report) }}</text>
             </view>
           </view>
-          <text class="header-meta">提交时间：{{ report.submitTime || report.time || '' }}</text>
+          <!-- 日志类型标签 -->
+          <view class="header-tags">
+            <view class="type-tag" :style="{ background: getTypeBg(report.reportType) }">
+              <text class="type-tag-text" :style="{ color: getTypeColor(report.reportType) }">
+                {{ getTypeLabel(report.reportType) }}
+              </text>
+            </view>
+            <!-- 补公出审核状态 -->
+            <view v-if="report.reportType === 'biz_trip_supplement'" class="supplement-tag" :style="{ background: getSupplementBg(report.supplementStatus) }">
+              <text class="supplement-tag-text" :style="{ color: getSupplementColor(report.supplementStatus) }">
+                {{ getSupplementLabel(report.supplementStatus) }}
+              </text>
+            </view>
+          </view>
+          <text class="header-meta">提交时间：{{ report.submitTime || report.time || report.createdAt || '' }}</text>
         </view>
 
-        <view class="field-card">
+        <!-- 补公出审核结果卡片 -->
+        <view v-if="report.reportType === 'biz_trip_supplement' && report.supplementStatus" class="review-card">
+          <text class="card-title">审核结果</text>
+          <view class="field-row">
+            <text class="field-label">审核状态</text>
+            <view class="status-badge" :style="{ background: getSupplementBg(report.supplementStatus) }">
+              <text class="status-badge-text" :style="{ color: getSupplementColor(report.supplementStatus) }">
+                {{ getSupplementLabel(report.supplementStatus) }}
+              </text>
+            </view>
+          </view>
+          <view v-if="report.supplementDate" class="field-row">
+            <text class="field-label">补录日期</text>
+            <text class="field-value">{{ report.supplementDate }}</text>
+          </view>
+          <view v-if="report.supplementReason" class="field-row">
+            <text class="field-label">补录原因</text>
+            <text class="field-value">{{ report.supplementReason }}</text>
+          </view>
+          <view v-if="report.reviewer" class="field-row">
+            <text class="field-label">审核人</text>
+            <text class="field-value">{{ report.reviewer }}</text>
+          </view>
+          <view v-if="report.reviewOpinion" class="field-row">
+            <text class="field-label">审核意见</text>
+            <text class="field-value">{{ report.reviewOpinion }}</text>
+          </view>
+          <view v-if="report.reviewTime" class="field-row">
+            <text class="field-label">审核时间</text>
+            <text class="field-value">{{ report.reviewTime }}</text>
+          </view>
+        </view>
+
+        <!-- 项目信息（公出日志/补公出） -->
+        <view v-if="report.reportType !== 'office'" class="field-card">
           <text class="card-title">项目信息</text>
-          <view class="field-row">
+          <view v-if="report.project" class="field-row">
             <text class="field-label">项目名称</text>
-            <text class="field-value">{{ report.project || '未选择' }}</text>
+            <text class="field-value">{{ report.project }}</text>
+          </view>
+          <view v-if="report.area" class="field-row">
+            <text class="field-label">项目区域</text>
+            <text class="field-value">{{ report.area }}</text>
           </view>
           <view class="field-row">
-            <text class="field-label">作业类型</text>
-            <text class="field-value field-value-accent">{{ report.workType || report.todayWorkType || '工作' }}</text>
+            <text class="field-label">工作类型</text>
+            <text class="field-value field-value-accent">{{ report.todayWorkType || report.workType || '-' }}</text>
           </view>
-          <view class="field-row">
+          <view v-if="report.relatedParty" class="field-row">
+            <text class="field-label">关联方</text>
+            <text class="field-value">{{ report.relatedParty }}</text>
+          </view>
+          <view v-if="report.machineModel" class="field-row">
             <text class="field-label">机型</text>
-            <text class="field-value">{{ report.machineModel || report.model || '无' }}</text>
+            <text class="field-value">{{ report.machineModel }}</text>
           </view>
-          <view class="field-row">
-            <text class="field-label">作业人数</text>
-            <text class="field-value">{{ report.workerCount || '1' }} 人</text>
+          <view v-if="report.workers || report.workerNames" class="field-row">
+            <text class="field-label">作业人员</text>
+            <text class="field-value">{{ report.workers || report.workerNames }}</text>
           </view>
         </view>
 
-        <view class="content-card">
-          <text class="card-title">今日完成</text>
-          <view class="card-text-content">{{ report.todayWork || '无工作内容' }}</view>
+        <!-- 工作量 -->
+        <view v-if="report.reportType !== 'office' && (report.requiredQty > 0 || report.completedQty > 0)" class="field-card">
+          <text class="card-title">工作量统计</text>
+          <view class="field-row">
+            <text class="field-label">需求数量</text>
+            <text class="field-value">{{ report.requiredQty || 0 }}</text>
+          </view>
+          <view class="field-row">
+            <text class="field-label">完成数量</text>
+            <text class="field-value">{{ report.completedQty || 0 }}</text>
+          </view>
           <view v-if="progressPercent > 0" class="card-progress">
             <view class="progress-bar-bg">
               <view class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></view>
@@ -48,17 +113,48 @@
           </view>
         </view>
 
+        <!-- 今日工作 -->
         <view class="content-card">
-          <text class="card-title">明日计划</text>
-          <view class="card-text-content">{{ report.tomorrowPlan || '无计划' }}</view>
+          <text class="card-title">{{ report.reportType === 'office' ? '今日工作内容' : '今日工作小结' }}</text>
+          <view class="card-text-content">{{ report.todayWork || report.workContent || '无工作内容' }}</view>
         </view>
 
-        <view v-if="report.status !== 'pending'" class="review-card">
+        <!-- 明日计划 -->
+        <view v-if="report.tomorrowPlan || report.tomorrowWorkType" class="content-card">
+          <text class="card-title">明日计划</text>
+          <view v-if="report.tomorrowWorkType" class="field-row" style="padding-top:0;">
+            <text class="field-label">明日类型</text>
+            <text class="field-value">{{ report.tomorrowWorkType }}</text>
+          </view>
+          <view v-if="report.tomorrowPlan" class="card-text-content">{{ report.tomorrowPlan }}</view>
+        </view>
+
+        <!-- 问题与协调（公司日报） -->
+        <view v-if="report.reportType === 'office' && (report.issues || report.coordination)" class="content-card">
+          <text class="card-title">其他事项</text>
+          <view v-if="report.issues" style="margin-bottom:20rpx;">
+            <text class="field-label" style="display:block;margin-bottom:8rpx;">遇到的问题</text>
+            <text class="card-text-content">{{ report.issues }}</text>
+          </view>
+          <view v-if="report.coordination">
+            <text class="field-label" style="display:block;margin-bottom:8rpx;">需协调事项</text>
+            <text class="card-text-content">{{ report.coordination }}</text>
+          </view>
+        </view>
+
+        <!-- 备注 -->
+        <view v-if="report.remark" class="content-card">
+          <text class="card-title">备注</text>
+          <view class="card-text-content">{{ report.remark }}</view>
+        </view>
+
+        <!-- 原有审核卡片（非补公出类型） -->
+        <view v-if="report.reportType !== 'biz_trip_supplement' && report.status !== 'pending' && report.reviewer" class="review-card">
           <text class="card-title">审核信息</text>
           <view class="field-row">
             <text class="field-label">审核状态</text>
-            <view class="status-badge" :style="{ background: getStatusBg(report.status) }">
-              <text class="status-badge-text" :style="{ color: getStatusColor(report.status) }">{{ report.statusText }}</text>
+            <view class="status-badge" :style="{ background: getStatusBg(report) }">
+              <text class="status-badge-text" :style="{ color: getStatusColor(report) }">{{ getStatusText(report) }}</text>
             </view>
           </view>
           <view class="field-row">
@@ -117,8 +213,7 @@ async function loadReportDetail() {
   try {
     const res = await reportApi.getDetail(reportId.value)
     report.value = res.data
-  } catch (err) {
-    console.error('加载日报详情失败', err)
+  } catch {
     uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
     loading.value = false
@@ -135,14 +230,61 @@ const progressPercent = computed(() => {
   return 0
 })
 
-function getStatusBg(status) {
-  const map = { approved: '#EFFDF5', pending: '#FFF8F0', rejected: '#FFF0F0', draft: '#F5F5F5' }
+// ===== 日志类型 =====
+function getTypeLabel(type) {
+  const map = { biz_trip: '公出日志', biz_trip_supplement: '补公出日志', office: '公司日报' }
+  return map[type] || type || '日报'
+}
+
+function getTypeBg(type) {
+  const map = { biz_trip: '#EDF2FF', biz_trip_supplement: '#FFF8E1', office: '#F0FDF4' }
+  return map[type] || '#F5F5F5'
+}
+
+function getTypeColor(type) {
+  const map = { biz_trip: '#2B6DE8', biz_trip_supplement: '#F59E0B', office: '#22C55E' }
+  return map[type] || '#999999'
+}
+
+// ===== 补公出审核状态 =====
+function getSupplementLabel(status) {
+  const map = { pending_review: '审核中', approved: '审核通过', delayed: '延迟标记', special: '通过(特殊)' }
+  return map[status] || status || '待审核'
+}
+
+function getSupplementBg(status) {
+  const map = { pending_review: '#FFF8E1', approved: '#EFFDF5', delayed: '#FFF0F0', special: '#EDF2FF' }
   return map[status] || '#F5F5F5'
 }
 
-function getStatusColor(status) {
-  const map = { approved: '#22C55E', pending: '#F59E0B', rejected: '#EF4444', draft: '#999999' }
+function getSupplementColor(status) {
+  const map = { pending_review: '#F59E0B', approved: '#22C55E', delayed: '#EF4444', special: '#2B6DE8' }
   return map[status] || '#999999'
+}
+
+// ===== 通用状态 =====
+function getStatusText(report) {
+  if (report.reportType === 'biz_trip_supplement') {
+    return getSupplementLabel(report.supplementStatus)
+  }
+  const map = { approved: '已通过', pending: '待审核', rejected: '已驳回', draft: '草稿', submitted: '已提交', delayed: '延迟' }
+  return map[report.status] || report.status || '未知'
+}
+
+function getStatusBg(report) {
+  if (report.reportType === 'biz_trip_supplement') {
+    return getSupplementBg(report.supplementStatus)
+  }
+  const map = { approved: '#EFFDF5', pending: '#FFF8F0', rejected: '#FFF0F0', draft: '#F5F5F5', submitted: '#EDF2FF', delayed: '#FFF0F0' }
+  return map[report.status] || '#F5F5F5'
+}
+
+function getStatusColor(report) {
+  if (report.reportType === 'biz_trip_supplement') {
+    return getSupplementColor(report.supplementStatus)
+  }
+  const map = { approved: '#22C55E', pending: '#F59E0B', rejected: '#EF4444', draft: '#999999', submitted: '#2B6DE8', delayed: '#EF4444' }
+  return map[report.status] || '#999999'
 }
 
 async function goToRevise() {
@@ -187,6 +329,40 @@ async function goToRevise() {
   font-size: 32rpx;
   font-weight: 600;
   color: #333333;
+}
+
+.header-tags {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.type-tag {
+  height: 36rpx;
+  padding: 0 14rpx;
+  border-radius: 6rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.type-tag-text {
+  font-size: 20rpx;
+  font-weight: 500;
+}
+
+.supplement-tag {
+  height: 36rpx;
+  padding: 0 14rpx;
+  border-radius: 6rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.supplement-tag-text {
+  font-size: 20rpx;
+  font-weight: 500;
 }
 
 .status-badge {

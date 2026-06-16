@@ -1,6 +1,8 @@
 'use strict';
 
 const adminService = require('../services/admin.service');
+const workerService = require('../services/worker.service');
+const moduleService = require('../services/module.service');
 const { success, paginated } = require('../../common/utils/response');
 const { ValidationError } = require('../../common/utils/errors');
 
@@ -396,6 +398,90 @@ async function updateSettings(req, res, next) {
   }
 }
 
+/**
+ * POST /api/admin/workers — 花名册统一入口（v2.0 新增）
+ * 通过 action 字段区分操作: list / create / update / toggle / delete
+ */
+async function workers(req, res, next) {
+  try {
+    const { action, ...data } = req.body;
+
+    if (!action) {
+      throw new ValidationError('action 不能为空');
+    }
+
+    const validActions = ['list', 'create', 'update', 'toggle', 'toggleFieldWorker', 'delete'];
+    if (!validActions.includes(action)) {
+      throw new ValidationError(`不支持的操作: ${action}，仅支持 ${validActions.join('/')}`);
+    }
+
+    const result = await workerService.dispatch(action, data);
+
+    // 按 action 返回不同的 success message
+    const messages = {
+      list: 'success',
+      create: '创建成功',
+      update: '更新成功',
+      toggle: '状态已更新',
+      toggleFieldWorker: '作业人员标记已更新',
+      delete: '删除成功',
+    };
+
+    if (action === 'list') {
+      res.json(paginated(result.list, result.total, data.page || 1, data.pageSize || 20));
+    } else {
+      res.json(success(result, messages[action]));
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/admin/modules — 模块可见性管理统一入口
+ * action: getModules(登录即可) / saveModules(superadmin)
+ */
+async function modules(req, res, next) {
+  try {
+    const { action, platform } = req.body;
+    const userRole = req.user?.role || 'employee';
+
+    if (!action) {
+      throw new ValidationError('action 不能为空');
+    }
+
+    if (action === 'getModules') {
+      const list = await moduleService.getModules(platform, userRole);
+      res.json(success(list));
+    } else if (action === 'saveModules') {
+      // 仅 superadmin 可保存
+      if (req.user?.role !== 'superadmin') {
+        throw new (require('../../common/utils/errors').AuthError)('仅超级管理员可修改模块配置');
+      }
+      const { modules } = req.body;
+      await moduleService.saveModules(modules);
+      res.json(success(null, '模块配置已保存'));
+    } else {
+      throw new ValidationError(`不支持的操作: ${action}`);
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/modules — 公开接口，小程序端获取可见模块
+ * 无需认证，自动按 platform=miniapp 过滤
+ */
+async function publicModules(req, res, next) {
+  try {
+    const list = await moduleService.getModules('miniapp');
+    res.json(success(list));
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   userList, getUserDetail, updateUser, batchImportUsers,
   setAdmin, toggleUser, createUser, approveUser, inviteUser,
@@ -405,4 +491,7 @@ module.exports = {
   getPermissions, setRolePermissions,
   getApprovalTypes, updateApprovalType,
   getSettings, updateSettings,
+  workers,
+  modules,
+  publicModules,
 };

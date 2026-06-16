@@ -61,9 +61,25 @@ router.get('/admin/approval-types',       ...adminAuth, adminController.getAppro
 router.put('/admin/approval-types/:id',   ...adminAuth, adminController.updateApprovalType);
 
 // ==============================
+// 花名册管理（v2.0 新增）— admin+
+// 统一入口 POST /api/admin/workers，通过 action 字段区分操作
+// ==============================
+router.post('/admin/workers', ...adminAuth, adminController.workers);
+
+// ==============================
+// 模块可见性管理 — 登录即可查看，仅 superadmin 可保存
+// ==============================
+router.post('/admin/modules', authenticate, adminController.modules);
+
+// ==============================
 // 系统设置 — 仅 superadmin
 // ==============================
 router.get('/admin/settings',  ...superAuth, adminController.getSettings);
 router.put('/admin/settings',  ...superAuth, adminController.updateSettings);
+
+// ==============================
+// 公开接口 — 小程序获取可见模块
+// ==============================
+router.get('/modules', adminController.publicModules);
 
 module.exports = router;

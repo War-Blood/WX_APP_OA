@@ -25,22 +25,41 @@
       <view v-if="filteredList.length > 0" class="report-list">
         <view
           v-for="item in filteredList"
-          :key="item.id"
+          :key="item.id || item.reportId"
           class="report-card"
           hover-class="card-hover"
           @tap="goToDetail(item)"
         >
           <view class="card-header">
             <text class="project-name">{{ item.project || '未命名项目' }}</text>
-            <view class="status-badge" :style="{ background: getStatusBg(item.status) }">
-              <text class="status-badge-text" :style="{ color: getStatusColor(item.status) }">{{ item.statusText }}</text>
+            <!-- 日志类型标签 -->
+            <view class="type-tag" :style="{ background: getTypeBg(item.reportType) }">
+              <text class="type-tag-text" :style="{ color: getTypeColor(item.reportType) }">
+                {{ getTypeLabel(item.reportType) }}
+              </text>
+            </view>
+          </view>
+          <!-- 补公出审核状态 -->
+          <view v-if="item.reportType === 'biz_trip_supplement'" class="supplement-row">
+            <view class="supplement-status-tag" :style="{ background: getSupplementBg(item.supplementStatus) }">
+              <text class="supplement-status-text" :style="{ color: getSupplementColor(item.supplementStatus) }">
+                {{ getSupplementLabel(item.supplementStatus) }}
+              </text>
             </view>
           </view>
           <view class="card-meta">
-            <text class="meta-date">{{ item.date }}</text>
+            <text class="meta-date">{{ item.date || item.reportDate }}</text>
+            <text class="meta-type">{{ item.todayWorkType || item.workType || '' }}</text>
             <text class="meta-person">{{ item.submitter || item.person || '' }}</text>
           </view>
-          <view class="card-progress">
+          <!-- 项目/区域行 -->
+          <view v-if="item.area" class="card-meta" style="margin-top:8rpx;">
+            <text class="meta-area">{{ item.area }}</text>
+          </view>
+          <view v-if="item.todayWork" class="card-preview">
+            <text class="preview-text">{{ truncateText(item.todayWork, 80) }}</text>
+          </view>
+          <view v-if="(item.progress || 0) > 0" class="card-progress">
             <text class="progress-label">进度</text>
             <view class="progress-bar-bg">
               <view class="progress-bar-fill" :style="{ width: (item.progress || 0) + '%' }"></view>
@@ -74,29 +93,61 @@ const tabs = [
   { key: 'draft', label: '草稿' },
   { key: 'submitted', label: '已提交' },
   { key: 'approved', label: '已通过' },
-  { key: 'rejected', label: '已驳回' },
+  { key: 'rejected', label: '已驳回' }
 ]
 
 const reportList = ref([])
 const filteredList = computed(() => reportList.value)
 
-function getStatusBg(status) {
-  const map = { approved: '#EFFDF5', pending: '#FFF8F0', rejected: '#FFF0F0', draft: '#F5F5F5', submitted: '#F5F5F5' }
+// ===== 日志类型标签 =====
+function getTypeLabel(type) {
+  const map = { biz_trip: '公出', biz_trip_supplement: '补公出', office: '公司日报' }
+  return map[type] || type || '日报'
+}
+
+function getTypeBg(type) {
+  const map = { biz_trip: '#EDF2FF', biz_trip_supplement: '#FFF8E1', office: '#F0FDF4' }
+  return map[type] || '#F5F5F5'
+}
+
+function getTypeColor(type) {
+  const map = { biz_trip: '#2B6DE8', biz_trip_supplement: '#F59E0B', office: '#22C55E' }
+  return map[type] || '#999999'
+}
+
+// ===== 补公出审核状态 =====
+function getSupplementLabel(status) {
+  const map = { pending_review: '审核中', approved: '通过', delayed: '延迟', special: '通过(特殊)' }
+  return map[status] || status || '待审核'
+}
+
+function getSupplementBg(status) {
+  const map = { pending_review: '#FFF8E1', approved: '#EFFDF5', delayed: '#FFF0F0', special: '#EDF2FF' }
   return map[status] || '#F5F5F5'
 }
 
-function getStatusColor(status) {
-  const map = { approved: '#22C55E', pending: '#F59E0B', draft: '#999999' }
+function getSupplementColor(status) {
+  const map = { pending_review: '#F59E0B', approved: '#22C55E', delayed: '#EF4444', special: '#2B6DE8' }
   return map[status] || '#999999'
 }
 
+// ===== 工具函数 =====
+function truncateText(text, maxLen) {
+  if (!text) return ''
+  return text.length > maxLen ? text.slice(0, maxLen) + '...' : text
+}
+
+// ===== 方法 =====
 function switchTab(key) {
   activeTab.value = key
   loadReportList(true)
 }
 
 function goToDetail(item) {
-  uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + item.id })
+  const id = item.reportId || item.id
+  if (id) {
+    uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + id })
+  }
 }
 
 function onLoadMore() {
@@ -127,14 +178,14 @@ async function loadReportList(reset = true) {
     const res = await reportApi.getList({
       page: currentPage.value,
       pageSize: 20,
-      status: statusMap[activeTab.value],
+      status: statusMap[activeTab.value]
     })
     const list = res.data.list || []
     if (reset) { reportList.value = list }
     else { reportList.value = [...reportList.value, ...list] }
     if (list.length < 20) { noMoreData.value = true }
-  } catch (err) {
-    console.error('加载日报列表失败', err)
+  } catch {
+    // fail silently
   } finally {
     isLoading.value = false
   }
@@ -210,24 +261,50 @@ async function loadReportList(reset = true) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12rpx;
 }
 
 .project-name {
   font-size: 28rpx;
   font-weight: 600;
   color: #333333;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.status-badge {
+.type-tag {
   height: 32rpx;
-  padding: 0 14rpx;
-  border-radius: 8rpx;
+  padding: 0 12rpx;
+  border-radius: 6rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.type-tag-text {
+  font-size: 20rpx;
+  font-weight: 500;
+}
+
+/* 补公出审核状态 */
+.supplement-row {
+  display: flex;
+  margin-top: 12rpx;
+}
+
+.supplement-status-tag {
+  height: 32rpx;
+  padding: 0 12rpx;
+  border-radius: 6rpx;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.status-badge-text {
+.supplement-status-text {
   font-size: 20rpx;
   font-weight: 500;
 }
@@ -235,14 +312,34 @@ async function loadReportList(reset = true) {
 .card-meta {
   display: flex;
   align-items: center;
-  gap: 32rpx;
+  gap: 24rpx;
   margin-top: 16rpx;
 }
 
 .meta-date,
-.meta-person {
+.meta-type,
+.meta-person,
+.meta-area {
   font-size: 24rpx;
   color: #999999;
+}
+
+.meta-type {
+  color: #2B6DE8;
+  font-weight: 500;
+}
+
+.card-preview {
+  margin-top: 12rpx;
+  padding: 12rpx 16rpx;
+  background: #F7F8FA;
+  border-radius: 8rpx;
+}
+
+.preview-text {
+  font-size: 24rpx;
+  color: #666666;
+  line-height: 36rpx;
 }
 
 .card-progress {

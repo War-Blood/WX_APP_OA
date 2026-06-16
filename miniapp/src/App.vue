@@ -10,8 +10,14 @@
 -->
 <script setup>
 import { onLaunch, onShow } from '@dcloudio/uni-app'
+import { useAppStore } from '@/stores/app'
+
+const appStore = useAppStore()
 
 onLaunch(() => {
+  // 预加载模块可见性配置
+  appStore.fetchModules()
+
   const token = uni.getStorageSync('token')
   const pages = getCurrentPages()
   if (token && (!pages.length || pages[0].route === 'pages/login/index')) {

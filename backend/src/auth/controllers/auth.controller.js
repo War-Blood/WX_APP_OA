@@ -1,6 +1,7 @@
 'use strict';
 
 const authService = require('../services/auth.service');
+const captchaService = require('../services/captcha.service');
 const { success } = require('../../common/utils/response');
 const { ValidationError } = require('../../common/utils/errors');
 
@@ -59,17 +60,49 @@ async function updateProfile(req, res, next) {
 
 /**
  * POST /api/auth/admin/login
- * Web 管理员账号密码登录
+ * Web 管理员账号密码登录（v2.1: 需滑动验证 token）
  */
 async function adminLogin(req, res, next) {
   try {
-    const { account, password, totp } = req.body;
+    const { account, password, totp, captchaToken } = req.body;
 
     if (!account) { throw new ValidationError('请输入账号'); }
     if (!password) { throw new ValidationError('请输入密码'); }
 
+    // 滑动验证校验
+    if (!captchaService.consumeToken(captchaToken)) {
+      throw new ValidationError('请先完成滑动验证');
+    }
+
     const result = await authService.adminLogin(account, password, totp);
     res.json(success(result, '登录成功'));
+  } catch (err) { next(err); }
+}
+
+/**
+ * GET /api/auth/captcha — 获取滑动验证
+ */
+async function getCaptcha(req, res, next) {
+  try {
+    const data = captchaService.generateCaptcha();
+    res.json(success(data));
+  } catch (err) { next(err); }
+}
+
+/**
+ * POST /api/auth/captcha/verify — 验证滑块轨迹
+ */
+async function verifyCaptcha(req, res, next) {
+  try {
+    const { captchaId, track } = req.body;
+    if (!captchaId) throw new ValidationError('缺少验证ID');
+    if (!Array.isArray(track)) throw new ValidationError('缺少轨迹数据');
+
+    const result = captchaService.verifyCaptcha(captchaId, track);
+    if (!result.success) {
+      throw new ValidationError(result.error);
+    }
+    res.json(success({ token: result.token }, '验证通过'));
   } catch (err) { next(err); }
 }
 
@@ -133,4 +166,4 @@ async function totpDisable(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { login, getProfile, updateProfile, adminLogin, qywxLogin, linkQywx, totpSetup, totpEnable, totpDisable };
+module.exports = { login, getProfile, updateProfile, adminLogin, qywxLogin, linkQywx, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha };

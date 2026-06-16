@@ -1,11 +1,39 @@
 'use strict';
 
 const reportService = require('../services/report.service');
+const statsService = require('../services/stats.service');
+const db = require('../../common/config/database');
 const { success, paginated } = require('../../common/utils/response');
+const { ValidationError } = require('../../common/utils/errors');
 
 /**
- * 日报控制器
+ * 日报控制器 v2.0
  */
+
+/**
+ * 自动补充 entryDate（从 users 表查询入场日期）
+ * @param {number} userId - 用户 ID
+ * @param {string} [entryDate] - 前端传入的 entryDate
+ * @returns {Promise<string|null>} 解析后的 entryDate
+ */
+async function resolveEntryDate(userId, entryDate) {
+  if (entryDate) return entryDate;
+
+  const [user] = await db.query(
+    'SELECT entry_date FROM users WHERE id = ?',
+    [userId]
+  );
+  if (user && user.entry_date) {
+    return typeof user.entry_date === 'string'
+      ? user.entry_date.slice(0, 10)
+      : user.entry_date.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+// ==============================
+// 基础 CRUD
+// ==============================
 
 /**
  * 日报列表（分页+筛选）
@@ -49,23 +77,80 @@ async function detail(req, res, next) {
 }
 
 /**
- * 提交日报
+ * 提交日报（v2.0 改造）
  * POST /api/report/submit
- * 接收完整 formData（包含所有字段）
+ *
+ * 支持三种 reportType: biz_trip / biz_trip_supplement / office
+ * 自动补充 entryDate（从 users 表查）和 initialBizTripDate（默认同 entryDate）
  */
 async function submit(req, res, next) {
   try {
-    const { formData, reportDate, status } = req.body;
     const userId = req.user.userId;
+    const data = { ...req.body };
 
-    const report = await reportService.submit({
-      userId,
-      reportDate: reportDate || formData?.date,
-      formData: formData || req.body,  // 兼容两种传参方式
-      status: status || 'pending',
-    });
+    // ---- 参数校验（按 reportType 区分必填字段） ----
+    const reportType = data.reportType || 'biz_trip';
 
-    res.json(success(report));
+    if (!data.reportDate) {
+      throw new ValidationError('日报日期不能为空');
+    }
+
+    // 旧版兼容: 未传 todayWorkType 时默认「工作（陆）」
+    if (!data.todayWorkType) {
+      data.todayWorkType = '工作（陆）';
+    }
+
+    const validWorkTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休'];
+    if (!validWorkTypes.includes(data.todayWorkType)) {
+      throw new ValidationError(`无效的工作类型: ${data.todayWorkType}`);
+    }
+
+    const isLeaveOrRest = data.todayWorkType === '请假' || data.todayWorkType === '调休';
+
+    if (reportType === 'biz_trip' || reportType === 'biz_trip_supplement') {
+      // 请假/调休时 project/area/workerIds 可为空
+      if (!isLeaveOrRest) {
+        if (!data.project) {
+          throw new ValidationError('项目名称不能为空');
+        }
+        if (!data.area) {
+          throw new ValidationError('项目区域不能为空');
+        }
+        if (!data.workerIds || !Array.isArray(data.workerIds) || data.workerIds.length === 0) {
+          throw new ValidationError('作业人员不能为空');
+        }
+      } else {
+        // 请假/调休时前端传 workerIds: []，后端跳过代填
+        if (!data.workerIds) {
+          data.workerIds = [];
+        }
+      }
+
+      if (reportType === 'biz_trip_supplement') {
+        if (!data.supplementDate) {
+          throw new ValidationError('补录目标日期不能为空');
+        }
+        if (!data.supplementReason) {
+          throw new ValidationError('补录原因不能为空');
+        }
+      }
+    } else if (reportType === 'office') {
+      if (!data.todayWork) {
+        throw new ValidationError('今日工作内容不能为空（公司日报）');
+      }
+    }
+
+    // ---- 自动补充 entryDate ----
+    data.entryDate = await resolveEntryDate(userId, data.entryDate);
+
+    // ---- 自动补充 initialBizTripDate（默认同 entryDate） ----
+    if (!data.initialBizTripDate && data.entryDate) {
+      data.initialBizTripDate = data.entryDate;
+    }
+
+    const result = await reportService.submit(data, userId);
+
+    res.json(success({ reportId: result.reportId }));
   } catch (err) {
     next(err);
   }
@@ -77,17 +162,19 @@ async function submit(req, res, next) {
  */
 async function saveDraft(req, res, next) {
   try {
-    const { formData, reportDate } = req.body;
     const userId = req.user.userId;
+    const data = { ...req.body, status: 'draft' };
 
-    const report = await reportService.submit({
-      userId,
-      reportDate: reportDate || formData?.date,
-      formData,
-      status: 'draft',
-    });
+    if (!data.reportDate) {
+      throw new ValidationError('日报日期不能为空');
+    }
 
-    res.json(success(report));
+    // 自动补充 entryDate
+    data.entryDate = await resolveEntryDate(userId, data.entryDate);
+
+    const result = await reportService.submit(data, userId);
+
+    res.json(success({ reportId: result.reportId }, '草稿已保存'));
   } catch (err) {
     next(err);
   }
@@ -96,13 +183,10 @@ async function saveDraft(req, res, next) {
 /**
  * 获取草稿
  * GET /api/report/draft
- * 参数: { reportDate }
- * 返回: 草稿数据或 null
  */
 async function getDraft(req, res, next) {
   try {
     let { reportDate } = req.query;
-    // 兼容前端错误传参 {reportDate: "..."} 和正确传参 "2026-06-01"
     try { const parsed = JSON.parse(reportDate); reportDate = parsed.reportDate || reportDate; } catch {}
     const userId = req.user.userId;
 
@@ -116,7 +200,6 @@ async function getDraft(req, res, next) {
 /**
  * 删除日报
  * POST /api/report/delete
- * 只允许删除草稿(draft)或已驳回(rejected)的日报
  */
 async function deleteReport(req, res, next) {
   try {
@@ -130,6 +213,187 @@ async function deleteReport(req, res, next) {
     next(err);
   }
 }
+
+// ==============================
+// 代填检测（新增）
+// ==============================
+
+/**
+ * 检查当日是否已被代填
+ * POST /api/report/check-duplicate
+ */
+async function checkDuplicate(req, res, next) {
+  try {
+    const { userId, reportDate } = req.body;
+
+    if (!userId) {
+      throw new ValidationError('userId 不能为空');
+    }
+    if (!reportDate) {
+      throw new ValidationError('reportDate 不能为空');
+    }
+
+    const result = await reportService.checkDuplicate(userId, reportDate);
+
+    if (!result.canSubmit) {
+      // code 2001 表示已被代填
+      res.json({
+        code: 2001,
+        message: `当日公出日志已由 ${result.submittedBy} 代填`,
+        data: { submittedBy: result.submittedBy, reportId: result.reportId },
+      });
+    } else {
+      res.json(success({ canSubmit: true }));
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ==============================
+// 补公出日志审核（新增）
+// ==============================
+
+/**
+ * 补公出日志待审核列表
+ * POST /api/report/pending-reviews
+ */
+async function pendingReviews(req, res, next) {
+  try {
+    const { status: reviewStatus = 'pending', page = 1, pageSize = 20 } = req.body;
+
+    if (!['pending', 'reviewed', 'all'].includes(reviewStatus)) {
+      throw new ValidationError('status 仅支持 pending/reviewed/all');
+    }
+
+    const { list, total } = await reportService.getPendingReviews({
+      status: reviewStatus,
+      page: Number(page),
+      pageSize: Number(pageSize),
+    });
+
+    res.json(paginated(list, total, Number(page), Number(pageSize)));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * 补公出日志审核判定
+ * POST /api/report/supplement-review
+ */
+async function supplementReview(req, res, next) {
+  try {
+    const { reportId, decision, comment } = req.body;
+
+    if (!reportId) {
+      throw new ValidationError('reportId 不能为空');
+    }
+    if (!['special', 'forget'].includes(decision)) {
+      throw new ValidationError('decision 仅支持 special 或 forget');
+    }
+
+    const result = await reportService.supplementReview(reportId, decision, comment);
+    res.json(success(result, '审核完成'));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ==============================
+// 统计看板（新增）
+// ==============================
+
+/**
+ * 统计看板 — 三种 scope
+ * POST /api/report/stats
+ */
+async function stats(req, res, next) {
+  try {
+    const { scope, userId } = req.body;
+
+    if (!['user', 'all', 'project'].includes(scope)) {
+      throw new ValidationError('scope 仅支持 user/all/project');
+    }
+
+    const result = await statsService.getStats(scope, { userId });
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ==============================
+// 管理层看板 — 当日状态（新增）
+// ==============================
+
+/**
+ * 全员当日状态
+ * POST /api/report/daily-status
+ */
+async function dailyStatus(req, res, next) {
+  try {
+    const { date } = req.body;
+    const result = await statsService.getDailyStatus(date);
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ==============================
+// 管理层看板 — 月度工作占比（新增）
+// ==============================
+
+/**
+ * 月度工作占比
+ * POST /api/report/monthly-summary
+ */
+async function monthlySummary(req, res, next) {
+  try {
+    const { userId, month } = req.body;
+
+    // 管理员看全员时需要传 userId，员工看自己时可用当前登录用户
+    const targetUserId = userId || req.user.userId;
+    const targetMonth = month || new Date().toISOString().slice(0, 7);
+
+    if (!/^\d{4}-\d{2}$/.test(targetMonth)) {
+      throw new ValidationError('month 格式必须为 YYYY-MM');
+    }
+
+    const result = await statsService.getMonthlySummary(targetUserId, targetMonth);
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ==============================
+// 同组日志列表（新增）
+// ==============================
+
+/**
+ * 同组日志列表
+ * POST /api/report/team-logs
+ */
+async function teamLogs(req, res, next) {
+  try {
+    const { userId, days = 7 } = req.body;
+
+    if (!userId) {
+      throw new ValidationError('userId 不能为空');
+    }
+
+    const result = await reportService.getTeamLogs(userId, Number(days));
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ==============================
+// 旧版兼容
+// ==============================
 
 /**
  * 获取作业人员名单（去重）
@@ -164,8 +428,25 @@ async function exportCSV(req, res, next) {
     const csv = await reportService.exportCSV({ status, startDate, endDate, keyword, worker });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename=report.csv');
-    res.send('\uFEFF' + csv); // BOM for Excel Chinese
+    res.send('﻿' + csv);
   } catch (err) { next(err); }
 }
 
-module.exports = { list, detail, submit, saveDraft, getDraft, deleteReport, workerList, workerStats, exportCSV };
+module.exports = {
+  list,
+  detail,
+  submit,
+  saveDraft,
+  getDraft,
+  deleteReport,
+  checkDuplicate,
+  pendingReviews,
+  supplementReview,
+  stats,
+  dailyStatus,
+  monthlySummary,
+  teamLogs,
+  workerList,
+  workerStats,
+  exportCSV,
+};

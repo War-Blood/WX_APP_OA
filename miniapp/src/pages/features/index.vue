@@ -35,51 +35,71 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useAppStore } from '@/stores/app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import TabBar from '@/components/tab-bar/tab-bar.vue'
 
+const appStore = useAppStore()
 const ICON = '/static/icons/feat-'
 
-const featureGroups = [
-  {
-    name: '办公协作',
-    items: [
-      { label: '审批管理', iconSrc: `${ICON}clipboard.svg`, bg: '#EDF2FF', route: '/pages/approval/index/index' },
-      { label: '公出日志', iconSrc: `${ICON}document.svg`, bg: '#F0FDF4', route: '/pages/employee/report-edit/index' },
-      { label: '日报历史', iconSrc: `${ICON}folder.svg`, bg: '#E8F4FD', route: '/pages/employee/report-history/index' },
-      { label: '审核管理', iconSrc: `${ICON}shield.svg`, bg: '#E6F7FF', route: '/pages/admin/review-list/index' }
-    ]
-  },
-  {
-    name: '信息中心',
-    items: [
-      { label: '消息中心', iconSrc: `${ICON}bell.svg`, bg: '#F3E8FF', route: '/pages/message/index/index' },
-      { label: '项目日报', iconSrc: `${ICON}chart.svg`, bg: '#FEF3E2', route: '' },
-      { label: '通知公告', iconSrc: `${ICON}bell.svg`, bg: '#EEF2FF', route: '' },
-      { label: '通讯录', iconSrc: `${ICON}users.svg`, bg: '#E6F7FF', route: '' }
-    ]
-  },
-  {
-    name: '系统设置',
-    items: [
-      { label: '个人设置', iconSrc: `${ICON}gear.svg`, bg: '#F0F0FF', route: '' },
-      { label: '关于我们', iconSrc: `${ICON}book.svg`, bg: '#F5F5F5', route: '' },
-      { label: '更多功能', iconSrc: `${ICON}grid.svg`, bg: '#FAFAFA', route: '' },
-      { label: '管理后台', iconSrc: `${ICON}shield.svg`, bg: '#FFF0F0', route: '' }
-    ]
-  }
-]
+// 模块 key → 图标及背景色映射
+const iconConfig = {
+  approval: { iconSrc: ICON + 'clipboard.svg', bg: '#EDF2FF' },
+  report: { iconSrc: ICON + 'document.svg', bg: '#F0FDF4' },
+  report_history: { iconSrc: ICON + 'folder.svg', bg: '#E8F4FD' },
+  review: { iconSrc: ICON + 'shield.svg', bg: '#E6F7FF' },
+  message: { iconSrc: ICON + 'bell.svg', bg: '#F3E8FF' },
+  compliance: { iconSrc: ICON + 'shield.svg', bg: '#FFF0F0' },
+  stats: { iconSrc: ICON + 'chart.svg', bg: '#FEF3E2' }
+}
+
+// 模块 key → 所属分组
+const groupConfig = {
+  approval: '办公协作',
+  report: '办公协作',
+  report_history: '办公协作',
+  review: '办公协作',
+  compliance: '办公协作',
+  message: '信息中心',
+  stats: '信息中心'
+}
+
+// 默认图标配置（新模块未配置时使用）
+const defaultIcon = { iconSrc: ICON + 'grid.svg', bg: '#FAFAFA' }
+const defaultGroup = '办公协作'
+
+const featureGroups = computed(() => {
+  const groups = {}
+  const visibleModules = appStore.modules
+    .filter(m => m.visible !== false)
+    .sort((a, b) => (a.sort || 99) - (b.sort || 99))
+
+  visibleModules.forEach(m => {
+    const group = groupConfig[m.key] || defaultGroup
+    if (!groups[group]) groups[group] = []
+    const icon = iconConfig[m.key] || defaultIcon
+    groups[group].push({
+      label: m.name,
+      iconSrc: icon.iconSrc,
+      bg: icon.bg,
+      route: m.route || ''
+    })
+  })
+
+  return Object.entries(groups).map(([name, items]) => ({ name, items }))
+})
 
 function goToFeature(route) {
   if (route) {
     uni.navigateTo({ url: route })
   } else {
-    uni.showToast({ title: '功能待开发', icon: 'none' })
+    uni.showToast({ title: '功能开发中', icon: 'none' })
   }
 }
 
 function handleSearch() {
-  uni.showToast({ title: '功能待开发', icon: 'none' })
+  uni.showToast({ title: '功能开发中', icon: 'none' })
 }
 </script>
 

@@ -78,14 +78,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { useAppStore } from '@/stores/app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import TabBar from '@/components/tab-bar/tab-bar.vue'
 import { statsApi } from '@/services/modules/stats'
 import { messageApi } from '@/services/modules/message'
 
 const userStore = useUserStore()
+const appStore = useAppStore()
 
 const stats = ref([
   { label: '待审批', value: 0, route: '/pages/approval/index/index?tab=pending' },
@@ -93,12 +95,33 @@ const stats = ref([
   { label: '待阅读', value: 0, route: '/pages/message/index/index' },
 ])
 
-const quickActions = [
-  { label: '审批', bg: '#EDF2FF', iconSrc: '/static/icons/quick-clipboard.svg', route: '/pages/approval/index/index' },
-  { label: '公出日志', bg: '#F0FDF4', iconSrc: '/static/icons/quick-document.svg', route: '/pages/employee/report-edit/index' },
-  { label: '消息', bg: '#F3E8FF', iconSrc: '/static/icons/quick-bell.svg', route: '/pages/message/index/index' },
-  { label: '日报历史', bg: '#E6F7FF', iconSrc: '/static/icons/quick-check.svg', route: '/pages/employee/report-history/index' },
-]
+// 快捷操作：从模块列表取 sort 前 4 的可见模块
+const quickIconMap = {
+  approval: { iconSrc: '/static/icons/quick-clipboard.svg', bg: '#EDF2FF' },
+  report: { iconSrc: '/static/icons/quick-document.svg', bg: '#F0FDF4' },
+  message: { iconSrc: '/static/icons/quick-bell.svg', bg: '#F3E8FF' },
+  report_history: { iconSrc: '/static/icons/quick-check.svg', bg: '#E6F7FF' },
+  review: { iconSrc: '/static/icons/quick-check.svg', bg: '#E6F7FF' },
+  compliance: { iconSrc: '/static/icons/quick-check.svg', bg: '#FFF0F0' },
+  stats: { iconSrc: '/static/icons/quick-document.svg', bg: '#FEF3E2' }
+}
+const defaultQuickIcon = { iconSrc: '/static/icons/quick-document.svg', bg: '#FAFAFA' }
+
+const quickActions = computed(() => {
+  return appStore.modules
+    .filter(m => m.visible !== false)
+    .sort((a, b) => (a.sort || 99) - (b.sort || 99))
+    .slice(0, 4)
+    .map(m => {
+      const icon = quickIconMap[m.key] || defaultQuickIcon
+      return {
+        label: m.name,
+        bg: icon.bg,
+        iconSrc: icon.iconSrc,
+        route: m.route || ''
+      }
+    })
+})
 
 const activities = ref([])
 const unreadCount = ref(0)
@@ -168,7 +191,7 @@ function handleTabChange(tab) {
   if (map[tab] && tab !== 'home') uni.switchTab({ url: map[tab] })
 }
 function goToStat(stat) { stat.route ? uni.navigateTo({ url: stat.route }) : uni.showToast({ title: '功能待开发', icon: 'none' }) }
-function goToFeature(route) { uni.navigateTo({ url: route }) }
+function goToFeature(route) { route ? uni.navigateTo({ url: route }) : uni.showToast({ title: '功能开发中', icon: 'none' }) }
 function goToActivity(item) {
   const map = { approval: '/pages/approval/index/index', report: userStore.isAdmin ? '/pages/admin/review-list/index' : '/pages/employee/report-history/index' }
   map[item.type] ? uni.navigateTo({ url: map[item.type] }) : uni.showToast({ title: '功能待开发', icon: 'none' })

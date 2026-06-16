@@ -11,6 +11,8 @@ const PERMISSIONS_MAP = {
 export const useUserStore = defineStore('user', () => {
   const token = ref(uni.getStorageSync('token') || '')
   const userInfo = ref(uni.getStorageSync('userInfo') || null)
+  const entryDate = ref(null)        // 入场日期，如 "2026-03-04"
+  const workerStatus = ref('active')  // 外场人员状态：active / inactive
 
   const isLoggedIn = computed(() => !!token.value)
   const userName = computed(() => userInfo.value?.nickName || '用户')
@@ -72,6 +74,8 @@ export const useUserStore = defineStore('user', () => {
     setUserInfo,
     setToken,
     refreshProfile,
-    logout
+    logout,
+    entryDate,
+    workerStatus
   }
 })

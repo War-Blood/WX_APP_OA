@@ -45,7 +45,17 @@ async function realRequest(config) {
           return
         }
         if (statusCode >= 200 && statusCode < 300) {
-          if (responseData.code === 0) {
+          // Token 过期：后端返回 HTTP200 + code:401，需清除 token 并跳转登录
+          if (responseData.code === 401) {
+            uni.removeStorageSync('token')
+            uni.removeStorageSync('userInfo')
+            showToast('登录已过期，请重新登录')
+            redirectToLogin()
+            reject(new Error('Token 已过期'))
+            return
+          }
+          // v2.0: code 2001(已代填) 属于业务状态码，需 resolve 让业务层处理
+          if (responseData.code === 0 || responseData.code === 2001) {
             resolve(responseData)
           } else {
             showToast(responseData.message || '请求失败')
@@ -95,6 +105,28 @@ function handleDevMock(url) {
     },
     '/api/user/profile': {
       code: 0, data: { userId: 'dev', nickName: '开发用户', avatarUrl: '', role: 'admin', department: '技术部', permissions: [] }
+    },
+    // v2.0 公出日志模块升级 mock
+    '/api/report/check-duplicate': {
+      code: 0, data: { canSubmit: true }
+    },
+    '/api/report/stats': {
+      code: 0, data: { scope: 'user', totalCount: 156, monthCount: 12, missingDays: 5, missingDates: ['2026-06-08', '2026-06-07'], delayedCount: 3, entryDate: '2026-03-04' }
+    },
+    '/api/report/daily-status': {
+      code: 0, data: { date: '2026-06-13', totalWorkers: 45, summary: { submitted: 30, supplement: 2, office: 3, substituted: 5, leave: 2, rest: 1, missing: 2 }, workers: [] }
+    },
+    '/api/report/monthly-summary': {
+      code: 0, data: { userId: 1, userName: '开发用户', month: '2026-06', totalSubmitted: 13, workDays: 22, breakdown: { '工作（陆）': 8, '工作（海）': 2, '待工': 1, '在途': 0, '请假': 1, '调休': 1 }, ratio: { '工作（陆）': '61.5%', '工作（海）': '15.4%', '待工': '7.7%', '在途': '0%', '请假': '7.7%', '调休': '7.7%' } }
+    },
+    '/api/report/pending-reviews': {
+      code: 0, data: { list: [], total: 0 }
+    },
+    '/api/report/team-logs': {
+      code: 0, data: { teamMembers: [], logs: [] }
+    },
+    '/api/admin/workers': {
+      code: 0, data: { total: 3, list: [{ userId: 1, userName: '张云峰', workerCode: 'BL001', entryDate: '2026-03-04', workerStatus: 'active', totalLogs: 76 }] }
     }
   }
 

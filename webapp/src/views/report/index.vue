@@ -2,77 +2,122 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
-import { getReportStats } from '@/api/stats'
-import { getReportList, getWorkerStats, deleteReport, reviewAction } from '@/api/report'
+import { getStats } from '@/api/report'
+import { getReportList, getWorkerStats, deleteReport, reviewAction, reviewSupplement } from '@/api/report'
+import type { AllStatsResponse } from '@/api/report'
 
 // --- 状态 ---
 const activeTab = ref('query')
 const loading = ref(false)
 const statsLoading = ref(true)
 
-// 统计看板
-const stats = ref({ total: 0, monthCount: 0, pendingCount: 0, approvedCount: 0, approvalRate: '0%', trend: [] })
+// 统计看板 — v2.0 对接 getStats('all')
+const stats = ref<AllStatsResponse | null>(null)
 
-// 日报查询
+// 日报查询 — 新增筛选
 const keyword = ref('')
 const statusFilter = ref('')
+const reportTypeFilter = ref('')
+const workTypeFilter = ref('')
 const startDate = ref('')
 const endDate = ref('')
-const reportList = ref<any[]>([])
+const reportList = ref<Record<string, unknown>[]>([])
 const reportTotal = ref(0)
 const reportPage = ref(1)
 const reportPageSize = ref(50)
 
 // 人员看板
 const workerKeyword = ref('')
-const workerList = ref<any[]>([])
+const workerList = ref<Record<string, unknown>[]>([])
 const workerTotal = ref(0)
 const workerPage = ref(1)
 const workerPageSize = ref(20)
 
 // 详情弹窗
 const detailVisible = ref(false)
-const detailData = ref<any>({})
+const detailData = ref<Record<string, unknown>>({})
+
+// 审核弹窗（补公出）
+const reviewVisible = ref(false)
+const reviewItem = ref<Record<string, unknown> | null>(null)
+const reviewDecision = ref<'special' | 'forget'>('special')
+const reviewComment = ref('')
 
 const statusOptions = [
   { label: '全部', value: '' },
   { label: '已提交', value: 'submitted' },
   { label: '待审核', value: 'pending' },
   { label: '已通过', value: 'approved' },
-  { label: '已驳回', value: 'rejected' },
+  { label: '已驳回', value: 'rejected' }
+]
+
+const reportTypeOptions = [
+  { label: '全部', value: '' },
+  { label: '公出日志', value: 'biz_trip' },
+  { label: '补公出日志', value: 'biz_trip_supplement' },
+  { label: '公司日报', value: 'office' }
+]
+
+const workTypeOptions = [
+  { label: '全部', value: '' },
+  { label: '工作（陆）', value: '工作（陆）' },
+  { label: '工作（海）', value: '工作（海）' },
+  { label: '待工', value: '待工' },
+  { label: '在途', value: '在途' },
+  { label: '请假', value: '请假' },
+  { label: '调休', value: '调休' }
 ]
 
 const tabItems = [
   { label: '统计看板', name: 'stats' },
   { label: '日报查询', name: 'query' },
-  { label: '人员看板', name: 'workers' },
+  { label: '人员看板', name: 'workers' }
 ]
+
+// 日志类型 tag 映射
+function getReportTypeTag(reportType: string): { text: string; type: string } {
+  const map: Record<string, { text: string; type: string }> = {
+    biz_trip: { text: '公出日志', type: 'success' },
+    biz_trip_supplement: { text: '补公出', type: 'warning' },
+    office: { text: '公司日报', type: 'info' }
+  }
+  return map[reportType] || { text: reportType, type: '' }
+}
 
 // --- 统计看板 ---
 async function loadStats() {
   statsLoading.value = true
   try {
-    const res = await getReportStats()
-    stats.value = res as any
-  } catch { ElMessage.warning('统计加载失败') }
-  finally { statsLoading.value = false }
+    stats.value = await getStats('all')
+  } catch {
+    ElMessage.warning('统计加载失败')
+  } finally {
+    statsLoading.value = false
+  }
 }
 
 // --- 日报查询 ---
 async function loadReports() {
   loading.value = true
   try {
-    const res = await getReportList({
-      page: reportPage.value, pageSize: reportPageSize.value,
-      keyword: keyword.value || undefined,
-      status: statusFilter.value || undefined,
-      startDate: startDate.value || undefined,
-      endDate: endDate.value || undefined,
-    })
-    reportList.value = res.list || []
+    const params: Record<string, unknown> = {
+      page: reportPage.value,
+      pageSize: reportPageSize.value
+    }
+    if (keyword.value) params.keyword = keyword.value
+    if (statusFilter.value) params.status = statusFilter.value
+    if (reportTypeFilter.value) params.reportType = reportTypeFilter.value
+    if (workTypeFilter.value) params.workType = workTypeFilter.value
+    if (startDate.value) params.startDate = startDate.value
+    if (endDate.value) params.endDate = endDate.value
+    const res = await getReportList(params as Parameters<typeof getReportList>[0])
+    reportList.value = (res.list || []) as unknown as Record<string, unknown>[]
     reportTotal.value = res.total || 0
-  } catch { reportList.value = [] }
-  finally { loading.value = false }
+  } catch {
+    reportList.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 function handleSearch() { reportPage.value = 1; loadReports() }
@@ -80,8 +125,10 @@ function handleReportPageChange(p: number) { reportPage.value = p; loadReports()
 
 async function handleExport() {
   try {
-    const params: any = {}
+    const params: Record<string, unknown> = {}
     if (statusFilter.value) params.status = statusFilter.value
+    if (reportTypeFilter.value) params.reportType = reportTypeFilter.value
+    if (workTypeFilter.value) params.workType = workTypeFilter.value
     if (startDate.value) params.startDate = startDate.value
     if (endDate.value) params.endDate = endDate.value
     if (keyword.value) params.keyword = keyword.value
@@ -98,23 +145,25 @@ async function handleExport() {
     a.href = url; a.download = 'report.csv'
     a.click(); URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
-  } catch { ElMessage.error('导出失败') }
+  } catch {
+    ElMessage.error('导出失败')
+  }
 }
 
-async function handleDelete(row: any) {
+async function handleDelete(row: Record<string, unknown>) {
   try {
     await ElMessageBox.confirm('确定删除该条记录？', '删除确认', { type: 'warning' })
-    await deleteReport(row.id)
+    await deleteReport(row.id as string)
     ElMessage.success('已删除')
     loadReports()
   } catch { /* cancelled */ }
 }
 
-async function handleReview(row: any, action: 'approve' | 'reject') {
+async function handleReview(row: Record<string, unknown>, action: 'approve' | 'reject') {
   if (action === 'approve') {
     try {
       await ElMessageBox.confirm('确定通过该条日报？', '审核确认', { type: 'warning' })
-      await reviewAction(row.id, action)
+      await reviewAction(row.id as string, action)
       ElMessage.success('已通过')
       loadReports()
     } catch { /* cancelled */ }
@@ -122,21 +171,45 @@ async function handleReview(row: any, action: 'approve' | 'reject') {
     try {
       const { value: opinion } = await ElMessageBox.prompt('请输入驳回原因', '驳回确认', {
         inputType: 'textarea',
-        inputPlaceholder: '请详细说明驳回原因，帮助提交者了解需要修改的内容',
+        inputPlaceholder: '请详细说明驳回原因',
         inputValidator: (val: string) => !!val.trim(),
         inputErrorMessage: '驳回原因不能为空',
         confirmButtonText: '确定驳回',
         cancelButtonText: '取消',
-        distinguishCancelAndClose: true,
+        distinguishCancelAndClose: true
       })
-      await reviewAction(row.id, action, opinion)
+      await reviewAction(row.id as string, action, opinion)
       ElMessage.success('已驳回')
       loadReports()
     } catch { /* cancelled or closed */ }
   }
 }
 
-function showDetail(row: any) { detailData.value = row; detailVisible.value = true }
+function showDetail(row: Record<string, unknown>) { detailData.value = row; detailVisible.value = true }
+
+// --- 补公出审核 ---
+function openSupplementReview(row: Record<string, unknown>) {
+  reviewItem.value = row
+  reviewDecision.value = 'special'
+  reviewComment.value = ''
+  reviewVisible.value = true
+}
+
+async function handleSupplementReview() {
+  if (!reviewItem.value) return
+  try {
+    await reviewSupplement({
+      reportId: reviewItem.value.id as number,
+      decision: reviewDecision.value,
+      comment: reviewComment.value || undefined
+    })
+    ElMessage.success('审核完成')
+    reviewVisible.value = false
+    loadReports()
+  } catch {
+    // 错误已由拦截器处理
+  }
+}
 
 // --- 人员看板 ---
 async function loadWorkers() {
@@ -144,18 +217,20 @@ async function loadWorkers() {
   try {
     const res = await getWorkerStats({
       page: workerPage.value, pageSize: workerPageSize.value,
-      keyword: workerKeyword.value || undefined,
+      keyword: workerKeyword.value || undefined
     })
-    workerList.value = res.list || []
+    workerList.value = (res.list || []) as unknown as Record<string, unknown>[]
     workerTotal.value = res.total || 0
-  } catch { workerList.value = [] }
-  finally { loading.value = false }
+  } catch {
+    workerList.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 function handleWorkerSearch() { workerPage.value = 1; loadWorkers() }
 function handleWorkerPageChange(p: number) { workerPage.value = p; loadWorkers() }
 
-// 人员看板 → 搜该人员日报
 function searchPersonReports(name: string) {
   activeTab.value = 'query'
   keyword.value = name
@@ -181,47 +256,72 @@ onMounted(() => { loadStats(); loadReports() })
     <!-- ====== Tab 1: 统计看板 ====== -->
     <template v-if="activeTab === 'stats'">
       <el-row :gutter="16" class="stats-row" v-loading="statsLoading">
-        <el-col :span="4"><el-card class="stat-card" shadow="hover"><div class="stat-val">{{ stats.total }}</div><div class="stat-lbl">总日报数</div></el-card></el-col>
-        <el-col :span="4"><el-card class="stat-card" shadow="hover"><div class="stat-val" style="color:#409EFF">{{ stats.monthCount }}</div><div class="stat-lbl">本月提交</div></el-card></el-col>
-        <el-col :span="4"><el-card class="stat-card" shadow="hover"><div class="stat-val" style="color:#E6A23C">{{ stats.pendingCount }}</div><div class="stat-lbl">待审核</div></el-card></el-col>
-        <el-col :span="4"><el-card class="stat-card" shadow="hover"><div class="stat-val" style="color:#67C23A">{{ stats.approvedCount }}</div><div class="stat-lbl">已通过</div></el-card></el-col>
-        <el-col :span="8"><el-card class="stat-card" shadow="hover"><div class="stat-val" style="color:#6366F1">{{ stats.approvalRate }}</div><div class="stat-lbl">通过率</div></el-card></el-col>
+        <el-col :span="6">
+          <el-card class="stat-card" shadow="hover">
+            <div class="stat-val">{{ stats?.totalLogs ?? '-' }}</div>
+            <div class="stat-lbl">总日志数</div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="stat-card" shadow="hover">
+            <div class="stat-val" style="color:#409EFF">{{ stats?.monthNew ?? '-' }}</div>
+            <div class="stat-lbl">本月新增</div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="stat-card" shadow="hover">
+            <div class="stat-val" style="color:#E6A23C">{{ stats?.delayedTotal ?? '-' }}</div>
+            <div class="stat-lbl">延迟条数</div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card class="stat-card" shadow="hover">
+            <div class="stat-val" style="color:#F56C6C">{{ stats?.missingPersonCount ?? '-' }}</div>
+            <div class="stat-lbl">缺失人次</div>
+          </el-card>
+        </el-col>
       </el-row>
     </template>
 
     <!-- ====== Tab 2: 日报查询 ====== -->
     <template v-if="activeTab === 'query'">
       <div class="toolbar">
-        <div class="toolbar-left">
-          <el-input v-model="keyword" placeholder="搜索项目/人员/工作内容" clearable :prefix-icon="Search" style="width:260px" @clear="handleSearch" @keyup.enter="handleSearch" />
-          <el-select v-model="statusFilter" placeholder="状态" style="width:120px" @change="handleSearch"><el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" /></el-select>
+        <div class="toolbar-row">
+          <el-input v-model="keyword" placeholder="搜索项目/人员/工作内容" clearable :prefix-icon="Search" style="width:240px" @clear="handleSearch" @keyup.enter="handleSearch" />
+          <el-select v-model="statusFilter" placeholder="状态" style="width:110px" @change="handleSearch">
+            <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
+          </el-select>
+          <el-select v-model="reportTypeFilter" placeholder="日志类型" style="width:130px" @change="handleSearch">
+            <el-option v-for="o in reportTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
+          </el-select>
+          <el-select v-model="workTypeFilter" placeholder="工作类型" style="width:130px" @change="handleSearch">
+            <el-option v-for="o in workTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
+          </el-select>
           <el-date-picker v-model="startDate" type="date" placeholder="开始日期" style="width:140px" @change="handleSearch" value-format="YYYY-MM-DD" />
           <el-date-picker v-model="endDate" type="date" placeholder="结束日期" style="width:140px" @change="handleSearch" value-format="YYYY-MM-DD" />
+        </div>
+        <div class="toolbar-row">
           <el-button :icon="Refresh" @click="handleSearch">刷新</el-button>
           <el-button type="success" :icon="Download" @click="handleExport">导出CSV</el-button>
         </div>
       </div>
       <el-table :data="reportList" v-loading="loading" stripe border highlight-current-row @row-click="showDetail" style="cursor:pointer">
         <el-table-column prop="reportDate" label="日报时间" width="110" fixed="left" />
+        <el-table-column label="日志类型" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="getReportTypeTag(row.reportType as string).type as 'success' | 'warning' | 'info' | '' || 'info'" size="small">
+              {{ getReportTypeTag(row.reportType as string).text }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="submitter" label="填写人" width="100" show-overflow-tooltip />
         <el-table-column prop="entryDate" label="入场时间" width="110" />
-        <el-table-column prop="initialBizTripDate" label="初始出差" width="110" />
-        <el-table-column prop="project" label="项目名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="area" label="项目区域" width="100" show-overflow-tooltip />
-        <el-table-column prop="relatedParty" label="相关方" width="120" show-overflow-tooltip />
+        <el-table-column prop="project" label="项目名称" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="todayWorkType" label="工作类型" width="100" />
         <el-table-column prop="workers" label="作业人员" width="130" show-overflow-tooltip />
-        <el-table-column prop="machineModel" label="机型" width="100" show-overflow-tooltip />
-        <el-table-column prop="workerCount" label="人数" width="60" align="center" />
-        <el-table-column prop="workContent" label="工作内容" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="requiredQty" label="需完成量" width="80" align="center" />
-        <el-table-column prop="completedQty" label="累计完成量" width="90" align="center" />
-        <el-table-column prop="progressPercent" label="进度" width="70" align="center" />
-        <el-table-column prop="todayWork" label="今日工作" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="tomorrowPlan" label="明日计划" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="todayWorkType" label="今日类型" width="80" />
-        <el-table-column prop="tomorrowWorkType" label="明日类型" width="80" />
-        <el-table-column prop="remark" label="备注" width="120" show-overflow-tooltip />
-        <el-table-column prop="personalBizTripDays" label="个人出差天数" width="110" align="center" />
+        <el-table-column prop="workContent" label="工作内容" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="todayWork" label="今日工作" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="tomorrowPlan" label="明日计划" min-width="140" show-overflow-tooltip />
         <el-table-column label="状态" width="80" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.status === 'submitted'" type="info" size="small">已提交</el-tag>
@@ -231,10 +331,11 @@ onMounted(() => { loadStats(); loadReports() })
             <el-tag v-else size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button v-if="row.status === 'pending'" size="small" type="success" @click.stop="handleReview(row, 'approve')">通过</el-button>
             <el-button v-if="row.status === 'pending'" size="small" type="danger" @click.stop="handleReview(row, 'reject')">驳回</el-button>
+            <el-button v-if="(row.reportType as string) === 'biz_trip_supplement'" size="small" type="primary" @click.stop="openSupplementReview(row)">审核</el-button>
             <el-button size="small" type="danger" link :icon="Delete" @click.stop="handleDelete(row)" />
           </template>
         </el-table-column>
@@ -260,7 +361,7 @@ onMounted(() => { loadStats(); loadReports() })
         <el-table-column prop="lastDate" label="最后提交" width="120" align="center" sortable />
         <el-table-column label="操作" width="120">
           <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="searchPersonReports(row.name)">查看日报</el-button>
+            <el-button size="small" type="primary" link @click="searchPersonReports(row.name as string)">查看日报</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -292,12 +393,53 @@ onMounted(() => { loadStats(); loadReports() })
         <el-descriptions-item label="备注" :span="2">{{ detailData.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
+
+    <!-- 补公出审核弹窗 -->
+    <el-dialog v-model="reviewVisible" title="补公出日志审核" width="550px" destroy-on-close>
+      <template v-if="reviewItem">
+        <el-descriptions :column="1" border size="small" class="review-detail">
+          <el-descriptions-item label="提交人">{{ reviewItem.submitter }}</el-descriptions-item>
+          <el-descriptions-item label="补录日期">{{ reviewItem.supplementDate || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="项目">{{ reviewItem.project }}</el-descriptions-item>
+          <el-descriptions-item label="补录原因">{{ reviewItem.supplementReason || '-' }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-divider />
+
+        <div class="review-section">
+          <p class="section-title">审核判定</p>
+          <el-radio-group v-model="reviewDecision">
+            <el-radio value="special">特殊情况 — 日志标记为正常</el-radio>
+            <el-radio value="forget">非特殊/忘记 — 日志标记为延迟</el-radio>
+          </el-radio-group>
+        </div>
+
+        <div class="review-section">
+          <p class="section-title">审核意见</p>
+          <el-input
+            v-model="reviewComment"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入审核意见（可选）"
+          />
+        </div>
+      </template>
+
+      <template #footer>
+        <el-button @click="reviewVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSupplementReview" :disabled="!reviewItem">确认</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped lang="scss">
 .report-page { padding: 20px; }
 .stats-row { margin-bottom: 16px; .stat-card { text-align: center; .stat-val { font-size: 28px; font-weight: 700; } .stat-lbl { font-size: 13px; color: #999; margin-top: 4px; } } }
-.toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; .toolbar-left { display: flex; gap: 12px; align-items: center; } }
+.toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.toolbar-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.toolbar-left { display: flex; gap: 12px; align-items: center; }
 .pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; .total-text { font-size: 14px; color: #999; } }
+.review-detail { margin-bottom: 8px; }
+.review-section { margin-bottom: 16px; .section-title { font-weight: 600; margin-bottom: 8px; color: #303133; } }
 </style>

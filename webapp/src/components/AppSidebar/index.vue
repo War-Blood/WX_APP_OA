@@ -34,8 +34,16 @@ const menuItems = [
   },
   {
     path: '/report',
-    title: '公出日志管理',
-    icon: 'Document'
+    title: '日志管理',
+    icon: 'Document',
+    children: [
+      { path: '/report', title: '日报管理' },
+      { path: '/report/stats', title: '公出统计' },
+      { path: '/report/audit', title: '补公出审核' },
+      { path: '/report/daily-status', title: '当日状态' },
+      { path: '/report/monthly-summary', title: '月度占比' },
+      { path: '/user/workers', title: '花名册' }
+    ]
   },
   {
     path: '/project',

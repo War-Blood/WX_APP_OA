@@ -170,6 +170,7 @@ routes/ → controllers/ → services/ → config/(database.js + redis.js)
 37. **[R37] 权限检查 100%**: 每个受保护的 API 端点必须有 JWT 验证中间件
 38. **[R38] 敏感信息不入日志**: 密码、token、身份证号不得出现在日志中
 39. **[R39] 无硬编码凭证**: 密钥/密码/API key 只能在 `.env` 中，且 `.env` 文件不得提交
+40. **[R40] Agent 边界检查**: 代码修改前检查目标文件是否属于当前 Agent 的 `agent_boundary`（定义在 `.AI/skills/<agent-name>/SKILL.md` 的 frontmatter 中）。跨边界修改必须先向 orchestrator 申请，由对应 Agent 执行。禁止任何 Agent 修改不属于自己管辖范围的代码
 
 ---
 
