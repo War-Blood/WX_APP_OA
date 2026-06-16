@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { useUserStore } from '@/stores/user'
 import AppSidebar from '@/components/AppSidebar/index.vue'
 import AppHeader from '@/components/AppHeader/index.vue'
 
 const appStore = useAppStore()
+const userStore = useUserStore()
+
+onMounted(async () => {
+  if (userStore.token && !userStore.userInfo) {
+    try { await userStore.refreshProfile() } catch { /* ignore */ }
+  }
+})
 
 const sidebarWidth = computed(() => {
   return appStore.sidebarCollapsed ? '64px' : '220px'

@@ -30,6 +30,12 @@ async function saveModules() {
   finally { saving.value = false }
 }
 
+function toggleRole(mod: ModuleItem, role: string) {
+  const idx = mod.roles.indexOf(role)
+  if (idx > -1) mod.roles.splice(idx, 1)
+  else mod.roles.push(role)
+}
+
 function toggleVisible(mod: ModuleItem) {
   mod.visible = !mod.visible
   if (!mod.visible) mod.roles = []
@@ -60,14 +66,19 @@ onMounted(() => loadModules())
               <el-tag v-else size="small" type="info">未设置</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="roles" label="可见角色" width="180">
+          <el-table-column prop="roles" label="可见角色" width="220">
             <template #default="{ row }">
-              <el-tag v-if="row.roles.length === 0" size="small" type="danger">不可见</el-tag>
-              <template v-else>
-                <el-tag v-for="r in row.roles" :key="r" size="small" style="margin-right:4px">
+              <span style="display:flex;gap:4px;flex-wrap:wrap">
+                <el-button
+                  v-for="r in ['employee','admin','superadmin']" :key="r"
+                  :size="'small'"
+                  :type="row.roles.includes(r) ? 'primary' : 'info'"
+                  :plain="!row.roles.includes(r)"
+                  @click="toggleRole(row, r)"
+                >
                   {{ r === 'superadmin' ? '超管' : r === 'admin' ? '管理员' : '员工' }}
-                </el-tag>
-              </template>
+                </el-button>
+              </span>
             </template>
           </el-table-column>
           <el-table-column prop="visible" label="可见" width="70">
@@ -88,14 +99,19 @@ onMounted(() => loadModules())
               <el-tag v-else size="small" type="info">无路由</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="roles" label="可见角色" width="180">
+          <el-table-column prop="roles" label="可见角色" width="220">
             <template #default="{ row }">
-              <el-tag v-if="row.roles.length === 0" size="small" type="danger">不可见</el-tag>
-              <template v-else>
-                <el-tag v-for="r in row.roles" :key="r" size="small" style="margin-right:4px">
+              <span style="display:flex;gap:4px;flex-wrap:wrap">
+                <el-button
+                  v-for="r in ['employee','admin','superadmin']" :key="r"
+                  :size="'small'"
+                  :type="row.roles.includes(r) ? 'primary' : 'info'"
+                  :plain="!row.roles.includes(r)"
+                  @click="toggleRole(row, r)"
+                >
                   {{ r === 'superadmin' ? '超管' : r === 'admin' ? '管理员' : '员工' }}
-                </el-tag>
-              </template>
+                </el-button>
+              </span>
             </template>
           </el-table-column>
           <el-table-column prop="visible" label="可见" width="70">
