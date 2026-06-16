@@ -12,6 +12,9 @@
             <text class="user-name">{{ userStore.userName }}</text>
             <text class="user-role">{{ roleLabel }}<text v-if="userStore.department"> · {{ userStore.department }}</text></text>
           </view>
+          <view class="edit-btn" hover-class="edit-btn-hover" @tap="editNickname">
+            <text class="edit-icon">✎</text>
+          </view>
         </view>
       </view>
 
@@ -79,6 +82,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { statsApi } from '@/services/modules/stats'
 import { messageApi } from '@/services/modules/message'
+import { authApi } from '@/services/modules/auth'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import TabBar from '@/components/tab-bar/tab-bar.vue'
 
@@ -121,6 +125,26 @@ onMounted(async () => {
     console.error('加载统计数据失败', err)
   }
 })
+
+function editNickname() {
+  uni.showModal({
+    title: '修改昵称',
+    content: '请输入新的昵称',
+    editable: true,
+    placeholderText: userStore.userName || '请输入昵称',
+    success: async (modalRes) => {
+      if (modalRes.confirm && modalRes.content?.trim()) {
+        try {
+          await authApi.updateProfile({ nickname: modalRes.content.trim() })
+          const info = uni.getStorageSync('userInfo') || {}
+          info.nickName = modalRes.content.trim()
+          uni.setStorageSync('userInfo', info)
+          uni.showToast({ title: '昵称修改成功', icon: 'success' })
+        } catch { uni.showToast({ title: '修改失败', icon: 'none' }) }
+      }
+    }
+  })
+}
 
 async function loadStats() {
   try {

@@ -15,12 +15,17 @@ import { useAppStore } from '@/stores/app'
 const appStore = useAppStore()
 
 onLaunch(() => {
-  // 预加载模块可见性配置
   appStore.fetchModules()
 
   const token = uni.getStorageSync('token')
   const pages = getCurrentPages()
   if (token && (!pages.length || pages[0].route === 'pages/login/index')) {
+    // 检查用户审核状态
+    const userInfo = uni.getStorageSync('userInfo')
+    if (userInfo && userInfo.status === 'pending') {
+      uni.reLaunch({ url: '/pages/login/index?pending=1' })
+      return
+    }
     uni.switchTab({ url: '/pages/home/index' })
   }
 })
@@ -31,6 +36,11 @@ onShow(() => {
   const currentRoute = pages[0]?.route || ''
   if (!token && currentRoute !== 'pages/login/index') {
     uni.reLaunch({ url: '/pages/login/index' })
+  }
+  // pending 用户不能进入功能页
+  const userInfo = uni.getStorageSync('userInfo')
+  if (userInfo?.status === 'pending' && currentRoute !== 'pages/login/index') {
+    uni.reLaunch({ url: '/pages/login/index?pending=1' })
   }
 })
 </script>

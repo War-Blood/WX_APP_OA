@@ -43,12 +43,12 @@ async function login(code) {
   // 2. 在 users 表中查找用户
   const users = await db.query('SELECT * FROM users WHERE openid = ?', [openid]);
 
-  // 3. 未注册 → 自动创建 active 用户
+  // 3. 未注册 → 自动创建 pending 用户（需管理员审核）
   if (users.length === 0) {
-    logger.info('微信登录 - 自动注册新用户', { module: 'AUTH', openid });
+    logger.info('微信登录 - 新用户待审核', { module: 'AUTH', openid });
 
     const result = await db.execute(
-      `INSERT INTO users (openid, user_name, role, status, created_at) VALUES (?, '新用户', 'employee', 'active', NOW())`,
+      `INSERT INTO users (openid, user_name, role, status, created_at) VALUES (?, '待审核', 'employee', 'pending', NOW())`,
       [openid]
     );
 
@@ -59,24 +59,26 @@ async function login(code) {
       nickname: null,
       avatar_url: null,
       department: null,
-      status: 'active',
+      status: 'pending',
     };
 
     await db.execute(
-      `INSERT INTO operation_logs (user_id, action, module, detail, created_at) VALUES (?, 'auto_register', 'AUTH', '新用户自动注册', NOW())`,
+      `INSERT INTO operation_logs (user_id, action, module, detail, created_at) VALUES (?, 'auto_register', 'AUTH', '新用户注册待审核', NOW())`,
       [newUser.id]
     );
 
-    logger.info('新用户已自动注册', { module: 'AUTH', userId: newUser.id });
+    logger.info('新用户已注册待审核', { module: 'AUTH', userId: newUser.id });
+    // pending 用户也返回 JWT，但前端应拦截并显示审核中
     return finalizeLogin(newUser);
   }
 
   const user = users[0];
 
-  // 4. 检查账号状态（pending/disabled → 自动激活）
+  // 4. 检查账号状态
   if (user.status === 'pending') {
-    await db.execute("UPDATE users SET status='active' WHERE id=?", [user.id]);
-    user.status = 'active';
+    logger.info('用户登录 - 账号审核中', { module: 'AUTH', userId: user.id });
+    // pending 也允许登录拿 token，但前端拦截显示审核中
+    return finalizeLogin(user);
   }
   if (user.status === 'disabled') {
     throw new BusinessError('您的账号已被禁用，请联系管理员');

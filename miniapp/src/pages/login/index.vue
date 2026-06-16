@@ -105,8 +105,19 @@ async function handleLogin() {
     if (res.data?.token) {
       uni.setStorageSync('token', res.data.token)
       uni.setStorageSync('userInfo', res.data.user)
+      // pending 用户显示等待审核
+      if (res.data.user?.status === 'pending') {
+        uni.showModal({
+          title: '等待审核',
+          content: '您的账号正在审核中，请联系管理员审核通过后再登录。',
+          showCancel: false,
+          confirmText: '我知道了',
+          success: () => uni.removeStorageSync('token')
+        })
+        isLogging.value = false
+        return
+      }
       goHome()
-      // 首次登录无昵称，弹窗设置
       if (!res.data.user?.nickname) {
         setTimeout(() => askNickname(), 500)
       }
