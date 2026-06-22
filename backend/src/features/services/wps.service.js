@@ -27,7 +27,7 @@ async function getReports() {
   const rows = await db.query(sql);
 
   return rows.map(r => {
-    const names = (r.workers || '').split(/[,，、\s]+/).filter(Boolean);
+    const names = (r.workers || '').split(/[、,，\s\/\n]+/).filter(Boolean);
     return {
       日报时间: fmt(r.report_date),
       填写人: r.submitter_name || '',

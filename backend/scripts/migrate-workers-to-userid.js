@@ -26,7 +26,7 @@ const config = require('../src/common/config/env');
 function parseWorkers(workersStr) {
   if (!workersStr || typeof workersStr !== 'string') return [];
   return workersStr
-    .split(/[、,，\n\s]+/)
+    .split(/[、,，\s\/\n]+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 2); // 过滤单字/空串（中文姓名至少2字）
 }

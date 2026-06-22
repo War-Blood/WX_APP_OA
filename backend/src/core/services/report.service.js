@@ -91,7 +91,7 @@ function formatReportRow(row) {
  */
 function extractFirstName(workers) {
   if (!workers || typeof workers !== 'string') return '';
-  const name = workers.split(/[,，、\s]+/)[0];
+  const name = workers.split(/[、,，\s\/\n]+/)[0];
   return name || '';
 }
 
@@ -729,7 +729,7 @@ async function getWorkerList() {
 
   const nameSet = new Set();
   for (const row of rows) {
-    const names = row.workers.split(/[,，、\s]+/);
+    const names = row.workers.split(/[、,，\s\/\n]+/);
     for (const name of names) {
       const trimmed = name.trim();
       if (trimmed) nameSet.add(trimmed);
@@ -749,7 +749,7 @@ async function getWorkerStats({ keyword }) {
 
   const personMap = {};
   for (const row of rawRows) {
-    const names = row.workers.split(/[,，、\s]+/);
+    const names = row.workers.split(/[、,，\s\/\n]+/);
     for (const name of names) {
       const trimmed = name.trim();
       if (!trimmed) continue;
@@ -789,7 +789,7 @@ async function exportCSV({ status, startDate, endDate, keyword, worker }) {
   const headers = ['日报时间', '填写人', '入场时间', '初始出差时间', '项目名称', '项目所在区域', '相关方单位', '作业人员1', '作业人员2', '机型', '人数', '从事工作内容', '需要完成数量', '累计完成数量', '当前进度', '当日工作小结', '明天工作内容', '今日工作类型', '明日工作类型', '备注', '项目出差天数', '个人累计出差'];
   const csvRows = [headers.join(',')];
   for (const r of rows) {
-    const names = (r.workers || '').split(/[,，、\s]+/).filter(Boolean);
+    const names = (r.workers || '').split(/[、,，\s\/\n]+/).filter(Boolean);
     csvRows.push([
       formatDate(r.report_date), csvEscape(r.submitter_name || ''), formatDate(r.entry_date), formatDate(r.initial_biz_trip_date),
       csvEscape(r.project), csvEscape(r.area), csvEscape(r.related_party),

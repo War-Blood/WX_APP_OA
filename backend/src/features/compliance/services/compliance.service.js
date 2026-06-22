@@ -22,7 +22,7 @@ function checkTimeliness(reportDate, submitTime) {
  */
 function splitWorkers(workers) {
   if (!workers || typeof workers !== 'string') return [];
-  return workers.split(',').map(w => w.trim()).filter(Boolean);
+  return workers.split(/[、,，\s\/\n]+/).map(w => w.trim()).filter(Boolean);
 }
 
 /**

@@ -32,50 +32,84 @@ async function getStats(scope, params = {}) {
  * @param {number} userId - 用户 ID
  * @returns {Promise<Object>}
  */
+/**
+ * 获取用户参与的所有审核通过的公出日志 ID（本人提交 + 被代填 + workers 文本兜底）
+ */
+async function getUserReportIds(userId, userName) {
+  const ids = new Set();
+
+  // 1. 本人提交或正式关联表代填
+  const ownRows = await db.query(
+    `SELECT DISTINCT dr.id FROM daily_reports dr
+     LEFT JOIN daily_report_workers drw ON dr.id = drw.report_id
+     WHERE dr.report_type != 'office' AND dr.status = 'approved'
+       AND (dr.user_id = ? OR drw.worker_uid = ?)`,
+    [userId, userId]
+  );
+  ownRows.forEach(r => ids.add(r.id));
+
+  // 2. workers 文本字段兜底（名字模糊匹配）
+  if (userName && userName.length >= 2) {
+    const textRows = await db.query(
+      `SELECT id FROM daily_reports
+       WHERE report_type != 'office' AND status = 'approved'
+         AND user_id != ?
+         AND workers IS NOT NULL AND workers != ''
+         AND workers LIKE ?`,
+      [userId, `%${userName}%`]
+    );
+    textRows.forEach(r => ids.add(r.id));
+  }
+
+  return [...ids];
+}
+
 async function getUserStats(userId) {
   if (!userId) {
     throw new BusinessError('scope=user 时 userId 必填');
   }
 
-  // 获取用户信息和入场日期
+  // 获取用户信息
   const users = await db.query(
-    'SELECT entry_date FROM users WHERE id = ? AND deleted_at IS NULL',
+    'SELECT user_name, nickname, entry_date FROM users WHERE id = ? AND deleted_at IS NULL',
     [userId]
   );
   if (users.length === 0) {
     throw new BusinessError('用户不存在');
   }
-  const entryDate = users[0].entry_date;
+  const user = users[0];
+  const entryDate = user.entry_date;
+  const userName = user.nickname || user.user_name || '';
 
-  // 累计日志条数（含代填+补录，仅统计审核通过的）
+  // 获取用户参与的全部日志 ID
+  const allReportIds = await getUserReportIds(userId, userName);
+  const hasReports = allReportIds.length > 0;
+  const idPlaceholders = hasReports ? allReportIds.map(() => '?').join(',') : '0';
+  const idParams = hasReports ? allReportIds : [0];
+
+  // 累计日志条数
   const totalRows = await db.query(
     `SELECT COUNT(*) AS cnt FROM daily_reports
-     WHERE report_type != 'office'
-       AND status = 'approved'
-       AND (user_id = ? OR id IN (SELECT report_id FROM daily_report_workers WHERE worker_uid = ?))`,
-    [userId, userId]
+     WHERE id IN (${idPlaceholders})`,
+    idParams
   );
   const totalCount = totalRows[0].cnt;
 
-  // 当月条数（仅统计审核通过的）
+  // 当月条数
   const monthRows = await db.query(
     `SELECT COUNT(*) AS cnt FROM daily_reports
-     WHERE report_type != 'office'
-       AND status = 'approved'
-       AND (user_id = ? OR id IN (SELECT report_id FROM daily_report_workers WHERE worker_uid = ?))
+     WHERE id IN (${idPlaceholders})
        AND MONTH(report_date) = MONTH(CURDATE()) AND YEAR(report_date) = YEAR(CURDATE())`,
-    [userId, userId]
+    idParams
   );
   const monthCount = monthRows[0].cnt;
 
-  // 延迟条数（仅统计审核通过的）
+  // 延迟条数
   const delayedRows = await db.query(
     `SELECT COUNT(*) AS cnt FROM daily_reports
-     WHERE report_type != 'office'
-       AND status = 'approved'
-       AND (user_id = ? OR id IN (SELECT report_id FROM daily_report_workers WHERE worker_uid = ?))
+     WHERE id IN (${idPlaceholders})
        AND timeliness = 'delayed'`,
-    [userId, userId]
+    idParams
   );
   const delayedCount = delayedRows[0].cnt;
 
@@ -84,14 +118,12 @@ async function getUserStats(userId) {
   let missingDates = [];
 
   if (entryDate) {
-    // 已提交的所有日期（仅统计审核通过的）
+    // 已提交的所有日期
     const submittedRows = await db.query(
       `SELECT DISTINCT report_date FROM daily_reports
-       WHERE report_type != 'office'
-         AND status = 'approved'
-         AND (user_id = ? OR id IN (SELECT report_id FROM daily_report_workers WHERE worker_uid = ?))
+       WHERE id IN (${idPlaceholders})
        ORDER BY report_date`,
-      [userId, userId]
+      idParams
     );
     const submittedDates = new Set(submittedRows.map(r => formatDate(r.report_date)));
 
