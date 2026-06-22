@@ -18,6 +18,10 @@
         <text class="login-text">{{ isLogging ? '登录中...' : '微信一键登录' }}</text>
       </view>
 
+      <view class="account-btn" @tap="handleAccountLogin">
+        <text class="account-text">账号密码登录</text>
+      </view>
+
       <view class="invite-btn" @tap="handleInviteRedeem">
         <text class="invite-text">使用邀请码加入</text>
       </view>
@@ -248,6 +252,48 @@ function showPrivacyPolicy() {
   showPolicy.value = true
 }
 
+async function handleAccountLogin() {
+  if (!agreed.value) {
+    uni.showToast({ title: '请先同意用户协议和隐私政策', icon: 'none' })
+    return
+  }
+  // 第一步：输入账号
+  uni.showModal({
+    title: '账号登录',
+    editable: true,
+    placeholderText: '请输入账号（工号）',
+    success: (res1) => {
+      if (!res1.confirm || !res1.content) return
+      const account = res1.content.trim()
+      // 第二步：输入密码
+      uni.showModal({
+        title: '账号登录 - 输入密码',
+        editable: true,
+        placeholderText: '请输入密码',
+        success: async (res2) => {
+          if (!res2.confirm || !res2.content) return
+          const password = res2.content.trim()
+          uni.showLoading({ title: '登录中...', mask: true })
+          try {
+            const res = await authApi.accountLogin({ account, password })
+            if (res.code === 0 && res.data) {
+              uni.setStorageSync('token', res.data.token)
+              uni.setStorageSync('userInfo', res.data.user)
+              uni.reLaunch({ url: '/pages/home/index' })
+            } else {
+              uni.showToast({ title: res.message || '登录失败', icon: 'none' })
+            }
+          } catch (err) {
+            uni.showToast({ title: err?.message || '登录失败', icon: 'none' })
+          } finally {
+            uni.hideLoading()
+          }
+        }
+      })
+    }
+  })
+}
+
 async function handleInviteRedeem() {
   // 第一步：输入姓名
   uni.showModal({
@@ -339,6 +385,10 @@ async function handleInviteRedeem() {
 .login-text { font-size: 34rpx; font-weight: 600; color: #1B5AD0; letter-spacing: 2rpx; }
 
 /* Invite code link */
+.account-btn { margin-top: 20rpx; padding: 12rpx 24rpx; border: 2rpx solid rgba(255,255,255,.5); border-radius: 8rpx; }
+.account-btn:active { opacity: 0.7; background: rgba(255,255,255,.1); }
+.account-text { font-size: 26rpx; color: rgba(255, 255, 255, 0.9); font-weight: 500; }
+
 .invite-btn { padding: 12rpx 24rpx; }
 .invite-btn:active { opacity: 0.7; }
 .invite-text { font-size: 26rpx; color: rgba(255, 255, 255, 0.85); }

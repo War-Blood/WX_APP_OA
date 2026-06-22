@@ -81,6 +81,19 @@ async function adminLogin(req, res, next) {
 }
 
 /**
+ * POST /api/auth/account-login — 账号密码登录（小程序端）
+ */
+async function accountLogin(req, res, next) {
+  try {
+    const { account, password } = req.body;
+    if (!account) throw new ValidationError('请输入账号');
+    if (!password) throw new ValidationError('请输入密码');
+    const result = await authService.accountLogin(account, password);
+    res.json(success(result, '登录成功'));
+  } catch (err) { next(err); }
+}
+
+/**
  * GET /api/auth/captcha — 获取滑动验证
  */
 async function getCaptcha(req, res, next) {
@@ -184,4 +197,4 @@ async function redeemInviteCode(req, res, next) {
   }
 }
 
-module.exports = { login, getProfile, updateProfile, adminLogin, qywxLogin, linkQywx, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha, redeemInviteCode };
+module.exports = { login, getProfile, updateProfile, adminLogin, accountLogin, qywxLogin, linkQywx, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha, redeemInviteCode };

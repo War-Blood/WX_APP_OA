@@ -19,5 +19,9 @@ export const authApi = {
 
   redeemInviteCode({ name, code }) {
     return post('/api/auth/redeem', { name, code })
+  },
+
+  accountLogin({ account, password }) {
+    return post('/api/auth/account-login', { account, password })
   }
 }

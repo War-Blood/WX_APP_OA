@@ -233,6 +233,32 @@ async function updateProfile(userId, data) {
  * @param {string} password - 明文密码
  * @returns {Promise<{token: string, user: Object}>}
  */
+/**
+ * 小程序账号密码登录
+ */
+async function accountLogin(account, password) {
+  const users = await db.query(
+    'SELECT * FROM users WHERE user_name = ? AND deleted_at IS NULL',
+    [account]
+  );
+  if (users.length === 0) throw new BusinessError('账号不存在');
+  const user = users[0];
+  if (user.status !== 'active') throw new BusinessError('账号已被禁用');
+  if (!user.password_hash) throw new BusinessError('该账号未设置密码，请联系管理员');
+
+  const isValid = await bcrypt.compare(password, user.password_hash);
+  if (!isValid) throw new BusinessError('密码错误');
+
+  await db.execute('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id]);
+
+  const token = jwt.sign(
+    { userId: user.id, openid: user.openid || '', role: user.role },
+    config.jwt.secret, { expiresIn: config.jwt.expiresIn }
+  );
+
+  return { token, user: { id: user.id, nickname: user.nickname, avatar_url: user.avatar_url, role: user.role, department: user.department, status: user.status } };
+}
+
 async function adminLogin(account, password, totp) {
   logger.info('Web 管理员登录', { module: 'AUTH', account });
 
@@ -379,4 +405,4 @@ async function disableTOTP(userId) {
   return { enabled: false };
 }
 
-module.exports = { login, qywxLogin, adminLogin, getProfile, updateProfile, linkQywxAccount, setupTOTP, enableTOTP, disableTOTP };
+module.exports = { login, qywxLogin, adminLogin, accountLogin, getProfile, updateProfile, linkQywxAccount, setupTOTP, enableTOTP, disableTOTP };

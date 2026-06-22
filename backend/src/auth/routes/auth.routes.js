@@ -17,6 +17,7 @@ const { authenticate, requireRole } = require('../../common/middleware/auth');
 router.post('/auth/login', authController.login);
 router.post('/auth/qywx-login', authController.qywxLogin);
 router.post('/auth/admin/login', authController.adminLogin);
+router.post('/auth/account-login', authController.accountLogin);
 router.post('/auth/redeem', authController.redeemInviteCode);
 router.post('/auth/link-qywx', authenticate, requireRole('admin', 'superadmin'), authController.linkQywx);
 
