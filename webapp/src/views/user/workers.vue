@@ -25,8 +25,7 @@ const isEdit = ref(false)
 const editUserId = ref<number | null>(null)
 const form = ref({
   userName: '',
-  workerCode: '',
-  entryDate: ''
+  workerCode: ''
 })
 
 async function loadData() {
@@ -60,7 +59,7 @@ function openCreateDialog() {
   isEdit.value = false
   editUserId.value = null
   dialogTitle.value = '新增外场人员'
-  form.value = { userName: '', workerCode: '', entryDate: '' }
+  form.value = { userName: '', workerCode: '' }
   dialogVisible.value = true
 }
 
@@ -70,8 +69,7 @@ function openEditDialog(row: WorkerItem) {
   dialogTitle.value = '编辑外场人员'
   form.value = {
     userName: row.userName,
-    workerCode: row.workerCode,
-    entryDate: row.entryDate
+    workerCode: row.workerCode
   }
   dialogVisible.value = true
 }
@@ -85,25 +83,18 @@ async function handleSave() {
     ElMessage.warning('请输入工号')
     return
   }
-  if (!form.value.entryDate) {
-    ElMessage.warning('请选择入场日期')
-    return
-  }
-
   dialogLoading.value = true
   try {
     if (isEdit.value && editUserId.value) {
       await updateWorker({
         userId: editUserId.value,
-        userName: form.value.userName,
-        entryDate: form.value.entryDate
+        userName: form.value.userName
       })
       ElMessage.success('更新成功')
     } else {
       await createWorker({
         userName: form.value.userName,
-        workerCode: form.value.workerCode,
-        entryDate: form.value.entryDate
+        workerCode: form.value.workerCode
       })
       ElMessage.success('创建成功')
     }
@@ -207,7 +198,6 @@ onMounted(() => {
     <el-table :data="list" v-loading="loading" stripe border>
       <el-table-column prop="userName" label="姓名" width="100" />
       <el-table-column prop="workerCode" label="工号" width="100" />
-      <el-table-column prop="entryDate" label="入场日期" width="120" />
       <el-table-column label="状态" width="80" align="center">
         <template #default="{ row }">
           <el-tag :type="getStatusTagType(row.workerStatus)" size="small">
@@ -275,15 +265,6 @@ onMounted(() => {
         </el-form-item>
         <el-form-item v-else label="工号">
           <el-input :model-value="form.workerCode" disabled />
-        </el-form-item>
-        <el-form-item label="入场日期" required>
-          <el-date-picker
-            v-model="form.entryDate"
-            type="date"
-            placeholder="选择入场日期"
-            value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
         </el-form-item>
       </el-form>
       <template #footer>

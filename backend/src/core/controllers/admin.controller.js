@@ -3,6 +3,7 @@
 const adminService = require('../services/admin.service');
 const workerService = require('../services/worker.service');
 const moduleService = require('../services/module.service');
+const inviteService = require('../services/invite.service');
 const { success, paginated } = require('../../common/utils/response');
 const { ValidationError } = require('../../common/utils/errors');
 
@@ -489,6 +490,20 @@ async function publicModules(req, res, next) {
   }
 }
 
+/**
+ * POST /api/admin/invite/generate
+ * 管理员批量生成 CDK 邀请码
+ */
+async function generateInviteCode(req, res, next) {
+  try {
+    const { count = 1 } = req.body;
+    const result = await inviteService.generateInviteCodes(count, req.user.userId);
+    res.json(success(result, `已生成 ${result.codes.length} 个邀请码`));
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   userList, getUserDetail, updateUser, batchImportUsers,
   setAdmin, toggleUser, createUser, approveUser, inviteUser,
@@ -501,4 +516,5 @@ module.exports = {
   workers,
   modules,
   publicModules,
+  generateInviteCode,
 };

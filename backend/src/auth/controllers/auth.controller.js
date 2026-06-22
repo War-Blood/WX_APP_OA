@@ -2,6 +2,7 @@
 
 const authService = require('../services/auth.service');
 const captchaService = require('../services/captcha.service');
+const inviteService = require('../../core/services/invite.service');
 const { success } = require('../../common/utils/response');
 const { ValidationError } = require('../../common/utils/errors');
 
@@ -166,4 +167,21 @@ async function totpDisable(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { login, getProfile, updateProfile, adminLogin, qywxLogin, linkQywx, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha };
+/**
+ * POST /api/auth/redeem
+ * CDK 邀请码兑换注册（公开接口）
+ */
+async function redeemInviteCode(req, res, next) {
+  try {
+    const { name, code } = req.body;
+    if (!code) throw new ValidationError('邀请码不能为空');
+    if (!name) throw new ValidationError('昵称不能为空');
+
+    const result = await inviteService.redeemInviteCode(code, name);
+    res.json(success(result, '注册成功'));
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { login, getProfile, updateProfile, adminLogin, qywxLogin, linkQywx, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha, redeemInviteCode };

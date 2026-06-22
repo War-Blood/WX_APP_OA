@@ -7,6 +7,7 @@ import {
   createUser, approveUser, deleteUser, getDepartmentList, getRoleList,
   type UserItem, type DepartmentItem, type RoleItem
 } from '@/api/user'
+import { generateInviteCode } from '@/api/admin'
 import request from '@/utils/request'
 
 // 搜索与筛选
@@ -34,6 +35,15 @@ const createForm = ref({ openid: '', userName: '', department: '', role: 'employ
 const inviteVisible = ref(false)
 const inviteLoading = ref(false)
 const inviteForm = ref({ openid: '', userName: '', department: '' })
+
+// 生成邀请码弹窗
+const genCodeVisible = ref(false)
+const genCodeLoading = ref(false)
+const genCodeCount = ref(1)
+
+// 邀请码结果弹窗
+const genCodeResultVisible = ref(false)
+const genCodeList = ref<string[]>([])
 
 // 编辑用户弹窗
 const editVisible = ref(false)
@@ -161,6 +171,10 @@ async function handleApprove(row: UserItem) {
 
 // 创建用户
 async function handleCreateUser() {
+  if (!createForm.value.userName.trim()) {
+    ElMessage.warning('请填写用户姓名')
+    return
+  }
   createLoading.value = true
   try {
     await createUser(createForm.value)
@@ -184,6 +198,31 @@ async function handleInviteUser() {
     loadUsers()
   } catch { /* error handled by interceptor */ }
   finally { inviteLoading.value = false }
+}
+
+// 生成邀请码
+async function handleGenerateCodes() {
+  if (genCodeCount.value < 1 || genCodeCount.value > 100) {
+    ElMessage.warning('生成数量须在 1-100 之间')
+    return
+  }
+  genCodeLoading.value = true
+  try {
+    const res = await generateInviteCode(genCodeCount.value)
+    genCodeList.value = res.codes
+    genCodeVisible.value = false
+    genCodeResultVisible.value = true
+  } catch { /* error handled by interceptor */ }
+  finally { genCodeLoading.value = false }
+}
+
+function copyAllCodes() {
+  const text = genCodeList.value.join('\n')
+  navigator.clipboard.writeText(text).then(() => {
+    ElMessage.success('已复制全部邀请码')
+  }).catch(() => {
+    ElMessage.warning('复制失败，请手动复制')
+  })
 }
 
 function getRoleTagType(role: string) {
@@ -230,6 +269,7 @@ onMounted(() => {
       <div class="toolbar-right">
         <el-button type="primary" :icon="Plus" @click="createVisible = true">注册新用户</el-button>
         <el-button type="success" :icon="Plus" @click="inviteVisible = true">邀请用户</el-button>
+        <el-button type="warning" @click="genCodeVisible = true; genCodeCount = 1">生成邀请码</el-button>
         <el-button :icon="Refresh" @click="loadUsers">刷新</el-button>
       </div>
     </div>
@@ -323,8 +363,8 @@ onMounted(() => {
         <el-form-item label="微信OpenID" required>
           <el-input v-model="createForm.openid" placeholder="仅在需要提前注册时填写" />
         </el-form-item>
-        <el-form-item label="姓名">
-          <el-input v-model="createForm.userName" placeholder="用户姓名（可选）" />
+        <el-form-item label="姓名" required>
+          <el-input v-model="createForm.userName" placeholder="用户姓名" />
         </el-form-item>
         <el-form-item label="部门">
           <el-tree-select
@@ -373,6 +413,30 @@ onMounted(() => {
         <el-button type="success" :loading="inviteLoading" @click="handleInviteUser">邀请</el-button>
       </template>
     </el-dialog>
+
+    <!-- 生成邀请码弹窗 -->
+    <el-dialog v-model="genCodeVisible" title="生成邀请码" width="420px" destroy-on-close>
+      <el-form label-width="80px">
+        <el-form-item label="生成数量">
+          <el-input-number v-model="genCodeCount" :min="1" :max="100" :step="1" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="genCodeVisible = false">取消</el-button>
+        <el-button type="primary" :loading="genCodeLoading" @click="handleGenerateCodes">确认生成</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 邀请码结果弹窗 -->
+    <el-dialog v-model="genCodeResultVisible" title="邀请码已生成" width="500px" destroy-on-close>
+      <div class="code-list-box">
+        <p v-for="code in genCodeList" :key="code" class="code-item">{{ code }}</p>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="copyAllCodes">复制全部</el-button>
+        <el-button @click="genCodeResultVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -384,5 +448,25 @@ onMounted(() => {
 }
 .pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px;
   .total-text { font-size: 14px; color: #999; }
+}
+
+.code-list-box {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 12px 16px;
+
+  .code-item {
+    margin: 0;
+    padding: 4px 0;
+    font-family: monospace;
+    font-size: 16px;
+    color: #303133;
+    border-bottom: 1px dashed #e4e7ed;
+
+    &:last-child { border-bottom: none; }
+  }
 }
 </style>

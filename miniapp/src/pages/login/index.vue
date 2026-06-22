@@ -18,6 +18,10 @@
         <text class="login-text">{{ isLogging ? '登录中...' : '微信一键登录' }}</text>
       </view>
 
+      <view class="invite-btn" @tap="handleInviteRedeem">
+        <text class="invite-text">使用邀请码加入</text>
+      </view>
+
       <view class="agreement" @tap="toggleAgreement">
         <view :class="['checkbox', { checked: agreed }]">
           <text v-if="agreed" class="check-tick">✓</text>
@@ -25,6 +29,24 @@
         <text class="agreement-text">
           登录即同意<text class="agreement-link" @tap.stop="showUserAgreement">《用户协议》</text>和<text class="agreement-link" @tap.stop="showPrivacyPolicy">《隐私政策》</text>
         </text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 协议/政策弹窗 -->
+  <view v-if="showPolicy" class="policy-overlay" @tap="showPolicy = false">
+    <view class="policy-modal" @tap.stop>
+      <view class="policy-header">
+        <text class="policy-title">{{ policyTitle }}</text>
+        <text class="policy-close" @tap="showPolicy = false">✕</text>
+      </view>
+      <scroll-view class="policy-body" scroll-y>
+        <text class="policy-text">{{ policyContent }}</text>
+      </scroll-view>
+      <view class="policy-footer">
+        <view class="policy-btn" @tap="showPolicy = false">
+          <text class="policy-btn-text">我知道了</text>
+        </view>
       </view>
     </view>
   </view>
@@ -152,78 +174,131 @@ async function askNickname() {
   })
 }
 
-// 用户协议 & 隐私政策文本
-const USER_AGREEMENT = `智慧办公助手用户协议
+// 协议弹窗状态
+const showPolicy = ref(false)
+const policyTitle = ref('')
+const policyContent = ref('')
 
-更新日期：2026年6月
+const USER_AGREEMENT = [
+  '智慧办公助手用户协议',
+  '更新日期：2026年6月',
+  '',
+  '一、总则',
+  '1.1 欢迎使用智慧办公助手（以下简称"本服务"）。',
+  '1.2 本协议是您与智慧办公助手运营方之间关于使用本服务所订立的协议。',
+  '',
+  '二、账号管理',
+  '2.1 您通过微信授权或邀请码加入后，即成为本服务的注册用户。',
+  '2.2 您应当对使用本服务的行为负责，不得利用本服务从事违法违规活动。',
+  '2.3 管理员有权根据企业管理制度对账号进行管理，包括但不限于禁用、删除等操作。',
+  '',
+  '三、服务内容',
+  '3.1 本服务提供审批管理、日报管理、消息通知、项目协作等办公功能。',
+  '3.2 本服务保留根据需要变更、中断或终止部分或全部服务的权利。',
+  '',
+  '四、免责声明',
+  '4.1 本服务按"现状"提供，不对服务的及时性、安全性、准确性做出任何保证。',
+  '4.2 因网络故障、系统维护等原因导致的服务中断，本服务不承担责任。',
+  '',
+  '五、其他',
+  '5.1 本协议的解释、效力及纠纷的解决，适用中华人民共和国法律。',
+  '5.2 如您对本协议有任何疑问，请联系系统管理员。'
+].join('\n')
 
-一、总则
-1.1 欢迎使用智慧办公助手（以下简称"本服务"）。
-1.2 本协议是您与智慧办公助手运营方之间关于使用本服务所订立的协议。
-
-二、账号管理
-2.1 您通过微信授权登录后，即成为本服务的注册用户。
-2.2 您应当对使用本服务的行为负责，不得利用本服务从事违法违规活动。
-2.3 管理员有权根据企业管理制度对账号进行管理，包括但不限于禁用、删除等操作。
-
-三、服务内容
-3.1 本服务提供审批管理、日报管理、消息通知、项目协作等办公功能。
-3.2 本服务保留根据需要变更、中断或终止部分或全部服务的权利。
-
-四、免责声明
-4.1 本服务按"现状"提供，不对服务的及时性、安全性、准确性做出任何保证。
-4.2 因网络故障、系统维护等原因导致的服务中断，本服务不承担责任。
-
-五、其他
-5.1 本协议的解释、效力及纠纷的解决，适用中华人民共和国法律。
-5.2 如您对本协议有任何疑问，请联系系统管理员。`
-
-const PRIVACY_POLICY = `智慧办公助手隐私政策
-
-更新日期：2026年6月
-
-一、信息收集
-1.1 当您使用微信授权登录时，我们会获取您的微信昵称和头像。
-1.2 当您填写日报、发起审批时，您提交的工作信息会存储在我们的服务器上。
-1.3 我们使用必要的 Cookie 和 Token 技术来维持您的登录状态。
-
-二、信息使用
-2.1 您的个人信息仅用于本服务内的身份识别和办公协作。
-2.2 您的日报、审批等工作数据仅对您和您所在企业的授权管理人员可见。
-2.3 我们不会将您的个人信息出售或共享给任何第三方。
-
-三、信息安全
-3.1 我们采用业界通行的安全技术（SSL加密、数据库加密等）保护您的信息。
-3.2 您的密码和敏感信息在存储时经过加密处理。
-
-四、您的权利
-4.1 您可以在个人中心查看和修改您的昵称等基本信息。
-4.2 如需删除账号或导出个人数据，请联系系统管理员。
-
-五、未成年人保护
-5.1 本服务主要面向企业员工，如果您未满18周岁，请在监护人指导下使用。
-
-六、政策更新
-6.1 我们可能会适时更新本隐私政策，更新后的政策将在本页面公示。
-6.2 如您对本隐私政策有任何疑问，请联系系统管理员。`
+const PRIVACY_POLICY = [
+  '智慧办公助手隐私政策',
+  '更新日期：2026年6月',
+  '',
+  '一、信息收集',
+  '1.1 当您使用微信授权登录时，我们会获取您的微信昵称和头像。',
+  '1.2 当您填写日报、发起审批时，您提交的工作信息会存储在我们的服务器上。',
+  '1.3 我们使用必要的 Cookie 和 Token 技术来维持您的登录状态。',
+  '',
+  '二、信息使用',
+  '2.1 您的个人信息仅用于本服务内的身份识别和办公协作。',
+  '2.2 您的日报、审批等工作数据仅对您和您所在企业的授权管理人员可见。',
+  '2.3 我们不会将您的个人信息出售或共享给任何第三方。',
+  '',
+  '三、信息安全',
+  '3.1 我们采用业界通行的安全技术（SSL加密、数据库加密等）保护您的信息。',
+  '3.2 您的密码和敏感信息在存储时经过加密处理。',
+  '',
+  '四、您的权利',
+  '4.1 您可以在个人中心查看和修改您的昵称等基本信息。',
+  '4.2 如需删除账号或导出个人数据，请联系系统管理员。',
+  '',
+  '五、未成年人保护',
+  '5.1 本服务主要面向企业员工，如果您未满18周岁，请在监护人指导下使用。',
+  '',
+  '六、政策更新',
+  '6.1 我们可能会适时更新本隐私政策，更新后的政策将在本页面公示。',
+  '6.2 如您对本隐私政策有任何疑问，请联系系统管理员。'
+].join('\n')
 
 function showUserAgreement() {
-  uni.showModal({
-    title: '用户协议',
-    content: USER_AGREEMENT,
-    showCancel: false,
-    confirmText: '我知道了'
-  })
+  policyTitle.value = '用户协议'
+  policyContent.value = USER_AGREEMENT
+  showPolicy.value = true
 }
 
 function showPrivacyPolicy() {
+  policyTitle.value = '隐私政策'
+  policyContent.value = PRIVACY_POLICY
+  showPolicy.value = true
+}
+
+async function handleInviteRedeem() {
   uni.showModal({
-    title: '隐私政策',
-    content: PRIVACY_POLICY,
-    showCancel: false,
-    confirmText: '我知道了'
+    title: '使用邀请码加入',
+    content: '请输入姓名和邀请码，用空格分隔',
+    editable: true,
+    placeholderText: '张三 ABCD1234',
+    success: async (modalRes) => {
+      if (!modalRes.confirm || !modalRes.content?.trim()) return
+      const input = modalRes.content.trim()
+      const spaceIdx = input.lastIndexOf(' ')
+      if (spaceIdx <= 0) {
+        uni.showToast({ title: '格式错误，请用空格分隔姓名和邀请码', icon: 'none' })
+        return
+      }
+      const name = input.substring(0, spaceIdx).trim()
+      const code = input.substring(spaceIdx + 1).trim()
+      if (!name || !code) {
+        uni.showToast({ title: '姓名和邀请码不能为空', icon: 'none' })
+        return
+      }
+      uni.showLoading({ title: '验证中...', mask: true })
+      try {
+        const res = await authApi.redeemInviteCode({ name, code })
+        uni.hideLoading()
+        if (res.data?.token) {
+          uni.setStorageSync('token', res.data.token)
+          uni.setStorageSync('userInfo', { ...res.data.user, nickName: res.data.user.nickname || name })
+          if (res.data.user?.status === 'pending') {
+            uni.showModal({
+              title: '等待审核',
+              content: '您的账号正在审核中，请联系管理员审核通过后再登录。',
+              showCancel: false,
+              confirmText: '我知道了',
+              success: () => uni.removeStorageSync('token')
+            })
+            return
+          }
+          goHome()
+          if (!res.data.user?.nickname) {
+            setTimeout(() => askNickname(), 500)
+          }
+        } else {
+          uni.showToast({ title: '邀请码验证失败，请检查输入', icon: 'none' })
+        }
+      } catch (err) {
+        uni.hideLoading()
+        uni.showToast({ title: err?.message || '验证失败，请检查邀请码', icon: 'none' })
+      }
+    }
   })
 }
+
 </script>
 
 <style lang="scss" scoped>
@@ -269,6 +344,11 @@ function showPrivacyPolicy() {
 .login-btn--loading { opacity: 0.7; }
 .login-text { font-size: 34rpx; font-weight: 600; color: #1B5AD0; letter-spacing: 2rpx; }
 
+/* Invite code link */
+.invite-btn { padding: 12rpx 24rpx; }
+.invite-btn:active { opacity: 0.7; }
+.invite-text { font-size: 26rpx; color: rgba(255, 255, 255, 0.85); }
+
 /* Agreement: 16×16 checkbox, 8px radius, white text */
 .agreement { display: flex; align-items: center; gap: 16rpx; }
 .checkbox {
@@ -279,4 +359,29 @@ function showPrivacyPolicy() {
 .check-tick { font-size: 20rpx; color: #1B5AD0; font-weight: 700; }
 .agreement-text { font-size: 24rpx; color: rgba(255, 255, 255, 0.9); }
 .agreement-link { color: #FFFFFF; text-decoration: underline; }
+
+/* Policy overlay */
+.policy-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5); display: flex; align-items: flex-end; z-index: 1000;
+}
+.policy-modal {
+  width: 100%; max-height: 80vh; background: #FFFFFF; border-radius: 24rpx 24rpx 0 0;
+  display: flex; flex-direction: column;
+}
+.policy-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 32rpx 32rpx 16rpx; border-bottom: 1rpx solid #F0F0F0;
+}
+.policy-title { font-size: 32rpx; font-weight: 600; color: #333333; }
+.policy-close { font-size: 36rpx; color: #999999; padding: 0 8rpx; }
+.policy-body { flex: 1; padding: 24rpx 32rpx; max-height: 60vh; }
+.policy-text { font-size: 28rpx; color: #333333; line-height: 1.8; white-space: pre-wrap; }
+.policy-footer { padding: 16rpx 32rpx 48rpx; }
+.policy-btn {
+  width: 100%; height: 88rpx; background: #2B6DE8; border-radius: 44rpx;
+  display: flex; align-items: center; justify-content: center;
+}
+.policy-btn:active { opacity: 0.85; }
+.policy-btn-text { font-size: 30rpx; color: #FFFFFF; font-weight: 500; }
 </style>

@@ -47,7 +47,6 @@ async function list({ page = 1, pageSize = 20, keyword, fieldWorkerOnly }) {
       u.id AS userId,
       COALESCE(u.nickname, u.user_name, '') AS userName,
       u.worker_code AS workerCode,
-      u.entry_date AS entryDate,
       u.worker_status AS workerStatus,
       u.is_field_worker AS isFieldWorker,
       (
@@ -66,7 +65,6 @@ async function list({ page = 1, pageSize = 20, keyword, fieldWorkerOnly }) {
     userId: row.userId,
     userName: row.userName,
     workerCode: row.workerCode || '',
-    entryDate: row.entryDate ? formatDate(row.entryDate) : '',
     workerStatus: row.workerStatus || 'active',
     isFieldWorker: !!row.isFieldWorker,
     totalLogs: Number(row.totalLogs) || 0,
@@ -80,18 +78,14 @@ async function list({ page = 1, pageSize = 20, keyword, fieldWorkerOnly }) {
  * @param {Object} params
  * @param {string} params.userName - 姓名
  * @param {string} params.workerCode - 工号
- * @param {string} params.entryDate - 入场日期 (YYYY-MM-DD)
  * @returns {Promise<{userId: number}>}
  */
-async function create({ userName, workerCode, entryDate }) {
+async function create({ userName, workerCode }) {
   if (!userName || !userName.trim()) {
     throw new ValidationError('姓名不能为空');
   }
   if (!workerCode || !workerCode.trim()) {
     throw new ValidationError('工号不能为空');
-  }
-  if (!entryDate) {
-    throw new ValidationError('入场日期不能为空');
   }
 
   // 检查工号是否已存在
@@ -104,9 +98,9 @@ async function create({ userName, workerCode, entryDate }) {
   }
 
   const result = await db.execute(
-    `INSERT INTO users (user_name, nickname, worker_code, entry_date, worker_status, role, status, created_at)
-     VALUES (?, ?, ?, ?, 'active', 'employee', 'active', NOW())`,
-    [userName.trim(), userName.trim(), workerCode.trim(), entryDate]
+    `INSERT INTO users (user_name, nickname, worker_code, worker_status, role, status, created_at)
+     VALUES (?, ?, ?, 'active', 'employee', 'active', NOW())`,
+    [userName.trim(), userName.trim(), workerCode.trim()]
   );
 
   const userId = result[0].insertId;
@@ -120,10 +114,9 @@ async function create({ userName, workerCode, entryDate }) {
  * @param {Object} params
  * @param {number} params.userId - 用户 ID
  * @param {string} [params.userName] - 姓名
- * @param {string} [params.entryDate] - 入场日期
  * @returns {Promise<Object>}
  */
-async function update({ userId, userName, entryDate, isFieldWorker }) {
+async function update({ userId, userName, isFieldWorker }) {
   if (!userId) {
     throw new ValidationError('userId 不能为空');
   }
@@ -142,10 +135,6 @@ async function update({ userId, userName, entryDate, isFieldWorker }) {
   if (userName !== undefined && userName.trim()) {
     updates.push('user_name = ?, nickname = ?');
     params.push(userName.trim(), userName.trim());
-  }
-  if (entryDate !== undefined) {
-    updates.push('entry_date = ?');
-    params.push(entryDate);
   }
   if (isFieldWorker !== undefined) {
     updates.push('is_field_worker = ?');
@@ -263,14 +252,6 @@ async function toggleFieldWorker({ userId }) {
   const newVal = rows[0].is_field_worker ? 0 : 1;
   await db.execute('UPDATE users SET is_field_worker = ?, updated_at = NOW() WHERE id = ?', [newVal, userId]);
   return { isFieldWorker: !!newVal };
-}
-
-function formatDate(d) {
-  if (!d) return '';
-  if (typeof d === 'string') return d.slice(0, 10);
-  const dt = new Date(d);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
 }
 
 /**

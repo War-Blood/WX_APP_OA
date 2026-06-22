@@ -77,6 +77,11 @@ router.get('/admin/settings',  ...superAuth, adminController.getSettings);
 router.put('/admin/settings',  ...superAuth, adminController.updateSettings);
 
 // ==============================
+// CDK 邀请码管理 — admin+
+// ==============================
+router.post('/admin/invite/generate', authenticate, requireRole('admin', 'superadmin'), adminController.generateInviteCode);
+
+// ==============================
 // 公开接口 — 小程序获取可见模块
 // ==============================
 router.get('/modules', adminController.publicModules);

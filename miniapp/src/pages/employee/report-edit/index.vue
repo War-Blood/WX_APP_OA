@@ -735,19 +735,25 @@ function selectProject(name) {
 // ===== 保存草稿 =====
 async function saveDraft() {
   uni.showLoading({ title: '保存草稿...' })
+  const payload = {
+    userId: userStore.userInfo?.id,
+    reportType: currentTab.value,
+    reportDate: reportDate.value,
+    todayWorkType: selectedWorkType.value,
+    tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
+    entryDate: userStore.entryDate,
+    initialBizTripDate: userStore.entryDate,
+    workerIds: isLeaveOrRest.value ? [] : selectedWorkerIds.value,
+    ...formData.value
+  }
   try {
-    const payload = {
-      userId: userStore.userInfo?.id,
-      reportType: currentTab.value,
-      reportDate: reportDate.value,
-      formData: { ...formData.value }
-    }
     await reportApi.saveDraft(payload)
     uni.hideLoading()
     uni.showToast({ title: '草稿已保存', icon: 'success' })
   } catch {
     uni.hideLoading()
     uni.showToast({ title: '保存失败，已存本地', icon: 'none' })
+    uni.setStorageSync('report_auto_draft', payload)
   }
 }
 

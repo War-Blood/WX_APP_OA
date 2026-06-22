@@ -15,5 +15,9 @@ export const authApi = {
 
   updateProfile(data) {
     return put('/api/user/profile', data)
+  },
+
+  redeemInviteCode({ name, code }) {
+    return post('/api/auth/redeem', { name, code })
   }
 }

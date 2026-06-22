@@ -4,7 +4,6 @@ export interface WorkerItem {
   userId: number
   userName: string
   workerCode: string
-  entryDate: string
   workerStatus: 'active' | 'inactive'
   isFieldWorker: boolean
   totalLogs: number
@@ -28,7 +27,6 @@ export function getWorkerList(params: {
 export function createWorker(data: {
   userName: string
   workerCode: string
-  entryDate: string
 }): Promise<{ userId: number }> {
   return request.post('/admin/workers', { action: 'create', ...data })
 }
@@ -37,7 +35,6 @@ export function createWorker(data: {
 export function updateWorker(data: {
   userId: number
   userName?: string
-  entryDate?: string
   isFieldWorker?: boolean
 }): Promise<void> {
   return request.post('/admin/workers', { action: 'update', ...data })
@@ -51,4 +48,9 @@ export function toggleWorker(userId: number, status: 'active' | 'inactive'): Pro
 /** 删除人员（软删除） */
 export function deleteWorker(userId: number): Promise<void> {
   return request.post('/admin/workers', { action: 'delete', userId })
+}
+
+/** 生成 CDK 邀请码 */
+export function generateInviteCode(count: number = 1): Promise<{ codes: string[] }> {
+  return request.post('/admin/invite/generate', { count })
 }
