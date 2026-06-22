@@ -148,10 +148,22 @@
             </view>
             <view class="form-group">
               <text class="form-label">机型</text>
-              <view class="worker-trigger" @tap="showMachinePicker = true">
-                <text v-if="!formData.machineModel" class="worker-placeholder">选择机型（可搜索）</text>
-                <text v-else style="font-size:28rpx;color:#333;">{{ formData.machineModel }}</text>
-                <text class="picker-arrow">›</text>
+              <view class="worker-trigger" @tap="showMachineInput = true">
+                <text v-if="machineModels.length === 0" class="worker-placeholder">点击添加机型（可多选）</text>
+                <text v-else class="worker-placeholder" style="color:#333;">已选 {{ machineModels.length }} 个机型</text>
+                <text class="picker-arrow">+</text>
+              </view>
+              <!-- 已选机型标签 -->
+              <view v-if="machineModels.length > 0" class="worker-tags">
+                <view
+                  v-for="(m, idx) in machineModels"
+                  :key="idx"
+                  class="worker-tag"
+                  @tap.stop="removeMachineTag(idx)"
+                >
+                  <text class="worker-tag-text">{{ m }}</text>
+                  <text class="worker-tag-close">×</text>
+                </view>
               </view>
             </view>
             <view class="form-group">
@@ -365,38 +377,35 @@
       </view>
     </view>
 
-    <!-- 机型选择弹窗 -->
-    <view v-if="showMachinePicker" class="popup-mask" @tap="showMachinePicker = false">
+    <!-- 机型输入弹窗（多选 tags） -->
+    <view v-if="showMachineInput" class="popup-mask" @tap="showMachineInput = false">
       <view class="popup-panel" @tap.stop>
         <view class="popup-header">
-          <text class="popup-title">选择机型</text>
-          <text class="popup-close" @tap="showMachinePicker = false">取消</text>
+          <text class="popup-title">添加机型</text>
+          <text class="popup-close" @tap="showMachineInput = false">完成</text>
         </view>
         <view class="popup-search">
           <input
             class="popup-search-input"
-            placeholder="搜索或输入新机型..."
-            v-model="machineSearchKeyword"
-            @input="onMachineSearch"
+            placeholder="输入机型名称，回车添加..."
+            v-model="machineInputText"
+            @confirm="addMachineTag"
           />
         </view>
-        <scroll-view class="popup-list" scroll-y>
+        <!-- 历史建议 -->
+        <scroll-view v-if="filteredMachineSuggestions.length > 0" class="popup-list" scroll-y style="max-height:360rpx;">
           <view
-            v-for="m in filteredMachineOptions"
+            v-for="m in filteredMachineSuggestions"
             :key="m"
             class="popup-item"
-            :class="{ 'popup-item-active': formData.machineModel === m }"
-            @tap="selectMachine(m)"
+            @tap="addMachineTagFromSuggestion(m)"
           >
             <text class="popup-item-text">{{ m }}</text>
           </view>
-          <view v-if="machineSearchKeyword && !filteredMachineOptions.includes(machineSearchKeyword)" class="popup-item" @tap="selectMachine(machineSearchKeyword)">
-            <text class="popup-item-text" style="color:#2B6DE8;">+ 新增 "{{ machineSearchKeyword }}"</text>
-          </view>
-          <view v-if="filteredMachineOptions.length === 0 && !machineSearchKeyword" class="popup-empty">
-            <text class="popup-empty-text">暂无机型数据，请手动输入</text>
-          </view>
         </scroll-view>
+        <view v-else class="popup-empty" style="padding:32rpx;">
+          <text class="popup-empty-text">输入新机型名称后按回车添加</text>
+        </view>
       </view>
     </view>
   </view>
@@ -438,9 +447,8 @@ const reportDate = ref(formatToday())
 const selectedWorkType = ref('')
 const selectedWorkerIds = ref([])
 const showWorkerPicker = ref(false)
-const showMachineDropdown = ref(false)
-const showMachinePicker = ref(false)
 const showProjectPicker = ref(false)
+const showMachineInput = ref(false)
 const showSubstituteMsg = ref(false)
 const substituteInfo = ref(null)
 const todayWorkLength = ref(0)
@@ -448,7 +456,8 @@ const workerListCache = ref([])
 const relatedPartyHistory = ref([])
 const projectSearchKeyword = ref('')
 const projectList = ref([])
-const machineSearchKeyword = ref('')
+const machineInputText = ref('')
+const machineModels = ref([])
 
 const formData = ref({
   project: '',
@@ -530,10 +539,13 @@ const showContentFields = computed(() => {
   return !isLeaveOrRest.value
 })
 
-const filteredMachineOptions = computed(() => {
-  const kw = (machineSearchKeyword.value || '').toLowerCase()
-  if (!kw) return allMachineOptions.value.slice(0, 20)
-  return allMachineOptions.value.filter(m => m.toLowerCase().includes(kw)).slice(0, 20)
+const filteredMachineSuggestions = computed(() => {
+  const kw = (machineInputText.value || '').toLowerCase()
+  const selected = new Set(machineModels.value.map(m => m.toLowerCase()))
+  let list = allMachineOptions.value.filter(m => !selected.has(m.toLowerCase()))
+  if (kw) list = list.filter(m => m.toLowerCase().includes(kw))
+  // 如果输入了关键词且不在已选和候选中，不显示额外条目（用户通过回车添加）
+  return list.slice(0, 15)
 })
 
 const filteredProjects = computed(() => {
@@ -589,6 +601,10 @@ onMounted(async () => {
         if (saved[k] !== undefined) formData.value[k] = saved[k]
       })
       if (saved.todayWork) todayWorkLength.value = saved.todayWork.length
+      // 恢复机型多选数组
+      if (saved.machineModel) {
+        machineModels.value = saved.machineModel.split(/[,，、]+/).filter(Boolean)
+      }
     } catch { /* ignore */ }
   }
 
@@ -620,6 +636,7 @@ watch(
         selectedWorkType: selectedWorkType.value,
         selectedWorkerIds: selectedWorkerIds.value,
         ...formData.value,
+        machineModel: machineModels.value.join(','),
         savedAt: new Date().toISOString()
       }
       uni.setStorageSync('report_auto_draft', JSON.stringify(draft))
@@ -636,6 +653,7 @@ function autoSaveDraft() {
     selectedWorkType: selectedWorkType.value,
     selectedWorkerIds: selectedWorkerIds.value,
     ...formData.value,
+    machineModel: machineModels.value.join(','),
     savedAt: new Date().toISOString()
   }
   uni.setStorageSync('report_auto_draft', JSON.stringify(draft))
@@ -698,12 +716,31 @@ function goToDetail() {
   }
 }
 
-// ===== 机型搜索 =====
-function onMachineSearch() { /* 由 computed 自动过滤 */ }
-function selectMachine(name) {
-  formData.value.machineModel = name
-  showMachinePicker.value = false
-  machineSearchKeyword.value = ''
+// ===== 机型多选 tags =====
+function addMachineTag() {
+  const name = (machineInputText.value || '').trim()
+  if (!name) return
+  if (machineModels.value.includes(name)) {
+    uni.showToast({ title: '该机型已添加', icon: 'none' })
+    machineInputText.value = ''
+    return
+  }
+  machineModels.value.push(name)
+  machineInputText.value = ''
+  // 保存到历史
+  saveMachineToHistory(name)
+}
+function addMachineTagFromSuggestion(name) {
+  if (machineModels.value.includes(name)) {
+    uni.showToast({ title: '该机型已添加', icon: 'none' })
+    return
+  }
+  machineModels.value.push(name)
+  machineInputText.value = ''
+  saveMachineToHistory(name)
+}
+function removeMachineTag(idx) {
+  machineModels.value.splice(idx, 1)
 }
 function saveMachineToHistory(name) {
   if (!name) return
@@ -822,7 +859,7 @@ async function handleSubmit() {
       project: formData.value.project,
       area: formData.value.area,
       relatedParty: formData.value.relatedParty,
-      machineModel: formData.value.machineModel,
+      machineModel: machineModels.value.join(','),
       workContent: formData.value.workContent,
       requiredQty: formData.value.requiredQty,
       completedQty: formData.value.completedQty,
@@ -853,9 +890,9 @@ async function handleSubmit() {
     if (formData.value.relatedParty) {
       saveRelatedPartyHistory(formData.value.relatedParty)
     }
-    // 保存机型历史
-    if (formData.value.machineModel) {
-      saveMachineToHistory(formData.value.machineModel)
+    // 保存机型历史（多个）
+    if (machineModels.value.length > 0) {
+      machineModels.value.forEach(m => saveMachineToHistory(m))
     }
 
     // 保存上次提交用于回填
@@ -863,7 +900,7 @@ async function handleSubmit() {
       project: formData.value.project,
       area: formData.value.area,
       relatedParty: formData.value.relatedParty,
-      machineModel: formData.value.machineModel,
+      machineModel: machineModels.value.join(','),
       workContent: formData.value.workContent,
       todayWorkType: selectedWorkType.value
     }))

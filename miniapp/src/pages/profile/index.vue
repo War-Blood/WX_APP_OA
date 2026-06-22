@@ -170,7 +170,7 @@ async function loadStats() {
     } else {
       stats.value = [
         { key: 'pending', label: '待审批', value: data.pendingCount || 0, color: '#2B6DE8', route: '/pages/approval/index/index' },
-        { key: 'submit', label: '待提交', value: data.submitCount || 0, color: '#F59E0B', route: '/pages/employee/report-history/index' },
+        { key: 'submit', label: '待提交', value: data.submitCount || 0, color: '#F59E0B', route: '/pages/employee/report-edit/index' },
         { key: 'processed', label: '已处理', value: data.processedCount || 0, color: '#22C55E', route: '' },
         { key: 'unread', label: '待阅读', value: unreadCount || 0, color: '#6366F1', route: '/pages/message/index/index' }
       ]
