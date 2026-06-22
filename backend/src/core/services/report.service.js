@@ -462,6 +462,50 @@ async function checkDuplicate(userId, reportDate) {
   return { canSubmit: true };
 }
 
+/**
+ * 查询用户当日日报状态（自己已提交 / 被代填 / 草稿 / 无）
+ * @param {number} userId - 用户 ID
+ * @param {string} reportDate - 日期 YYYY-MM-DD
+ * @returns {Promise<{status: string, reportId?: number, submittedBy?: string}>}
+ */
+async function getTodayStatus(userId, reportDate) {
+  // 1. 查自己是否已提交（非草稿、非删除）
+  const selfRows = await db.query(
+    `SELECT id, status FROM daily_reports
+     WHERE user_id = ? AND report_date = ? AND deleted_at IS NULL`,
+    [userId, reportDate]
+  );
+
+  if (selfRows.length > 0) {
+    const rec = selfRows[0];
+    if (rec.status === 'draft') {
+      return { status: 'draft', reportId: rec.id };
+    }
+    // submitted / approved / rejected / pending_review 都视为已提交
+    return { status: 'submitted', reportId: rec.id };
+  }
+
+  // 2. 查是否被代填（出现在他人日报的作业人员列表中）
+  const subRows = await db.query(
+    `SELECT dr.id AS reportId, u.nickname AS submitterName
+     FROM daily_report_workers drw
+     JOIN daily_reports dr ON drw.report_id = dr.id
+     JOIN users u ON dr.user_id = u.id
+     WHERE drw.worker_uid = ? AND dr.report_date = ? AND dr.deleted_at IS NULL`,
+    [userId, reportDate]
+  );
+
+  if (subRows.length > 0) {
+    return {
+      status: 'substituted',
+      reportId: subRows[0].reportId,
+      submittedBy: subRows[0].submitterName || '',
+    };
+  }
+
+  return { status: 'none' };
+}
+
 // ==============================
 // 补公出日志审核（新增）
 // ==============================
@@ -768,6 +812,7 @@ module.exports = {
   getWorkerStats,
   exportCSV,
   checkDuplicate,
+  getTodayStatus,
   getPendingReviews,
   supplementReview,
   getTeamLogs,

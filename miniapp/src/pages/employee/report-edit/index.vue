@@ -8,6 +8,18 @@
       </template>
     </NavBar>
 
+    <!-- 今日状态提示 -->
+    <view v-if="todayStatusBar.visible && !showSubstituteMsg" class="today-status-bar" :class="'status-' + todayStatusBar.type">
+      <view class="status-icon">{{ todayStatusBar.icon }}</view>
+      <view class="status-content">
+        <text class="status-title">{{ todayStatusBar.title }}</text>
+        <text v-if="todayStatusBar.desc" class="status-desc">{{ todayStatusBar.desc }}</text>
+      </view>
+      <view v-if="todayStatusBar.actionLabel" class="status-action" @tap="todayStatusBar.action">
+        <text class="status-action-text">{{ todayStatusBar.actionLabel }}</text>
+      </view>
+    </view>
+
     <!-- 代填提示 -->
     <view v-if="showSubstituteMsg" class="substitute-bar">
       <view class="substitute-icon">📋</view>
@@ -20,7 +32,7 @@
       </view>
     </view>
 
-    <scroll-view v-if="!showSubstituteMsg" class="content-scroll" scroll-y>
+    <scroll-view v-if="showForm" class="content-scroll" scroll-y>
       <!-- 日志类型 Tab -->
       <view class="type-tab-bar">
         <view
@@ -330,7 +342,7 @@
     </scroll-view>
 
     <!-- 提交按钮 -->
-    <view v-if="!showSubstituteMsg" class="bottom-bar">
+    <view v-if="showForm" class="bottom-bar">
       <view class="btn-submit" @tap="handleSubmit">提交{{ submitLabel }}</view>
     </view>
 
@@ -451,6 +463,9 @@ const showProjectPicker = ref(false)
 const showMachineInput = ref(false)
 const showSubstituteMsg = ref(false)
 const substituteInfo = ref(null)
+
+// 表单是否可编辑：未被代填 且 未自己已提交
+const showForm = computed(() => !showSubstituteMsg.value && todayStatusBar.value.type !== 'success')
 const todayWorkLength = ref(0)
 const workerListCache = ref([])
 const relatedPartyHistory = ref([])
@@ -583,6 +598,89 @@ function getWorkerName(userId) {
   return w ? w.userName : 'UID' + userId
 }
 
+// ===== 今日状态栏 =====
+const todayStatusBar = ref({
+  visible: false,
+  type: 'info',     // info | warning | success
+  icon: '📋',
+  title: '',
+  desc: '',
+  actionLabel: '',
+  action: null
+})
+
+function setTodayStatusBar(type, title, desc, actionLabel, action) {
+  const config = {
+    none:      { icon: '📝', typeClass: 'info' },
+    draft:     { icon: '📄', typeClass: 'warning' },
+    submitted: { icon: '✅', typeClass: 'success' },
+  }
+  const cfg = config[type] || config.none
+  todayStatusBar.value = {
+    visible: true,
+    type: cfg.typeClass,
+    icon: cfg.icon,
+    title,
+    desc: desc || '',
+    actionLabel: actionLabel || '',
+    action: action || null
+  }
+}
+
+async function checkTodayStatus() {
+  // 重置
+  todayStatusBar.value.visible = false
+  showSubstituteMsg.value = false
+  substituteInfo.value = null
+
+  if (currentTab.value === 'office') return // 公司日报不检测
+
+  try {
+    const res = await reportApi.getTodayStatus({
+      reportDate: reportDate.value
+    })
+    const data = res.data || {}
+
+    if (res.code === 2001 || data.status === 'substituted') {
+      // 被代填 → 显示代填黄色条
+      showSubstituteMsg.value = true
+      substituteInfo.value = data
+      return
+    }
+
+    if (data.status === 'submitted') {
+      setTodayStatusBar('submitted',
+        '今日公出日志已提交',
+        '您已完成今日的公出日志填写',
+        '查看日志',
+        () => {
+          if (data.reportId) {
+            uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + data.reportId })
+          }
+        }
+      )
+    } else if (data.status === 'draft') {
+      setTodayStatusBar('draft',
+        '您有未完成的草稿',
+        '上次填写的草稿已自动恢复，请继续完成',
+        '',
+        null
+      )
+    } else {
+      // none — 需要填写
+      setTodayStatusBar('none',
+        '今日需提交公出日志',
+        '请在下方填写今日工作内容后提交',
+        '',
+        null
+      )
+    }
+  } catch {
+    // API 异常时不显示状态栏，用户可正常填写
+    todayStatusBar.value.visible = false
+  }
+}
+
 // ===== 生命周期 =====
 onMounted(async () => {
   // 加载关联方历史
@@ -619,8 +717,8 @@ onMounted(async () => {
   // 加载项目列表
   loadProjects()
 
-  // 代填检测
-  await checkDuplicate()
+  // 今日状态检测（替代旧 checkDuplicate，覆盖自己已提交/草稿/被代填）
+  await checkTodayStatus()
 })
 
 // 自动保存草稿（2s 防抖）
@@ -668,16 +766,20 @@ function switchTab(key) {
   if (key === 'office') {
     selectedWorkType.value = ''
     selectedWorkerIds.value = []
-  } else if (!selectedWorkType.value) {
+    // 公司日报不显示状态栏
+    todayStatusBar.value.visible = false
+    showSubstituteMsg.value = false
+  } else {
     // 公出/补公出默认选第一个工作类型
-    selectedWorkType.value = workTypes[0]
+    if (!selectedWorkType.value) selectedWorkType.value = workTypes[0]
+    checkTodayStatus()
   }
 }
 
 function onDateChange(e) {
   reportDate.value = e.detail.value
-  // 日期变更后重新检测代填
-  checkDuplicate()
+  // 日期变更后重新检测状态
+  checkTodayStatus()
 }
 
 function onTodayWorkInput(e) {
@@ -908,9 +1010,14 @@ async function handleSubmit() {
     const msg = currentTab.value === 'biz_trip_supplement' ? '已提交，等待管理员审核' : '提交成功'
     uni.showToast({ title: msg, icon: 'success' })
     setTimeout(() => uni.navigateBack(), 1500)
-  } catch {
+  } catch (err) {
     uni.hideLoading()
-    uni.showToast({ title: '提交失败，请重试', icon: 'none' })
+    // 显示后端返回的具体错误信息（request.js 已在 reject 前 showToast，此处做兜底）
+    if (err && err.message && err.message !== '请求失败') {
+      uni.showToast({ title: err.message, icon: 'none' })
+    } else {
+      uni.showToast({ title: '提交失败，请重试', icon: 'none' })
+    }
   }
 }
 </script>
@@ -935,6 +1042,63 @@ async function handleSubmit() {
 }
 
 /* 代填提示 */
+/* 今日状态提示条 */
+.today-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 28rpx 24rpx;
+  margin: 24rpx;
+  border-radius: 16rpx;
+}
+.today-status-bar.status-info {
+  background: #E8F0FE;
+  border: 1rpx solid #B3D4FC;
+}
+.today-status-bar.status-warning {
+  background: #FFF3E0;
+  border: 1rpx solid #FFCC80;
+}
+.today-status-bar.status-success {
+  background: #E8F5E9;
+  border: 1rpx solid #A5D6A7;
+}
+.status-icon {
+  font-size: 44rpx;
+  flex-shrink: 0;
+}
+.status-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+.status-title {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+.status-info .status-title { color: #1565C0; }
+.status-warning .status-title { color: #E65100; }
+.status-success .status-title { color: #2E7D32; }
+.status-desc {
+  font-size: 24rpx;
+}
+.status-info .status-desc { color: #1976D2; }
+.status-warning .status-desc { color: #EF6C00; }
+.status-success .status-desc { color: #388E3C; }
+.status-action {
+  padding: 12rpx 24rpx;
+  border-radius: 8rpx;
+  flex-shrink: 0;
+}
+.status-info .status-action { background: #1565C0; }
+.status-warning .status-action { background: #E65100; }
+.status-success .status-action { background: #2E7D32; }
+.status-action-text {
+  font-size: 24rpx;
+  color: #FFFFFF;
+}
+
 .substitute-bar {
   display: flex;
   align-items: center;

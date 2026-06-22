@@ -34,6 +34,10 @@ export const reportApi = {
     return post('/api/report/check-duplicate', params)
   },
 
+  getTodayStatus(params) {
+    return post('/api/report/today-status', params)
+  },
+
   getStats(params) {
     return post('/api/report/stats', { scope: 'user', ...params })
   },

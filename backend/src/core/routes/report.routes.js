@@ -42,6 +42,9 @@ router.post('/delete', authenticate, reportController.deleteReport);
 // POST /api/report/check-duplicate — 检查当日是否已被代填
 router.post('/check-duplicate', authenticate, reportController.checkDuplicate);
 
+// POST /api/report/today-status — 查询当日日报状态（未提交/草稿/已提交/被代填）
+router.post('/today-status', authenticate, reportController.todayStatus);
+
 // ==============================
 // 补公出日志审核（v2.0 新增，仅 admin+）
 // ==============================

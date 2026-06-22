@@ -250,6 +250,35 @@ async function checkDuplicate(req, res, next) {
   }
 }
 
+/**
+ * 查询用户当日日报状态
+ * POST /api/report/today-status
+ */
+async function todayStatus(req, res, next) {
+  try {
+    const { reportDate } = req.body;
+    const userId = req.user.userId;
+
+    if (!reportDate) {
+      throw new ValidationError('reportDate 不能为空');
+    }
+
+    const result = await reportService.getTodayStatus(userId, reportDate);
+
+    if (result.status === 'substituted') {
+      res.json({
+        code: 2001,
+        message: `当日公出日志已由 ${result.submittedBy} 代填`,
+        data: result,
+      });
+    } else {
+      res.json(success(result));
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ==============================
 // 补公出日志审核（新增）
 // ==============================
@@ -440,6 +469,7 @@ module.exports = {
   getDraft,
   deleteReport,
   checkDuplicate,
+  todayStatus,
   pendingReviews,
   supplementReview,
   stats,
