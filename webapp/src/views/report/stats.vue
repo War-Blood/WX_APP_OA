@@ -8,6 +8,7 @@ import {
   type AllStatsResponse,
   type DailyCountItem, type ProjectProgressItem, type WorkerWorkTypeItem
 } from '@/api/report'
+import { getAreaDistribution, getProvinceWorkers, type ProvinceItem, type ProvinceWorkerItem } from '@/api/report'
 
 // 统计汇总
 const statsLoading = ref(true)
@@ -29,6 +30,15 @@ const progMonth = ref(new Date().toISOString().slice(0, 7))
 const workTypeLoading = ref(false)
 const workTypeList = ref<WorkerWorkTypeItem[]>([])
 const workTypeMonth = ref(new Date().toISOString().slice(0, 7))
+
+// 中国地图
+const mapLoading = ref(false)
+const mapData = ref<ProvinceItem[]>([])
+const mapChartRef = ref<HTMLDivElement>()
+let mapChart: echarts.ECharts | null = null
+const mapDialogVisible = ref(false)
+const mapDialogProvince = ref('')
+const mapDialogWorkers = ref<ProvinceWorkerItem[]>([])
 
 // 按人员维度（全量）
 const workerLoading = ref(true)
@@ -200,6 +210,88 @@ function cellColor(val: number, maxVal: number) {
   return val / maxVal > 0.5 ? '#fff' : '#333'
 }
 
+// ===== 中国地图 =====
+const CHINA_GEO_URL = 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json'
+let chinaGeoLoaded = false
+
+async function loadMap() {
+  mapLoading.value = true
+  try {
+    // 加载区域分布数据
+    const res = await getAreaDistribution()
+    mapData.value = res.provinces
+
+    // 加载 GeoJSON（仅一次）
+    if (!chinaGeoLoaded) {
+      const geoRes = await fetch(CHINA_GEO_URL)
+      const geoJson = await geoRes.json()
+      echarts.registerMap('china', geoJson)
+      chinaGeoLoaded = true
+    }
+
+    await nextTick()
+    renderMap()
+  } catch { /* ignore */ }
+  finally { mapLoading.value = false }
+}
+
+function renderMap() {
+  if (!mapChartRef.value) return
+  if (!mapChart) {
+    mapChart = echarts.init(mapChartRef.value)
+    mapChart.on('click', (params: { name: string }) => {
+      if (params.name) showProvinceDialog(params.name)
+    })
+  }
+
+  const maxCount = Math.max(1, ...mapData.value.map(d => d.count))
+
+  mapChart.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: (p: { name: string; value: number }) =>
+        `<b>${p.name}</b><br/>人员: ${p.value}人`
+    },
+    visualMap: {
+      min: 0, max: maxCount,
+      left: 'left', bottom: 10,
+      text: ['高', '低'], calculable: false,
+      pieces: [
+        { min: 0, max: 0, color: '#F5F5F5', label: '0' },
+        { min: 1, max: 2, color: '#C5DFFF', label: '1-2' },
+        { min: 3, max: 5, color: '#7BB5F0', label: '3-5' },
+        { min: 6, max: 10, color: '#3D8DE0', label: '6-10' },
+        { min: 11, max: 999, color: '#1A5FB4', label: '10+' }
+      ]
+    },
+    series: [{
+      type: 'map', map: 'china',
+      roam: false,
+      label: { show: true, fontSize: 10, color: '#333' },
+      emphasis: {
+        label: { show: true, fontSize: 14, fontWeight: 'bold' },
+        itemStyle: { areaColor: '#FFD54F' }
+      },
+      data: mapData.value.map(d => ({ name: d.name, value: d.count })),
+      nameMap: {
+        '澳门特别行政区': '澳门', '香港特别行政区': '香港',
+        '西藏自治区': '西藏', '内蒙古自治区': '内蒙古',
+        '新疆维吾尔自治区': '新疆', '广西壮族自治区': '广西',
+        '宁夏回族自治区': '宁夏'
+      }
+    }]
+  }, true)
+}
+
+async function showProvinceDialog(province: string) {
+  mapDialogProvince.value = province
+  mapDialogVisible.value = true
+  try {
+    const res = await getProvinceWorkers(province)
+    mapDialogWorkers.value = res.workers
+  } catch { mapDialogWorkers.value = [] }
+}
+
 function maxInColumn(key: string) {
   return Math.max(1, ...workTypeList.value.map(w => w.workTypes[key] || 0))
 }
@@ -223,6 +315,7 @@ onMounted(() => {
   loadProjects()
   loadWorkers()
   loadWorkTypes()
+  loadMap()
   window.addEventListener('resize', onResize)
 })
 
@@ -347,6 +440,29 @@ onUnmounted(() => {
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 中国地图区域分布 -->
+    <el-card class="section-card" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <span>区域分布地图</span>
+          <el-button :icon="Refresh" size="small" text @click="loadMap">刷新</el-button>
+        </div>
+      </template>
+      <div ref="mapChartRef" v-loading="mapLoading" style="height:500px"></div>
+    </el-card>
+
+    <!-- 省份弹窗 -->
+    <el-dialog v-model="mapDialogVisible" :title="mapDialogProvince + ' — 人员列表'" width="600px" destroy-on-close>
+      <el-table :data="mapDialogWorkers" stripe border max-height="400">
+        <el-table-column prop="userName" label="姓名" width="100" />
+        <el-table-column prop="workerCode" label="工号" width="80" />
+        <el-table-column prop="project" label="项目" min-width="140" show-overflow-tooltip />
+        <el-table-column label="区域" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.area || '—' }}</template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
 
     <!-- 按人员维度 -->
     <el-card class="section-card" shadow="never">

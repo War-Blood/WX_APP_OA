@@ -31,4 +31,10 @@ router.post('/stats/project-progress', authenticate, statsController.projectProg
 // POST /api/stats/worker-work-types — 人员工作类型分布
 router.post('/stats/worker-work-types', authenticate, statsController.workerWorkTypes);
 
+// POST /api/stats/area-distribution — 省份人员分布
+router.post('/stats/area-distribution', authenticate, statsController.areaDistribution);
+
+// POST /api/stats/province-workers — 省份下钻人员列表
+router.post('/stats/province-workers', authenticate, statsController.provinceWorkers);
+
 module.exports = router;

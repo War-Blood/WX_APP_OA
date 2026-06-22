@@ -109,6 +109,30 @@ async function workerWorkTypes(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * 省份人员分布
+ * POST /api/stats/area-distribution
+ */
+async function areaDistribution(req, res, next) {
+  try {
+    const { month } = req.body;
+    const result = await coreStatsService.getAreaDistribution(month);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+/**
+ * 省份下钻人员列表
+ * POST /api/stats/province-workers
+ */
+async function provinceWorkers(req, res, next) {
+  try {
+    const { province, month } = req.body;
+    const result = await coreStatsService.getProvinceWorkers(province, month);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   home,
   activities,
@@ -117,4 +141,6 @@ module.exports = {
   dailyCounts,
   projectProgress,
   workerWorkTypes,
+  areaDistribution,
+  provinceWorkers,
 };

@@ -368,3 +368,39 @@ export interface WorkerWorkTypesResponse {
 export function getWorkerWorkTypes(month: string): Promise<WorkerWorkTypesResponse> {
   return request.post('/stats/worker-work-types', { month })
 }
+
+// ===== M4: 中国地图区域分布 =====
+
+export interface ProvinceItem {
+  name: string
+  count: number
+  projects: string[]
+}
+
+export interface AreaDistributionResponse {
+  month: string
+  provinces: ProvinceItem[]
+}
+
+/** 省份人员分布 */
+export function getAreaDistribution(month?: string): Promise<AreaDistributionResponse> {
+  return request.post('/stats/area-distribution', { month })
+}
+
+export interface ProvinceWorkerItem {
+  userId: number
+  userName: string
+  workerCode: string
+  area: string
+  project: string
+}
+
+export interface ProvinceWorkersResponse {
+  province: string
+  workers: ProvinceWorkerItem[]
+}
+
+/** 省份下钻人员列表 */
+export function getProvinceWorkers(province: string, month?: string): Promise<ProvinceWorkersResponse> {
+  return request.post('/stats/province-workers', { province, month })
+}

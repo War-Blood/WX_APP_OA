@@ -175,6 +175,23 @@
         <text class="cal-month-title">{{ progMonth }}</text>
         <view class="cal-nav-btn" @tap="nextProgMonth"><text class="cal-nav-icon">›</text></view>
       </view>
+      <!-- 省份排行榜 -->
+      <view v-if="areaData.length > 0" class="section-card" style="margin:0 0 16rpx 0;">
+        <text class="section-title">区域分布（省份）</text>
+        <view class="area-list">
+          <view v-for="(p, i) in areaData" :key="p.name" class="area-item" @tap="toggleProvince(p.name)">
+            <view class="area-left">
+              <text class="area-rank">{{ i + 1 }}</text>
+              <text class="area-name">{{ p.name }}</text>
+            </view>
+            <view class="area-right">
+              <text class="area-count">{{ p.count }}人</text>
+              <text class="area-projects">{{ p.projects?.length || 0 }}项目</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
       <view v-if="progLoading" class="loading-wrap"><text class="loading-text">加载中...</text></view>
       <view v-else-if="progData.length === 0" class="empty-wrap"><text class="empty-text">暂无项目数据</text></view>
       <view v-else class="prog-list">
@@ -288,6 +305,11 @@ const progLoading = ref(false)
 const workTypeData = ref([])
 const workTypeMonth = ref(new Date().toISOString().slice(0, 7))
 const workTypeLoading = ref(false)
+
+// 省份排行榜
+const areaData = ref([])
+const areaLoading = ref(false)
+const expandedProvince = ref(null)
 
 // ===== 计算属性 =====
 const todayStr = computed(() => formatToday())
@@ -425,7 +447,7 @@ function onDailyDateChange(e) {
 function switchAdminTab(key) {
   adminActiveTab.value = key
   if (key === 'calendar' && calData.value.length === 0) loadCalendar()
-  if (key === 'kanban' && progData.value.length === 0) { loadKanban(); loadWorkTypeDist() }
+  if (key === 'kanban' && progData.value.length === 0) { loadKanban(); loadWorkTypeDist(); loadAreaRanking() }
 }
 
 function goToDailyOverview() {
@@ -539,6 +561,22 @@ const workTypeShort = ['陆', '海', '待', '途', '假', '休']
 
 function maxWorkTypeVal(key) {
   return Math.max(1, ...workTypeData.value.map(w => w.workTypes[key] || 0))
+}
+
+// ===== 省份排行榜 =====
+async function loadAreaRanking() {
+  areaLoading.value = true
+  try {
+    const res = await reportApi.getAreaDistribution()
+    if (res.code === 0 && res.data) {
+      areaData.value = res.data.provinces || []
+    }
+  } catch { areaData.value = [] }
+  finally { areaLoading.value = false }
+}
+
+function toggleProvince(province) {
+  expandedProvince.value = expandedProvince.value === province ? null : province
 }
 
 function wtBg(val, max) {
@@ -1117,5 +1155,55 @@ function getDailyStatusLabel(worker) {
 .wt-cell--total {
   font-weight: 700;
   color: $primary-color;
+}
+
+// ===== 省份排行榜 =====
+.area-list {
+  display: flex;
+  flex-direction: column;
+}
+.area-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  border-top: 1rpx solid $border-light;
+}
+.area-item:first-child {
+  border-top: none;
+}
+.area-left {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.area-rank {
+  font-size: $font-sm;
+  font-weight: 700;
+  color: $text-secondary;
+  width: 36rpx;
+  text-align: center;
+}
+.area-name {
+  font-size: 26rpx;
+  font-weight: 500;
+  color: $text-primary;
+}
+.area-right {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.area-count {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: $primary-color;
+}
+.area-projects {
+  font-size: $font-xs;
+  color: $text-secondary;
+  background: $bg-form;
+  padding: 2rpx 10rpx;
+  border-radius: $radius-sm;
 }
 </style>

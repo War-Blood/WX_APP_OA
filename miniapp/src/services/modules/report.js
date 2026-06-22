@@ -74,5 +74,10 @@ export const reportApi = {
   // M3: 人员工作类型分布
   getWorkerWorkTypes(month) {
     return post('/api/stats/worker-work-types', { month })
+  },
+
+  // M4: 区域分布
+  getAreaDistribution(month) {
+    return post('/api/stats/area-distribution', { month })
   }
 }

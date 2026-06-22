@@ -642,4 +642,91 @@ async function getWorkerWorkTypes(month) {
   return { month, workers };
 }
 
-module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getDailyCounts, getProjectProgress, getWorkerWorkTypes };
+/**
+ * 省份人员分布（中国地图数据源）
+ * @param {string} [month] - 可选月份筛选 YYYY-MM
+ * @returns {Promise<Object>} { provinces: [{ name, count, projects }] }
+ */
+async function getAreaDistribution(month) {
+  let dateCondition = '';
+  const params = [];
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    dateCondition = 'AND DATE_FORMAT(dr.report_date, \'%Y-%m\') = ?';
+    params.push(month);
+  }
+
+  const rows = await db.query(
+    `SELECT
+       SUBSTRING_INDEX(dr.area, '-', 1) AS province,
+       COUNT(DISTINCT dr.user_id) AS user_count,
+       GROUP_CONCAT(DISTINCT dr.project ORDER BY dr.project SEPARATOR ',') AS project_list
+     FROM daily_reports dr
+     WHERE dr.status = 'approved'
+       AND dr.report_type != 'office'
+       AND dr.area IS NOT NULL AND dr.area != ''
+       ${dateCondition}
+     GROUP BY province
+     ORDER BY user_count DESC`,
+    params
+  );
+
+  const provinces = rows.map(r => ({
+    name: r.province,
+    count: Number(r.user_count),
+    projects: r.project_list ? r.project_list.split(',').slice(0, 10) : [],
+  }));
+
+  return { month: month || 'all', provinces };
+}
+
+/**
+ * 省份下钻 — 该省人员列表
+ * @param {string} province - 省份名（如"广东"）
+ * @param {string} [month] - 可选月份筛选
+ * @returns {Promise<Object>} { province, workers: [...] }
+ */
+async function getProvinceWorkers(province, month) {
+  if (!province) throw new BusinessError('province 必填');
+
+  let dateCondition = '';
+  const params = [`${province}-%`];
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    dateCondition = 'AND DATE_FORMAT(dr.report_date, \'%Y-%m\') = ?';
+    params.push(month);
+  }
+
+  const rows = await db.query(
+    `SELECT DISTINCT
+       u.id AS userId,
+       u.nickname AS userName,
+       u.worker_code AS workerCode,
+       dr.area,
+       dr.project
+     FROM daily_reports dr
+     JOIN users u ON dr.user_id = u.id
+     WHERE dr.status = 'approved'
+       AND dr.report_type != 'office'
+       AND dr.area LIKE ?
+       ${dateCondition}
+     ORDER BY u.worker_code`,
+    params
+  );
+
+  // 每人只取一条（最新区域和项目）
+  const workerMap = {};
+  rows.forEach(r => {
+    if (!workerMap[r.userId]) {
+      workerMap[r.userId] = {
+        userId: r.userId,
+        userName: r.userName || '',
+        workerCode: r.workerCode || '',
+        area: r.area || '',
+        project: r.project || '',
+      };
+    }
+  });
+
+  return { province, workers: Object.values(workerMap) };
+}
+
+module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getDailyCounts, getProjectProgress, getWorkerWorkTypes, getAreaDistribution, getProvinceWorkers };
