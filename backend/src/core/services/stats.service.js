@@ -470,4 +470,85 @@ function formatDateTime(d) {
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
 }
 
-module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus };
+/**
+ * 月度每日提交人次（日历热力图数据源）
+ * @param {string} month - 月份 (YYYY-MM)
+ * @returns {Promise<Object>} { month, data: [{ date, count }] }
+ */
+async function getDailyCounts(month) {
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    throw new BusinessError('month 必填，格式 YYYY-MM');
+  }
+  const rows = await db.query(
+    `SELECT report_date AS date, COUNT(*) AS count
+     FROM daily_reports
+     WHERE status = 'approved' AND report_type != 'office'
+       AND DATE_FORMAT(report_date, '%Y-%m') = ?
+     GROUP BY report_date
+     ORDER BY report_date`,
+    [month]
+  );
+  return {
+    month,
+    data: rows.map(r => ({ date: formatDate(r.date), count: Number(r.count) })),
+  };
+}
+
+/**
+ * 项目进展看板（按项目聚合当月进展，取 MAX 值）
+ * @param {string} month - 月份 (YYYY-MM)
+ * @returns {Promise<Object>} { month, projects: [...] }
+ */
+async function getProjectProgress(month) {
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    throw new BusinessError('month 必填，格式 YYYY-MM');
+  }
+
+  // 按项目聚合：MAX(completed_qty)/MAX(required_qty)，统计作业人员数和区域
+  const rows = await db.query(
+    `SELECT
+       dr.project,
+       MAX(dr.area) AS area,
+       MAX(dr.completed_qty) AS completed_qty,
+       MAX(dr.required_qty) AS required_qty,
+       COUNT(*) AS log_count,
+       COUNT(DISTINCT dr.report_date) AS day_count
+     FROM daily_reports dr
+     WHERE dr.status = 'approved'
+       AND dr.report_type != 'office'
+       AND dr.project IS NOT NULL
+       AND dr.project != ''
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+     GROUP BY dr.project`,
+    [month]
+  );
+
+  // 获取每个项目的作业人员数（从 workers 文本字段和 daily_report_workers 去重）
+  const projects = rows.map(r => {
+    const required = Number(r.required_qty) || 0;
+    const completed = Number(r.completed_qty) || 0;
+    const progress = required > 0 ? Math.round((completed / required) * 100) : null;
+    const area = r.area ? r.area.split('-')[0] : null;
+
+    return {
+      project: r.project,
+      area,
+      completedQty: completed,
+      requiredQty: required,
+      progress,
+      logCount: Number(r.log_count),
+      dayCount: Number(r.day_count),
+    };
+  });
+
+  // 按进度升序（进度低的排前面）
+  projects.sort((a, b) => {
+    const pa = a.progress ?? -1;
+    const pb = b.progress ?? -1;
+    return pa - pb;
+  });
+
+  return { month, projects };
+}
+
+module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getDailyCounts, getProjectProgress };

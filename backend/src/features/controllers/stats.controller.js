@@ -1,6 +1,7 @@
 'use strict';
 
 const statsService = require('../services/stats.service');
+const coreStatsService = require('../../core/services/stats.service');
 const { success, paginated } = require('../../common/utils/response');
 
 /**
@@ -72,9 +73,35 @@ async function reportStats(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * 月度每日提交人次
+ * POST /api/stats/daily-counts
+ */
+async function dailyCounts(req, res, next) {
+  try {
+    const { month } = req.body;
+    const result = await coreStatsService.getDailyCounts(month);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+/**
+ * 项目进展看板
+ * POST /api/stats/project-progress
+ */
+async function projectProgress(req, res, next) {
+  try {
+    const { month } = req.body;
+    const result = await coreStatsService.getProjectProgress(month);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   home,
   activities,
   profile,
   reportStats,
+  dailyCounts,
+  projectProgress,
 };

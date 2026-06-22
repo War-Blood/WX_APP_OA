@@ -22,4 +22,10 @@ router.post('/stats/profile', authenticate, statsController.profile);
 // POST /api/stats/reportStats — 日报统计看板
 router.post('/stats/reportStats', authenticate, statsController.reportStats);
 
+// POST /api/stats/daily-counts — 月度每日提交人次
+router.post('/stats/daily-counts', authenticate, statsController.dailyCounts);
+
+// POST /api/stats/project-progress — 项目进展看板
+router.post('/stats/project-progress', authenticate, statsController.projectProgress);
+
 module.exports = router;
