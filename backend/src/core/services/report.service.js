@@ -536,10 +536,10 @@ async function getPendingReviews({ status: reviewStatus, page = 1, pageSize = 20
  * @param {string} [comment] - 审核意见
  * @returns {Promise<Object>}
  */
-async function supplementReview(reportId, decision, comment) {
+async function supplementReview(reportId, decision, comment, reviewerId) {
   // 验证日报存在且是补公出日志
   const reports = await db.query(
-    'SELECT id, report_type, status FROM daily_reports WHERE id = ?',
+    'SELECT id, user_id, report_type, status, project FROM daily_reports WHERE id = ?',
     [reportId]
   );
   if (reports.length === 0) {
@@ -552,12 +552,37 @@ async function supplementReview(reportId, decision, comment) {
     throw new BusinessError('该日志已审核，请勿重复操作');
   }
 
+  const report = reports[0];
   const timeliness = decision === 'special' ? 'on_time' : 'delayed';
+  const action = decision === 'special' ? 'supplement_special' : 'supplement_delayed';
+  const decisionText = decision === 'special' ? '特殊情况—正常' : '非特殊/忘记—延迟';
+  const now = new Date();
 
-  await db.execute(
-    'UPDATE daily_reports SET status = ?, timeliness = ?, remark = CONCAT(IFNULL(remark, ""), ?) WHERE id = ?',
-    ['approved', timeliness, comment ? ` [审核意见: ${comment}]` : '', reportId]
-  );
+  // 事务: 更新日报 + 写入审核记录 + 发送消息通知
+  await db.transaction(async (conn) => {
+    await conn.execute(
+      'UPDATE daily_reports SET status = ?, timeliness = ?, remark = CONCAT(IFNULL(remark, ""), ?) WHERE id = ?',
+      ['approved', timeliness, comment ? ` [审核意见: ${comment}]` : '', reportId]
+    );
+
+    await conn.execute(
+      `INSERT INTO review_records (report_id, reviewer_id, action, opinion, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [reportId, reviewerId, action, comment || null, now]
+    );
+
+    const messageTitle = '补公出日志审核通知';
+    const messageDesc = `您的补公出日志已被审核为「${decisionText}」`;
+    const messageContent = comment
+      ? `审核判定：${decisionText}\n审核意见：${comment}\n\n项目：${report.project || '未知'}\n补录日期：${report.report_date}`
+      : `审核判定：${decisionText}\n\n项目：${report.project || '未知'}\n补录日期：${report.report_date}`;
+
+    await conn.execute(
+      `INSERT INTO messages (receiver_id, type, title, description, content, is_read, created_at)
+       VALUES (?, 'report', ?, ?, ?, 0, ?)`,
+      [report.user_id, messageTitle, messageDesc, messageContent, now]
+    );
+  });
 
   return { reportId, decision, timeliness };
 }

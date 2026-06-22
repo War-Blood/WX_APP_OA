@@ -82,6 +82,7 @@ import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { useUserStore } from '@/stores/user'
 import { reviewApi } from '@/services/modules/review'
 import { complianceApi } from '@/services/modules/compliance'
+import { reportApi } from '@/services/modules/report'
 
 const userStore = useUserStore()
 
@@ -100,6 +101,7 @@ const tabs = [
   { key: 'pending', label: '待审核' },
   { key: 'approved', label: '已通过' },
   { key: 'rejected', label: '已驳回' },
+  { key: 'supplement', label: '补公出审核' },
   { key: 'missing', label: '缺失报告' }
 ]
 
@@ -123,12 +125,12 @@ function daysLate(dateStr) {
 }
 
 function getStatusBg(status) {
-  const map = { pending: '#FFF8F0', approved: '#EFFDF5', rejected: '#FFF0F0', missing: '#FFF0F0' }
+  const map = { pending: '#FFF8F0', approved: '#EFFDF5', rejected: '#FFF0F0', missing: '#FFF0F0', reviewed: '#EFFDF5' }
   return map[status] || '#F5F5F5'
 }
 
 function getStatusColor(status) {
-  const map = { pending: '#F59E0B', approved: '#22C55E', rejected: '#EF4444', missing: '#EF4444' }
+  const map = { pending: '#F59E0B', approved: '#22C55E', rejected: '#EF4444', missing: '#EF4444', reviewed: '#22C55E' }
   return map[status] || '#999999'
 }
 
@@ -139,6 +141,10 @@ function switchTab(key) {
 
 function goToDetail(item) {
   if (activeTab.value === 'missing') return
+  if (activeTab.value === 'supplement') {
+    uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + item.id })
+    return
+  }
   uni.navigateTo({ url: '/pages/admin/review-detail/index?id=' + item.id })
 }
 
@@ -176,6 +182,13 @@ async function loadAll(reset = true) {
         page: currentPage.value,
         pageSize: 20
       })
+    } else if (activeTab.value === 'supplement') {
+      const supplementStatus = params.status === 'supplement' ? 'pending' : params.status
+      listRes = await reportApi.getPendingReviews({
+        status: supplementStatus,
+        page: currentPage.value,
+        pageSize: 20
+      })
     } else {
       const [res] = await Promise.all([
         reviewApi.getList(params),
@@ -185,9 +198,22 @@ async function loadAll(reset = true) {
     }
 
     const list = listRes.data.list || []
-    const normalizedList = activeTab.value === 'missing'
-      ? list.map(item => ({ ...item, status: 'missing', statusText: '缺失' }))
-      : list
+    let normalizedList
+    if (activeTab.value === 'missing') {
+      normalizedList = list.map(item => ({ ...item, status: 'missing', statusText: '缺失' }))
+    } else if (activeTab.value === 'supplement') {
+      normalizedList = list.map(item => ({
+        ...item,
+        id: item.reportId,
+        user: item.submitterName,
+        status: item.status === 'pending_review' ? 'pending' : 'reviewed',
+        statusText: item.status === 'pending_review' ? '待审核' : '已审核',
+        desc: `补录日期: ${item.supplementDate || '-'}  |  项目: ${item.project || '-'}`,
+        time: item.createdAt
+      }))
+    } else {
+      normalizedList = list
+    }
     if (reset) { reviewList.value = normalizedList }
     else { reviewList.value = [...reviewList.value, ...normalizedList] }
     if (list.length < 20) { noMoreData.value = true }

@@ -293,7 +293,7 @@ async function supplementReview(req, res, next) {
       throw new ValidationError('decision 仅支持 special 或 forget');
     }
 
-    const result = await reportService.supplementReview(reportId, decision, comment);
+    const result = await reportService.supplementReview(reportId, decision, comment, req.user.userId);
     res.json(success(result, '审核完成'));
   } catch (err) {
     next(err);
