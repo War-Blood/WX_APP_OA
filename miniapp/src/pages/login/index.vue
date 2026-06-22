@@ -106,7 +106,7 @@ async function handleLogin() {
     }
     if (res.data?.token) {
       uni.setStorageSync('token', res.data.token)
-      uni.setStorageSync('userInfo', res.data.user)
+      uni.setStorageSync('userInfo', { ...res.data.user, nickName: res.data.user.nickname })
       // pending 用户显示等待审核
       if (res.data.user?.status === 'pending') {
         uni.showModal({

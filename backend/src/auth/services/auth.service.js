@@ -43,39 +43,14 @@ async function login(code) {
   // 2. 在 users 表中查找用户
   const users = await db.query('SELECT * FROM users WHERE openid = ? AND deleted_at IS NULL', [openid]);
 
-  // 3. 未注册 → 自动创建 pending 用户（需管理员审核）
+  // 3. 未注册 → 拒绝登录（需管理员在后台预登记）
   if (users.length === 0) {
-    // 检查是否被软删除（防止自动重新注册）
+    // 检查是否被软删除
     const deletedCheck = await db.query('SELECT id FROM users WHERE openid = ? AND deleted_at IS NOT NULL', [openid]);
     if (deletedCheck.length > 0) {
       throw new BusinessError('您的账号已被管理员删除，请联系管理员重新邀请后再登录');
     }
-
-    logger.info('微信登录 - 新用户待审核', { module: 'AUTH', openid });
-
-    const result = await db.execute(
-      `INSERT INTO users (openid, user_name, role, status, created_at) VALUES (?, '待审核', 'employee', 'pending', NOW())`,
-      [openid]
-    );
-
-    const newUser = {
-      id: result[0].insertId,
-      openid,
-      role: 'employee',
-      nickname: null,
-      avatar_url: null,
-      department: null,
-      status: 'pending',
-    };
-
-    await db.execute(
-      `INSERT INTO operation_logs (user_id, action, module, detail, created_at) VALUES (?, 'auto_register', 'AUTH', '新用户注册待审核', NOW())`,
-      [newUser.id]
-    );
-
-    logger.info('新用户已注册待审核', { module: 'AUTH', userId: newUser.id });
-    // pending 用户也返回 JWT，但前端应拦截并显示审核中
-    return finalizeLogin(newUser);
+    throw new BusinessError('您的账号未注册，请联系管理员');
   }
 
   const user = users[0];
@@ -152,23 +127,8 @@ async function qywxLogin(code, corpId, corpSecret) {
     return finalizeLogin(user);
   }
 
-  // 4. 新企业微信用户 → 自动注册 active（企微已认证身份）
-  const isAdmin = config.qywx.adminUserIds.includes(userid);
-  const role = isAdmin ? 'admin' : 'employee';
-  logger.info('企业微信登录 - 新用户', { module: 'AUTH', userid, role });
-  const result = await db.execute(
-    `INSERT INTO users (openid, qywx_userid, role, status, created_at) VALUES (?, ?, ?, 'active', NOW())`,
-    [userid, userid, role]
-  );
-
-  const newUser = { id: result[0].insertId, openid: userid, qywx_userid: userid, role, status: 'active' };
-
-  await db.execute(
-    `INSERT INTO operation_logs (user_id, action, module, detail, created_at) VALUES (?, 'qywx_auto_register', 'AUTH', ?, NOW())`,
-    [newUser.id, isAdmin ? '企业微信新管理员自动注册' : '企业微信新用户自动注册']
-  );
-
-  return finalizeLogin(newUser);
+  // 4. 新企业微信用户 → 拒绝登录（需管理员在后台预登记）
+  throw new BusinessError('您的企业微信账号未注册，请联系管理员');
 }
 
 async function finalizeLogin(user) {
