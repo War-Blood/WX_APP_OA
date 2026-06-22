@@ -92,6 +92,8 @@ function handleAction() {
   color: $text-primary;
   display: block;
   margin-bottom: 12rpx;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .msg-time {
@@ -113,6 +115,8 @@ function handleAction() {
   line-height: 48rpx;
   display: block;
   white-space: pre-line;
+  word-break: break-all;
+  overflow-wrap: break-word;
   margin-bottom: 32rpx;
 }
 

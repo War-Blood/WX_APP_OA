@@ -148,8 +148,11 @@ async function goToDetail(item) {
 
 .msg-item {
   display: flex; align-items: center;
-  height: 136rpx; padding: 0 24rpx; background: #FFFFFF;
+  min-height: 136rpx; padding: 16rpx 24rpx; background: #FFFFFF;
   position: relative;
+  margin: 8rpx 24rpx;
+  border-radius: 12rpx;
+  box-shadow: 0 1rpx 4rpx rgba(0,0,0,.04);
 }
 .msg-item-unread { background: #FAFBFF; }
 .msg-hover { background: #F0F0F0; }
