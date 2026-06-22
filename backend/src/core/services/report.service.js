@@ -744,7 +744,7 @@ async function getWorkerList() {
  */
 async function getWorkerStats({ page, pageSize, keyword }) {
   const rawRows = await db.query(
-    "SELECT workers, report_date FROM daily_reports WHERE workers IS NOT NULL AND workers != ''"
+    "SELECT workers, report_date FROM daily_reports WHERE workers IS NOT NULL AND workers != '' AND status = 'approved'"
   );
 
   const personMap = {};

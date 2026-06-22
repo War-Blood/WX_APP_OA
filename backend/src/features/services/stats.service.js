@@ -206,9 +206,9 @@ async function getActivities(userId, page, pageSize) {
 async function getProfileStats(userId) {
   // 并行查询
   const [reportRows, approvalRows, pendingRows] = await Promise.all([
-    // 累计日报数
+    // 累计日报数（仅统计审核通过的）
     db.query(
-      'SELECT COUNT(*) AS count FROM daily_reports WHERE user_id = ?',
+      "SELECT COUNT(*) AS count FROM daily_reports WHERE user_id = ? AND status = 'approved'",
       [userId]
     ),
     // 累计审批数（作为发起人）
@@ -233,7 +233,7 @@ async function getProfileStats(userId) {
   try {
     const dateRows = await db.query(
       `SELECT DISTINCT report_date FROM daily_reports
-       WHERE user_id = ? AND status = 'submitted'
+       WHERE user_id = ? AND status = 'approved'
        ORDER BY report_date DESC`,
       [userId]
     );
@@ -274,28 +274,28 @@ async function getProfileStats(userId) {
  * 总数/本月/待审/通过 + 近30天趋势
  */
 async function getReportStats() {
-  const [totalRow] = await db.query('SELECT COUNT(*) AS count FROM daily_reports');
-  const [monthRow] = await db.query("SELECT COUNT(*) AS count FROM daily_reports WHERE MONTH(report_date)=MONTH(CURDATE()) AND YEAR(report_date)=YEAR(CURDATE())");
+  // 总数和本月数仅统计审核通过的日报
+  const [totalRow] = await db.query("SELECT COUNT(*) AS count FROM daily_reports WHERE status = 'approved'");
+  const [monthRow] = await db.query("SELECT COUNT(*) AS count FROM daily_reports WHERE status = 'approved' AND MONTH(report_date)=MONTH(CURDATE()) AND YEAR(report_date)=YEAR(CURDATE())");
   const [pendingRow] = await db.query("SELECT COUNT(*) AS count FROM daily_reports WHERE status='pending'");
   const [approvedRow] = await db.query("SELECT COUNT(*) AS count FROM daily_reports WHERE status='approved'");
 
-  // 近30天趋势
+  // 近30天趋势（仅统计审核通过的）
   const trendRows = await db.query(`
     SELECT DATE(report_date) AS date, COUNT(*) AS count
     FROM daily_reports
-    WHERE report_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    WHERE status = 'approved'
+      AND report_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
     GROUP BY DATE(report_date) ORDER BY date ASC
   `);
 
   const total = totalRow?.count ?? 0;
-  const approved = approvedRow?.count ?? 0;
 
   return {
     total,
     monthCount: monthRow?.count ?? 0,
     pendingCount: pendingRow?.count ?? 0,
-    approvedCount: approved,
-    approvalRate: total > 0 ? Math.round((approved / total) * 100) + '%' : '0%',
+    approvedCount: approvedRow?.count ?? 0,
     trend: trendRows.map(r => ({ date: r.date, count: r.count })),
   };
 }
