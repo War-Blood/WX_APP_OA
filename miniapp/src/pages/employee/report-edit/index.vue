@@ -8,6 +8,7 @@
       </template>
     </NavBar>
 
+
     <!-- 今日状态提示 -->
     <view v-if="todayStatusBar.visible && !showSubstituteMsg" class="today-status-bar" :class="'status-' + todayStatusBar.type">
       <view class="status-icon">{{ todayStatusBar.icon }}</view>
