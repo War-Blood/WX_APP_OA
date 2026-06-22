@@ -12,6 +12,7 @@
 > | `git-workflow.md` | 分支/Commit/推送策略 | Git 操作时加载 |
 > | `backend-rules.md` | 后端技术选型/分层约束/文档索引 | backend/ 操作时加载 |
 > | `miniapp-rules.md` | 小程序页面层级/设计令牌/API调用 | miniapp/ 操作时加载 |
+> | `miniapp-design-patterns.md` | 小程序设计模式（页面/卡片/表单/标签/令牌） | miniapp/ UI 开发时加载 |
 > | `webapp-rules.md` | Web 管理后台技术栈/里程碑/目录规范 | webapp/ 操作时加载 |
 > | `error-codes.md` | 错误码字典 + 编码分区规范 | 新增/修改错误码时加载 |
 > | `review-checklist.md` | 功能/安全/性能/测试审查清单 | Code Review / PR 时加载 |
