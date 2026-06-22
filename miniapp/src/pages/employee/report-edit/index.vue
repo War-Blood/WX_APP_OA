@@ -464,8 +464,8 @@ const showMachineInput = ref(false)
 const showSubstituteMsg = ref(false)
 const substituteInfo = ref(null)
 
-// 表单是否可编辑：未被代填 且 未自己已提交
-const showForm = computed(() => !showSubstituteMsg.value && todayStatusBar.value.type !== 'success')
+// 仅被代填时隐藏表单（已提交时保留表单可见，方便切换日期重试）
+const showForm = computed(() => !showSubstituteMsg.value)
 const todayWorkLength = ref(0)
 const workerListCache = ref([])
 const relatedPartyHistory = ref([])
