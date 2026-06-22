@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { Search } from '@element-plus/icons-vue'
+import { Search, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import {
   getDailyStatus,
   type DailyStatusWorker, type DailyStatusSummary, type DailyStatusResponse
 } from '@/api/report'
 
-// 日期
-const date = ref('')
+// 日期（默认昨天）
+function yesterday() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
+const date = ref(yesterday())
 
 // 数据
 const loading = ref(false)
@@ -116,12 +121,30 @@ function handleDateChange() {
   loadData()
 }
 
+function prevDay() {
+  const d = new Date(date.value)
+  d.setDate(d.getDate() - 1)
+  date.value = d.toISOString().slice(0, 10)
+  loadData()
+}
+
+function nextDay() {
+  const d = new Date(date.value)
+  d.setDate(d.getDate() + 1)
+  date.value = d.toISOString().slice(0, 10)
+  loadData()
+}
+
 function handleSearch() {
   // computed 属性自动响应
 }
 
 function getStatusTagType(status: string): 'success' | 'warning' | 'danger' | 'info' | '' {
   return (statusTagTypeMap[status] as 'success' | 'warning' | 'danger' | 'info' | '') || 'info'
+}
+
+function rowClassName({ row }: { row: DailyStatusWorker }) {
+  return row.status === 'missing' ? 'row-missing' : ''
 }
 
 onMounted(() => {
@@ -133,6 +156,7 @@ onMounted(() => {
   <div class="daily-status-page">
     <!-- 日期选择 -->
     <div class="top-bar">
+      <el-button :icon="ArrowLeft" size="small" @click="prevDay" />
       <el-date-picker
         v-model="date"
         type="date"
@@ -140,6 +164,7 @@ onMounted(() => {
         value-format="YYYY-MM-DD"
         @change="handleDateChange"
       />
+      <el-button :icon="ArrowRight" size="small" @click="nextDay" />
       <span class="date-hint" v-if="response">共 {{ response.totalWorkers }} 人</span>
     </div>
 
@@ -169,12 +194,17 @@ onMounted(() => {
     </div>
 
     <!-- 表格 -->
-    <el-table :data="filteredWorkers" v-loading="loading" stripe border>
+    <el-table :data="filteredWorkers" v-loading="loading" stripe border :row-class-name="rowClassName">
       <el-table-column prop="userName" label="姓名" width="100" />
       <el-table-column prop="workerCode" label="工号" width="100" />
-      <el-table-column prop="project" label="项目" min-width="160" show-overflow-tooltip>
+      <el-table-column prop="project" label="项目" min-width="140" show-overflow-tooltip>
         <template #default="{ row }">
           {{ row.project || '—' }}
+        </template>
+      </el-table-column>
+      <el-table-column label="区域" width="80">
+        <template #default="{ row }">
+          {{ row.area || '—' }}
         </template>
       </el-table-column>
       <el-table-column prop="workType" label="工作类型" width="110">
@@ -254,5 +284,13 @@ onMounted(() => {
 .substitute-name {
   color: #909399;
   font-size: 12px;
+}
+
+:deep(.row-missing) {
+  background-color: #FFF5F5 !important;
+
+  td {
+    background-color: #FFF5F5 !important;
+  }
 }
 </style>

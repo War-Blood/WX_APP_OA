@@ -108,97 +108,21 @@
       <view class="bottom-placeholder"></view>
     </scroll-view>
 
-    <!-- ========== 全员当日（管理员专属） ========== -->
-    <scroll-view
+    <!-- ========== 全员当日 ========== -->
+    <view
       v-if="userStore.isAdmin && adminActiveTab === 'daily'"
       class="content-scroll"
-      scroll-y
-      :refresher-enabled="true"
-      :refresher-triggered="refreshing"
-      @refresherrefresh="onRefresh"
     >
-      <!-- 日期选择 -->
-      <view class="section-card">
-        <view class="form-group" style="margin-bottom:0;">
-          <text class="form-label">查看日期</text>
-          <picker
-            mode="date"
-            :value="dailyDate"
-            :end="todayStr"
-            @change="onDailyDateChange"
-          >
-            <view class="form-picker">
-              <text class="picker-value">{{ dailyDate }}</text>
-              <text class="picker-icon">▾</text>
-            </view>
-          </picker>
+      <view class="section-card" style="text-align:center; padding:48rpx 24rpx;">
+        <text class="section-title" style="margin-bottom:16rpx;">昨日工作一览</text>
+        <text style="font-size:24rpx;color:#999;display:block;margin-bottom:24rpx;">
+          查看所有在职人员昨日的工作状态与项目分布
+        </text>
+        <view class="btn-submit" hover-class="btn-submit-press" @tap="goToDailyOverview">
+          <text class="btn-submit-text">查看详情</text>
         </view>
       </view>
-
-      <!-- 汇总统计条 -->
-      <view v-if="dailyStatus" class="summary-bar">
-        <view class="summary-item">
-          <text class="summary-val summary-val--submitted">{{ dailyStatus.summary?.submitted || 0 }}</text>
-          <text class="summary-lbl">已提交</text>
-        </view>
-        <view class="summary-item">
-          <text class="summary-val summary-val--substituted">{{ dailyStatus.summary?.substituted || 0 }}</text>
-          <text class="summary-lbl">已代填</text>
-        </view>
-        <view class="summary-item">
-          <text class="summary-val summary-val--supplement">{{ dailyStatus.summary?.supplement || 0 }}</text>
-          <text class="summary-lbl">补公出</text>
-        </view>
-        <view class="summary-item">
-          <text class="summary-val summary-val--office">{{ dailyStatus.summary?.office || 0 }}</text>
-          <text class="summary-lbl">公司日报</text>
-        </view>
-        <view class="summary-item">
-          <text class="summary-val summary-val--leave">{{ dailyStatus.summary?.leave || 0 }}</text>
-          <text class="summary-lbl">请假</text>
-        </view>
-        <view class="summary-item">
-          <text class="summary-val summary-val--rest">{{ dailyStatus.summary?.rest || 0 }}</text>
-          <text class="summary-lbl">调休</text>
-        </view>
-        <view class="summary-item">
-          <text class="summary-val" :class="(dailyStatus.summary?.missing || 0) > 0 ? 'summary-val--missing' : 'summary-val--zero'">
-            {{ dailyStatus.summary?.missing || 0 }}
-          </text>
-          <text class="summary-lbl">缺失</text>
-        </view>
-      </view>
-
-      <!-- 员工列表 -->
-      <view v-if="dailyStatus && dailyStatus.workers" class="worker-list">
-        <view
-          v-for="w in sortedWorkers"
-          :key="w.userId"
-          class="worker-card"
-          :class="{ 'worker-missing': w.status === 'missing' }"
-        >
-          <view class="worker-card-left">
-            <text class="worker-card-name">{{ w.userName }}</text>
-            <text class="worker-card-code">{{ w.workerCode || '' }}</text>
-          </view>
-          <view class="worker-card-mid">
-            <text class="worker-card-project">{{ w.project || '-' }}</text>
-          </view>
-          <view class="worker-card-right">
-            <view class="worker-status-badge" :class="'badge--' + w.status">
-              <text class="worker-status-text">{{ getDailyStatusLabel(w) }}</text>
-            </view>
-            <text v-if="w.submittedAt" class="worker-card-time">{{ formatTime(w.submittedAt) }}</text>
-          </view>
-        </view>
-      </view>
-
-      <view v-if="!dailyStatus && !loading" class="empty-wrap">
-        <text class="empty-text">暂无数据</text>
-      </view>
-
-      <view class="bottom-placeholder"></view>
-    </scroll-view>
+    </view>
   </view>
 </template>
 
@@ -375,6 +299,10 @@ async function loadDailyStatus() {
 function onDailyDateChange(e) {
   dailyDate.value = e.detail.value
   loadDailyStatus()
+}
+
+function goToDailyOverview() {
+  uni.navigateTo({ url: '/pages/admin/daily-overview/index' })
 }
 
 function goToTeamDetail(log) {

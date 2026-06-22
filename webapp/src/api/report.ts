@@ -202,6 +202,7 @@ export interface DailyStatusWorker {
   userName: string
   workerCode: string
   project: string | null
+  area: string | null
   workType: string | null
   status: 'submitted' | 'supplement' | 'office' | 'substituted' | 'leave' | 'rest' | 'missing'
   submittedAt: string | null

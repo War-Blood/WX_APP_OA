@@ -122,6 +122,16 @@
       }
     },
     {
+      "path": "pages/admin/daily-overview/index",
+      "style": {
+        "navigationBarTitleText": "昨日工作一览",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
       "path": "pages/admin/review-list/index",
       "style": {
         "navigationBarTitleText": "审核管理",
