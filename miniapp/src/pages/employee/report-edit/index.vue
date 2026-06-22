@@ -978,10 +978,15 @@ async function handleSubmit() {
     uni.hideLoading()
 
     if (res.code === 2001) {
-      // 提交时被代填拦截
-      showSubstituteMsg.value = true
-      substituteInfo.value = res.data || {}
-      uni.showToast({ title: res.message || '已由他人代填', icon: 'none' })
+      // code 2001 可能来自：
+      // A) 被代填 → 显示代填条 + 隐藏表单
+      // B) 重复提交/其他业务错误 → 仅 toast 提示
+      const msg = res.message || ''
+      if (msg.includes('代填')) {
+        showSubstituteMsg.value = true
+        substituteInfo.value = res.data || {}
+      }
+      uni.showToast({ title: msg || '操作失败', icon: 'none' })
       return
     }
 
