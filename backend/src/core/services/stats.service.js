@@ -681,14 +681,31 @@ async function getWorkerWorkTypes(month) {
   ownReports.forEach(r => addCount(r.user_id, r.today_work_type, r.cnt));
   subReports.forEach(r => addCount(r.user_id, r.today_work_type, r.cnt));
 
-  // 解析 workers 文本中的每个名字，匹配用户ID
+  // 获取本人已提交的日期列表，防止 workers 文本同日重复计数
+  const ownDates = await db.query(
+    `SELECT user_id, report_date FROM daily_reports
+     WHERE status = 'approved' AND report_type != 'office'
+       AND DATE_FORMAT(report_date, '%Y-%m') = ?`,
+    [month]
+  );
+  const seen = new Set(); // "uid_date" — 已计入的(人,日期)
+  ownDates.forEach(r => {
+    const d = r.report_date instanceof Date ? r.report_date.toISOString().slice(0,10) : String(r.report_date).slice(0,10);
+    seen.add(r.user_id + '_' + d);
+  });
+
+  // 解析 workers 文本中的每个名字，匹配用户ID（按日期去重，每人每天只算一次）
   textReports.forEach(r => {
+    const reportDate = r.report_date instanceof Date
+      ? r.report_date.toISOString().slice(0, 10) : String(r.report_date).slice(0, 10);
     const names = r.workers.split(/[、,，\s\/\n]+/).map(s => s.trim()).filter(Boolean);
     names.forEach(name => {
       const uid = nameToUid[name];
-      if (uid && uid !== r.user_id) {
-        addCount(uid, r.today_work_type, 1);
-      }
+      if (!uid || uid === r.user_id) return;
+      const key = uid + '_' + reportDate;
+      if (seen.has(key)) return; // 同人同日已计（含本人提交）
+      seen.add(key);
+      addCount(uid, r.today_work_type, 1);
     });
   });
 
