@@ -1,6 +1,6 @@
 <template>
-  <view v-if="visible" class="picker-overlay" @tap.self="onCancel">
-    <view class="picker-panel">
+  <view v-if="visible" class="picker-overlay" @tap="onCancel">
+    <view class="picker-panel" @tap.stop>
       <view class="picker-header">
         <text class="picker-title">选择审批类型</text>
         <view class="picker-close" @tap="onCancel">

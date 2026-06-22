@@ -1,6 +1,6 @@
 <template>
-  <view v-if="visible" class="dialog-overlay" @tap.self="onCancel">
-    <view class="dialog-card">
+  <view v-if="visible" class="dialog-overlay" @tap="onCancel">
+    <view class="dialog-card" @tap.stop>
       <view class="dialog-icon" :style="{ background: iconBg }">
         <uni-icons :type="icon" :size="iconSize" :color="iconColor"></uni-icons>
       </view>

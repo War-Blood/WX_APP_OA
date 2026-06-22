@@ -1,6 +1,6 @@
 <template>
-  <view v-if="visible" class="opinion-overlay" @tap.self="onCancel">
-    <view class="opinion-panel">
+  <view v-if="visible" class="opinion-overlay" @tap="onCancel">
+    <view class="opinion-panel" @tap.stop>
       <view class="opinion-header">
         <text class="opinion-title">{{ title }}</text>
         <view class="opinion-close" @tap="onCancel">
