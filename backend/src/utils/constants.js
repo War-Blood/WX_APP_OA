@@ -11,7 +11,8 @@ const ErrorCode = {
   FORBIDDEN: 403,
   VALIDATION_ERROR: 1001,
   NOT_FOUND: 1002,
-  BUSINESS_ERROR: 2001,
+  /** @deprecated 请使用 src/common/utils/constants.js 中的完整错误码字典 */
+  BUSINESS_ERROR: 9001,
 };
 
 /**

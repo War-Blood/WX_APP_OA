@@ -5,6 +5,7 @@ const statsService = require('../services/stats.service');
 const db = require('../../common/config/database');
 const { success, paginated } = require('../../common/utils/response');
 const { ValidationError } = require('../../common/utils/errors');
+const { ErrorCode } = require('../../common/utils/constants');
 
 /**
  * 日报控制器 v2.0
@@ -238,7 +239,7 @@ async function checkDuplicate(req, res, next) {
     if (!result.canSubmit) {
       // code 2001 表示已被代填
       res.json({
-        code: 2001,
+        code: ErrorCode.REPORT_SUBSTITUTED,
         message: `当日公出日志已由 ${result.submittedBy} 代填`,
         data: { submittedBy: result.submittedBy, reportId: result.reportId },
       });
@@ -267,7 +268,7 @@ async function todayStatus(req, res, next) {
 
     if (result.status === 'substituted') {
       res.json({
-        code: 2001,
+        code: ErrorCode.REPORT_SUBSTITUTED,
         message: `当日公出日志已由 ${result.submittedBy} 代填`,
         data: result,
       });

@@ -13,6 +13,7 @@
 > | `backend-rules.md` | 后端技术选型/分层约束/文档索引 | backend/ 操作时加载 |
 > | `miniapp-rules.md` | 小程序页面层级/设计令牌/API调用 | miniapp/ 操作时加载 |
 > | `webapp-rules.md` | Web 管理后台技术栈/里程碑/目录规范 | webapp/ 操作时加载 |
+> | `error-codes.md` | 错误码字典 + 编码分区规范 | 新增/修改错误码时加载 |
 > | `review-checklist.md` | 功能/安全/性能/测试审查清单 | Code Review / PR 时加载 |
 
 ---
@@ -182,7 +183,17 @@ routes/ → controllers/ → services/ → config/(database.js + redis.js)
 
 ---
 
-## 九、审查通过标准
+## 九、错误码管理
+
+> 完整字典见 `error-codes.md`，权威源文件: `backend/src/common/utils/constants.js`
+
+44. **[R44] 错误码独立**: 每个业务错误场景必须有独立错误码，禁止复用。新增错误码前必须先 `grep constants.js` 确认未占用。
+45. **[R45] 错误码分区**: 编码按模块分区（1000 系统/1100 认证/1200 用户/2000 日报/2100 审批/2200 审核/2300 管理/2400 邀请码/2500 统计），新增时追加到对应分区末尾。
+46. **[R46] 禁止硬编码**: 代码中必须使用 `ErrorCode.CONST_NAME`，禁止直接写数字（如 `code: 2001`）。
+
+---
+
+## 十、审查通过标准
 
 > 详细检查清单见 `review-checklist.md`
 

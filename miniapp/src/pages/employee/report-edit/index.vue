@@ -1015,14 +1015,9 @@ async function handleSubmit() {
     const msg = currentTab.value === 'biz_trip_supplement' ? '已提交，等待管理员审核' : '提交成功'
     uni.showToast({ title: msg, icon: 'success' })
     setTimeout(() => uni.navigateBack(), 1500)
-  } catch (err) {
+  } catch {
     uni.hideLoading()
-    // 显示后端返回的具体错误信息（request.js 已在 reject 前 showToast，此处做兜底）
-    if (err && err.message && err.message !== '请求失败') {
-      uni.showToast({ title: err.message, icon: 'none' })
-    } else {
-      uni.showToast({ title: '提交失败，请重试', icon: 'none' })
-    }
+    // request.js 已在非 0/2001 code 时做了 showToast + reject，此处仅关 loading
   }
 }
 </script>

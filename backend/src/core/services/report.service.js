@@ -2,6 +2,7 @@
 
 const db = require('../../common/config/database');
 const { NotFoundError, BusinessError } = require('../../common/utils/errors');
+const { ErrorCode } = require('../../common/utils/constants');
 
 /**
  * 日报服务 v2.0
@@ -210,7 +211,7 @@ async function deleteReport(id, userId) {
 
   // 普通用户只能删除自己的日报（管理员 userId=0 可删除任意）
   if (userId && userId !== 0 && rows[0].user_id !== userId) {
-    throw new BusinessError('无权删除他人日报');
+    throw new BusinessError('无权删除他人日报', null, ErrorCode.REPORT_DELETE_FORBIDDEN);
   }
 
   await db.execute('DELETE FROM daily_reports WHERE id = ?', [id]);
@@ -292,7 +293,7 @@ async function submit(data, userId) {
       [userId, reportDate]
     );
     if (subCheck.length > 0) {
-      throw new BusinessError(`当日公出日志已由 ${subCheck[0].submitterName} 代填`);
+      throw new BusinessError(`当日公出日志已由 ${subCheck[0].submitterName} 代填`, null, ErrorCode.REPORT_SUBSTITUTED);
     }
   }
 
@@ -390,7 +391,7 @@ async function submit(data, userId) {
         resultReportId = existing[0].id;
       } else {
         // 已有已提交/已审核记录，禁止重复提交
-        throw new BusinessError('该日期已提交日报，请勿重复提交');
+        throw new BusinessError('该日期已提交日报，请勿重复提交', null, ErrorCode.REPORT_ALREADY_SUBMITTED);
       }
     } else {
       // INSERT 新记录
@@ -590,10 +591,10 @@ async function supplementReview(reportId, decision, comment, reviewerId) {
     throw new NotFoundError('日报不存在');
   }
   if (reports[0].report_type !== 'biz_trip_supplement') {
-    throw new BusinessError('该日志不是补公出日志');
+    throw new BusinessError('该日志不是补公出日志', null, ErrorCode.REPORT_NOT_SUPPLEMENT);
   }
   if (reports[0].status !== 'pending_review') {
-    throw new BusinessError('该日志已审核，请勿重复操作');
+    throw new BusinessError('该日志已审核，请勿重复操作', null, ErrorCode.REPORT_ALREADY_REVIEWED);
   }
 
   const report = reports[0];

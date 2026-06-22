@@ -83,8 +83,8 @@ class BusinessError extends AppError {
    * @param {string} [message='业务逻辑错误'] - 错误描述
    * @param {*} [data=null] - 附加数据
    */
-  constructor(message = '业务逻辑错误', data = null) {
-    super(200, ErrorCode.BUSINESS_ERROR, message, data);
+  constructor(message = '业务逻辑错误', data = null, code = null) {
+    super(200, code || ErrorCode.BUSINESS_ERROR, message, data);
   }
 }
 
