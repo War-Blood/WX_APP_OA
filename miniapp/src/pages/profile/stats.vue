@@ -265,7 +265,7 @@ const areaData = ref([])
 // ============ 数据加载 ============
 async function loadPersonal() {
   try {
-    const res = await reportApi.getStats({ userId: userStore.userInfo?.userId })
+    const res = await reportApi.getStats({ userId: userStore.userInfo?.id })
     if (res.code === 0 && res.data) {
       const d = res.data
       personalStats.value = { totalCount: d.totalCount||0, monthCount: d.monthCount||0, missingDays: d.missingDays||0, missingDates: d.missingDates||[], delayedCount: d.delayedCount||0, entryDate: d.entryDate||'' }
@@ -274,12 +274,12 @@ async function loadPersonal() {
 }
 async function loadMonthly() {
   try {
-    const res = await reportApi.getMonthlySummary({ userId: userStore.userInfo?.userId, month: nowYearMonth() })
+    const res = await reportApi.getMonthlySummary({ userId: userStore.userInfo?.id, month: nowYearMonth() })
     if (res.code === 0 && res.data) monthlySummary.value = res.data
   } catch { /* */ }
 }
 async function loadTeamLogs() {
-  try { const res = await reportApi.getTeamLogs({ userId: userStore.userInfo?.userId, days: 7 }); if (res.code === 0 && res.data) teamLogs.value = res.data.logs || [] } catch { /* */ }
+  try { const res = await reportApi.getTeamLogs({ userId: userStore.userInfo?.id, days: 7 }); if (res.code === 0 && res.data) teamLogs.value = res.data.logs || [] } catch { /* */ }
 }
 async function loadCalendar() {
   calLoading.value = true
@@ -396,12 +396,14 @@ onMounted(async () => {
 .cal-hd { flex:1; text-align:center; font-size:20rpx; color:$text-secondary; padding:6rpx 0; }
 .cal-cell { flex:1; aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:4rpx; margin:2rpx; }
 .cal-empty { background:transparent; }
-.cal-zero { background:#F0F0F0; }
-.cal-low  { background:#C5DFFF; }
+.cal-zero { background:#F5F5F5; }
+.cal-low  { background:#D6EAFF; }
 .cal-mid  { background:#7BB5F0; }
-.cal-high { background:#3D8DE0; }
-.cal-d { font-size:20rpx; font-weight:500; color:$text-primary; line-height:1.2; }
-.cal-n { font-size:16rpx; color:$text-regular; line-height:1.2; }
+.cal-high { background:#1A5FB4; }
+.cal-high .cal-d,
+.cal-high .cal-n { color:#fff; }
+.cal-d { font-size:22rpx; font-weight:500; color:$text-primary; line-height:1.2; }
+.cal-n { font-size:24rpx; font-weight:700; color:$primary-color; line-height:1.2; }
 
 // ===== 项目进展 =====
 .proj-list { display:flex; flex-direction:column; gap:$spacing-sm; }

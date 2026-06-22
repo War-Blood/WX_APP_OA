@@ -191,6 +191,7 @@ async function getAllStats() {
     `SELECT COUNT(*) AS cnt FROM users u
      WHERE u.worker_status = 'active'
        AND u.deleted_at IS NULL
+       AND u.role NOT IN ('admin', 'superadmin')
        AND u.id NOT IN (
          SELECT dr.user_id FROM daily_reports dr WHERE dr.report_date = ? AND dr.status = 'approved'
          UNION
@@ -342,6 +343,7 @@ async function getDailyStatus(dateStr) {
     `SELECT id, nickname, user_name, worker_code, worker_status
      FROM users
      WHERE worker_status = 'active' AND deleted_at IS NULL
+       AND role NOT IN ('admin', 'superadmin')
      ORDER BY id ASC`
   );
 
@@ -618,6 +620,7 @@ async function getWorkerWorkTypes(month) {
   const activeWorkers = await db.query(
     `SELECT id, nickname, user_name, worker_code
      FROM users WHERE worker_status = 'active' AND deleted_at IS NULL
+       AND role NOT IN ('admin', 'superadmin')
      ORDER BY id ASC`
   );
 
