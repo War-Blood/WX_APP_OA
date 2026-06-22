@@ -9,7 +9,7 @@
         :key="tab.key"
         class="tab-item"
         :class="{ 'tab-active': adminActiveTab === tab.key }"
-        @tap="adminActiveTab = tab.key"
+        @tap="switchAdminTab(tab.key)"
       >
         <text class="tab-text">{{ tab.label }}</text>
       </view>
@@ -123,6 +123,81 @@
         </view>
       </view>
     </view>
+
+    <!-- ========== 日历热力图 ========== -->
+    <scroll-view
+      v-if="userStore.isAdmin && adminActiveTab === 'calendar'"
+      class="content-scroll" scroll-y
+      :refresher-enabled="true" :refresher-triggered="refreshing"
+      @refresherrefresh="onRefresh"
+    >
+      <view class="cal-header">
+        <view class="cal-nav-btn" @tap="prevCalMonth"><text class="cal-nav-icon">‹</text></view>
+        <text class="cal-month-title">{{ calMonthLabel() }}</text>
+        <view class="cal-nav-btn" @tap="nextCalMonth"><text class="cal-nav-icon">›</text></view>
+      </view>
+      <view class="cal-legend">
+        <view class="cal-legend-item"><view class="cal-dot cal-dot--zero"></view><text>0</text></view>
+        <view class="cal-legend-item"><view class="cal-dot cal-dot--low"></view><text>1-3</text></view>
+        <view class="cal-legend-item"><view class="cal-dot cal-dot--mid"></view><text>4-6</text></view>
+        <view class="cal-legend-item"><view class="cal-dot cal-dot--high"></view><text>7+</text></view>
+      </view>
+      <view v-if="calLoading" class="loading-wrap"><text class="loading-text">加载中...</text></view>
+      <view v-else class="cal-grid">
+        <!-- 表头 -->
+        <view class="cal-row cal-row--head">
+          <text v-for="d in ['一','二','三','四','五','六','日']" :key="d" class="cal-head-cell">{{ d }}</text>
+        </view>
+        <!-- 日期行 -->
+        <view v-for="(week, wi) in calendarGrid" :key="wi" class="cal-row">
+          <view
+            v-for="(cell, ci) in week" :key="ci"
+            class="cal-cell"
+            :class="cell ? calColorClass(cell.count) : 'cal-cell--empty'"
+          >
+            <text v-if="cell" class="cal-day">{{ cell.day }}</text>
+            <text v-if="cell" class="cal-count">{{ cell.count }}</text>
+          </view>
+        </view>
+      </view>
+      <view class="bottom-placeholder"></view>
+    </scroll-view>
+
+    <!-- ========== 项目进展看板 ========== -->
+    <scroll-view
+      v-if="userStore.isAdmin && adminActiveTab === 'kanban'"
+      class="content-scroll" scroll-y
+      :refresher-enabled="true" :refresher-triggered="refreshing"
+      @refresherrefresh="onRefresh"
+    >
+      <view class="cal-header">
+        <view class="cal-nav-btn" @tap="prevProgMonth"><text class="cal-nav-icon">‹</text></view>
+        <text class="cal-month-title">{{ progMonth }}</text>
+        <view class="cal-nav-btn" @tap="nextProgMonth"><text class="cal-nav-icon">›</text></view>
+      </view>
+      <view v-if="progLoading" class="loading-wrap"><text class="loading-text">加载中...</text></view>
+      <view v-else-if="progData.length === 0" class="empty-wrap"><text class="empty-text">暂无项目数据</text></view>
+      <view v-else class="prog-list">
+        <view v-for="p in progData" :key="p.project" class="prog-card section-card">
+          <view class="prog-top">
+            <text class="prog-name">{{ p.project }}</text>
+            <text class="prog-area">{{ p.area || '--' }}</text>
+          </view>
+          <view class="prog-numbers">
+            <text class="prog-qty">完成 {{ p.completedQty }} / 需求 {{ p.requiredQty }}</text>
+            <text class="prog-days">{{ p.logCount }}条·{{ p.dayCount }}天</text>
+          </view>
+          <view class="prog-bar-wrap">
+            <view
+              class="prog-bar-fill"
+              :style="{ width: (p.progress ?? 0) + '%', background: progressColor(p.progress) }"
+            ></view>
+          </view>
+          <text class="prog-pct">{{ p.progress !== null ? p.progress + '%' : '无数据' }}</text>
+        </view>
+      </view>
+      <view class="bottom-placeholder"></view>
+    </scroll-view>
   </view>
 </template>
 
@@ -137,7 +212,9 @@ const userStore = useUserStore()
 // ===== 常量 =====
 const adminTabs = [
   { key: 'personal', label: '个人统计' },
-  { key: 'daily', label: '全员当日' }
+  { key: 'daily', label: '全员当日' },
+  { key: 'calendar', label: '日历' },
+  { key: 'kanban', label: '看板' }
 ]
 
 // ===== 响应式 =====
@@ -168,6 +245,16 @@ const teamLogs = ref([])
 // 全员当日
 const dailyDate = ref(formatToday())
 const dailyStatus = ref(null)
+
+// 日历热力图
+const calMonth = ref(new Date().toISOString().slice(0, 7))
+const calData = ref([])
+const calLoading = ref(false)
+
+// 项目进展看板
+const progMonth = ref(new Date().toISOString().slice(0, 7))
+const progData = ref([])
+const progLoading = ref(false)
 
 // ===== 计算属性 =====
 const todayStr = computed(() => formatToday())
@@ -301,8 +388,112 @@ function onDailyDateChange(e) {
   loadDailyStatus()
 }
 
+// Tab 切换时自动加载对应数据
+function switchAdminTab(key) {
+  adminActiveTab.value = key
+  if (key === 'calendar' && calData.value.length === 0) loadCalendar()
+  if (key === 'kanban' && progData.value.length === 0) loadKanban()
+}
+
 function goToDailyOverview() {
   uni.navigateTo({ url: '/pages/admin/daily-overview/index' })
+}
+
+// ===== 日历热力图 =====
+const calendarGrid = computed(() => {
+  const [year, mon] = calMonth.value.split('-').map(Number)
+  const firstDay = new Date(year, mon - 1, 1).getDay() // 周日0→调整为周一0
+  const daysInMonth = new Date(year, mon, 0).getDate()
+  const countMap = {}
+  calData.value.forEach(d => { countMap[d.date] = d.count })
+
+  const rows = []
+  let week = []
+  // 补齐前置空白
+  const startDow = firstDay === 0 ? 6 : firstDay - 1 // 周一=0
+  for (let i = 0; i < startDow; i++) { week.push(null) }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = calMonth.value + '-' + String(day).padStart(2, '0')
+    const count = countMap[dateStr] || 0
+    week.push({ day, date: dateStr, count })
+    if (week.length === 7) { rows.push(week); week = [] }
+  }
+  if (week.length > 0) {
+    while (week.length < 7) { week.push(null) }
+    rows.push(week)
+  }
+  return rows
+})
+
+function calColorClass(count) {
+  if (count === 0) return 'cal-cell--zero'
+  if (count <= 3) return 'cal-cell--low'
+  if (count <= 6) return 'cal-cell--mid'
+  return 'cal-cell--high'
+}
+
+function calMonthLabel() {
+  const [y, m] = calMonth.value.split('-')
+  return y + '年' + parseInt(m) + '月'
+}
+
+function prevCalMonth() {
+  const d = new Date(calMonth.value + '-01')
+  d.setMonth(d.getMonth() - 1)
+  calMonth.value = d.toISOString().slice(0, 7)
+  loadCalendar()
+}
+
+function nextCalMonth() {
+  const d = new Date(calMonth.value + '-01')
+  d.setMonth(d.getMonth() + 1)
+  calMonth.value = d.toISOString().slice(0, 7)
+  loadCalendar()
+}
+
+async function loadCalendar() {
+  calLoading.value = true
+  try {
+    const res = await reportApi.getDailyCounts(calMonth.value)
+    if (res.code === 0 && res.data) {
+      calData.value = res.data.data || []
+    }
+  } catch { calData.value = [] }
+  finally { calLoading.value = false }
+}
+
+// ===== 项目进展看板 =====
+async function loadKanban() {
+  progLoading.value = true
+  try {
+    const res = await reportApi.getProjectProgress(progMonth.value)
+    if (res.code === 0 && res.data) {
+      progData.value = res.data.projects || []
+    }
+  } catch { progData.value = [] }
+  finally { progLoading.value = false }
+}
+
+function prevProgMonth() {
+  const d = new Date(progMonth.value + '-01')
+  d.setMonth(d.getMonth() - 1)
+  progMonth.value = d.toISOString().slice(0, 7)
+  loadKanban()
+}
+
+function nextProgMonth() {
+  const d = new Date(progMonth.value + '-01')
+  d.setMonth(d.getMonth() + 1)
+  progMonth.value = d.toISOString().slice(0, 7)
+  loadKanban()
+}
+
+function progressColor(pct) {
+  if (pct === null || pct === undefined) return '#C0C4CC'
+  if (pct < 50) return '#EF4444'
+  if (pct < 80) return '#F59E0B'
+  return '#22C55E'
 }
 
 function goToTeamDetail(log) {
@@ -710,5 +901,111 @@ function getDailyStatusLabel(worker) {
 
 .bottom-placeholder {
   height: 40rpx;
+}
+
+// ===== 日历热力图 =====
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-base;
+  padding: $spacing-sm 0;
+}
+.cal-nav-btn {
+  width: 56rpx; height: 56rpx;
+  display: flex; align-items: center; justify-content: center;
+  background: $bg-card; border-radius: $radius-base;
+}
+.cal-nav-btn:active { background: #EBEDF0; }
+.cal-nav-icon { font-size: 36rpx; color: $text-regular; line-height: 1; }
+.cal-month-title {
+  font-size: 30rpx; font-weight: 600; color: $text-primary;
+  min-width: 200rpx; text-align: center;
+}
+
+.cal-legend {
+  display: flex; gap: $spacing-sm; justify-content: center;
+  padding: 0 0 $spacing-sm 0;
+}
+.cal-legend-item {
+  display: flex; align-items: center; gap: 4rpx;
+  font-size: 20rpx; color: $text-secondary;
+}
+.cal-dot {
+  width: 20rpx; height: 20rpx; border-radius: 4rpx;
+}
+.cal-dot--zero { background: #F0F0F0; }
+.cal-dot--low  { background: #C5DFFF; }
+.cal-dot--mid  { background: #7BB5F0; }
+.cal-dot--high { background: #3D8DE0; }
+
+.cal-grid {
+  background: $bg-card; border-radius: $radius-lg;
+  padding: $spacing-sm; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+}
+.cal-row {
+  display: flex;
+}
+.cal-row--head {
+  margin-bottom: 4rpx;
+}
+.cal-head-cell {
+  flex: 1; text-align: center;
+  font-size: 22rpx; color: $text-secondary; padding: 8rpx 0;
+}
+.cal-cell {
+  flex: 1; aspect-ratio: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: 6rpx; margin: 2rpx;
+}
+.cal-cell--empty { background: transparent; }
+.cal-cell--zero  { background: #F0F0F0; }
+.cal-cell--low   { background: #C5DFFF; }
+.cal-cell--mid   { background: #7BB5F0; }
+.cal-cell--high  { background: #3D8DE0; }
+.cal-day {
+  font-size: 22rpx; font-weight: 500; color: $text-primary; line-height: 1.2;
+}
+.cal-count {
+  font-size: 18rpx; color: $text-regular; line-height: 1.2;
+}
+
+// ===== 项目进展看板 =====
+.prog-list {
+  display: flex; flex-direction: column; gap: $spacing-sm;
+}
+.prog-card {
+  margin-bottom: 0 !important;
+}
+.prog-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+.prog-name {
+  font-size: 28rpx; font-weight: 600; color: $text-primary;
+}
+.prog-area {
+  font-size: 22rpx; color: $text-secondary;
+  background: $bg-form; padding: 2rpx 12rpx; border-radius: $radius-sm;
+}
+.prog-numbers {
+  display: flex; justify-content: space-between; margin-bottom: 12rpx;
+}
+.prog-qty {
+  font-size: $font-sm; color: $text-regular;
+}
+.prog-days {
+  font-size: $font-xs; color: $text-secondary;
+}
+.prog-bar-wrap {
+  height: 16rpx; background: $border-light; border-radius: $radius-sm;
+  overflow: hidden; margin-bottom: 8rpx;
+}
+.prog-bar-fill {
+  height: 100%; border-radius: $radius-sm; transition: width 0.5s ease;
+  min-width: 2rpx;
+}
+.prog-pct {
+  font-size: $font-sm; font-weight: 600; color: $text-primary; text-align: right; display: block;
 }
 </style>

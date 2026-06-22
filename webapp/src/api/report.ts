@@ -310,3 +310,42 @@ export function getMonthlySummary(params: {
 export function getTeamLogs(userId: number, days?: number): Promise<TeamLogsResult> {
   return request.post('/report/team-logs', { userId, ...(days ? { days } : {}) })
 }
+
+// ===== M2: 日历热力图 + 项目进展 =====
+
+/** 每日提交人次 */
+export interface DailyCountItem {
+  date: string
+  count: number
+}
+
+export interface DailyCountsResponse {
+  month: string
+  data: DailyCountItem[]
+}
+
+/** 月度每日提交人次 */
+export function getDailyCounts(month: string): Promise<DailyCountsResponse> {
+  return request.post('/stats/daily-counts', { month })
+}
+
+/** 项目进展项 */
+export interface ProjectProgressItem {
+  project: string
+  area: string | null
+  completedQty: number
+  requiredQty: number
+  progress: number | null
+  logCount: number
+  dayCount: number
+}
+
+export interface ProjectProgressResponse {
+  month: string
+  projects: ProjectProgressItem[]
+}
+
+/** 项目进展看板 */
+export function getProjectProgress(month: string): Promise<ProjectProgressResponse> {
+  return request.post('/stats/project-progress', { month })
+}

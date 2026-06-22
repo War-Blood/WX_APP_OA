@@ -60,5 +60,14 @@ export const reportApi = {
 
   getMonthlySummary(params) {
     return post('/api/report/monthly-summary', params)
+  },
+
+  // M2: 日历热力图 + 项目进展
+  getDailyCounts(month) {
+    return post('/api/stats/daily-counts', { month })
+  },
+
+  getProjectProgress(month) {
+    return post('/api/stats/project-progress', { month })
   }
 }

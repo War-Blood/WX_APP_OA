@@ -1,21 +1,31 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
+import * as echarts from 'echarts'
 import {
-  getStats, getWorkerStats,
-  type AllStatsResponse, type ProjectStatsItem
+  getStats, getWorkerStats, getDailyCounts, getProjectProgress,
+  type AllStatsResponse,
+  type DailyCountItem, type ProjectProgressItem
 } from '@/api/report'
 
 // 统计汇总
 const statsLoading = ref(true)
 const summary = ref<AllStatsResponse | null>(null)
 
-// 按项目维度
-const projectLoading = ref(true)
-const projectList = ref<ProjectStatsItem[]>([])
+// 日历热力图
+const calLoading = ref(false)
+const calData = ref<DailyCountItem[]>([])
+const calMonth = ref(new Date().toISOString().slice(0, 7))
+const calChartRef = ref<HTMLDivElement>()
+let calChart: echarts.ECharts | null = null
 
-// 按人员维度（全量显示，不分页）
+// 项目进展
+const progLoading = ref(false)
+const progList = ref<ProjectProgressItem[]>([])
+const progMonth = ref(new Date().toISOString().slice(0, 7))
+
+// 按人员维度（全量）
 const workerLoading = ref(true)
 const workerList = ref<{ name: string; total: number; monthCount: number; lastDate: string }[]>([])
 const workerTotal = ref(0)
@@ -31,16 +41,29 @@ async function loadSummary() {
   }
 }
 
-async function loadProjects() {
-  projectLoading.value = true
+async function loadCalendar() {
+  calLoading.value = true
   try {
-    const res = await getStats('project')
-    projectList.value = res.projects
+    const res = await getDailyCounts(calMonth.value)
+    calData.value = res.data
+    await nextTick()
+    renderCalendar()
   } catch {
-    projectList.value = []
-    ElMessage.warning('项目统计加载失败')
+    calData.value = []
   } finally {
-    projectLoading.value = false
+    calLoading.value = false
+  }
+}
+
+async function loadProjects() {
+  progLoading.value = true
+  try {
+    const res = await getProjectProgress(progMonth.value)
+    progList.value = res.projects
+  } catch {
+    progList.value = []
+  } finally {
+    progLoading.value = false
   }
 }
 
@@ -57,10 +80,108 @@ async function loadWorkers() {
   }
 }
 
+function renderCalendar() {
+  if (!calChartRef.value) return
+  if (!calChart) {
+    calChart = echarts.init(calChartRef.value)
+  }
+
+  const data = calData.value.map(d => [d.date, d.count])
+  const maxCount = Math.max(1, ...calData.value.map(d => d.count))
+
+  calChart.setOption({
+    tooltip: {
+      formatter: (p: { data: [string, number] }) =>
+        `${p.data[0]}<br/>提交人次: <b>${p.data[1]}</b>`
+    },
+    visualMap: {
+      min: 0, max: maxCount,
+      orient: 'horizontal', left: 'center', bottom: 0,
+      pieces: [
+        { min: 0, max: 0, color: '#F0F0F0', label: '0' },
+        { min: 1, max: 3, color: '#C5DFFF', label: '1-3' },
+        { min: 4, max: 6, color: '#7BB5F0', label: '4-6' },
+        { min: 7, max: 10, color: '#3D8DE0', label: '7-10' },
+        { min: 11, max: 999, color: '#1A5FB4', label: '10+' }
+      ]
+    },
+    calendar: {
+      top: 40, left: 30, right: 30,
+      range: calMonth.value,
+      cellSize: ['auto', 36],
+      yearLabel: { show: false },
+      monthLabel: { fontSize: 13 },
+      dayLabel: { fontSize: 11, nameMap: 'ZH' },
+      itemStyle: { borderWidth: 2, borderColor: '#fff', borderRadius: 4 }
+    },
+    series: [{
+      type: 'heatmap',
+      coordinateSystem: 'calendar',
+      data,
+      label: {
+        show: true,
+        fontSize: 11,
+        fontWeight: 'bold',
+        formatter: (p: { data: [string, number] }) =>
+          p.data[1] > 0 ? String(p.data[1]) : ''
+      },
+      emphasis: { itemStyle: { color: 'inherit', borderColor: '#333', borderWidth: 3 } }
+    }]
+  }, true)
+}
+
+function prevCalendarMonth() {
+  const d = new Date(calMonth.value + '-01')
+  d.setMonth(d.getMonth() - 1)
+  calMonth.value = d.toISOString().slice(0, 7)
+  loadCalendar()
+}
+
+function nextCalendarMonth() {
+  const d = new Date(calMonth.value + '-01')
+  d.setMonth(d.getMonth() + 1)
+  calMonth.value = d.toISOString().slice(0, 7)
+  loadCalendar()
+}
+
+function prevProgMonth() {
+  const d = new Date(progMonth.value + '-01')
+  d.setMonth(d.getMonth() - 1)
+  progMonth.value = d.toISOString().slice(0, 7)
+  loadProjects()
+}
+
+function nextProgMonth() {
+  const d = new Date(progMonth.value + '-01')
+  d.setMonth(d.getMonth() + 1)
+  progMonth.value = d.toISOString().slice(0, 7)
+  loadProjects()
+}
+
+function progressStatus(pct: number | null): '' | 'exception' | 'success' {
+  if (pct === null) return ''
+  if (pct < 50) return 'exception'
+  if (pct >= 80) return 'success'
+  return ''
+}
+
+let resizeTimer: ReturnType<typeof setTimeout>
+function onResize() {
+  clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(() => calChart?.resize(), 200)
+}
+
 onMounted(() => {
   loadSummary()
+  loadCalendar()
   loadProjects()
   loadWorkers()
+  window.addEventListener('resize', onResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+  calChart?.dispose()
 })
 </script>
 
@@ -94,19 +215,54 @@ onMounted(() => {
       </el-col>
     </el-row>
 
-    <!-- 按项目维度 -->
+    <!-- 日历热力图 -->
     <el-card class="section-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>按项目维度</span>
-          <el-button :icon="Refresh" size="small" text @click="loadProjects">刷新</el-button>
+          <span>提交日历热力图</span>
+          <div class="card-header-right">
+            <el-button size="small" @click="prevCalendarMonth">‹</el-button>
+            <span class="month-label">{{ calMonth }}</span>
+            <el-button size="small" @click="nextCalendarMonth">›</el-button>
+            <el-button :icon="Refresh" size="small" text @click="loadCalendar">刷新</el-button>
+          </div>
         </div>
       </template>
-      <el-table :data="projectList" v-loading="projectLoading" stripe border>
-        <el-table-column prop="project" label="项目" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="total" label="总条数" width="100" align="center" sortable />
-        <el-table-column prop="month" label="本月" width="80" align="center" sortable />
-        <el-table-column prop="missing" label="缺失" width="80" align="center" sortable />
+      <div ref="calChartRef" v-loading="calLoading" style="height:250px"></div>
+    </el-card>
+
+    <!-- 项目进展 -->
+    <el-card class="section-card" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <span>项目进展看板（MAX 取值）</span>
+          <div class="card-header-right">
+            <el-button size="small" @click="prevProgMonth">‹</el-button>
+            <span class="month-label">{{ progMonth }}</span>
+            <el-button size="small" @click="nextProgMonth">›</el-button>
+            <el-button :icon="Refresh" size="small" text @click="loadProjects">刷新</el-button>
+          </div>
+        </div>
+      </template>
+      <el-table :data="progList" v-loading="progLoading" stripe border>
+        <el-table-column prop="project" label="项目名称" min-width="140" show-overflow-tooltip />
+        <el-table-column label="区域" width="80">
+          <template #default="{ row }">{{ row.area || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="completedQty" label="完成量" width="90" align="center" />
+        <el-table-column prop="requiredQty" label="需求量" width="90" align="center" />
+        <el-table-column label="进度" width="180">
+          <template #default="{ row }">
+            <el-progress
+              :percentage="row.progress ?? 0"
+              :status="progressStatus(row.progress)"
+              :stroke-width="18"
+              :text-inside="true"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column prop="logCount" label="日志条数" width="90" align="center" />
+        <el-table-column prop="dayCount" label="天数" width="70" align="center" />
       </el-table>
     </el-card>
 
@@ -161,6 +317,20 @@ onMounted(() => {
     align-items: center;
     justify-content: space-between;
     font-weight: 500;
+
+    .card-header-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .month-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      min-width: 80px;
+      text-align: center;
+    }
   }
 }
 
