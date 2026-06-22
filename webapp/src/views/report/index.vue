@@ -30,8 +30,6 @@ const reportPageSize = ref(50)
 const workerKeyword = ref('')
 const workerList = ref<Record<string, unknown>[]>([])
 const workerTotal = ref(0)
-const workerPage = ref(1)
-const workerPageSize = ref(20)
 
 // 详情弹窗
 const detailVisible = ref(false)
@@ -211,12 +209,11 @@ async function handleSupplementReview() {
   }
 }
 
-// --- 人员看板 ---
+// --- 人员看板（全量显示，不分页） ---
 async function loadWorkers() {
   loading.value = true
   try {
     const res = await getWorkerStats({
-      page: workerPage.value, pageSize: workerPageSize.value,
       keyword: workerKeyword.value || undefined
     })
     workerList.value = (res.list || []) as unknown as Record<string, unknown>[]
@@ -228,8 +225,7 @@ async function loadWorkers() {
   }
 }
 
-function handleWorkerSearch() { workerPage.value = 1; loadWorkers() }
-function handleWorkerPageChange(p: number) { workerPage.value = p; loadWorkers() }
+function handleWorkerSearch() { loadWorkers() }
 
 function searchPersonReports(name: string) {
   activeTab.value = 'query'
@@ -367,7 +363,6 @@ onMounted(() => { loadStats(); loadReports() })
       </el-table>
       <div class="pagination-wrap">
         <span class="total-text">共 {{ workerTotal }} 人</span>
-        <el-pagination v-model:current-page="workerPage" :page-size="workerPageSize" :total="workerTotal" layout="prev, pager, next" background @current-change="handleWorkerPageChange" />
       </div>
     </template>
 

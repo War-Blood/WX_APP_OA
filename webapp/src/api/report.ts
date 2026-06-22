@@ -99,8 +99,8 @@ export interface WorkerStatItem {
   lastDate: string
 }
 
-/** 人员统计看板 */
-export function getWorkerStats(params: { page?: number; pageSize?: number; keyword?: string }): Promise<{ total: number; list: WorkerStatItem[] }> {
+/** 人员统计看板（全量返回，不分页） */
+export function getWorkerStats(params: { keyword?: string }): Promise<{ total: number; list: WorkerStatItem[] }> {
   return request.post('/report/workerStats', params)
 }
 

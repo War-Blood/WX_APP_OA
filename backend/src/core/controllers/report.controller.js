@@ -442,9 +442,9 @@ async function workerList(req, res, next) {
  */
 async function workerStats(req, res, next) {
   try {
-    const { page = 1, pageSize = 20, keyword } = req.body;
-    const result = await reportService.getWorkerStats({ page: Number(page), pageSize: Number(pageSize), keyword });
-    res.json(paginated(result.list, result.total, Number(page), Number(pageSize)));
+    const { keyword } = req.body;
+    const result = await reportService.getWorkerStats({ keyword });
+    res.json(success({ list: result.list, total: result.total }));
   } catch (err) { next(err); }
 }
 

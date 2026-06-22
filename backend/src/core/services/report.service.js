@@ -740,9 +740,9 @@ async function getWorkerList() {
 }
 
 /**
- * 人员统计看板（旧版兼容）
+ * 人员统计看板（全量返回，前端不分页）
  */
-async function getWorkerStats({ page, pageSize, keyword }) {
+async function getWorkerStats({ keyword }) {
   const rawRows = await db.query(
     "SELECT workers, report_date FROM daily_reports WHERE workers IS NOT NULL AND workers != '' AND status = 'approved'"
   );
@@ -765,10 +765,7 @@ async function getWorkerStats({ page, pageSize, keyword }) {
   if (keyword) list = list.filter(p => p.name.includes(keyword));
   list.sort((a, b) => b.total - a.total);
 
-  const total = list.length;
-  const paged = list.slice(((page || 1) - 1) * (pageSize || 20), (page || 1) * (pageSize || 20));
-
-  return { list: paged, total };
+  return { list, total: list.length };
 }
 
 /**

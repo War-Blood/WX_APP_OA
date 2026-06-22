@@ -224,9 +224,9 @@ function goToActivity(item) {
 
 /* Quick actions card: white, full width */
 .quick-card { background: #FFFFFF; padding-bottom: 48rpx; }
-.section-title-row { height: 72rpx; display: flex; align-items: flex-end; padding-left: 40rpx; }
+.section-title-row { height: 72rpx; display: flex; align-items: flex-end; padding: 0 24rpx; }
 .section-title { font-size: 24rpx; font-weight: 500; color: #B0B0B0; line-height: 30rpx; }
-.quick-grid { display: flex; justify-content: space-around; padding: 24rpx 56rpx 0 56rpx; }
+.quick-grid { display: flex; justify-content: space-around; padding: 24rpx; }
 .quick-item { display: flex; flex-direction: column; align-items: center; gap: 16rpx; width: 112rpx; }
 .quick-icon { width: 96rpx; height: 96rpx; border-radius: 48rpx; display: flex; align-items: center; justify-content: center; }
 .quick-icon-img { width: 48rpx; height: 48rpx; }
@@ -237,13 +237,13 @@ function goToActivity(item) {
 
 /* Activity card */
 .activity-card { background: #FFFFFF; padding-bottom: 24rpx; }
-.activity-item { display: flex; align-items: center; padding: 28rpx 32rpx 28rpx 40rpx; gap: 24rpx; }
+.activity-item { display: flex; align-items: center; padding: 24rpx; gap: 24rpx; }
 .activity-dot { width: 16rpx; height: 16rpx; border-radius: 8rpx; flex-shrink: 0; }
 .activity-content { flex: 1; display: flex; flex-direction: column; gap: 4rpx; }
-.activity-title { font-size: 26rpx; font-weight: 600; color: #333333; }
-.activity-desc { font-size: 24rpx; color: #999999; }
+.activity-title { font-size: 26rpx; font-weight: 600; color: #333333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-desc { font-size: 24rpx; color: #999999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-time { font-size: 22rpx; color: #B0B0B0; flex-shrink: 0; }
-.divider { height: 1rpx; background: #ECECEC; margin: 0 32rpx 0 80rpx; }
+.divider { height: 1rpx; background: #ECECEC; margin: 0 24rpx; }
 
 .loading-more, .no-more { text-align: center; padding: 24rpx; font-size: 24rpx; color: #B0B0B0; }
 </style>

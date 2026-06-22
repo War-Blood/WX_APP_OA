@@ -178,7 +178,7 @@ async function goToDetail(item) {
 .delete-icon { font-size: 24rpx; color: #CCCCCC; }
 .msg-delete-btn:active .delete-icon { color: #EF4444; }
 
-.msg-divider { height: 1rpx; background: #F5F5F5; margin-left: 136rpx; }
+.msg-divider { height: 1rpx; background: #F5F5F5; margin: 0 24rpx; }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 240rpx; }
 .empty-icon { width: 120rpx; height: 120rpx; opacity: 0.3; }
