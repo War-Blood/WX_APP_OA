@@ -41,10 +41,16 @@ async function login(code) {
   }
 
   // 2. 在 users 表中查找用户
-  const users = await db.query('SELECT * FROM users WHERE openid = ?', [openid]);
+  const users = await db.query('SELECT * FROM users WHERE openid = ? AND deleted_at IS NULL', [openid]);
 
   // 3. 未注册 → 自动创建 pending 用户（需管理员审核）
   if (users.length === 0) {
+    // 检查是否被软删除（防止自动重新注册）
+    const deletedCheck = await db.query('SELECT id FROM users WHERE openid = ? AND deleted_at IS NOT NULL', [openid]);
+    if (deletedCheck.length > 0) {
+      throw new BusinessError('您的账号已被管理员删除，请联系管理员重新邀请后再登录');
+    }
+
     logger.info('微信登录 - 新用户待审核', { module: 'AUTH', openid });
 
     const result = await db.execute(
@@ -130,7 +136,7 @@ async function qywxLogin(code, corpId, corpSecret) {
   }
 
   // 3. 查找是否已有企业微信绑定
-  let users = await db.query('SELECT * FROM users WHERE qywx_userid = ?', [userid]);
+  let users = await db.query('SELECT * FROM users WHERE qywx_userid = ? AND deleted_at IS NULL', [userid]);
   if (users.length > 0) {
     const user = users[0];
     // 非 active 用户自动激活（企微登录即信任）
@@ -204,7 +210,7 @@ async function finalizeLogin(user) {
  * @returns {Promise<Object>} 用户资料（排除敏感字段）
  */
 async function getProfile(userId) {
-  const users = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+  const users = await db.query('SELECT * FROM users WHERE id = ? AND deleted_at IS NULL', [userId]);
 
   if (users.length === 0) {
     throw new BusinessError('用户不存在');

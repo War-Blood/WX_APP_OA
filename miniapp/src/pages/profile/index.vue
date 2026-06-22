@@ -139,6 +139,7 @@ function editNickname() {
           const info = uni.getStorageSync('userInfo') || {}
           info.nickName = modalRes.content.trim()
           uni.setStorageSync('userInfo', info)
+          userStore.setUserInfo(info)
           uni.showToast({ title: '昵称修改成功', icon: 'success' })
         } catch { uni.showToast({ title: '修改失败', icon: 'none' }) }
       }

@@ -33,7 +33,7 @@ async function authenticate(req, res, next) {
 
     // DB 校验：检查用户状态是否仍然 active
     const rows = await db.query(
-      'SELECT status, role FROM users WHERE id = ?',
+      'SELECT status, role FROM users WHERE id = ? AND deleted_at IS NULL',
       [decoded.userId]
     );
 

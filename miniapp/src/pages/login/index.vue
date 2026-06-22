@@ -23,7 +23,7 @@
           <text v-if="agreed" class="check-tick">✓</text>
         </view>
         <text class="agreement-text">
-          登录即同意<text class="agreement-link">《用户协议》</text>和<text class="agreement-link">《隐私政策》</text>
+          登录即同意<text class="agreement-link" @tap.stop="showUserAgreement">《用户协议》</text>和<text class="agreement-link" @tap.stop="showPrivacyPolicy">《隐私政策》</text>
         </text>
       </view>
     </view>
@@ -33,10 +33,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { authApi } from '@/services/modules/auth'
+import { useUserStore } from '@/stores/user'
 
 const statusBarHeight = ref(0)
 const agreed = ref(false)
 const isLogging = ref(false)
+const userStore = useUserStore()
 // 开发后门：连击 logo 5 次，仅 dev 生效；生产构建 process.env.NODE_ENV 为 production，条件编译移除
 const devTapCount = ref(0)
 let devTapTimer = null
@@ -140,12 +142,86 @@ async function askNickname() {
         try {
           await authApi.updateProfile({ nickname: modalRes.content.trim() })
           const info = uni.getStorageSync('userInfo') || {}
-          info.nickname = modalRes.content.trim()
+          info.nickName = modalRes.content.trim()
           uni.setStorageSync('userInfo', info)
+          userStore.setUserInfo(info)
           uni.showToast({ title: '昵称设置成功', icon: 'success' })
         } catch { uni.showToast({ title: '设置失败，稍后在个人中心修改', icon: 'none' }) }
       }
     }
+  })
+}
+
+// 用户协议 & 隐私政策文本
+const USER_AGREEMENT = `智慧办公助手用户协议
+
+更新日期：2026年6月
+
+一、总则
+1.1 欢迎使用智慧办公助手（以下简称"本服务"）。
+1.2 本协议是您与智慧办公助手运营方之间关于使用本服务所订立的协议。
+
+二、账号管理
+2.1 您通过微信授权登录后，即成为本服务的注册用户。
+2.2 您应当对使用本服务的行为负责，不得利用本服务从事违法违规活动。
+2.3 管理员有权根据企业管理制度对账号进行管理，包括但不限于禁用、删除等操作。
+
+三、服务内容
+3.1 本服务提供审批管理、日报管理、消息通知、项目协作等办公功能。
+3.2 本服务保留根据需要变更、中断或终止部分或全部服务的权利。
+
+四、免责声明
+4.1 本服务按"现状"提供，不对服务的及时性、安全性、准确性做出任何保证。
+4.2 因网络故障、系统维护等原因导致的服务中断，本服务不承担责任。
+
+五、其他
+5.1 本协议的解释、效力及纠纷的解决，适用中华人民共和国法律。
+5.2 如您对本协议有任何疑问，请联系系统管理员。`
+
+const PRIVACY_POLICY = `智慧办公助手隐私政策
+
+更新日期：2026年6月
+
+一、信息收集
+1.1 当您使用微信授权登录时，我们会获取您的微信昵称和头像。
+1.2 当您填写日报、发起审批时，您提交的工作信息会存储在我们的服务器上。
+1.3 我们使用必要的 Cookie 和 Token 技术来维持您的登录状态。
+
+二、信息使用
+2.1 您的个人信息仅用于本服务内的身份识别和办公协作。
+2.2 您的日报、审批等工作数据仅对您和您所在企业的授权管理人员可见。
+2.3 我们不会将您的个人信息出售或共享给任何第三方。
+
+三、信息安全
+3.1 我们采用业界通行的安全技术（SSL加密、数据库加密等）保护您的信息。
+3.2 您的密码和敏感信息在存储时经过加密处理。
+
+四、您的权利
+4.1 您可以在个人中心查看和修改您的昵称等基本信息。
+4.2 如需删除账号或导出个人数据，请联系系统管理员。
+
+五、未成年人保护
+5.1 本服务主要面向企业员工，如果您未满18周岁，请在监护人指导下使用。
+
+六、政策更新
+6.1 我们可能会适时更新本隐私政策，更新后的政策将在本页面公示。
+6.2 如您对本隐私政策有任何疑问，请联系系统管理员。`
+
+function showUserAgreement() {
+  uni.showModal({
+    title: '用户协议',
+    content: USER_AGREEMENT,
+    showCancel: false,
+    confirmText: '我知道了'
+  })
+}
+
+function showPrivacyPolicy() {
+  uni.showModal({
+    title: '隐私政策',
+    content: PRIVACY_POLICY,
+    showCancel: false,
+    confirmText: '我知道了'
   })
 }
 </script>
