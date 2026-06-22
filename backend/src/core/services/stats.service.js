@@ -322,6 +322,7 @@ async function getDailyStatus(dateStr) {
        dr.today_work_type,
        dr.project,
        dr.area,
+       dr.workers,
        dr.status,
        dr.timeliness,
        dr.created_at,
@@ -363,6 +364,25 @@ async function getDailyStatus(dateStr) {
     if (report && !subReportMap[s.worker_uid]) {
       subReportMap[s.worker_uid] = report;
     }
+  });
+
+  // 兜底：从 workers 文本字段解析被代填人（daily_report_workers 表为空时的后备方案）
+  const nameToUser = {};
+  workers.forEach(w => {
+    const name = (w.nickname || w.user_name || '').trim();
+    if (name) nameToUser[name] = { id: w.id, nickname: w.nickname || w.user_name };
+  });
+
+  reports.forEach(r => {
+    if (!r.workers || r.workers.trim() === '') return;
+    const names = r.workers.split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean);
+    names.forEach(name => {
+      const user = nameToUser[name];
+      if (user && !subReportMap[user.id] && !reportMapByUser[user.id]) {
+        // 该人员在 workers 文本中被列出，视为被代填
+        subReportMap[user.id] = { ...r, submitterId: r.submitterId, submitterName: r.submitterName };
+      }
+    });
   });
 
   // 为每个在职人员确定状态
