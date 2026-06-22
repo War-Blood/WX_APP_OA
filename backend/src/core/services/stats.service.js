@@ -702,9 +702,11 @@ async function getWorkerWorkTypes(month) {
     };
   });
 
-  workers.sort((a, b) => b.total - a.total);
+  // 排除当月0记录的作业人员
+  const filtered = workers.filter(w => w.total > 0);
+  filtered.sort((a, b) => b.total - a.total);
 
-  return { month, workers };
+  return { month, workers: filtered };
 }
 
 /**
