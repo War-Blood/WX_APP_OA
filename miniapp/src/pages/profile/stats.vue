@@ -3,9 +3,10 @@
     <NavBar title="公出统计" :showBack="true" />
 
     <!-- Tab 栏 -->
-    <view v-if="userStore.isAdmin" class="type-tab-bar">
-      <view v-for="t in tabs" :key="t.key" class="type-tab-item" :class="{ 'type-tab-active': activeTab === t.key }" @tap="switchTab(t.key)">
-        <text class="type-tab-text">{{ t.label }}</text>
+    <view v-if="userStore.isAdmin" class="tab-bar">
+      <view v-for="t in tabs" :key="t.key" class="tab-item" @tap="switchTab(t.key)">
+        <text class="tab-text" :class="{ 'tab-text--active': activeTab === t.key }">{{ t.label }}</text>
+        <view v-if="activeTab === t.key" class="tab-indicator" />
       </view>
     </view>
 
@@ -323,12 +324,12 @@ onMounted(async () => {
 .page { width:100%; height:100vh; background:$bg-color; display:flex; flex-direction:column; }
 .content-scroll { flex:1; height:0; padding:0 $spacing-base; }
 
-// ===== Tab（同 report-edit .type-tab-bar） =====
-.type-tab-bar { display:flex; margin:16rpx 24rpx; background:#FFFFFF; border-radius:12rpx; padding:6rpx; flex-shrink:0; }
-.type-tab-item { flex:1; text-align:center; padding:16rpx 0; border-radius:10rpx; transition:background .2s; }
-.type-tab-active { background:#2B6DE8; }
-.type-tab-text { font-size:26rpx; color:#666; font-weight:500; }
-.type-tab-active .type-tab-text { color:#FFFFFF; }
+// ===== Tab =====
+.tab-bar { display:flex; background:#FFFFFF; flex-shrink:0; }
+.tab-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; height:88rpx; position:relative; }
+.tab-text { font-size:28rpx; color:$text-secondary; }
+.tab-text--active { color:$primary-color; font-weight:600; }
+.tab-indicator { position:absolute; bottom:8rpx; width:48rpx; height:4rpx; background:$primary-color; border-radius:2rpx; }
 
 // ===== 卡片 =====
 .card { background:$bg-card; border-radius:$radius-lg; padding:$spacing-base; margin-bottom:$spacing-sm; box-shadow:0 2rpx 12rpx rgba(0,0,0,.04); }
