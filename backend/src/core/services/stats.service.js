@@ -750,33 +750,75 @@ async function getWorkerWorkTypes(month) {
  * @returns {Promise<Object>} { provinces: [{ name, count, projects }] }
  */
 async function getAreaDistribution(month) {
-  // 默认当月
   const targetMonth = (month && /^\d{4}-\d{2}$/.test(month)) ? month : new Date().toISOString().slice(0, 7);
 
-  // 每人只取当月最新区域（按 report_date DESC 取第一条），再按省份聚合
-  const rows = await db.query(
-    `SELECT province, COUNT(*) AS user_count, GROUP_CONCAT(project ORDER BY project SEPARATOR ',') AS project_list
-     FROM (
-       SELECT dr.user_id,
-         SUBSTRING_INDEX(dr.area, '-', 1) AS province,
-         dr.project,
-         ROW_NUMBER() OVER (PARTITION BY dr.user_id ORDER BY dr.report_date DESC) AS rn
-       FROM daily_reports dr
-       WHERE dr.status = 'approved'
-         AND dr.report_type != 'office'
-         AND dr.area IS NOT NULL AND dr.area != ''
-         AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
-     ) t WHERE rn = 1
-     GROUP BY province
-     ORDER BY user_count DESC`,
+  // 1. 查当月所有报告（含区域和 workers 文本）
+  const reports = await db.query(
+    `SELECT dr.user_id, dr.report_date, dr.area, dr.project, dr.workers
+     FROM daily_reports dr
+     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+       AND dr.area IS NOT NULL AND dr.area != ''
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?`,
     [targetMonth]
   );
 
-  const provinces = rows.map(r => ({
-    name: r.province,
-    count: Number(r.user_count),
-    projects: r.project_list ? r.project_list.split(',').slice(0, 10) : [],
-  }));
+  // 2. 查当月关联表代填关系
+  const subs = await db.query(
+    `SELECT drw.worker_uid AS user_id, dr.report_date, dr.area, dr.project
+     FROM daily_report_workers drw
+     JOIN daily_reports dr ON drw.report_id = dr.id
+     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+       AND dr.area IS NOT NULL AND dr.area != ''
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?`,
+    [targetMonth]
+  );
+
+  // 3. 获取作业人员名单（用于 workers 文本名→ID 匹配）
+  const fieldWorkers = await db.query(
+    `SELECT id, nickname, user_name FROM users
+     WHERE is_field_worker = 1 AND deleted_at IS NULL`
+  );
+  const nameToUid = {};
+  fieldWorkers.forEach(w => { const n = (w.nickname || w.user_name || '').trim(); if (n) nameToUid[n] = w.id; });
+
+  // 4. 构建每人最新省份信息 map
+  const personMap = {}; // uid → { province, dateStr, projects: Set }
+  const addPerson = (uid, date, area, project) => {
+    if (!uid || !area) return;
+    const province = area.split('-')[0];
+    const d = date instanceof Date ? date.toISOString().slice(0,10) : String(date).slice(0,10);
+    if (!personMap[uid] || d > personMap[uid].dateStr) {
+      personMap[uid] = { province, dateStr: d, projects: new Set([project]) };
+    } else if (d === personMap[uid].dateStr) {
+      personMap[uid].projects.add(project);
+    }
+  };
+
+  // 提交人
+  reports.forEach(r => addPerson(r.user_id, r.report_date, r.area, r.project));
+  // 关联表代填
+  subs.forEach(r => addPerson(r.user_id, r.report_date, r.area, r.project));
+  // workers 文本兜底
+  reports.forEach(r => {
+    if (!r.workers) return;
+    const names = r.workers.split(/[、,，\s\/\n]+/).map(s => s.trim()).filter(Boolean);
+    names.forEach(name => {
+      const uid = nameToUid[name];
+      if (uid && uid !== r.user_id) addPerson(uid, r.report_date, r.area, r.project);
+    });
+  });
+
+  // 5. 按省份聚合
+  const provMap = {};
+  Object.values(personMap).forEach(p => {
+    if (!provMap[p.province]) provMap[p.province] = { count: 0, projects: new Set() };
+    provMap[p.province].count++;
+    p.projects.forEach(pr => provMap[p.province].projects.add(pr));
+  });
+
+  const provinces = Object.entries(provMap)
+    .map(([name, data]) => ({ name, count: data.count, projects: [...data.projects].slice(0, 10) }))
+    .sort((a, b) => b.count - a.count);
 
   return { month: targetMonth, provinces };
 }
