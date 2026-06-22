@@ -50,13 +50,12 @@
       <!-- 日期选择 -->
       <view class="section-card">
         <view class="form-group">
-          <text class="form-label">
-            {{ currentTab === 'biz_trip_supplement' ? '补录日期' : '选择日期' }}
-          </text>
+          <text class="form-label">填写日期</text>
           <picker
             mode="date"
             :value="reportDate"
             :end="todayStr"
+            disabled
             @change="onDateChange"
           >
             <view class="form-picker">
