@@ -50,6 +50,16 @@ export function deleteWorker(userId: number): Promise<void> {
   return request.post('/admin/workers', { action: 'delete', userId })
 }
 
+export interface NonRosterUser {
+  userId: number
+  userName: string
+}
+
+/** 查询未加入花名册的用户 */
+export function getNonRosterUsers(keyword?: string): Promise<NonRosterUser[]> {
+  return request.post('/admin/workers', { action: 'nonRoster', keyword })
+}
+
 /** 生成 CDK 邀请码 */
 export function generateInviteCode(count: number = 1): Promise<{ codes: string[] }> {
   return request.post('/admin/invite/generate', { count })

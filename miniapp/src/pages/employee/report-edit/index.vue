@@ -635,9 +635,14 @@ async function checkTodayStatus() {
 
   if (currentTab.value === 'office') return // 公司日报不检测
 
+  // 补公出日志：使用补录日期作为检测日期
+  const effectiveDate = (currentTab.value === 'biz_trip_supplement' && formData.value.supplementDate)
+    ? formData.value.supplementDate
+    : reportDate.value
+
   try {
     const res = await reportApi.getTodayStatus({
-      reportDate: reportDate.value
+      reportDate: effectiveDate
     })
     const data = res.data || {}
 
@@ -950,9 +955,14 @@ async function handleSubmit() {
 
   uni.showLoading({ title: '提交中...' })
   try {
+    // 补公出日志：reportDate 使用补录日期（后端据此做重复检测）
+    const effectiveDate = (currentTab.value === 'biz_trip_supplement' && formData.value.supplementDate)
+      ? formData.value.supplementDate
+      : reportDate.value
+
     const payload = {
       reportType: currentTab.value,
-      reportDate: reportDate.value,
+      reportDate: effectiveDate,
       todayWorkType: selectedWorkType.value,
       tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
       entryDate: userStore.entryDate,

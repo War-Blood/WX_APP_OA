@@ -235,6 +235,8 @@ async function dispatch(action, data) {
       return toggleFieldWorker(data);
     case 'generateCodes':
       return generateCodes();
+    case 'nonRoster':
+      return getNonRosterUsers(data);
     case 'delete':
       return deleteWorker(data);
     default:
@@ -271,4 +273,29 @@ async function generateCodes() {
   return { generated: users.length };
 }
 
-module.exports = { dispatch, list, create, update, toggle, toggleFieldWorker, generateCodes, deleteWorker };
+/**
+ * 获取未加入花名册的用户列表（用于新增人员时选择）
+ * 条件: 账号 active、未软删除、worker_status 非 active（即未在花名册中）
+ */
+async function getNonRosterUsers({ keyword }) {
+  const conditions = ["u.deleted_at IS NULL", "u.status = 'active'", "(u.worker_status IS NULL OR u.worker_status != 'active')"];
+  const params = [];
+
+  if (keyword) {
+    conditions.push('(u.nickname LIKE ? OR u.user_name LIKE ?)');
+    const kw = `%${keyword}%`;
+    params.push(kw, kw);
+  }
+
+  const whereClause = 'WHERE ' + conditions.join(' AND ');
+  const rows = await db.query(
+    `SELECT u.id AS userId, COALESCE(u.nickname, u.user_name, '') AS userName
+     FROM users u ${whereClause}
+     ORDER BY u.created_at DESC LIMIT 50`,
+    params
+  );
+
+  return rows;
+}
+
+module.exports = { dispatch, list, create, update, toggle, toggleFieldWorker, generateCodes, getNonRosterUsers, deleteWorker };

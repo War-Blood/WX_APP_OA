@@ -411,7 +411,7 @@ async function workers(req, res, next) {
       throw new ValidationError('action 不能为空');
     }
 
-    const validActions = ['list', 'create', 'update', 'toggle', 'toggleFieldWorker', 'generateCodes', 'delete'];
+    const validActions = ['list', 'create', 'update', 'toggle', 'toggleFieldWorker', 'generateCodes', 'nonRoster', 'delete'];
     if (!validActions.includes(action)) {
       throw new ValidationError(`不支持的操作: ${action}，仅支持 ${validActions.join('/')}`);
     }
@@ -432,6 +432,7 @@ async function workers(req, res, next) {
       toggle: '状态已更新',
       toggleFieldWorker: '作业人员标记已更新',
       generateCodes: '工号生成成功',
+      nonRoster: 'success',
       delete: '删除成功',
     };
 

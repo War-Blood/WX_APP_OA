@@ -282,6 +282,12 @@ async function submit(data, userId) {
   const isDraft = requestStatus === 'draft';
   const isLeaveOrRest = todayWorkType === '请假' || todayWorkType === '调休';
 
+  // 补公出日志：report_date 使用补录日期而非提交日期
+  // 这样同一用户可以补录多个不同日期，且重复检测按补录日期判断
+  const effectiveReportDate = (reportType === 'biz_trip_supplement' && supplementDate)
+    ? supplementDate
+    : reportDate;
+
   // 1. 检查是否已被代填（非草稿、非请假/调休时检查）
   if (!isDraft && !isLeaveOrRest) {
     const subCheck = await db.query(
@@ -290,7 +296,7 @@ async function submit(data, userId) {
        JOIN daily_reports dr ON drw.report_id = dr.id
        JOIN users u ON dr.user_id = u.id
        WHERE drw.worker_uid = ? AND dr.report_date = ?`,
-      [userId, reportDate]
+      [userId, effectiveReportDate]
     );
     if (subCheck.length > 0) {
       throw new BusinessError(`当日公出日志已由 ${subCheck[0].submitterName} 代填`, null, ErrorCode.REPORT_SUBSTITUTED);
@@ -330,12 +336,12 @@ async function submit(data, userId) {
     // 4a. 检查当日是否已有自己的日报
     const existing = await conn.query(
       'SELECT id, status FROM daily_reports WHERE user_id = ? AND report_date = ?',
-      [userId, reportDate]
+      [userId, effectiveReportDate]
     );
 
     const fields = {
       user_id: userId,
-      report_date: reportDate,
+      report_date: effectiveReportDate,
       report_type: reportType,
       project: project || null,
       area: area || null,

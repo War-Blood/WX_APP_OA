@@ -4,7 +4,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, Edit } from '@element-plus/icons-vue'
 import {
   getWorkerList, createWorker, updateWorker, toggleWorker, deleteWorker,
-  type WorkerItem
+  getNonRosterUsers,
+  type WorkerItem, type NonRosterUser
 } from '@/api/admin'
 
 // 搜索
@@ -27,6 +28,31 @@ const form = ref({
   userName: '',
   workerCode: ''
 })
+
+// 未入花名册用户选择
+const nonRosterUsers = ref<NonRosterUser[]>([])
+const nonRosterLoading = ref(false)
+
+async function loadNonRosterUsers(keyword?: string) {
+  nonRosterLoading.value = true
+  try {
+    nonRosterUsers.value = await getNonRosterUsers(keyword || undefined)
+  } catch {
+    nonRosterUsers.value = []
+  } finally {
+    nonRosterLoading.value = false
+  }
+}
+
+const selectedNonRosterId = ref<number | null>(null)
+
+function onSelectNonRoster(userId: number | null) {
+  if (!userId) return
+  const user = nonRosterUsers.value.find((u: NonRosterUser) => u.userId === userId)
+  if (user) {
+    form.value.userName = user.userName
+  }
+}
 
 async function loadData() {
   loading.value = true
@@ -61,6 +87,7 @@ function openCreateDialog() {
   dialogTitle.value = '新增外场人员'
   form.value = { userName: '', workerCode: '' }
   dialogVisible.value = true
+  loadNonRosterUsers()
 }
 
 function openEditDialog(row: WorkerItem) {
@@ -256,6 +283,27 @@ onMounted(() => {
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="480px" destroy-on-close>
       <el-form :model="form" label-width="80px">
+        <el-form-item v-if="!isEdit" label="快速选择">
+          <el-select
+            v-model="selectedNonRosterId"
+            filterable
+            remote
+            reserve-keyword
+            clearable
+            placeholder="搜索未入花名册用户（可选）"
+            :remote-method="loadNonRosterUsers"
+            :loading="nonRosterLoading"
+            style="width: 100%"
+            @change="onSelectNonRoster"
+          >
+            <el-option
+              v-for="u in nonRosterUsers"
+              :key="u.userId"
+              :label="u.userName"
+              :value="u.userId"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="姓名" required>
           <el-input v-model="form.userName" placeholder="请输入姓名" />
         </el-form-item>
