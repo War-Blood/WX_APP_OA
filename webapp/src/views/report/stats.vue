@@ -15,12 +15,10 @@ const summary = ref<AllStatsResponse | null>(null)
 const projectLoading = ref(true)
 const projectList = ref<ProjectStatsItem[]>([])
 
-// 按人员维度
+// 按人员维度（全量显示，不分页）
 const workerLoading = ref(true)
 const workerList = ref<{ name: string; total: number; monthCount: number; lastDate: string }[]>([])
 const workerTotal = ref(0)
-const workerPage = ref(1)
-const workerPageSize = ref(20)
 
 async function loadSummary() {
   statsLoading.value = true
@@ -49,10 +47,7 @@ async function loadProjects() {
 async function loadWorkers() {
   workerLoading.value = true
   try {
-    const res = await getWorkerStats({
-      page: workerPage.value,
-      pageSize: workerPageSize.value
-    })
+    const res = await getWorkerStats({})
     workerList.value = res.list
     workerTotal.value = res.total
   } catch {
@@ -60,11 +55,6 @@ async function loadWorkers() {
   } finally {
     workerLoading.value = false
   }
-}
-
-function handleWorkerPageChange(p: number) {
-  workerPage.value = p
-  loadWorkers()
 }
 
 onMounted(() => {
@@ -136,14 +126,6 @@ onMounted(() => {
       </el-table>
       <div class="pagination-wrap">
         <span class="total-text">共 {{ workerTotal }} 人</span>
-        <el-pagination
-          v-model:current-page="workerPage"
-          :page-size="workerPageSize"
-          :total="workerTotal"
-          layout="prev, pager, next"
-          background
-          @current-change="handleWorkerPageChange"
-        />
       </div>
     </el-card>
   </div>
