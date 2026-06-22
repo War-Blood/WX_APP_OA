@@ -99,6 +99,24 @@
               </view>
             </view>
             <view class="form-group">
+              <text class="form-label">入场时间</text>
+              <picker mode="date" :value="formData.entryDate" @change="e => formData.entryDate = e.detail.value">
+                <view class="form-picker">
+                  <text class="picker-value" :class="{ 'picker-placeholder': !formData.entryDate }">{{ formData.entryDate || '请选择入场时间' }}</text>
+                  <text class="picker-icon">▾</text>
+                </view>
+              </picker>
+            </view>
+            <view class="form-group">
+              <text class="form-label">初始出差时间</text>
+              <picker mode="date" :value="formData.initialBizTripDate" @change="e => formData.initialBizTripDate = e.detail.value">
+                <view class="form-picker">
+                  <text class="picker-value" :class="{ 'picker-placeholder': !formData.initialBizTripDate }">{{ formData.initialBizTripDate || '请选择初始出差时间' }}</text>
+                  <text class="picker-icon">▾</text>
+                </view>
+              </picker>
+            </view>
+            <view class="form-group">
               <text class="form-label">项目区域 <text class="required">*</text></text>
               <view class="picker-row">
                 <picker mode="region" :value="areaRegion" @change="onAreaChange" class="picker-flex">

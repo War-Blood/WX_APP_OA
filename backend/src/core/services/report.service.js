@@ -652,6 +652,13 @@ async function supplementReview(reportId, decision, comment, reviewerId) {
  * @returns {Promise<{teamMembers: Array, logs: Array}>}
  */
 async function getTeamLogs(userId, days = 7) {
+  // 获取当前用户信息
+  const userInfo = await db.query(
+    'SELECT user_name, nickname FROM users WHERE id = ? AND deleted_at IS NULL',
+    [userId]
+  );
+  const userName = userInfo.length > 0 ? (userInfo[0].nickname || userInfo[0].user_name || '') : '';
+
   // 获取当前用户的 related_party
   const userReports = await db.query(
     'SELECT related_party FROM daily_reports WHERE user_id = ? ORDER BY report_date DESC LIMIT 1',
@@ -697,17 +704,19 @@ async function getTeamLogs(userId, days = 7) {
     userName: r.userName || '',
   }));
 
-  // 同组日志（最近 N 天）
+  // 同组日志（最近 N 天：同 related_party + workers 文本中包含当前用户）
   const logRows = await db.query(
     `SELECT dr.*, u.nickname AS userName, u.department
      FROM daily_reports dr
      LEFT JOIN users u ON dr.user_id = u.id
-     WHERE dr.related_party = ?
-       AND (${projectConditions.join(' OR ')})
-       AND dr.report_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+     WHERE dr.report_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
        AND dr.status = 'approved'
+       AND (
+         (dr.related_party = ? AND (${projectConditions.join(' OR ')}))
+         OR (dr.workers IS NOT NULL AND dr.workers != '' AND dr.workers LIKE ?)
+       )
      ORDER BY dr.report_date DESC`,
-    [relatedParty, ...projectParams, days]
+    [days, relatedParty, ...projectParams, `%${userName}%`]
   );
 
   const logs = logRows.map(r => formatReportRow(r));
