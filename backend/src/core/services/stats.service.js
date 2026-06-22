@@ -321,6 +321,7 @@ async function getDailyStatus(dateStr) {
        dr.report_type,
        dr.today_work_type,
        dr.project,
+       dr.area,
        dr.status,
        dr.timeliness,
        dr.created_at,
@@ -382,6 +383,7 @@ async function getDailyStatus(dateStr) {
     const isSubstituted = !!subReport;
 
     let status = 'missing';
+    let area = null;
     let project = null;
     let workType = '';
     let submittedAt = null;
@@ -392,6 +394,7 @@ async function getDailyStatus(dateStr) {
       // 自己提交了日报
       reportType = ownReport.report_type;
       project = ownReport.project;
+      area = ownReport.area ? ownReport.area.split('-')[0] : null;
       workType = ownReport.today_work_type || '';
       submittedAt = ownReport.created_at;
 
@@ -410,6 +413,7 @@ async function getDailyStatus(dateStr) {
       // 被他人代填
       status = 'substituted';
       project = subReport.project;
+      area = subReport.area ? subReport.area.split('-')[0] : null;
       workType = subReport.today_work_type || '';
       submittedAt = subReport.created_at;
       reportType = subReport.report_type;
@@ -429,6 +433,7 @@ async function getDailyStatus(dateStr) {
       userName: w.nickname || w.user_name || '',
       workerCode: w.worker_code || '',
       project,
+      area,
       workType,
       status,
       submittedAt: submittedAt ? formatDateTime(submittedAt) : null,
