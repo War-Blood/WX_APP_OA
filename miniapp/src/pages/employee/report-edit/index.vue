@@ -635,8 +635,11 @@ async function checkTodayStatus() {
 
   if (currentTab.value === 'office') return // 公司日报不检测
 
+  // 补公出日志：补录日期为空时不检测（避免用今天日期误导用户）
+  if (currentTab.value === 'biz_trip_supplement' && !formData.value.supplementDate) return
+
   // 补公出日志：使用补录日期作为检测日期
-  const effectiveDate = (currentTab.value === 'biz_trip_supplement' && formData.value.supplementDate)
+  const effectiveDate = (currentTab.value === 'biz_trip_supplement')
     ? formData.value.supplementDate
     : reportDate.value
 
@@ -724,6 +727,13 @@ onMounted(async () => {
 
   // 今日状态检测（替代旧 checkDuplicate，覆盖自己已提交/草稿/被代填）
   await checkTodayStatus()
+})
+
+// 补录日期变化时重新检测状态（避免加载时补录日期为空导致日期不一致）
+watch(() => formData.value.supplementDate, () => {
+  if (currentTab.value === 'biz_trip_supplement') {
+    checkTodayStatus()
+  }
 })
 
 // 自动保存草稿（2s 防抖）

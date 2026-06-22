@@ -335,7 +335,7 @@ async function submit(data, userId) {
   const reportId = await db.transaction(async (conn) => {
     // 4a. 检查当日是否已有自己的日报
     const existing = await conn.query(
-      'SELECT id, status FROM daily_reports WHERE user_id = ? AND report_date = ?',
+      'SELECT id, status FROM daily_reports WHERE user_id = ? AND report_date = ? AND deleted_at IS NULL',
       [userId, effectiveReportDate]
     );
 
