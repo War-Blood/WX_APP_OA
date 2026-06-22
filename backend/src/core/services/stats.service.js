@@ -743,16 +743,20 @@ async function getAreaDistribution(month) {
   // 默认当月
   const targetMonth = (month && /^\d{4}-\d{2}$/.test(month)) ? month : new Date().toISOString().slice(0, 7);
 
+  // 每人只取当月最新区域（按 report_date DESC 取第一条），再按省份聚合
   const rows = await db.query(
-    `SELECT
-       SUBSTRING_INDEX(dr.area, '-', 1) AS province,
-       COUNT(DISTINCT dr.user_id) AS user_count,
-       GROUP_CONCAT(DISTINCT dr.project ORDER BY dr.project SEPARATOR ',') AS project_list
-     FROM daily_reports dr
-     WHERE dr.status = 'approved'
-       AND dr.report_type != 'office'
-       AND dr.area IS NOT NULL AND dr.area != ''
-       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+    `SELECT province, COUNT(*) AS user_count, GROUP_CONCAT(project ORDER BY project SEPARATOR ',') AS project_list
+     FROM (
+       SELECT dr.user_id,
+         SUBSTRING_INDEX(dr.area, '-', 1) AS province,
+         dr.project,
+         ROW_NUMBER() OVER (PARTITION BY dr.user_id ORDER BY dr.report_date DESC) AS rn
+       FROM daily_reports dr
+       WHERE dr.status = 'approved'
+         AND dr.report_type != 'office'
+         AND dr.area IS NOT NULL AND dr.area != ''
+         AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+     ) t WHERE rn = 1
      GROUP BY province
      ORDER BY user_count DESC`,
     [targetMonth]
