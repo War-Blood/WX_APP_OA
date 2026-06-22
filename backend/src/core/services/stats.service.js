@@ -624,9 +624,9 @@ async function getWorkerWorkTypes(month) {
      ORDER BY id ASC`
   );
 
-  // 当月本人提交的工作类型分布
+  // 当月本人提交的工作类型分布（按日期去重，防同天公出+补公出双计）
   const ownReports = await db.query(
-    `SELECT user_id, today_work_type, COUNT(*) AS cnt
+    `SELECT user_id, today_work_type, COUNT(DISTINCT report_date) AS cnt
      FROM daily_reports
      WHERE status = 'approved' AND report_type != 'office'
        AND DATE_FORMAT(report_date, '%Y-%m') = ?
@@ -647,7 +647,7 @@ async function getWorkerWorkTypes(month) {
 
   // 兜底：从 workers 文本字段解析（daily_report_workers 为空时）
   const textReports = await db.query(
-    `SELECT dr.workers, dr.today_work_type, dr.user_id
+    `SELECT dr.workers, dr.today_work_type, dr.user_id, dr.report_date
      FROM daily_reports dr
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.workers IS NOT NULL AND dr.workers != ''
