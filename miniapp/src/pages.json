@@ -45,7 +45,11 @@
     {
       "path": "pages/profile/stats",
       "style": {
-        "navigationBarTitleText": "公出统计"
+        "navigationBarTitleText": "公出统计",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
       }
     },
     {
