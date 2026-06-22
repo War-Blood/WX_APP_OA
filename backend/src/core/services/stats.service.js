@@ -634,9 +634,9 @@ async function getWorkerWorkTypes(month) {
     [month]
   );
 
-  // 当月被代填的工作类型分布（正式关联表）
+  // 当月被代填的工作类型分布（正式关联表，按日期去重）
   const subReports = await db.query(
-    `SELECT drw.worker_uid AS user_id, dr.today_work_type, COUNT(*) AS cnt
+    `SELECT drw.worker_uid AS user_id, dr.today_work_type, COUNT(DISTINCT dr.report_date) AS cnt
      FROM daily_report_workers drw
      JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
@@ -681,18 +681,28 @@ async function getWorkerWorkTypes(month) {
   ownReports.forEach(r => addCount(r.user_id, r.today_work_type, r.cnt));
   subReports.forEach(r => addCount(r.user_id, r.today_work_type, r.cnt));
 
-  // 获取本人已提交的日期列表，防止 workers 文本同日重复计数
+  // 获取本人+被代填的日期列表，防止 workers 文本同日重复计数
   const ownDates = await db.query(
     `SELECT user_id, report_date FROM daily_reports
      WHERE status = 'approved' AND report_type != 'office'
        AND DATE_FORMAT(report_date, '%Y-%m') = ?`,
     [month]
   );
+  const subDates = await db.query(
+    `SELECT drw.worker_uid AS user_id, dr.report_date
+     FROM daily_report_workers drw
+     JOIN daily_reports dr ON drw.report_id = dr.id
+     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?`,
+    [month]
+  );
   const seen = new Set(); // "uid_date" — 已计入的(人,日期)
-  ownDates.forEach(r => {
+  const addSeen = (r) => {
     const d = r.report_date instanceof Date ? r.report_date.toISOString().slice(0,10) : String(r.report_date).slice(0,10);
     seen.add(r.user_id + '_' + d);
-  });
+  };
+  ownDates.forEach(addSeen);
+  subDates.forEach(addSeen);
 
   // 解析 workers 文本中的每个名字，匹配用户ID（按日期去重，每人每天只算一次）
   textReports.forEach(r => {
