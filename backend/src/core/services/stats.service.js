@@ -343,7 +343,7 @@ async function getDailyStatus(dateStr) {
     `SELECT id, nickname, user_name, worker_code, worker_status
      FROM users
      WHERE worker_status = 'active' AND deleted_at IS NULL
-       AND role NOT IN ('admin', 'superadmin')
+       AND is_field_worker = 1
      ORDER BY id ASC`
   );
 
@@ -620,7 +620,7 @@ async function getWorkerWorkTypes(month) {
   const activeWorkers = await db.query(
     `SELECT id, nickname, user_name, worker_code
      FROM users WHERE worker_status = 'active' AND deleted_at IS NULL
-       AND role NOT IN ('admin', 'superadmin')
+       AND is_field_worker = 1
      ORDER BY id ASC`
   );
 
@@ -634,7 +634,7 @@ async function getWorkerWorkTypes(month) {
     [month]
   );
 
-  // 当月被代填的工作类型分布
+  // 当月被代填的工作类型分布（正式关联表）
   const subReports = await db.query(
     `SELECT drw.worker_uid AS user_id, dr.today_work_type, COUNT(*) AS cnt
      FROM daily_report_workers drw
@@ -645,15 +645,44 @@ async function getWorkerWorkTypes(month) {
     [month]
   );
 
+  // 兜底：从 workers 文本字段解析（daily_report_workers 为空时）
+  const textReports = await db.query(
+    `SELECT dr.workers, dr.today_work_type, dr.user_id
+     FROM daily_reports dr
+     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+       AND dr.workers IS NOT NULL AND dr.workers != ''
+       AND dr.user_id != 0
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?`,
+    [month]
+  );
+
+  // 名字→用户ID 查找表
+  const nameToUid = {};
+  activeWorkers.forEach(w => {
+    const name = (w.nickname || w.user_name || '').trim();
+    if (name) nameToUid[name] = w.id;
+  });
+
   // 构建 map: user_id → { workType: count }
   const typeMap = {};
   const addCount = (uid, wt, n) => {
     if (!uid || !wt) return;
     if (!typeMap[uid]) typeMap[uid] = {};
-    typeMap[uid][wt] = (typeMap[uid][wt] || 0) + n;
+    typeMap[uid][wt] = (typeMap[uid][wt] || 0) + Number(n);
   };
-  ownReports.forEach(r => addCount(r.user_id, r.today_work_type, Number(r.cnt)));
-  subReports.forEach(r => addCount(r.user_id, r.today_work_type, Number(r.cnt)));
+  ownReports.forEach(r => addCount(r.user_id, r.today_work_type, r.cnt));
+  subReports.forEach(r => addCount(r.user_id, r.today_work_type, r.cnt));
+
+  // 解析 workers 文本中的每个名字，匹配用户ID
+  textReports.forEach(r => {
+    const names = r.workers.split(/[、,，\s\/\n]+/).map(s => s.trim()).filter(Boolean);
+    names.forEach(name => {
+      const uid = nameToUid[name];
+      if (uid && uid !== r.user_id) {
+        addCount(uid, r.today_work_type, 1);
+      }
+    });
+  });
 
   const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休'];
   const workers = activeWorkers.map(w => {
@@ -684,12 +713,8 @@ async function getWorkerWorkTypes(month) {
  * @returns {Promise<Object>} { provinces: [{ name, count, projects }] }
  */
 async function getAreaDistribution(month) {
-  let dateCondition = '';
-  const params = [];
-  if (month && /^\d{4}-\d{2}$/.test(month)) {
-    dateCondition = 'AND DATE_FORMAT(dr.report_date, \'%Y-%m\') = ?';
-    params.push(month);
-  }
+  // 默认当月
+  const targetMonth = (month && /^\d{4}-\d{2}$/.test(month)) ? month : new Date().toISOString().slice(0, 7);
 
   const rows = await db.query(
     `SELECT
@@ -700,10 +725,10 @@ async function getAreaDistribution(month) {
      WHERE dr.status = 'approved'
        AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
-       ${dateCondition}
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
      GROUP BY province
      ORDER BY user_count DESC`,
-    params
+    [targetMonth]
   );
 
   const provinces = rows.map(r => ({
@@ -712,7 +737,7 @@ async function getAreaDistribution(month) {
     projects: r.project_list ? r.project_list.split(',').slice(0, 10) : [],
   }));
 
-  return { month: month || 'all', provinces };
+  return { month: targetMonth, provinces };
 }
 
 /**
