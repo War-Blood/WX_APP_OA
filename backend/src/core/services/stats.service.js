@@ -665,10 +665,18 @@ async function getWorkerWorkTypes(month) {
 
   // 构建 map: user_id → { workType: count }
   const typeMap = {};
+  // 旧数据兼容：部分历史记录的 today_work_type 存的是短名
+  const wtNormalize = (wt) => {
+    if (!wt) return null;
+    if (wt === '工作') return '工作（陆）'; // 旧版"工作"→"工作（陆）"
+    return wt;
+  };
+
   const addCount = (uid, wt, n) => {
-    if (!uid || !wt) return;
+    const normalized = wtNormalize(wt);
+    if (!uid || !normalized) return;
     if (!typeMap[uid]) typeMap[uid] = {};
-    typeMap[uid][wt] = (typeMap[uid][wt] || 0) + Number(n);
+    typeMap[uid][normalized] = (typeMap[uid][normalized] || 0) + Number(n);
   };
   ownReports.forEach(r => addCount(r.user_id, r.today_work_type, r.cnt));
   subReports.forEach(r => addCount(r.user_id, r.today_work_type, r.cnt));
