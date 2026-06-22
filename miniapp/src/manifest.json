@@ -19,6 +19,10 @@
         "useExtendedLib" : {
             "weui" : true
         },
-        "permission" : {}
+        "permission" : {
+            "scope.userLocation" : {
+                "desc" : "用于自动填写项目所在区域"
+            }
+        }
     }
 }

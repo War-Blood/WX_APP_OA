@@ -88,12 +88,19 @@
             </view>
             <view class="form-group">
               <text class="form-label">项目区域 <text class="required">*</text></text>
-              <picker mode="region" :value="areaRegion" @change="onAreaChange" class="form-picker">
-                <view class="picker-trigger" :class="{ 'picker-placeholder': !formData.area }">
-                  <text>{{ formData.area || '请选择省/市/区' }}</text>
-                  <text class="picker-arrow">›</text>
+              <view class="picker-row">
+                <picker mode="region" :value="areaRegion" @change="onAreaChange" class="picker-flex">
+                  <view class="form-picker">
+                    <text class="picker-value" :class="{ 'picker-placeholder': !formData.area }">
+                      {{ formData.area || '请选择省/市/区' }}
+                    </text>
+                    <text class="picker-icon">▾</text>
+                  </view>
+                </picker>
+                <view class="locate-btn" @tap="locateArea" hover-class="locate-btn-hover">
+                  <text class="locate-icon">📍</text>
                 </view>
-              </picker>
+              </view>
             </view>
             <view class="form-group">
               <text class="form-label">关联方</text>
@@ -468,6 +475,41 @@ const areaRegion = ref([])
 function onAreaChange(e) {
   areaRegion.value = e.detail.value
   formData.value.area = e.detail.value.join('-')
+}
+
+async function locateArea() {
+  try {
+    uni.showLoading({ title: '定位中...' })
+    const loc = await new Promise((resolve, reject) => {
+      uni.getLocation({ type: 'gcj02', success: resolve, fail: reject })
+    })
+    const res = await uni.chooseLocation({
+      latitude: loc.latitude,
+      longitude: loc.longitude
+    })
+    if (res.address) {
+      // 尝试解析省市区
+      const parts = res.address.replace(/省|市|区/g, (m) => `${m}|`).split('|').filter(Boolean)
+      const province = parts.find(p => p.includes('省')) || res.address.slice(0, 3)
+      const city = parts.find(p => p.includes('市')) || ''
+      const district = parts.find(p => p.includes('区') || p.includes('县')) || ''
+      areaRegion.value = [province, city, district].filter(Boolean)
+      formData.value.area = areaRegion.value.join('-') || res.address
+    }
+    uni.hideLoading()
+    uni.showToast({ title: '定位成功', icon: 'success' })
+  } catch (err) {
+    uni.hideLoading()
+    if (err?.errMsg?.includes('auth deny')) {
+      uni.showModal({
+        title: '需要位置权限',
+        content: '请在小程序设置中开启位置权限后重试',
+        showCancel: false
+      })
+    } else {
+      uni.showToast({ title: '定位失败，请手动选择', icon: 'none' })
+    }
+  }
 }
 
 // ===== 计算属性 =====
@@ -1066,10 +1108,39 @@ async function handleSubmit() {
   font-size: 28rpx;
   color: #C0C4CC;
 }
-.picker-arrow {
-  font-size: 36rpx;
-  color: #B0B0B0;
-  transform: rotate(90deg);
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.picker-flex {
+  flex: 1;
+}
+
+.picker-flex .form-picker {
+  width: 100%;
+}
+
+.locate-btn {
+  width: 64rpx;
+  height: 72rpx;
+  background: #F7F8FA;
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.locate-btn-hover {
+  background: #E8ECF2;
+  transform: scale(0.95);
+}
+
+.locate-icon {
+  font-size: 32rpx;
+  line-height: 1;
 }
 
 .worker-tags {
