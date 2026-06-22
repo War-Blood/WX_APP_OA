@@ -736,6 +736,7 @@ function selectProject(name) {
 async function saveDraft() {
   uni.showLoading({ title: '保存草稿...' })
   const payload = {
+    ...formData.value,
     userId: userStore.userInfo?.id,
     reportType: currentTab.value,
     reportDate: reportDate.value,
@@ -743,8 +744,7 @@ async function saveDraft() {
     tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
     entryDate: userStore.entryDate,
     initialBizTripDate: userStore.entryDate,
-    workerIds: isLeaveOrRest.value ? [] : selectedWorkerIds.value,
-    ...formData.value
+    workerIds: isLeaveOrRest.value ? [] : selectedWorkerIds.value
   }
   try {
     await reportApi.saveDraft(payload)

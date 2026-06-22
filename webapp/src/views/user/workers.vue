@@ -205,7 +205,6 @@ onMounted(() => {
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="totalLogs" label="日志数" width="80" align="center" sortable />
       <el-table-column label="作业人员" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="row.isFieldWorker ? 'success' : 'info'" size="small">

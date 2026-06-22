@@ -129,6 +129,7 @@ async function handleLogin() {
     if (res.data?.token) {
       uni.setStorageSync('token', res.data.token)
       uni.setStorageSync('userInfo', { ...res.data.user, nickName: res.data.user.nickname })
+      userStore.setUserInfo({ ...res.data.user, nickName: res.data.user.nickname })
       // pending 用户显示等待审核
       if (res.data.user?.status === 'pending') {
         uni.showModal({
@@ -248,53 +249,46 @@ function showPrivacyPolicy() {
 }
 
 async function handleInviteRedeem() {
+  // 第一步：输入姓名
   uni.showModal({
-    title: '使用邀请码加入',
-    content: '请输入姓名和邀请码，用空格分隔',
+    title: '使用邀请码加入 — 第1步',
+    content: '请输入您的姓名',
     editable: true,
-    placeholderText: '张三 ABCD1234',
-    success: async (modalRes) => {
-      if (!modalRes.confirm || !modalRes.content?.trim()) return
-      const input = modalRes.content.trim()
-      const spaceIdx = input.lastIndexOf(' ')
-      if (spaceIdx <= 0) {
-        uni.showToast({ title: '格式错误，请用空格分隔姓名和邀请码', icon: 'none' })
-        return
-      }
-      const name = input.substring(0, spaceIdx).trim()
-      const code = input.substring(spaceIdx + 1).trim()
-      if (!name || !code) {
-        uni.showToast({ title: '姓名和邀请码不能为空', icon: 'none' })
-        return
-      }
-      uni.showLoading({ title: '验证中...', mask: true })
-      try {
-        const res = await authApi.redeemInviteCode({ name, code })
-        uni.hideLoading()
-        if (res.data?.token) {
-          uni.setStorageSync('token', res.data.token)
-          uni.setStorageSync('userInfo', { ...res.data.user, nickName: res.data.user.nickname || name })
-          if (res.data.user?.status === 'pending') {
-            uni.showModal({
-              title: '等待审核',
-              content: '您的账号正在审核中，请联系管理员审核通过后再登录。',
-              showCancel: false,
-              confirmText: '我知道了',
-              success: () => uni.removeStorageSync('token')
-            })
-            return
+    placeholderText: '请输入真实姓名',
+    success: (step1) => {
+      if (!step1.confirm || !step1.content?.trim()) return
+      const name = step1.content.trim()
+      // 第二步：输入邀请码
+      uni.showModal({
+        title: '使用邀请码加入 — 第2步',
+        content: '请输入邀请码',
+        editable: true,
+        placeholderText: 'ABCD1234',
+        success: async (step2) => {
+          if (!step2.confirm || !step2.content?.trim()) return
+          const code = step2.content.trim()
+          uni.showLoading({ title: '验证中...', mask: true })
+          try {
+            const res = await authApi.redeemInviteCode({ name, code })
+            uni.hideLoading()
+            if (res.data?.token) {
+              uni.setStorageSync('token', res.data.token)
+              const userInfo = { ...res.data.user, nickName: res.data.user.nickname || name }
+              uni.setStorageSync('userInfo', userInfo)
+              userStore.setUserInfo(userInfo)
+              goHome()
+              if (!res.data.user?.nickname) {
+                setTimeout(() => askNickname(), 500)
+              }
+            } else {
+              uni.showToast({ title: '邀请码验证失败，请检查输入', icon: 'none' })
+            }
+          } catch (err) {
+            uni.hideLoading()
+            uni.showToast({ title: err?.message || '验证失败，请检查邀请码', icon: 'none' })
           }
-          goHome()
-          if (!res.data.user?.nickname) {
-            setTimeout(() => askNickname(), 500)
-          }
-        } else {
-          uni.showToast({ title: '邀请码验证失败，请检查输入', icon: 'none' })
         }
-      } catch (err) {
-        uni.hideLoading()
-        uni.showToast({ title: err?.message || '验证失败，请检查邀请码', icon: 'none' })
-      }
+      })
     }
   })
 }
