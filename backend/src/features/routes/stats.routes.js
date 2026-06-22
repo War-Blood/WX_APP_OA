@@ -28,4 +28,7 @@ router.post('/stats/daily-counts', authenticate, statsController.dailyCounts);
 // POST /api/stats/project-progress — 项目进展看板
 router.post('/stats/project-progress', authenticate, statsController.projectProgress);
 
+// POST /api/stats/worker-work-types — 人员工作类型分布
+router.post('/stats/worker-work-types', authenticate, statsController.workerWorkTypes);
+
 module.exports = router;

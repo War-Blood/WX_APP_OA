@@ -349,3 +349,22 @@ export interface ProjectProgressResponse {
 export function getProjectProgress(month: string): Promise<ProjectProgressResponse> {
   return request.post('/stats/project-progress', { month })
 }
+
+// ===== M3: 人员工作类型分布 =====
+
+export interface WorkerWorkTypeItem {
+  userName: string
+  workerCode: string
+  workTypes: Record<string, number>
+  total: number
+}
+
+export interface WorkerWorkTypesResponse {
+  month: string
+  workers: WorkerWorkTypeItem[]
+}
+
+/** 人员工作类型分布 */
+export function getWorkerWorkTypes(month: string): Promise<WorkerWorkTypesResponse> {
+  return request.post('/stats/worker-work-types', { month })
+}

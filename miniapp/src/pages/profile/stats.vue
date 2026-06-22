@@ -198,6 +198,34 @@
       </view>
       <view class="bottom-placeholder"></view>
     </scroll-view>
+
+    <!-- ========== 人员工作类型分布（看板内嵌） ========== -->
+    <view v-if="userStore.isAdmin && adminActiveTab === 'kanban' && workTypeData.length > 0" class="section-card section-card--wt" style="margin: 0 24rpx 16rpx;">
+      <text class="section-title">人员工作类型分布</text>
+      <scroll-view scroll-x class="wt-scroll">
+        <view class="wt-table">
+          <!-- 表头 -->
+          <view class="wt-row wt-row--head">
+            <text class="wt-cell wt-cell--name">姓名</text>
+            <text class="wt-cell wt-cell--code">工号</text>
+            <text v-for="(l, i) in workTypeShort" :key="l" class="wt-cell wt-cell--val">{{ l }}</text>
+            <text class="wt-cell wt-cell--val wt-cell--total">计</text>
+          </view>
+          <!-- 数据行 -->
+          <view v-for="w in workTypeData" :key="w.userName" class="wt-row">
+            <text class="wt-cell wt-cell--name">{{ w.userName }}</text>
+            <text class="wt-cell wt-cell--code">{{ w.workerCode }}</text>
+            <text
+              v-for="(l, i) in workTypeLabels"
+              :key="l"
+              class="wt-cell wt-cell--val"
+              :style="{ background: wtBg(w.workTypes[l], maxWorkTypeVal(l)) }"
+            >{{ w.workTypes[l] || 0 }}</text>
+            <text class="wt-cell wt-cell--val wt-cell--total">{{ w.total }}</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
   </view>
 </template>
 
@@ -255,6 +283,11 @@ const calLoading = ref(false)
 const progMonth = ref(new Date().toISOString().slice(0, 7))
 const progData = ref([])
 const progLoading = ref(false)
+
+// 人员工作类型分布
+const workTypeData = ref([])
+const workTypeMonth = ref(new Date().toISOString().slice(0, 7))
+const workTypeLoading = ref(false)
 
 // ===== 计算属性 =====
 const todayStr = computed(() => formatToday())
@@ -392,7 +425,7 @@ function onDailyDateChange(e) {
 function switchAdminTab(key) {
   adminActiveTab.value = key
   if (key === 'calendar' && calData.value.length === 0) loadCalendar()
-  if (key === 'kanban' && progData.value.length === 0) loadKanban()
+  if (key === 'kanban' && progData.value.length === 0) { loadKanban(); loadWorkTypeDist() }
 }
 
 function goToDailyOverview() {
@@ -487,6 +520,33 @@ function nextProgMonth() {
   d.setMonth(d.getMonth() + 1)
   progMonth.value = d.toISOString().slice(0, 7)
   loadKanban()
+}
+
+// ===== 人员工作类型分布 =====
+async function loadWorkTypeDist() {
+  workTypeLoading.value = true
+  try {
+    const res = await reportApi.getWorkerWorkTypes(workTypeMonth.value)
+    if (res.code === 0 && res.data) {
+      workTypeData.value = res.data.workers || []
+    }
+  } catch { workTypeData.value = [] }
+  finally { workTypeLoading.value = false }
+}
+
+const workTypeLabels = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休']
+const workTypeShort = ['陆', '海', '待', '途', '假', '休']
+
+function maxWorkTypeVal(key) {
+  return Math.max(1, ...workTypeData.value.map(w => w.workTypes[key] || 0))
+}
+
+function wtBg(val, max) {
+  if (!val) return 'transparent'
+  const p = val / max
+  if (p <= 0.25) return '#E8F5E9'
+  if (p <= 0.5) return '#A5D6A7'
+  return '#66BB6A'
 }
 
 function progressColor(pct) {
@@ -1007,5 +1067,55 @@ function getDailyStatusLabel(worker) {
 }
 .prog-pct {
   font-size: $font-sm; font-weight: 600; color: $text-primary; text-align: right; display: block;
+}
+
+// ===== 人员工作类型分布（横向滚动表格） =====
+.wt-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+.wt-table {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 100%;
+}
+.wt-row {
+  display: flex;
+  border-bottom: 1rpx solid $border-light;
+}
+.wt-row--head {
+  background: #F7F8FA;
+  border-radius: $radius-sm $radius-sm 0 0;
+}
+.wt-cell {
+  padding: 12rpx 8rpx;
+  font-size: 22rpx;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wt-cell--name {
+  width: 100rpx;
+  flex-shrink: 0;
+  font-weight: 500;
+  color: $text-primary;
+  justify-content: flex-start;
+  padding-left: 16rpx;
+}
+.wt-cell--code {
+  width: 80rpx;
+  flex-shrink: 0;
+  color: $text-secondary;
+}
+.wt-cell--val {
+  width: 56rpx;
+  flex-shrink: 0;
+  border-radius: 4rpx;
+  margin: 2rpx;
+}
+.wt-cell--total {
+  font-weight: 700;
+  color: $primary-color;
 }
 </style>

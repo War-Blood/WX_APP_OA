@@ -69,5 +69,10 @@ export const reportApi = {
 
   getProjectProgress(month) {
     return post('/api/stats/project-progress', { month })
+  },
+
+  // M3: 人员工作类型分布
+  getWorkerWorkTypes(month) {
+    return post('/api/stats/worker-work-types', { month })
   }
 }

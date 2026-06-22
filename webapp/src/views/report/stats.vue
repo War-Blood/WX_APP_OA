@@ -4,9 +4,9 @@ import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
-  getStats, getWorkerStats, getDailyCounts, getProjectProgress,
+  getStats, getWorkerStats, getDailyCounts, getProjectProgress, getWorkerWorkTypes,
   type AllStatsResponse,
-  type DailyCountItem, type ProjectProgressItem
+  type DailyCountItem, type ProjectProgressItem, type WorkerWorkTypeItem
 } from '@/api/report'
 
 // 统计汇总
@@ -24,6 +24,11 @@ let calChart: echarts.ECharts | null = null
 const progLoading = ref(false)
 const progList = ref<ProjectProgressItem[]>([])
 const progMonth = ref(new Date().toISOString().slice(0, 7))
+
+// 人员工作类型分布
+const workTypeLoading = ref(false)
+const workTypeList = ref<WorkerWorkTypeItem[]>([])
+const workTypeMonth = ref(new Date().toISOString().slice(0, 7))
 
 // 按人员维度（全量）
 const workerLoading = ref(true)
@@ -158,6 +163,47 @@ function nextProgMonth() {
   loadProjects()
 }
 
+async function loadWorkTypes() {
+  workTypeLoading.value = true
+  try {
+    const res = await getWorkerWorkTypes(workTypeMonth.value)
+    workTypeList.value = res.workers
+  } catch { workTypeList.value = [] }
+  finally { workTypeLoading.value = false }
+}
+
+function prevWorkTypeMonth() {
+  const d = new Date(workTypeMonth.value + '-01')
+  d.setMonth(d.getMonth() - 1)
+  workTypeMonth.value = d.toISOString().slice(0, 7)
+  loadWorkTypes()
+}
+
+function nextWorkTypeMonth() {
+  const d = new Date(workTypeMonth.value + '-01')
+  d.setMonth(d.getMonth() + 1)
+  workTypeMonth.value = d.toISOString().slice(0, 7)
+  loadWorkTypes()
+}
+
+function cellBg(val: number, maxVal: number) {
+  if (!val || maxVal === 0) return 'transparent'
+  const pct = val / maxVal
+  if (pct <= 0.25) return '#E8F5E9'
+  if (pct <= 0.5) return '#A5D6A7'
+  if (pct <= 0.75) return '#66BB6A'
+  return '#388E3C'
+}
+
+function cellColor(val: number, maxVal: number) {
+  if (!val || maxVal === 0) return '#333'
+  return val / maxVal > 0.5 ? '#fff' : '#333'
+}
+
+function maxInColumn(key: string) {
+  return Math.max(1, ...workTypeList.value.map(w => w.workTypes[key] || 0))
+}
+
 function progressStatus(pct: number | null): '' | 'exception' | 'success' {
   if (pct === null) return ''
   if (pct < 50) return 'exception'
@@ -176,6 +222,7 @@ onMounted(() => {
   loadCalendar()
   loadProjects()
   loadWorkers()
+  loadWorkTypes()
   window.addEventListener('resize', onResize)
 })
 
@@ -263,6 +310,41 @@ onUnmounted(() => {
         </el-table-column>
         <el-table-column prop="logCount" label="日志条数" width="90" align="center" />
         <el-table-column prop="dayCount" label="天数" width="70" align="center" />
+      </el-table>
+    </el-card>
+
+    <!-- 人员工作类型分布 -->
+    <el-card class="section-card" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <span>人员工作类型分布</span>
+          <div class="card-header-right">
+            <el-button size="small" @click="prevWorkTypeMonth">‹</el-button>
+            <span class="month-label">{{ workTypeMonth }}</span>
+            <el-button size="small" @click="nextWorkTypeMonth">›</el-button>
+            <el-button :icon="Refresh" size="small" text @click="loadWorkTypes">刷新</el-button>
+          </div>
+        </div>
+      </template>
+      <el-table :data="workTypeList" v-loading="workTypeLoading" stripe border>
+        <el-table-column prop="userName" label="姓名" width="90" />
+        <el-table-column prop="workerCode" label="工号" width="80" />
+        <el-table-column v-for="wt in ['工作（陆）','工作（海）','待工','在途','请假','调休']" :key="wt" :label="wt.replace('工作（','').replace('）','')" width="76" align="center">
+          <template #default="{ row }">
+            <span
+              :style="{
+                background: cellBg(row.workTypes[wt], maxInColumn(wt)),
+                color: cellColor(row.workTypes[wt], maxInColumn(wt)),
+                padding: '2px 8px', borderRadius: '4px', fontWeight: '600'
+              }"
+            >{{ row.workTypes[wt] || 0 }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="total" label="总计" width="70" align="center">
+          <template #default="{ row }">
+            <b>{{ row.total }}</b>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
 

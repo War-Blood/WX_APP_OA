@@ -97,6 +97,18 @@ async function projectProgress(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * 人员工作类型分布
+ * POST /api/stats/worker-work-types
+ */
+async function workerWorkTypes(req, res, next) {
+  try {
+    const { month } = req.body;
+    const result = await coreStatsService.getWorkerWorkTypes(month);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   home,
   activities,
@@ -104,4 +116,5 @@ module.exports = {
   reportStats,
   dailyCounts,
   projectProgress,
+  workerWorkTypes,
 };

@@ -551,4 +551,75 @@ async function getProjectProgress(month) {
   return { month, projects };
 }
 
-module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getDailyCounts, getProjectProgress };
+/**
+ * 人员工作类型分布（当月 pivot 表）
+ * @param {string} month - 月份 YYYY-MM
+ * @returns {Promise<Object>} { month, workers: [{ userName, workerCode, workTypes, total }] }
+ */
+async function getWorkerWorkTypes(month) {
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    throw new BusinessError('month 必填，格式 YYYY-MM');
+  }
+
+  // 所有在职人员
+  const activeWorkers = await db.query(
+    `SELECT id, nickname, user_name, worker_code
+     FROM users WHERE worker_status = 'active' AND deleted_at IS NULL
+     ORDER BY id ASC`
+  );
+
+  // 当月本人提交的工作类型分布
+  const ownReports = await db.query(
+    `SELECT user_id, today_work_type, COUNT(*) AS cnt
+     FROM daily_reports
+     WHERE status = 'approved' AND report_type != 'office'
+       AND DATE_FORMAT(report_date, '%Y-%m') = ?
+     GROUP BY user_id, today_work_type`,
+    [month]
+  );
+
+  // 当月被代填的工作类型分布
+  const subReports = await db.query(
+    `SELECT drw.worker_uid AS user_id, dr.today_work_type, COUNT(*) AS cnt
+     FROM daily_report_workers drw
+     JOIN daily_reports dr ON drw.report_id = dr.id
+     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+     GROUP BY drw.worker_uid, dr.today_work_type`,
+    [month]
+  );
+
+  // 构建 map: user_id → { workType: count }
+  const typeMap = {};
+  const addCount = (uid, wt, n) => {
+    if (!uid || !wt) return;
+    if (!typeMap[uid]) typeMap[uid] = {};
+    typeMap[uid][wt] = (typeMap[uid][wt] || 0) + n;
+  };
+  ownReports.forEach(r => addCount(r.user_id, r.today_work_type, Number(r.cnt)));
+  subReports.forEach(r => addCount(r.user_id, r.today_work_type, Number(r.cnt)));
+
+  const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休'];
+  const workers = activeWorkers.map(w => {
+    const map = typeMap[w.id] || {};
+    const workTypesObj = {};
+    let total = 0;
+    workTypes.forEach(wt => {
+      const c = map[wt] || 0;
+      workTypesObj[wt] = c;
+      total += c;
+    });
+    return {
+      userName: w.nickname || w.user_name || '',
+      workerCode: w.worker_code || '',
+      workTypes: workTypesObj,
+      total,
+    };
+  });
+
+  workers.sort((a, b) => b.total - a.total);
+
+  return { month, workers };
+}
+
+module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getDailyCounts, getProjectProgress, getWorkerWorkTypes };
