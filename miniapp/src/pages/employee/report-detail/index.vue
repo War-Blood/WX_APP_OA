@@ -329,6 +329,11 @@ async function goToRevise() {
   font-size: 32rpx;
   font-weight: 600;
   color: #333333;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-tags {
@@ -417,6 +422,11 @@ async function goToRevise() {
 .field-label {
   font-size: 24rpx;
   color: #666666;
+  flex-shrink: 0;
+  max-width: 200rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .field-value {
@@ -424,6 +434,11 @@ async function goToRevise() {
   color: #333333;
   font-weight: 500;
   text-align: right;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 16rpx;
 }
 
 .field-value-accent {
@@ -438,6 +453,8 @@ async function goToRevise() {
   font-size: 26rpx;
   color: #333333;
   line-height: 44rpx;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .card-progress {
