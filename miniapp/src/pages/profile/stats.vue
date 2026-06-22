@@ -3,14 +3,14 @@
     <NavBar title="公出统计" :showBack="true" />
 
     <!-- Tab 栏 -->
-    <view v-if="userStore.isAdmin" class="tab-bar">
-      <view v-for="t in tabs" :key="t.key" class="tab-item" :class="{ 'tab-active': activeTab === t.key }" @tap="switchTab(t.key)">
-        <text class="tab-text">{{ t.label }}</text>
+    <view v-if="userStore.isAdmin" class="type-tab-bar">
+      <view v-for="t in tabs" :key="t.key" class="type-tab-item" :class="{ 'type-tab-active': activeTab === t.key }" @tap="switchTab(t.key)">
+        <text class="type-tab-text">{{ t.label }}</text>
       </view>
     </view>
 
     <!-- 个人统计 -->
-    <scroll-view v-if="showTab('personal')" class="content" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
+    <scroll-view v-if="showTab('personal')" class="content-scroll" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
       <view class="entry-bar">
         <text class="entry-label">入场日期</text>
         <text class="entry-value">{{ entryDateDisplay }}</text>
@@ -53,7 +53,7 @@
     </scroll-view>
 
     <!-- 全员当日 -->
-    <view v-if="showTab('daily')" class="content" style="display:flex;align-items:center;justify-content:center">
+    <view v-if="showTab('daily')" class="content-scroll" style="display:flex;align-items:center;justify-content:center">
       <view class="card" style="text-align:center;padding:64rpx 32rpx">
         <text class="card-title">昨日工作一览</text>
         <text style="font-size:24rpx;color:#999;display:block;margin:16rpx 0 24rpx">查看所有在职人员昨日的工作状态与项目分布</text>
@@ -62,7 +62,7 @@
     </view>
 
     <!-- 日历热力图 -->
-    <scroll-view v-if="showTab('calendar')" class="content" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
+    <scroll-view v-if="showTab('calendar')" class="content-scroll" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
       <view class="month-nav">
         <view class="nav-btn" @tap="calPrev"><text class="nav-icon">‹</text></view>
         <text class="nav-title">{{ calMonthLabel }}</text>
@@ -91,7 +91,7 @@
     </scroll-view>
 
     <!-- 项目进展 -->
-    <scroll-view v-if="showTab('projects')" class="content" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
+    <scroll-view v-if="showTab('projects')" class="content-scroll" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
       <view class="month-nav">
         <view class="nav-btn" @tap="projPrev"><text class="nav-icon">‹</text></view>
         <text class="nav-title">{{ projMonth }}</text>
@@ -117,7 +117,7 @@
     </scroll-view>
 
     <!-- 人员分布 -->
-    <scroll-view v-if="showTab('workers')" class="content" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
+    <scroll-view v-if="showTab('workers')" class="content-scroll" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
       <!-- 工作类型表 -->
       <view v-if="workTypeData.length" class="card">
         <text class="card-title">工作类型分布（{{ workTypeMonth }}）</text>
@@ -321,14 +321,14 @@ onMounted(async () => {
 
 // ===== 布局 =====
 .page { width:100%; height:100vh; background:$bg-color; display:flex; flex-direction:column; }
-.content { flex:1; height:0; padding:0 $spacing-base; }
+.content-scroll { flex:1; height:0; padding:0 $spacing-base; }
 
-// ===== Tab =====
-.tab-bar { display:flex; margin:$spacing-sm $spacing-base; background:$bg-card; border-radius:$radius-base; padding:4rpx; flex-shrink:0; }
-.tab-item { flex:1; text-align:center; padding:14rpx 0; border-radius:10rpx; }
-.tab-active { background:$primary-color; }
-.tab-text { font-size:24rpx; color:$text-regular; font-weight:500; }
-.tab-active .tab-text { color:#fff; }
+// ===== Tab（同 report-edit .type-tab-bar） =====
+.type-tab-bar { display:flex; margin:16rpx 24rpx; background:#FFFFFF; border-radius:12rpx; padding:6rpx; flex-shrink:0; }
+.type-tab-item { flex:1; text-align:center; padding:16rpx 0; border-radius:10rpx; transition:background .2s; }
+.type-tab-active { background:#2B6DE8; }
+.type-tab-text { font-size:26rpx; color:#666; font-weight:500; }
+.type-tab-active .type-tab-text { color:#FFFFFF; }
 
 // ===== 卡片 =====
 .card { background:$bg-card; border-radius:$radius-lg; padding:$spacing-base; margin-bottom:$spacing-sm; box-shadow:0 2rpx 12rpx rgba(0,0,0,.04); }
