@@ -201,6 +201,7 @@ export interface DailyStatusWorker {
   userId: number
   userName: string
   workerCode: string
+  reportId: number | null
   project: string | null
   area: string | null
   workType: string | null

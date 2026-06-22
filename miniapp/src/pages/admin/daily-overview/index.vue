@@ -236,8 +236,9 @@ async function onRefresh() {
 }
 
 function goToDetail(worker) {
-  // 暂跳转到日报查询，后续可改为直接链接
-  uni.showToast({ title: worker.userName + ' - ' + (worker.project || '无项目'), icon: 'none' })
+  if (worker.reportId) {
+    uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + worker.reportId })
+  }
 }
 
 onMounted(() => {

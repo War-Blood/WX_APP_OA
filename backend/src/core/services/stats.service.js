@@ -484,6 +484,7 @@ async function getDailyStatus(dateStr) {
       userId: w.id,
       userName: w.nickname || w.user_name || '',
       workerCode: w.worker_code || '',
+      reportId: ownReport ? ownReport.reportId : (subReport ? subReport.reportId : null),
       project,
       area,
       workType,
