@@ -48,7 +48,8 @@
           </view>
         </view>
         <view v-if="workerList.length === 0 && !loading" class="empty-tip">
-          暂无人员数据
+          <text class="empty-tip-title">暂无作业人员</text>
+          <text class="empty-tip-desc">请管理员在 Web 后台「外场人员花名册」中标记作业人员</text>
         </view>
       </scroll-view>
     </view>
@@ -97,6 +98,8 @@ function fetchWorkers(keyword) {
     if (res.code === 0) {
       workerList.value = res.data.list || []
     }
+  }).catch(() => {
+    workerList.value = []
   }).finally(() => {
     loading.value = false
   })
@@ -306,8 +309,20 @@ function onCancel() {
 
 .empty-tip {
   text-align: center;
-  padding: 80rpx 0;
-  font-size: 26rpx;
+  padding: 80rpx 32rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.empty-tip-title {
+  font-size: 28rpx;
+  color: #999999;
+}
+
+.empty-tip-desc {
+  font-size: 24rpx;
   color: #C0C4CC;
 }
 </style>
