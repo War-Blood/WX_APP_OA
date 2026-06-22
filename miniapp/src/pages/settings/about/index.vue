@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <NavBar title="关于我们" />
+    <NavBar title="关于我们" :showBack="true" />
     <view class="content">
       <view class="logo-section">
         <view class="logo-box"><text class="logo-text">OA</text></view>
