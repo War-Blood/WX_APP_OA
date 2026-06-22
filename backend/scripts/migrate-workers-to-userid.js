@@ -22,13 +22,13 @@ require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const mysql = require('mysql2/promise');
 const config = require('../src/common/config/env');
 
-// 解析中文顿号/逗号分隔的人名列表
+// 解析人名列表（支持: 顿号 逗号 空格 换行 多个连续空格）
 function parseWorkers(workersStr) {
   if (!workersStr || typeof workersStr !== 'string') return [];
   return workersStr
-    .split(/[、,，\n]+/)
+    .split(/[、,，\n\s]+/)
     .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .filter((s) => s.length > 2); // 过滤单字/空串（中文姓名至少2字）
 }
 
 async function main() {

@@ -714,6 +714,27 @@ onMounted(async () => {
     } catch { /* ignore */ }
   }
 
+  // 无草稿时从上次提交预填
+  if (!autoDraft) {
+    try {
+      const lastSub = uni.getStorageSync('report_last_submission')
+      if (lastSub) {
+        const saved = JSON.parse(lastSub)
+        if (saved.project) formData.value.project = saved.project
+        if (saved.area) {
+          formData.value.area = saved.area
+          areaRegion.value = saved.area.split('-')
+        }
+        if (saved.relatedParty) formData.value.relatedParty = saved.relatedParty
+        if (saved.workContent) formData.value.workContent = saved.workContent
+        if (saved.todayWorkType) selectedWorkType.value = saved.todayWorkType
+        if (saved.machineModel) {
+          machineModels.value = saved.machineModel.split(/[,，、]+/).filter(Boolean)
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
   // 加载花名册缓存
   try {
     const res = await adminApi.getWorkerList({ pageSize: 100, fieldWorkerOnly: true })

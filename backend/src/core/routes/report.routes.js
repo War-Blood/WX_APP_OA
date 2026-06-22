@@ -91,4 +91,7 @@ router.post('/workerStats', authenticate, reportController.workerStats);
 // POST /api/report/export — 导出CSV
 router.post('/export', authenticate, reportController.exportCSV);
 
+// POST /api/report/export-attendance — 导出月度考勤矩阵
+router.post('/export-attendance', authenticate, reportController.exportAttendance);
+
 module.exports = router;

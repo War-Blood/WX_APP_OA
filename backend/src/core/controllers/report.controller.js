@@ -462,6 +462,20 @@ async function exportCSV(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * 导出月度考勤矩阵
+ * POST /api/report/export-attendance
+ */
+async function exportAttendance(req, res, next) {
+  try {
+    const { month } = req.body;
+    const csv = await reportService.exportAttendanceCSV(month);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=attendance-${month || 'month'}.csv`);
+    res.send('﻿' + csv);
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   list,
   detail,
@@ -480,4 +494,5 @@ module.exports = {
   workerList,
   workerStats,
   exportCSV,
+  exportAttendance,
 };

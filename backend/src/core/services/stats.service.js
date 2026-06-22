@@ -313,7 +313,7 @@ async function getDailyStatus(dateStr) {
      ORDER BY id ASC`
   );
 
-  // 当日所有审核通过的日报（含提交人和被代填人）
+  // 当日所有已提交的日报（排除草稿和已删除，含审核中/已通过/已驳回）
   const reports = await db.query(
     `SELECT
        dr.id AS reportId,
@@ -328,16 +328,16 @@ async function getDailyStatus(dateStr) {
        u.nickname AS submitterName
      FROM daily_reports dr
      LEFT JOIN users u ON dr.user_id = u.id
-     WHERE dr.report_date = ? AND dr.status = 'approved'`,
+     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL`,
     [date]
   );
 
-  // 当日代填关系（仅审核通过的日报）
+  // 当日代填关系
   const substitutions = await db.query(
     `SELECT drw.report_id, drw.worker_uid, dr.user_id AS submitterId
      FROM daily_report_workers drw
      JOIN daily_reports dr ON drw.report_id = dr.id
-     WHERE dr.report_date = ? AND dr.status = 'approved'`,
+     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL`,
     [date]
   );
 

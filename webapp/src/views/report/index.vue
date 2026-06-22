@@ -21,6 +21,7 @@ const reportTypeFilter = ref('')
 const workTypeFilter = ref('')
 const startDate = ref('')
 const endDate = ref('')
+const attendanceMonth = ref(new Date().toISOString().slice(0, 7))
 const reportList = ref<Record<string, unknown>[]>([])
 const reportTotal = ref(0)
 const reportPage = ref(1)
@@ -143,6 +144,27 @@ async function handleExport() {
     a.href = url; a.download = 'report.csv'
     a.click(); URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
+  } catch {
+    ElMessage.error('导出失败')
+  }
+}
+
+async function handleExportAttendance() {
+  if (!attendanceMonth.value) { ElMessage.warning('请选择月份'); return }
+  try {
+    const token = localStorage.getItem('token') || ''
+    const res = await fetch('/api/report/export-attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ month: attendanceMonth.value })
+    })
+    if (!res.ok) throw new Error('导出失败')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'attendance-' + attendanceMonth.value + '.csv'
+    a.click(); URL.revokeObjectURL(url)
+    ElMessage.success('考勤导出成功')
   } catch {
     ElMessage.error('导出失败')
   }
@@ -299,6 +321,8 @@ onMounted(() => { loadStats(); loadReports() })
         <div class="toolbar-row">
           <el-button :icon="Refresh" @click="handleSearch">刷新</el-button>
           <el-button type="success" :icon="Download" @click="handleExport">导出CSV</el-button>
+          <el-date-picker v-model="attendanceMonth" type="month" placeholder="选择月份" style="width:140px" format="YYYY-MM" value-format="YYYY-MM" />
+          <el-button type="primary" :icon="Download" @click="handleExportAttendance">导出考勤</el-button>
         </div>
       </div>
       <el-table :data="reportList" v-loading="loading" stripe border highlight-current-row @row-click="showDetail" style="cursor:pointer">

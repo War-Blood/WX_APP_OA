@@ -807,6 +807,99 @@ async function exportCSV({ status, startDate, endDate, keyword, worker }) {
 
 function csvEscape(v) { if (!v) return ''; return '"' + String(v).replace(/"/g, '""') + '"'; }
 
+/**
+ * 导出月度考勤矩阵 CSV（工人 × 日期矩阵）
+ * @param {string} month - 月份 YYYY-MM
+ * @returns {Promise<string>} CSV 字符串
+ */
+async function exportAttendanceCSV(month) {
+  // 1. 获取所有在职人员
+  const workers = await db.query(
+    `SELECT id, user_name, worker_code FROM users
+     WHERE worker_status = 'active' AND deleted_at IS NULL
+     ORDER BY worker_code ASC`
+  );
+
+  // 2. 获取该月所有非草稿日报
+  const [y, m] = month.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+
+  const reports = await db.query(
+    `SELECT dr.user_id, dr.report_date, dr.today_work_type
+     FROM daily_reports dr
+     WHERE dr.status != 'draft' AND dr.deleted_at IS NULL
+       AND dr.report_type != 'office'
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+     ORDER BY dr.report_date`,
+    [month]
+  );
+
+  // 3. 获取代填关系
+  const subs = await db.query(
+    `SELECT drw.worker_uid, dr.report_date, dr.today_work_type
+     FROM daily_report_workers drw
+     JOIN daily_reports dr ON drw.report_id = dr.id
+     WHERE dr.status != 'draft' AND dr.deleted_at IS NULL
+       AND dr.report_type != 'office'
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?`,
+    [month]
+  );
+
+  // 4. 构建查找 map: userId -> date -> workType
+  const reportMap = {};
+  reports.forEach(r => {
+    const uid = r.user_id;
+    if (!reportMap[uid]) reportMap[uid] = {};
+    const d = String(r.report_date instanceof Date ? r.report_date.getDate() : new Date(r.report_date).getDate());
+    reportMap[uid][d] = r.today_work_type || '';
+  });
+  // 代填：被代填人同样视为有提交
+  subs.forEach(s => {
+    const uid = s.worker_uid;
+    if (!reportMap[uid]) reportMap[uid] = {};
+    const d = String(s.report_date instanceof Date ? s.report_date.getDate() : new Date(s.report_date).getDate());
+    if (!reportMap[uid][d]) reportMap[uid][d] = s.today_work_type || '';
+  });
+
+  // 5. 构建 CSV（姓名, 工号, 1, 2, ..., 31, 合计）
+  const dayHeaders = [];
+  for (let day = 1; day <= daysInMonth; day++) dayHeaders.push(String(day));
+  const headers = ['姓名', '工号', ...dayHeaders, '合计'];
+  const csvRows = [headers.join(',')];
+
+  // 工作类型缩写
+  const typeAbbr = {
+    '工作（陆）': '陆', '工作（海）': '海', '待工': '待',
+    '在途': '途', '请假': '假', '调休': '休'
+  };
+
+  workers.forEach(w => {
+    const row = [csvEscape(w.user_name || ''), csvEscape(w.worker_code || '')];
+    let total = 0;
+    const map = reportMap[w.id] || {};
+    for (let day = 1; day <= daysInMonth; day++) {
+      const wt = map[String(day)] || '';
+      // 转换: 提交人本人且有工作类型
+      if (wt && wt !== '请假' && wt !== '调休') {
+        row.push(typeAbbr[wt] || wt);
+        total++;
+      } else if (wt === '请假') {
+        row.push('假');
+        total++;
+      } else if (wt === '调休') {
+        row.push('休');
+        total++;
+      } else {
+        row.push('');
+      }
+    }
+    row.push(String(total > 0 ? total : ''));
+    csvRows.push(row.join(','));
+  });
+
+  return csvRows.join('\n');
+}
+
 module.exports = {
   list,
   detail,
@@ -816,6 +909,7 @@ module.exports = {
   getWorkerList,
   getWorkerStats,
   exportCSV,
+  exportAttendanceCSV,
   checkDuplicate,
   getTodayStatus,
   getPendingReviews,
