@@ -375,7 +375,7 @@ async function getDailyStatus(dateStr) {
 
   reports.forEach(r => {
     if (!r.workers || r.workers.trim() === '') return;
-    const names = r.workers.split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean);
+    const names = r.workers.split(/[,，、\s\/]+/).map(s => s.trim()).filter(Boolean);
     names.forEach(name => {
       const user = nameToUser[name];
       if (user && !subReportMap[user.id] && !reportMapByUser[user.id]) {
