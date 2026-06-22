@@ -123,7 +123,7 @@ async function create({ userName, workerCode, entryDate }) {
  * @param {string} [params.entryDate] - 入场日期
  * @returns {Promise<Object>}
  */
-async function update({ userId, userName, entryDate }) {
+async function update({ userId, userName, entryDate, isFieldWorker }) {
   if (!userId) {
     throw new ValidationError('userId 不能为空');
   }
@@ -146,6 +146,10 @@ async function update({ userId, userName, entryDate }) {
   if (entryDate !== undefined) {
     updates.push('entry_date = ?');
     params.push(entryDate);
+  }
+  if (isFieldWorker !== undefined) {
+    updates.push('is_field_worker = ?');
+    params.push(isFieldWorker ? 1 : 0);
   }
 
   if (updates.length === 0) {

@@ -88,7 +88,12 @@
             </view>
             <view class="form-group">
               <text class="form-label">项目区域 <text class="required">*</text></text>
-              <input class="form-input" placeholder="请输入项目所在区域" v-model="formData.area" />
+              <picker mode="region" :value="areaRegion" @change="onAreaChange" class="form-picker">
+                <view class="picker-trigger" :class="{ 'picker-placeholder': !formData.area }">
+                  <text>{{ formData.area || '请选择省/市/区' }}</text>
+                  <text class="picker-arrow">›</text>
+                </view>
+              </picker>
             </view>
             <view class="form-group">
               <text class="form-label">关联方</text>
@@ -457,6 +462,14 @@ const formData = ref({
   coordination: ''
 })
 
+// 省市区选择器初始值
+const areaRegion = ref([])
+
+function onAreaChange(e) {
+  areaRegion.value = e.detail.value
+  formData.value.area = e.detail.value.join('-')
+}
+
 // ===== 计算属性 =====
 const todayStr = computed(() => formatToday())
 
@@ -617,7 +630,7 @@ async function checkDuplicate() {
   if (currentTab.value === 'office') return
   try {
     const res = await reportApi.checkDuplicate({
-      userId: userStore.userInfo?.userId,
+      userId: userStore.userInfo?.id,
       reportDate: reportDate.value
     })
     if (res.code === 2001) {
@@ -682,6 +695,7 @@ async function saveDraft() {
   uni.showLoading({ title: '保存草稿...' })
   try {
     const payload = {
+      userId: userStore.userInfo?.id,
       reportType: currentTab.value,
       reportDate: reportDate.value,
       formData: { ...formData.value }
