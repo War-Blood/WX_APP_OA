@@ -33,19 +33,19 @@
       <!-- 四格统计卡片 -->
       <view class="stats-grid">
         <view class="stat-card">
-          <text class="stat-value" style="color:#2B6DE8;">{{ personalStats.totalCount }}</text>
+          <text class="stat-value stat-value--primary">{{ personalStats.totalCount }}</text>
           <text class="stat-label">累计条数</text>
         </view>
         <view class="stat-card">
-          <text class="stat-value" style="color:#22C55E;">{{ personalStats.monthCount }}</text>
+          <text class="stat-value stat-value--success">{{ personalStats.monthCount }}</text>
           <text class="stat-label">当月条数</text>
         </view>
         <view class="stat-card">
-          <text class="stat-value" :style="{ color: personalStats.missingDays > 0 ? '#EF4444' : '#22C55E' }">{{ personalStats.missingDays }}</text>
+          <text class="stat-value" :class="personalStats.missingDays > 0 ? 'stat-value--danger' : 'stat-value--success'">{{ personalStats.missingDays }}</text>
           <text class="stat-label">缺失天数</text>
         </view>
         <view class="stat-card">
-          <text class="stat-value" :style="{ color: personalStats.delayedCount > 0 ? '#F59E0B' : '#22C55E' }">{{ personalStats.delayedCount }}</text>
+          <text class="stat-value" :class="personalStats.delayedCount > 0 ? 'stat-value--warning' : 'stat-value--success'">{{ personalStats.delayedCount }}</text>
           <text class="stat-label">延迟条数</text>
         </view>
       </view>
@@ -138,31 +138,31 @@
       <!-- 汇总统计条 -->
       <view v-if="dailyStatus" class="summary-bar">
         <view class="summary-item">
-          <text class="summary-val" style="color:#2B6DE8;">{{ dailyStatus.summary?.submitted || 0 }}</text>
+          <text class="summary-val summary-val--submitted">{{ dailyStatus.summary?.submitted || 0 }}</text>
           <text class="summary-lbl">已提交</text>
         </view>
         <view class="summary-item">
-          <text class="summary-val" style="color:#6366F1;">{{ dailyStatus.summary?.substituted || 0 }}</text>
+          <text class="summary-val summary-val--substituted">{{ dailyStatus.summary?.substituted || 0 }}</text>
           <text class="summary-lbl">已代填</text>
         </view>
         <view class="summary-item">
-          <text class="summary-val" style="color:#F59E0B;">{{ dailyStatus.summary?.supplement || 0 }}</text>
+          <text class="summary-val summary-val--supplement">{{ dailyStatus.summary?.supplement || 0 }}</text>
           <text class="summary-lbl">补公出</text>
         </view>
         <view class="summary-item">
-          <text class="summary-val" style="color:#22C55E;">{{ dailyStatus.summary?.office || 0 }}</text>
+          <text class="summary-val summary-val--office">{{ dailyStatus.summary?.office || 0 }}</text>
           <text class="summary-lbl">公司日报</text>
         </view>
         <view class="summary-item">
-          <text class="summary-val" style="color:#8B5CF6;">{{ dailyStatus.summary?.leave || 0 }}</text>
+          <text class="summary-val summary-val--leave">{{ dailyStatus.summary?.leave || 0 }}</text>
           <text class="summary-lbl">请假</text>
         </view>
         <view class="summary-item">
-          <text class="summary-val" style="color:#EC4899;">{{ dailyStatus.summary?.rest || 0 }}</text>
+          <text class="summary-val summary-val--rest">{{ dailyStatus.summary?.rest || 0 }}</text>
           <text class="summary-lbl">调休</text>
         </view>
         <view class="summary-item">
-          <text class="summary-val" :style="{ color: (dailyStatus.summary?.missing || 0) > 0 ? '#EF4444' : '#999' }">
+          <text class="summary-val" :class="(dailyStatus.summary?.missing || 0) > 0 ? 'summary-val--missing' : 'summary-val--zero'">
             {{ dailyStatus.summary?.missing || 0 }}
           </text>
           <text class="summary-lbl">缺失</text>
@@ -185,10 +185,8 @@
             <text class="worker-card-project">{{ w.project || '-' }}</text>
           </view>
           <view class="worker-card-right">
-            <view class="worker-status-badge" :style="{ background: getDailyStatusBg(w.status) }">
-              <text class="worker-status-text" :style="{ color: getDailyStatusColor(w.status) }">
-                {{ getDailyStatusLabel(w) }}
-              </text>
+            <view class="worker-status-badge" :class="'badge--' + w.status">
+              <text class="worker-status-text">{{ getDailyStatusLabel(w) }}</text>
             </view>
             <text v-if="w.submittedAt" class="worker-card-time">{{ formatTime(w.submittedAt) }}</text>
           </view>
@@ -387,32 +385,6 @@ function goToTeamDetail(log) {
 }
 
 // ===== 状态显示辅助 =====
-function getDailyStatusBg(status) {
-  const map = {
-    submitted: '#EFFDF5',
-    supplement: '#FFF8E1',
-    office: '#EDF2FF',
-    substituted: '#FFF0F5',
-    leave: '#F5F3FF',
-    rest: '#FDF2F8',
-    missing: '#FFF0F0'
-  }
-  return map[status] || '#F5F5F5'
-}
-
-function getDailyStatusColor(status) {
-  const map = {
-    submitted: '#22C55E',
-    supplement: '#F59E0B',
-    office: '#2B6DE8',
-    substituted: '#6366F1',
-    leave: '#8B5CF6',
-    rest: '#EC4899',
-    missing: '#EF4444'
-  }
-  return map[status] || '#999999'
-}
-
 function getDailyStatusLabel(worker) {
   const map = {
     submitted: worker.substituteBy ? '已代填(' + worker.substituteBy + ')' : '已提交',
@@ -430,6 +402,7 @@ function getDailyStatusLabel(worker) {
 <style lang="scss" scoped>
 @import '@/uni.scss';
 
+// ===== 页面布局 =====
 .page {
   width: 100%;
   height: 100vh;
@@ -438,12 +411,12 @@ function getDailyStatusLabel(worker) {
   flex-direction: column;
 }
 
-/* Tab 栏 */
+// ===== Tab 切换栏（同 report-edit .type-tab-bar） =====
 .tab-bar {
   display: flex;
-  margin: 16rpx 24rpx;
-  background: #FFFFFF;
-  border-radius: 12rpx;
+  margin: $spacing-sm $spacing-base;
+  background: $bg-card;
+  border-radius: $radius-base;
   padding: 6rpx;
   flex-shrink: 0;
 }
@@ -455,122 +428,129 @@ function getDailyStatusLabel(worker) {
   transition: background 0.2s;
 }
 .tab-active {
-  background: #2B6DE8;
+  background: $primary-color;
 }
 .tab-text {
   font-size: 26rpx;
-  color: #666666;
+  color: $text-regular;
   font-weight: 500;
 }
 .tab-active .tab-text {
   color: #FFFFFF;
 }
 
-/* 内容滚动 */
+// ===== 内容滚动 =====
 .content-scroll {
   flex: 1;
   height: 0;
-  padding: 0 24rpx;
+  padding: 0 $spacing-base;
 }
 
-/* 入场日期 */
+// ===== 入场日期（卡片样式） =====
 .entry-date-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20rpx 24rpx;
-  margin-bottom: 16rpx;
-  background: #FFFFFF;
-  border-radius: 12rpx;
+  padding: 20rpx $spacing-base;
+  margin-bottom: $spacing-sm;
+  background: $bg-card;
+  border-radius: $radius-base;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 .entry-label {
-  font-size: 26rpx;
-  color: #666666;
+  font-size: $font-sm;
+  color: $text-regular;
 }
 .entry-value {
-  font-size: 28rpx;
+  font-size: $font-base;
   font-weight: 600;
-  color: #2B6DE8;
+  color: $primary-color;
 }
 
-/* 四格统计 */
+// ===== 四格统计卡片 =====
 .stats-grid {
   display: flex;
-  gap: 16rpx;
-  margin-bottom: 16rpx;
+  gap: $spacing-sm;
+  margin-bottom: $spacing-sm;
 }
 .stat-card {
   flex: 1;
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  padding: 24rpx 16rpx;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-base $spacing-sm;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8rpx;
+  gap: $spacing-xs;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 .stat-value {
-  font-size: 44rpx;
+  font-size: 40rpx;
   font-weight: 700;
   line-height: 1.2;
 }
 .stat-label {
-  font-size: 22rpx;
-  color: #999999;
+  font-size: $font-xs;
+  color: $text-secondary;
 }
 
-/* 通用卡片 */
+// 统计数值颜色修饰符
+.stat-value--primary { color: $primary-color; }
+.stat-value--success { color: $success-color; }
+.stat-value--danger  { color: $danger-color; }
+.stat-value--warning { color: $warning-color; }
+
+// ===== 通用卡片（同 report-edit .section-card） =====
 .section-card {
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-base;
+  margin-bottom: $spacing-sm;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 .section-title {
-  font-size: 28rpx;
+  font-size: 30rpx;
   font-weight: 600;
-  color: #333333;
+  color: $text-primary;
   margin-bottom: 4rpx;
   display: block;
 }
 .section-subtitle {
-  font-size: 24rpx;
-  color: #999999;
-  margin-bottom: 16rpx;
+  font-size: $font-sm;
+  color: $text-secondary;
+  margin-bottom: $spacing-sm;
   display: block;
 }
 
-/* 缺失日期 */
+// ===== 缺失日期标签 =====
 .missing-dates {
   display: flex;
   flex-wrap: wrap;
-  gap: 12rpx;
-  margin-top: 16rpx;
+  gap: $spacing-xs;
+  margin-top: $spacing-sm;
 }
 .missing-date-tag {
-  padding: 8rpx 16rpx;
+  padding: $spacing-xs $spacing-sm;
   background: #FFF0F0;
-  border-radius: 8rpx;
-  font-size: 24rpx;
-  color: #EF4444;
+  border-radius: $radius-sm;
+  font-size: $font-sm;
+  color: $danger-color;
 }
 
-/* 月度占比 */
+// ===== 月度工作占比 =====
 .ratio-list {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: $spacing-sm;
 }
 .ratio-item {
   display: flex;
   align-items: center;
-  gap: 16rpx;
+  gap: $spacing-sm;
 }
 .ratio-type {
-  font-size: 24rpx;
-  color: #666666;
+  font-size: $font-sm;
+  color: $text-regular;
   width: 120rpx;
   flex-shrink: 0;
   text-align: right;
@@ -578,37 +558,37 @@ function getDailyStatusLabel(worker) {
 .ratio-bar-wrap {
   flex: 1;
   height: 16rpx;
-  background: #F0F2F5;
-  border-radius: 8rpx;
+  background: $border-light;
+  border-radius: $radius-sm;
   overflow: hidden;
 }
 .ratio-bar {
   height: 100%;
-  background: linear-gradient(90deg, #2B6DE8, #5B8DF0);
-  border-radius: 8rpx;
+  background: linear-gradient(90deg, $primary-color, $primary-light);
+  border-radius: $radius-sm;
   transition: width 0.5s ease;
 }
 .ratio-pct {
-  font-size: 24rpx;
+  font-size: $font-sm;
   font-weight: 600;
-  color: #333333;
+  color: $text-primary;
   width: 72rpx;
   text-align: right;
 }
 .ratio-days {
-  font-size: 22rpx;
-  color: #999999;
+  font-size: $font-xs;
+  color: $text-secondary;
   width: 44rpx;
   text-align: right;
 }
 
-/* 同组日志 */
+// ===== 同组日志 =====
 .team-log-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 20rpx 0;
-  border-top: 1rpx solid #F5F5F5;
+  border-top: 1rpx solid $border-light;
 }
 .team-log-item:first-child {
   border-top: none;
@@ -617,100 +597,112 @@ function getDailyStatusLabel(worker) {
 .team-log-left {
   display: flex;
   align-items: center;
-  gap: 16rpx;
+  gap: $spacing-sm;
 }
 .team-log-name {
   font-size: 26rpx;
   font-weight: 500;
-  color: #333333;
+  color: $text-primary;
 }
 .team-log-date {
-  font-size: 24rpx;
-  color: #999999;
+  font-size: $font-sm;
+  color: $text-secondary;
 }
 .team-log-right {
   display: flex;
   align-items: center;
-  gap: 8rpx;
+  gap: $spacing-xs;
 }
 .team-log-type {
-  font-size: 24rpx;
-  color: #2B6DE8;
+  font-size: $font-sm;
+  color: $primary-color;
 }
 .team-log-arrow {
-  font-size: 24rpx;
-  color: #C0C4CC;
+  font-size: $font-sm;
+  color: $text-placeholder;
 }
 
-/* 通用表单 */
+// ===== 表单（同 report-edit） =====
 .form-group {
-  margin-bottom: 20rpx;
+  margin-bottom: $spacing-base - 4rpx;
 }
 .form-label {
   font-size: 26rpx;
-  color: #666666;
+  color: $text-regular;
   font-weight: 500;
-  margin-bottom: 12rpx;
+  margin-bottom: $spacing-xs;
   display: block;
 }
 .form-picker {
   height: 72rpx;
   padding: 0 20rpx;
   background: #F7F8FA;
-  border-radius: 12rpx;
+  border-radius: $radius-base;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .picker-value {
-  font-size: 28rpx;
-  color: #333333;
+  font-size: $font-base;
+  color: $text-primary;
 }
 .picker-icon {
-  font-size: 28rpx;
-  color: #999999;
+  font-size: $font-base;
+  color: $text-secondary;
 }
 
-/* 汇总统计条 */
+// ===== 汇总统计条 =====
 .summary-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8rpx;
-  padding: 20rpx 24rpx;
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  margin-bottom: 16rpx;
+  gap: $spacing-xs;
+  padding: 20rpx $spacing-base;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  margin-bottom: $spacing-sm;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 .summary-item {
   display: flex;
   align-items: center;
   gap: 4rpx;
-  padding: 8rpx 16rpx;
+  padding: 8rpx $spacing-sm;
   background: #F7F8FA;
-  border-radius: 8rpx;
+  border-radius: $radius-sm;
 }
 .summary-val {
-  font-size: 28rpx;
+  font-size: $font-base;
   font-weight: 700;
 }
 .summary-lbl {
-  font-size: 22rpx;
-  color: #999999;
+  font-size: $font-xs;
+  color: $text-secondary;
 }
 
-/* 员工列表 */
+// 汇总数值颜色修饰符
+.summary-val--submitted   { color: $primary-color; }
+.summary-val--substituted { color: #6366F1; }
+.summary-val--supplement  { color: $warning-color; }
+.summary-val--office      { color: $success-color; }
+.summary-val--leave       { color: #8B5CF6; }
+.summary-val--rest        { color: #EC4899; }
+.summary-val--missing     { color: $danger-color; }
+.summary-val--zero        { color: $text-secondary; }
+
+// ===== 员工列表 =====
 .worker-list {
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
+  gap: $spacing-xs;
 }
 .worker-card {
   display: flex;
   align-items: center;
-  padding: 20rpx 24rpx;
-  background: #FFFFFF;
-  border-radius: 12rpx;
-  gap: 16rpx;
+  padding: 20rpx $spacing-base;
+  background: $bg-card;
+  border-radius: $radius-base;
+  gap: $spacing-sm;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 .worker-missing {
   border: 1rpx solid #FFCDD2;
@@ -726,19 +718,19 @@ function getDailyStatusLabel(worker) {
 .worker-card-name {
   font-size: 26rpx;
   font-weight: 600;
-  color: #333333;
+  color: $text-primary;
 }
 .worker-card-code {
-  font-size: 22rpx;
-  color: #999999;
+  font-size: $font-xs;
+  color: $text-secondary;
 }
 .worker-card-mid {
   flex: 1;
   min-width: 0;
 }
 .worker-card-project {
-  font-size: 24rpx;
-  color: #666666;
+  font-size: $font-sm;
+  color: $text-regular;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -751,20 +743,31 @@ function getDailyStatusLabel(worker) {
   gap: 4rpx;
   flex-shrink: 0;
 }
-.worker-status-badge {
-  padding: 4rpx 12rpx;
-  border-radius: 6rpx;
-}
-.worker-status-text {
-  font-size: 22rpx;
-  font-weight: 500;
-}
 .worker-card-time {
-  font-size: 20rpx;
-  color: #C0C4CC;
+  font-size: $font-xs - 2rpx;
+  color: $text-placeholder;
 }
 
-/* 空状态 */
+// ===== 状态徽章（同 report-detail/report-edit 标签体系） =====
+.worker-status-badge {
+  padding: 4rpx 12rpx;
+  border-radius: $radius-sm;
+}
+.worker-status-text {
+  font-size: $font-xs;
+  font-weight: 500;
+}
+
+// 徽章颜色修饰符（统一标签体系）
+.badge--submitted   { background: #EFFDF5; color: $success-color; }
+.badge--supplement  { background: #FFF8E1; color: $warning-color; }
+.badge--office      { background: $primary-bg; color: $primary-color; }
+.badge--substituted { background: #FFF0F5; color: #6366F1; }
+.badge--leave       { background: #F5F3FF; color: #8B5CF6; }
+.badge--rest        { background: #FDF2F8; color: #EC4899; }
+.badge--missing     { background: #FFF0F0; color: $danger-color; }
+
+// ===== 空状态 =====
 .empty-wrap {
   display: flex;
   flex-direction: column;
@@ -773,8 +776,8 @@ function getDailyStatusLabel(worker) {
   padding: 200rpx 0;
 }
 .empty-text {
-  font-size: 28rpx;
-  color: #999999;
+  font-size: $font-base;
+  color: $text-secondary;
 }
 
 .bottom-placeholder {
