@@ -239,8 +239,12 @@ async function update(req, res, next) {
       }
     }
 
-    // todayWorkType 枚举校验
+    // todayWorkType 归一化 + 枚举校验
     if (updateData.todayWorkType) {
+      // 旧版简称归一化（与 stats.service.js 的 wtNormalize 保持一致）
+      if (updateData.todayWorkType === '工作' || updateData.todayWorkType === '作业') {
+        updateData.todayWorkType = '工作（陆）';
+      }
       const validWorkTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休'];
       if (!validWorkTypes.includes(updateData.todayWorkType)) {
         throw new ValidationError(`无效的工作类型: ${updateData.todayWorkType}`);
