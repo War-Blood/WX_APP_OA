@@ -43,12 +43,21 @@ async function login(code) {
   // 2. 在 users 表中查找用户
   const users = await db.query('SELECT * FROM users WHERE openid = ? AND deleted_at IS NULL', [openid]);
 
-  // 3. 未注册 → 拒绝登录（需管理员在后台预登记）
+  // 3. 未注册 → 检查是否被软删除，是则自动恢复
   if (users.length === 0) {
-    // 检查是否被软删除
-    const deletedCheck = await db.query('SELECT id FROM users WHERE openid = ? AND deleted_at IS NOT NULL', [openid]);
-    if (deletedCheck.length > 0) {
-      throw new BusinessError('您的账号已被管理员删除，请联系管理员重新邀请后再登录');
+    const deletedUser = await db.query(
+      'SELECT * FROM users WHERE openid = ? AND deleted_at IS NOT NULL',
+      [openid]
+    );
+    if (deletedUser.length > 0) {
+      // 自动恢复已删除账号（重新申请即恢复）
+      await db.execute('UPDATE users SET deleted_at = NULL WHERE id = ?', [deletedUser[0].id]);
+      logger.info('用户重新申请 - 账号已恢复', { module: 'AUTH', userId: deletedUser[0].id });
+      const restoredUser = { ...deletedUser[0], deleted_at: null };
+      if (restoredUser.status === 'disabled') {
+        throw new BusinessError('您的账号已被禁用，请联系管理员');
+      }
+      return finalizeLogin(restoredUser);
     }
     throw new BusinessError('您的账号未注册，请联系管理员');
   }
@@ -237,13 +246,25 @@ async function updateProfile(userId, data) {
  * 小程序账号密码登录
  */
 async function accountLogin(account, password) {
-  const users = await db.query(
+  let users = await db.query(
     'SELECT * FROM users WHERE user_name = ? AND deleted_at IS NULL',
     [account]
   );
+  // 若未找到，检查是否被软删除，是则自动恢复
+  if (users.length === 0) {
+    const deletedUser = await db.query(
+      'SELECT * FROM users WHERE user_name = ? AND deleted_at IS NOT NULL',
+      [account]
+    );
+    if (deletedUser.length > 0) {
+      await db.execute('UPDATE users SET deleted_at = NULL WHERE id = ?', [deletedUser[0].id]);
+      logger.info('用户重新申请 - 账号已恢复（账号登录）', { module: 'AUTH', userId: deletedUser[0].id });
+      users = [{ ...deletedUser[0], deleted_at: null }];
+    }
+  }
   if (users.length === 0) throw new BusinessError('账号不存在');
   const user = users[0];
-  if (user.status !== 'active') throw new BusinessError('账号已被禁用');
+  if (user.status !== 'active') throw new BusinessError('账号已被禁用，请联系管理员');
   if (!user.password_hash) throw new BusinessError('该账号未设置密码，请联系管理员');
 
   const isValid = await bcrypt.compare(password, user.password_hash);
