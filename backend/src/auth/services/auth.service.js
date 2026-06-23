@@ -7,6 +7,7 @@ const config = require('../../common/config/env');
 const db = require('../../common/config/database');
 const { BusinessError } = require('../../common/utils/errors');
 const logger = require('../../common/utils/logger');
+const { nextWorkerCode } = require('../../common/utils/worker-code');
 
 /**
  * 认证服务
@@ -51,12 +52,17 @@ async function login(code) {
     );
     if (deletedUser.length > 0) {
       // 重新发起申请：恢复账号但设为 pending，需管理员重新审核
+      // 若工号缺失则补全
+      let workerCode = deletedUser[0].worker_code;
+      if (!workerCode) {
+        workerCode = await nextWorkerCode(deletedUser[0].role || 'employee');
+      }
       await db.execute(
-        "UPDATE users SET deleted_at = NULL, status = 'pending' WHERE id = ?",
-        [deletedUser[0].id]
+        "UPDATE users SET deleted_at = NULL, status = 'pending', worker_code = ? WHERE id = ?",
+        [workerCode, deletedUser[0].id]
       );
       logger.info('用户重新申请 - 已提交审核', { module: 'AUTH', userId: deletedUser[0].id });
-      const reappliedUser = { ...deletedUser[0], deleted_at: null, status: 'pending' };
+      const reappliedUser = { ...deletedUser[0], deleted_at: null, status: 'pending', worker_code: workerCode };
       // 登录成功但前端会拦截 pending 状态，显示"等待审核"
       return finalizeLogin(reappliedUser);
     }
@@ -259,12 +265,17 @@ async function accountLogin(account, password) {
     );
     if (deletedUser.length > 0) {
       // 重新发起申请：恢复账号但设为 pending，需管理员重新审核
+      // 若工号缺失则补全
+      let workerCode = deletedUser[0].worker_code;
+      if (!workerCode) {
+        workerCode = await nextWorkerCode(deletedUser[0].role || 'employee');
+      }
       await db.execute(
-        "UPDATE users SET deleted_at = NULL, status = 'pending' WHERE id = ?",
-        [deletedUser[0].id]
+        "UPDATE users SET deleted_at = NULL, status = 'pending', worker_code = ? WHERE id = ?",
+        [workerCode, deletedUser[0].id]
       );
       logger.info('用户重新申请 - 已提交审核（账号登录）', { module: 'AUTH', userId: deletedUser[0].id });
-      users = [{ ...deletedUser[0], deleted_at: null, status: 'pending' }];
+      users = [{ ...deletedUser[0], deleted_at: null, status: 'pending', worker_code: workerCode }];
     }
   }
   if (users.length === 0) throw new BusinessError('账号不存在');

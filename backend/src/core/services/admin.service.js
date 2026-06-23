@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const db = require('../../common/config/database');
 const { BusinessError, ValidationError } = require('../../common/utils/errors');
 const logger = require('../../common/utils/logger');
+const { nextWorkerCode } = require('../../common/utils/worker-code');
 
 /**
  * 管理员服务 — 用户管理
@@ -125,10 +126,11 @@ async function createUser({ openid, userName, department, role }) {
     throw new BusinessError('该微信账号已注册，请勿重复添加');
   }
 
+  const workerCode = await nextWorkerCode(role || 'employee');
   const result = await db.execute(
-    `INSERT INTO users (openid, user_name, nickname, department, role, status, created_at) 
-     VALUES (?, ?, ?, ?, ?, 'pending', NOW())`,
-    [openid.trim(), userName || null, userName || null, department || null, role || 'employee']
+    `INSERT INTO users (openid, user_name, nickname, department, role, worker_code, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())`,
+    [openid.trim(), userName || null, userName || null, department || null, role || 'employee', workerCode]
   );
 
   logger.info('管理员预注册用户', { module: 'ADMIN', openid, userId: result[0].insertId });
@@ -184,9 +186,10 @@ async function inviteUser({ openid, userName, department, role }) {
     return { userId: String(u.id), status: 'active', reactivated: true };
   }
 
+  const workerCode = await nextWorkerCode(finalRole);
   const result = await db.execute(
-    "INSERT INTO users (openid, user_name, role, department, status, created_at) VALUES (?, ?, ?, ?, 'active', NOW())",
-    [openid, finalName, finalRole, finalDept]
+    "INSERT INTO users (openid, user_name, role, department, worker_code, status, created_at) VALUES (?, ?, ?, ?, ?, 'active', NOW())",
+    [openid, finalName, finalRole, finalDept, workerCode]
   );
 
   return { userId: String(result[0].insertId), status: 'active', created: true };
@@ -338,9 +341,10 @@ async function batchImportUsers(users) {
         continue;
       }
 
+      const workerCode = await nextWorkerCode(u.role || 'employee');
       await db.execute(
-        `INSERT INTO users (openid, user_name, nickname, department, department_id, role, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'active', NOW())`,
+        `INSERT INTO users (openid, user_name, nickname, department, department_id, role, worker_code, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'active', NOW())`,
         [
           u.openid.trim(),
           u.userName || null,
@@ -348,6 +352,7 @@ async function batchImportUsers(users) {
           u.department || null,
           u.departmentId || null,
           u.role || 'employee',
+          workerCode,
         ]
       );
       results.success++;

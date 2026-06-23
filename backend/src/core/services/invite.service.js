@@ -6,6 +6,7 @@ const db = require('../../common/config/database');
 const config = require('../../common/config/env');
 const { BusinessError, ValidationError } = require('../../common/utils/errors');
 const logger = require('../../common/utils/logger');
+const { nextWorkerCode } = require('../../common/utils/worker-code');
 
 /**
  * CDK 邀请码服务
@@ -94,11 +95,12 @@ async function redeemInviteCode(code, name) {
   // 2. 生成 openid（基于 code 保证唯一）
   const openid = 'cdk_' + trimmedCode;
 
-  // 3. 插入新用户
+  // 3. 生成工号并插入新用户
+  const workerCode = await nextWorkerCode('employee');
   const result = await db.execute(
-    `INSERT INTO users (openid, user_name, nickname, role, status, created_at)
-     VALUES (?, ?, ?, 'employee', 'active', NOW())`,
-    [openid, trimmedName, trimmedName]
+    `INSERT INTO users (openid, user_name, nickname, role, worker_code, status, created_at)
+     VALUES (?, ?, ?, 'employee', ?, 'active', NOW())`,
+    [openid, trimmedName, trimmedName, workerCode]
   );
 
   const userId = result[0].insertId;
