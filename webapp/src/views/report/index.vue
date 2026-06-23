@@ -3,7 +3,8 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
-import { getReportList, getWorkerStats, deleteReport, reviewAction, reviewSupplement } from '@/api/report'
+import { getReportList, getWorkerStats, deleteReport, reviewAction, reviewSupplement, updateReport } from '@/api/report'
+import type { ReportUpdateResult } from '@/api/report'
 import type { AllStatsResponse } from '@/api/report'
 
 // --- 状态 ---
@@ -41,6 +42,11 @@ const reviewVisible = ref(false)
 const reviewItem = ref<Record<string, unknown> | null>(null)
 const reviewDecision = ref<'special' | 'forget'>('special')
 const reviewComment = ref('')
+
+// 编辑弹窗
+const editVisible = ref(false)
+const editData = ref<Record<string, unknown>>({})
+const editSaving = ref(false)
 
 const statusOptions = [
   { label: '全部', value: '' },
@@ -231,6 +237,54 @@ async function handleSupplementReview() {
   }
 }
 
+// ===== 编辑公出日志 =====
+function openEdit(row: Record<string, unknown>) {
+  editData.value = {
+    reportId: row.id,
+    project: row.project || '',
+    area: row.area || '',
+    todayWorkType: row.todayWorkType || '',
+    workContent: row.workContent || '',
+    machineModel: row.machineModel || '',
+    workers: row.workers || '',
+    relatedParty: row.relatedParty || '',
+    remark: row.remark || '',
+    // 只读展示用
+    reportDate: row.reportDate || row.date || '',
+    submitter: row.submitter || '',
+    status: row.status || '',
+  }
+  editVisible.value = true
+}
+
+async function handleEditSubmit() {
+  editSaving.value = true
+  try {
+    const res: ReportUpdateResult = await updateReport({
+      reportId: editData.value.reportId as number,
+      project: editData.value.project as string,
+      area: editData.value.area as string,
+      todayWorkType: editData.value.todayWorkType as string,
+      workContent: editData.value.workContent as string,
+      machineModel: editData.value.machineModel as string,
+      workers: editData.value.workers as string,
+      relatedParty: editData.value.relatedParty as string,
+      remark: editData.value.remark as string,
+    })
+    editVisible.value = false
+    if (res.changes && res.changes.length > 0) {
+      ElMessage.success(`已修改 ${res.changes.length} 个字段`)
+    } else {
+      ElMessage.info('未检测到变更')
+    }
+    loadReports()
+  } catch {
+    // 错误已由拦截器处理
+  } finally {
+    editSaving.value = false
+  }
+}
+
 // --- 人员看板（全量显示，不分页） ---
 async function loadWorkers() {
   loading.value = true
@@ -356,6 +410,7 @@ onMounted(() => { loadStats(); loadReports() })
             <el-button v-if="row.status === 'pending'" size="small" type="success" @click.stop="handleReview(row, 'approve')">通过</el-button>
             <el-button v-if="row.status === 'pending'" size="small" type="danger" @click.stop="handleReview(row, 'reject')">驳回</el-button>
             <el-button v-if="(row.reportType as string) === 'biz_trip_supplement'" size="small" type="primary" @click.stop="openSupplementReview(row)">审核</el-button>
+            <el-button size="small" type="warning" link @click.stop="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" link :icon="Delete" @click.stop="handleDelete(row)" />
           </template>
         </el-table-column>
@@ -449,6 +504,71 @@ onMounted(() => { loadStats(); loadReports() })
         <el-button type="primary" @click="handleSupplementReview" :disabled="!reviewItem">确认</el-button>
       </template>
     </el-dialog>
+
+    <!-- 编辑弹窗 -->
+    <el-dialog v-model="editVisible" title="编辑公出日志" width="650px" destroy-on-close>
+      <template v-if="editData.reportId">
+        <el-descriptions :column="2" border size="small" class="edit-readonly">
+          <el-descriptions-item label="日期">{{ editData.reportDate }}</el-descriptions-item>
+          <el-descriptions-item label="填写人">{{ editData.submitter }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag v-if="editData.status === 'approved'" type="success" size="small">已通过</el-tag>
+            <el-tag v-else-if="editData.status === 'submitted'" type="info" size="small">已提交</el-tag>
+            <el-tag v-else-if="editData.status === 'pending'" type="warning" size="small">待审核</el-tag>
+            <el-tag v-else-if="editData.status === 'rejected'" type="danger" size="small">已驳回</el-tag>
+            <el-tag v-else size="small">{{ editData.status }}</el-tag>
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <el-divider />
+
+        <el-form :model="editData" label-width="100px" label-position="right" size="default">
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="项目名称">
+                <el-input v-model="editData.project" placeholder="项目名称" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="项目区域">
+                <el-input v-model="editData.area" placeholder="项目区域" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="工作类型">
+                <el-select v-model="editData.todayWorkType" style="width:100%">
+                  <el-option v-for="o in workTypeOptions.filter(o => o.value)" :key="o.value" :label="o.label" :value="o.value" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="机型">
+                <el-input v-model="editData.machineModel" placeholder="机型" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item label="作业人员">
+            <el-input v-model="editData.workers" placeholder="多个人员用、分隔" />
+          </el-form-item>
+          <el-form-item label="相关方单位">
+            <el-input v-model="editData.relatedParty" placeholder="相关方单位" />
+          </el-form-item>
+          <el-form-item label="工作内容">
+            <el-input v-model="editData.workContent" type="textarea" :rows="3" placeholder="从事工作内容" />
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="editData.remark" type="textarea" :rows="2" placeholder="备注信息" />
+          </el-form-item>
+        </el-form>
+      </template>
+
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editSaving" @click="handleEditSubmit">保存修改</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -461,4 +581,5 @@ onMounted(() => { loadStats(); loadReports() })
 .pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; .total-text { font-size: 14px; color: #999; } }
 .review-detail { margin-bottom: 8px; }
 .review-section { margin-bottom: 16px; .section-title { font-weight: 600; margin-bottom: 8px; color: #303133; } }
+.edit-readonly { margin-bottom: 8px; }
 </style>

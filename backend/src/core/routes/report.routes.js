@@ -35,6 +35,9 @@ router.get('/draft', authenticate, reportController.getDraft);
 // POST /api/report/delete — 删除日报（仅草稿/已驳回）
 router.post('/delete', authenticate, reportController.deleteReport);
 
+// POST /api/report/update — 管理员编辑公出日志（仅 admin+）
+router.post('/update', ...adminAuth, reportController.update);
+
 // ==============================
 // 代填检测（v2.0 新增）
 // ==============================

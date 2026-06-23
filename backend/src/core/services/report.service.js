@@ -218,6 +218,91 @@ async function deleteReport(id, userId) {
 }
 
 // ==============================
+// 管理员编辑公出日志
+// ==============================
+
+/**
+ * 管理员编辑公出日志（仅限 admin/superadmin）
+ * 仅更新白名单内字段，记录审计日志
+ *
+ * @param {number} reportId - 报告 ID
+ * @param {Object} data - 待更新的字段（仅白名单子集有效）
+ * @param {number} editorId - 编辑人用户 ID
+ * @param {Object} [meta] - 请求元数据
+ * @param {string} [meta.ip] - IP 地址
+ * @param {string} [meta.ua] - User-Agent
+ * @returns {Promise<{reportId: number, changes: string[]}>}
+ */
+async function updateReport(reportId, data, editorId, meta = {}) {
+  // 获取当前报告
+  const rows = await db.query(
+    'SELECT * FROM daily_reports WHERE id = ? AND deleted_at IS NULL',
+    [reportId]
+  );
+  if (rows.length === 0) throw new NotFoundError('日报不存在');
+
+  const oldRow = rows[0];
+
+  // 允许编辑的字段白名单：inputKey → { col, label }
+  const EDITABLE_FIELDS = {
+    project:       { col: 'project',         label: '项目名称' },
+    area:          { col: 'area',            label: '项目区域' },
+    todayWorkType: { col: 'today_work_type', label: '工作类型' },
+    workContent:   { col: 'work_content',    label: '工作内容' },
+    machineModel:  { col: 'machine_model',   label: '机型' },
+    workers:       { col: 'workers',         label: '作业人员' },
+    relatedParty:  { col: 'related_party',   label: '相关方单位' },
+    remark:        { col: 'remark',          label: '备注' },
+  };
+
+  const setClauses = [];
+  const params = [];
+  const changes = [];
+
+  for (const [inputKey, { col, label }] of Object.entries(EDITABLE_FIELDS)) {
+    if (data[inputKey] === undefined) continue;
+    const newVal = data[inputKey] ?? '';
+    const oldVal = oldRow[col] ?? '';
+    if (String(newVal) === String(oldVal)) continue;
+
+    setClauses.push(`${col} = ?`);
+    params.push(newVal || null);
+    changes.push({ field: inputKey, label, old: oldVal, new: newVal });
+  }
+
+  if (changes.length === 0) {
+    return { reportId, changes: [] };
+  }
+
+  params.push(reportId);
+
+  await db.transaction(async (conn) => {
+    await conn.execute(
+      `UPDATE daily_reports SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = ?`,
+      params
+    );
+
+    await conn.execute(
+      `INSERT INTO operation_logs (user_id, action, module, target_id, target_type, detail, ip_address, user_agent, created_at)
+       VALUES (?, 'report_update', 'report', ?, 'daily_report', ?, ?, ?, NOW())`,
+      [
+        editorId,
+        reportId,
+        JSON.stringify({
+          reportId,
+          changes,
+          summary: changes.map(c => `${c.label}: "${c.old}" → "${c.new}"`).join('; '),
+        }),
+        meta.ip || null,
+        meta.ua || null,
+      ]
+    );
+  });
+
+  return { reportId, changes: changes.map(c => c.field) };
+}
+
+// ==============================
 // 提交日报 v2.0（改造核心）
 // ==============================
 
@@ -915,6 +1000,7 @@ module.exports = {
   submit,
   getDraft,
   deleteReport,
+  updateReport,
   getWorkerList,
   getWorkerStats,
   exportCSV,

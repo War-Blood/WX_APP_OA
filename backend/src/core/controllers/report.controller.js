@@ -215,6 +215,53 @@ async function deleteReport(req, res, next) {
   }
 }
 
+/**
+ * 管理员编辑公出日志
+ * POST /api/report/update
+ */
+async function update(req, res, next) {
+  try {
+    const { reportId } = req.body;
+
+    if (!reportId) {
+      throw new ValidationError('reportId 不能为空');
+    }
+
+    const editableKeys = [
+      'project', 'area', 'todayWorkType', 'workContent',
+      'machineModel', 'workers', 'relatedParty', 'remark',
+    ];
+
+    const updateData = {};
+    for (const key of editableKeys) {
+      if (req.body[key] !== undefined) {
+        updateData[key] = req.body[key];
+      }
+    }
+
+    // todayWorkType 枚举校验
+    if (updateData.todayWorkType) {
+      const validWorkTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休'];
+      if (!validWorkTypes.includes(updateData.todayWorkType)) {
+        throw new ValidationError(`无效的工作类型: ${updateData.todayWorkType}`);
+      }
+    }
+
+    const meta = {
+      ip: req.ip || req.connection?.remoteAddress || null,
+      ua: req.headers['user-agent'] || null,
+    };
+
+    const result = await reportService.updateReport(
+      reportId, updateData, req.user.userId, meta
+    );
+
+    res.json(success(result, result.changes.length > 0 ? '修改成功' : '无变更'));
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ==============================
 // 代填检测（新增）
 // ==============================
@@ -483,6 +530,7 @@ module.exports = {
   saveDraft,
   getDraft,
   deleteReport,
+  update,
   checkDuplicate,
   todayStatus,
   pendingReviews,

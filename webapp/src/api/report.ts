@@ -92,6 +92,30 @@ export function deleteReport(id: string): Promise<void> {
   return request.post('/report/delete', { id })
 }
 
+/** 编辑报告参数 */
+export interface ReportUpdateParams {
+  reportId: number
+  project?: string
+  area?: string
+  todayWorkType?: string
+  workContent?: string
+  machineModel?: string
+  workers?: string
+  relatedParty?: string
+  remark?: string
+}
+
+/** 编辑报告响应 */
+export interface ReportUpdateResult {
+  reportId: number
+  changes: string[]
+}
+
+/** 管理员编辑公出日志 */
+export function updateReport(params: ReportUpdateParams): Promise<ReportUpdateResult> {
+  return request.post('/report/update', params)
+}
+
 export interface WorkerStatItem {
   name: string
   total: number
