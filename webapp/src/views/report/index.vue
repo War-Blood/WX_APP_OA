@@ -410,7 +410,6 @@ onMounted(() => { loadStats(); loadReports() })
             <el-button v-if="row.status === 'pending'" size="small" type="success" @click.stop="handleReview(row, 'approve')">通过</el-button>
             <el-button v-if="row.status === 'pending'" size="small" type="danger" @click.stop="handleReview(row, 'reject')">驳回</el-button>
             <el-button v-if="(row.reportType as string) === 'biz_trip_supplement'" size="small" type="primary" @click.stop="openSupplementReview(row)">审核</el-button>
-            <el-button size="small" type="warning" link @click.stop="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" link :icon="Delete" @click.stop="handleDelete(row)" />
           </template>
         </el-table-column>
@@ -464,8 +463,13 @@ onMounted(() => { loadStats(); loadReports() })
         <el-descriptions-item label="今日工作" :span="2">{{ detailData.todayWork || '-' }}</el-descriptions-item>
         <el-descriptions-item label="明日计划" :span="2">{{ detailData.tomorrowPlan || '-' }}</el-descriptions-item>
         <el-descriptions-item label="工作内容" :span="2">{{ detailData.workContent || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="相关方" :span="2">{{ detailData.relatedParty || '-' }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detailData.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
+      <template #footer>
+        <el-button type="warning" @click="detailVisible = false; openEdit(detailData)">编辑</el-button>
+        <el-button @click="detailVisible = false">关闭</el-button>
+      </template>
     </el-dialog>
 
     <!-- 补公出审核弹窗 -->
