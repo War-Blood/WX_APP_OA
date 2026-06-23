@@ -667,8 +667,8 @@ async function getWorkerWorkTypes(month) {
   const typeMap = {};
   // 旧数据兼容：部分历史记录的 today_work_type 存的是短名
   const wtNormalize = (wt) => {
-    if (!wt) return null;
     if (wt === '工作' || wt === '作业') return '工作（陆）'; // 旧版"工作"/"作业"→"工作（陆）"
+    if (!wt) return '工作（陆）'; // 空工作类型默认按"工作（陆）"计
     return wt;
   };
 
@@ -730,6 +730,7 @@ async function getWorkerWorkTypes(month) {
       total += c;
     });
     return {
+      userId: w.id,
       userName: w.nickname || w.user_name || '',
       workerCode: w.worker_code || '',
       workTypes: workTypesObj,
@@ -883,6 +884,14 @@ async function getUserMonthlyLogs(userId, month) {
   if (!userId) throw new BusinessError('userId 必填');
   if (!month || !/^\d{4}-\d{2}$/.test(month)) throw new BusinessError('month 格式错误，需 YYYY-MM');
 
+  // 获取用户名用于 workers 文本字段 LIKE 匹配
+  const userRows = await db.query(
+    'SELECT user_name, nickname FROM users WHERE id = ? AND deleted_at IS NULL',
+    [userId]
+  );
+  if (userRows.length === 0) throw new BusinessError('用户不存在');
+  const userName = userRows[0].nickname || userRows[0].user_name || '';
+
   const rows = await db.query(
     `SELECT
        dr.id AS reportId,
@@ -895,13 +904,20 @@ async function getUserMonthlyLogs(userId, month) {
        dr.work_content AS workContent,
        dr.workers,
        dr.status,
-       dr.submitted_at AS submittedAt
+       dr.submitted_at AS submittedAt,
+       u.nickname AS submitterName
      FROM daily_reports dr
-     WHERE dr.user_id = ?
-       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+     LEFT JOIN users u ON dr.user_id = u.id
+     WHERE DATE_FORMAT(dr.report_date, '%Y-%m') = ?
        AND dr.deleted_at IS NULL
+       AND dr.status != 'draft'
+       AND (
+         dr.user_id = ?
+         OR dr.workers LIKE ?
+         OR dr.id IN (SELECT drw.report_id FROM daily_report_workers drw WHERE drw.worker_uid = ?)
+       )
      ORDER BY dr.report_date DESC`,
-    [userId, month]
+    [month, userId, `%${userName}%`, userId]
   );
 
   return {
@@ -919,6 +935,7 @@ async function getUserMonthlyLogs(userId, month) {
       workers: r.workers || '',
       status: r.status || '',
       submittedAt: r.submittedAt ? String(r.submittedAt).slice(0, 16) : '',
+      submitterName: r.submitterName || '',
     })),
   };
 }

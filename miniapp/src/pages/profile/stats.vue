@@ -256,6 +256,7 @@
             <view class="drill-log-head">
               <text class="drill-log-date">{{ log.reportDate }}</text>
               <text class="drill-log-type">{{ log.workType }}</text>
+              <text v-if="log.submitterName" class="drill-log-by">by {{ log.submitterName }}</text>
             </view>
             <text v-if="log.project" class="drill-log-proj">{{ log.project }} · {{ log.area }}</text>
             <text v-if="log.workContent" class="drill-log-content">{{ log.workContent }}</text>
@@ -699,6 +700,7 @@ onMounted(async () => {
 .drill-log-head { display:flex; align-items:center; gap:12rpx; margin-bottom:4rpx; }
 .drill-log-date { font-size:24rpx; font-weight:500; color:$text-primary; }
 .drill-log-type { font-size:20rpx; color:$primary-color; font-weight:500; }
+.drill-log-by { font-size:18rpx; color:$text-placeholder; margin-left:auto; }
 .drill-log-proj { font-size:20rpx; color:$text-secondary; display:block; margin-bottom:2rpx; }
 .drill-log-content { font-size:20rpx; color:$text-regular; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
