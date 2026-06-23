@@ -37,4 +37,7 @@ router.post('/stats/area-distribution', authenticate, statsController.areaDistri
 // POST /api/stats/province-workers — 省份下钻人员列表
 router.post('/stats/province-workers', authenticate, statsController.provinceWorkers);
 
+// POST /api/stats/user-monthly-logs — 用户月度公出日志明细
+router.post('/stats/user-monthly-logs', authenticate, statsController.userMonthlyLogs);
+
 module.exports = router;

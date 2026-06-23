@@ -54,12 +54,90 @@
     </scroll-view>
 
     <!-- 全员当日 -->
-    <view v-if="showTab('daily')" class="content-scroll" style="display:flex;align-items:center;justify-content:center">
-      <view class="card" style="text-align:center;padding:64rpx 32rpx">
-        <text class="card-title">昨日工作一览</text>
-        <text style="font-size:24rpx;color:#999;display:block;margin:16rpx 0 24rpx">查看所有在职人员昨日的工作状态与项目分布</text>
-        <view class="btn-primary" @tap="goDailyOverview"><text class="btn-primary-text">查看详情</text></view>
+    <view v-if="showTab('daily')" class="daily-tab">
+      <!-- 日期导航 -->
+      <view class="date-bar">
+        <view class="date-nav-btn" @tap="dailyPrevDay"><text class="date-nav-icon">‹</text></view>
+        <picker mode="date" :value="dailyDate" :end="todayStr" @change="onDailyDateChange">
+          <view class="date-picker">
+            <text class="date-text">{{ dailyDateDisplay }}</text>
+            <text class="date-arrow">▾</text>
+          </view>
+        </picker>
+        <view class="date-nav-btn" :class="{ 'date-nav-disabled': dailyDate === todayStr }" @tap="dailyNextDay">
+          <text class="date-nav-icon">›</text>
+        </view>
       </view>
+
+      <!-- 摘要统计条 -->
+      <view v-if="dailyResponse" class="summary-bar">
+        <view class="summary-item summary-item--submitted">
+          <text class="summary-val">{{ dailySubmitted }}</text>
+          <text class="summary-lbl">已提交</text>
+        </view>
+        <view class="summary-item summary-item--missing">
+          <text class="summary-val" :class="{ 'summary-val--danger': dailyMissing > 0 }">{{ dailyMissing }}</text>
+          <text class="summary-lbl">缺失</text>
+        </view>
+      </view>
+
+      <!-- 加载/空状态 -->
+      <view v-if="dailyLoading" class="loading"><text>加载中...</text></view>
+      <view v-else-if="!dailyResponse" class="empty"><text>暂无数据</text></view>
+
+      <!-- 内容列表 -->
+      <scroll-view v-else class="daily-scroll" scroll-y>
+        <!-- 缺失人员 -->
+        <view v-if="dailyMissingWorkers.length" class="daily-section">
+          <text class="section-header section-header--missing">未提交 ({{ dailyMissingWorkers.length }})</text>
+          <view class="daily-card-list">
+            <view v-for="w in dailyMissingWorkers" :key="w.userId" class="worker-card worker-card--missing">
+              <view class="card-left">
+                <text class="card-name">{{ w.userName }}</text>
+                <text class="card-code">{{ w.workerCode || '' }}</text>
+              </view>
+              <text class="card-status-tag tag--missing">未提交</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 已提交 -->
+        <view v-if="dailyActiveWorkers.length" class="daily-section">
+          <text class="section-header section-header--active">已提交 ({{ dailyActiveWorkers.length }})</text>
+          <view class="daily-card-list">
+            <view v-for="w in dailyActiveWorkers" :key="w.userId" class="worker-card" :class="'worker-card--' + w.status" @tap="goDailyDetail(w)">
+              <view class="card-left">
+                <text class="card-name">{{ w.userName }}</text>
+                <text class="card-code">{{ w.workerCode || '' }}</text>
+              </view>
+              <view class="card-mid">
+                <text v-if="w.project" class="card-project">{{ w.project }}</text>
+                <text v-if="w.area" class="card-area">{{ w.area }}</text>
+              </view>
+              <view class="card-right">
+                <text class="card-status-tag" :class="'tag--' + w.status">{{ statusLabel(w.status) }}</text>
+                <text v-if="w.workType" class="card-work-type">{{ w.workType }}</text>
+                <text v-if="w.submittedAt" class="card-time">{{ fmtTime(w.submittedAt) }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 请假/调休 -->
+        <view v-if="dailyLeaveWorkers.length" class="daily-section">
+          <text class="section-header section-header--leave">请假/调休 ({{ dailyLeaveWorkers.length }})</text>
+          <view class="daily-card-list">
+            <view v-for="w in dailyLeaveWorkers" :key="w.userId" class="worker-card worker-card--leave">
+              <view class="card-left">
+                <text class="card-name">{{ w.userName }}</text>
+                <text class="card-code">{{ w.workerCode || '' }}</text>
+              </view>
+              <text class="card-status-tag" :class="'tag--' + w.status">{{ statusLabel(w.status) }}</text>
+            </view>
+          </view>
+        </view>
+        <view class="spacer" />
+      </scroll-view>
     </view>
 
     <!-- 日历热力图 -->
@@ -130,7 +208,7 @@
               <text v-for="l in wtShort" :key="l" class="wt-c wt-val">{{ l }}</text>
               <text class="wt-c wt-val wt-total">计</text>
             </view>
-            <view v-for="w in workTypeData" :key="w.userName" class="wt-row">
+            <view v-for="w in workTypeData" :key="w.userName" class="wt-row" @tap="openDrill(w)">
               <text class="wt-c wt-name">{{ w.userName }}</text>
               <text class="wt-c wt-code">{{ w.workerCode }}</text>
               <text v-for="l in wtLabels" :key="l" class="wt-c wt-val" :style="{ background: wtCellBg(w.workTypes[l], wtMax(l)) }">{{ w.workTypes[l] || 0 }}</text>
@@ -158,6 +236,33 @@
       </view>
       <view class="spacer" />
     </scroll-view>
+
+    <!-- 工作类型 drill-down 弹窗 -->
+    <view v-if="drillUser" class="drill-overlay" @tap="closeDrill">
+      <view class="drill-panel" @tap.stop>
+        <view class="drill-header">
+          <text class="drill-title">{{ drillUser.userName }} · {{ workTypeMonth }}</text>
+          <text class="drill-close" @tap="closeDrill">✕</text>
+        </view>
+        <view class="drill-summary">
+          <text v-for="l in wtLabels" :key="l" class="drill-tag" v-if="drillUser.workTypes[l]">
+            {{ l }} {{ drillUser.workTypes[l] }}天
+          </text>
+        </view>
+        <scroll-view v-if="drillLoading" class="drill-loading"><text>加载中...</text></scroll-view>
+        <scroll-view v-else-if="drillLogs.length === 0" class="drill-empty"><text>暂无日志记录</text></scroll-view>
+        <scroll-view v-else class="drill-body" scroll-y>
+          <view v-for="log in drillLogs" :key="log.reportId" class="drill-log" @tap="goTeamDetail({ reportId: log.reportId })">
+            <view class="drill-log-head">
+              <text class="drill-log-date">{{ log.reportDate }}</text>
+              <text class="drill-log-type">{{ log.workType }}</text>
+            </view>
+            <text v-if="log.project" class="drill-log-proj">{{ log.project }} · {{ log.area }}</text>
+            <text v-if="log.workContent" class="drill-log-content">{{ log.workContent }}</text>
+          </view>
+        </scroll-view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -184,6 +289,7 @@ function showTab(k) { return !userStore.isAdmin ? k === 'personal' : activeTab.v
 
 function switchTab(k) {
   activeTab.value = k
+  if (k === 'daily' && !dailyResponse.value) loadDailyStatus()
   if (k === 'calendar' && !calData.value.length) loadCalendar()
   if (k === 'projects' && !projData.value.length) loadProjects()
   if (k === 'workers' && !workTypeData.value.length) { loadWorkTypes(); loadAreas() }
@@ -262,6 +368,72 @@ function wtCellBg(v, max) { if (!v) return 'transparent'; const p = v / max; ret
 
 const areaData = ref([])
 
+// ============ 工作类型 drill-down ============
+const drillUser = ref(null)
+const drillLogs = ref([])
+const drillLoading = ref(false)
+
+async function openDrill(w) {
+  drillUser.value = w
+  drillLoading.value = true
+  drillLogs.value = []
+  try {
+    const res = await reportApi.getUserMonthlyLogs(w.userId, workTypeMonth.value)
+    if (res.code === 0 && res.data) drillLogs.value = res.data.logs || []
+  } catch { drillLogs.value = [] }
+  finally { drillLoading.value = false }
+}
+
+function closeDrill() {
+  drillUser.value = null
+  drillLogs.value = []
+}
+
+// ============ 全员当日 ============
+const todayStr = new Date().toISOString().slice(0, 10)
+const yesterday = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10) }
+const dailyDate = ref(yesterday())
+const dailyResponse = ref(null)
+const dailyLoading = ref(false)
+
+const dailyDateDisplay = computed(() => {
+  if (dailyDate.value === todayStr) return '今天 ' + dailyDate.value
+  if (dailyDate.value === yesterday()) return '昨天 ' + dailyDate.value
+  return dailyDate.value
+})
+
+const dailyMissing = computed(() => dailyResponse.value?.summary?.missing || 0)
+const dailySubmitted = computed(() => {
+  if (!dailyResponse.value) return 0
+  const s = dailyResponse.value.summary
+  return (s.submitted || 0) + (s.substituted || 0) + (s.supplement || 0) + (s.office || 0) + (s.leave || 0) + (s.rest || 0)
+})
+
+const dailyMissingWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'missing'))
+const dailyActiveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'rest'))
+const dailyLeaveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'leave' || w.status === 'rest'))
+
+function fmtTime(dt) { if (!dt) return ''; const p = String(dt).split(' '); return p[1] ? p[1].slice(0, 5) : dt }
+
+function statusLabel(s) {
+  const m = { submitted: '已提交', supplement: '补公出', office: '公司日报', substituted: '已代填', leave: '请假', rest: '调休', missing: '未提交' }
+  return m[s] || s
+}
+
+async function loadDailyStatus() {
+  dailyLoading.value = true
+  try {
+    const res = await reportApi.getDailyStatus({ date: dailyDate.value })
+    if (res.code === 0 && res.data) dailyResponse.value = res.data
+  } catch { dailyResponse.value = null }
+  finally { dailyLoading.value = false }
+}
+
+function dailyPrevDay() { const d = new Date(dailyDate.value); d.setDate(d.getDate() - 1); dailyDate.value = d.toISOString().slice(0, 10); loadDailyStatus() }
+function dailyNextDay() { if (dailyDate.value >= todayStr) return; const d = new Date(dailyDate.value); d.setDate(d.getDate() + 1); dailyDate.value = d.toISOString().slice(0, 10); loadDailyStatus() }
+function onDailyDateChange(e) { dailyDate.value = e.detail.value; loadDailyStatus() }
+function goDailyDetail(w) { if (w.reportId) uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + w.reportId }) }
+
 // ============ 数据加载 ============
 async function loadPersonal() {
   try {
@@ -301,6 +473,7 @@ async function loadAreas() {
 async function onRefresh() {
   refreshing.value = true
   if (activeTab.value === 'personal') await Promise.all([loadPersonal(), loadMonthly(), loadTeamLogs()])
+  else if (activeTab.value === 'daily') await loadDailyStatus()
   else if (activeTab.value === 'calendar') await loadCalendar()
   else if (activeTab.value === 'projects') await loadProjects()
   else if (activeTab.value === 'workers') await Promise.all([loadWorkTypes(), loadAreas()])
@@ -308,7 +481,6 @@ async function onRefresh() {
 }
 
 // ============ 导航 ============
-function goDailyOverview() { uni.navigateTo({ url: '/pages/admin/daily-overview/index' }) }
 function goTeamDetail(log) { const id = log.reportId || log.id; if (id) uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + id }) }
 
 // ============ 初始化 ============
@@ -442,4 +614,91 @@ onMounted(async () => {
 // ===== 通用 =====
 .loading, .empty { display:flex; align-items:center; justify-content:center; padding:160rpx 0; font-size:$font-base; color:$text-secondary; }
 .spacer { height:40rpx; }
+
+// ===== 全员当日 =====
+.daily-tab { display:flex; flex-direction:column; flex:1; height:0; }
+.date-bar { display:flex; align-items:center; justify-content:center; gap:$spacing-sm; padding:$spacing-sm $spacing-base; background:$bg-card; flex-shrink:0; }
+.date-nav-btn { width:64rpx; height:64rpx; display:flex; align-items:center; justify-content:center; background:#F7F8FA; border-radius:$radius-base; }
+.date-nav-btn:active { background:#EBEDF0; }
+.date-nav-icon { font-size:40rpx; color:$text-regular; line-height:1; }
+.date-nav-disabled { opacity:.3; }
+.date-picker { display:flex; align-items:center; gap:8rpx; padding:12rpx 24rpx; background:#F7F8FA; border-radius:$radius-base; min-width:280rpx; justify-content:center; }
+.date-text { font-size:$font-base; color:$text-primary; font-weight:500; }
+.date-arrow { font-size:24rpx; color:$text-secondary; }
+.summary-bar { display:flex; gap:$spacing-sm; padding:$spacing-sm $spacing-base; flex-shrink:0; }
+.summary-item { flex:1; display:flex; align-items:center; gap:8rpx; padding:16rpx 20rpx; border-radius:$radius-base; }
+.summary-item--submitted { background:#EFFDF5; }
+.summary-item--missing { background:#FFF0F0; }
+.summary-val { font-size:36rpx; font-weight:700; color:$success-color; }
+.summary-val--danger { color:$danger-color; }
+.summary-lbl { font-size:$font-sm; color:$text-regular; }
+.daily-scroll { flex:1; height:0; padding:0 $spacing-base; }
+.daily-section { margin-bottom:$spacing-sm; }
+.section-header { font-size:26rpx; font-weight:600; padding:12rpx 0; display:block; }
+.section-header--missing { color:$danger-color; }
+.section-header--active  { color:$success-color; }
+.section-header--leave   { color:$text-secondary; }
+.daily-card-list { display:flex; flex-direction:column; gap:$spacing-xs; }
+.worker-card {
+  display:flex; align-items:center; padding:20rpx $spacing-base; background:$bg-card;
+  border-radius:$radius-base; box-shadow:0 2rpx 12rpx rgba(0,0,0,.04);
+}
+.worker-card--missing { border-left:6rpx solid $danger-color; background:#FFF5F5; }
+.worker-card--leave { border-left:6rpx solid $text-placeholder; }
+.worker-card--submitted { border-left:6rpx solid $success-color; }
+.worker-card--supplement { border-left:6rpx solid $warning-color; }
+.worker-card--office { border-left:6rpx solid $primary-color; }
+.worker-card--substituted { border-left:6rpx solid #6366F1; }
+.card-left { display:flex; flex-direction:column; gap:4rpx; width:140rpx; flex-shrink:0; }
+.card-name { font-size:26rpx; font-weight:600; color:$text-primary; }
+.card-code { font-size:$font-xs; color:$text-secondary; }
+.card-mid { flex:1; min-width:0; display:flex; flex-direction:column; gap:4rpx; }
+.card-project { font-size:$font-sm; color:$text-primary; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.card-area { font-size:$font-xs; color:$text-secondary; }
+.card-right { display:flex; flex-direction:column; align-items:flex-end; gap:4rpx; flex-shrink:0; margin-left:$spacing-sm; }
+.card-work-type { font-size:$font-xs; color:$primary-color; }
+.card-time { font-size:18rpx; color:$text-placeholder; }
+.card-status-tag { font-size:$font-xs; font-weight:500; padding:2rpx 10rpx; border-radius:$radius-sm; }
+.tag--submitted   { background:#EFFDF5; color:$success-color; }
+.tag--supplement  { background:#FFF8E1; color:$warning-color; }
+.tag--office      { background:$primary-bg; color:$primary-color; }
+.tag--substituted { background:#FFF0F5; color:#6366F1; }
+.tag--leave       { background:#F5F3FF; color:#8B5CF6; }
+.tag--rest        { background:#FDF2F8; color:#EC4899; }
+.tag--missing     { background:#FFF0F0; color:$danger-color; }
+
+// ===== drill-down 弹窗 =====
+.drill-overlay {
+  position:fixed; top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.5); display:flex; align-items:flex-end; z-index:1000;
+}
+.drill-panel {
+  width:100%; max-height:80vh; background:$bg-card;
+  border-radius:24rpx 24rpx 0 0; display:flex; flex-direction:column;
+}
+.drill-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:24rpx $spacing-base 12rpx; border-bottom:1rpx solid $border-light;
+}
+.drill-title { font-size:28rpx; font-weight:600; color:$text-primary; }
+.drill-close { font-size:36rpx; color:$text-secondary; padding:0 8rpx; }
+.drill-summary { display:flex; flex-wrap:wrap; gap:8rpx; padding:12rpx $spacing-base; }
+.drill-tag {
+  padding:4rpx 12rpx; background:$primary-bg; color:$primary-color;
+  font-size:20rpx; border-radius:$radius-sm; font-weight:500;
+}
+.drill-loading, .drill-empty {
+  display:flex; align-items:center; justify-content:center;
+  padding:80rpx 0; font-size:$font-sm; color:$text-secondary;
+}
+.drill-body { flex:1; max-height:56vh; padding:0 $spacing-base; }
+.drill-log {
+  padding:16rpx 0; border-bottom:1rpx solid $border-light;
+}
+.drill-log:last-child { border-bottom:none; }
+.drill-log-head { display:flex; align-items:center; gap:12rpx; margin-bottom:4rpx; }
+.drill-log-date { font-size:24rpx; font-weight:500; color:$text-primary; }
+.drill-log-type { font-size:20rpx; color:$primary-color; font-weight:500; }
+.drill-log-proj { font-size:20rpx; color:$text-secondary; display:block; margin-bottom:2rpx; }
+.drill-log-content { font-size:20rpx; color:$text-regular; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>

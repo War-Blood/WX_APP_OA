@@ -668,7 +668,7 @@ async function getWorkerWorkTypes(month) {
   // 旧数据兼容：部分历史记录的 today_work_type 存的是短名
   const wtNormalize = (wt) => {
     if (!wt) return null;
-    if (wt === '工作') return '工作（陆）'; // 旧版"工作"→"工作（陆）"
+    if (wt === '工作' || wt === '作业') return '工作（陆）'; // 旧版"工作"/"作业"→"工作（陆）"
     return wt;
   };
 
@@ -873,4 +873,54 @@ async function getProvinceWorkers(province, month) {
   return { province, workers: Object.values(workerMap) };
 }
 
-module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getDailyCounts, getProjectProgress, getWorkerWorkTypes, getAreaDistribution, getProvinceWorkers };
+/**
+ * 查询指定用户某月公出日志明细
+ * @param {number} userId - 用户 ID
+ * @param {string} month - 月份，格式 'YYYY-MM'
+ * @returns {Promise<{logs: Array}>}
+ */
+async function getUserMonthlyLogs(userId, month) {
+  if (!userId) throw new BusinessError('userId 必填');
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) throw new BusinessError('month 格式错误，需 YYYY-MM');
+
+  const rows = await db.query(
+    `SELECT
+       dr.id AS reportId,
+       dr.report_date AS reportDate,
+       dr.today_work_type AS workType,
+       dr.project,
+       dr.area,
+       dr.related_party AS relatedParty,
+       dr.machine_model AS machineModel,
+       dr.work_content AS workContent,
+       dr.workers,
+       dr.status,
+       dr.submitted_at AS submittedAt
+     FROM daily_reports dr
+     WHERE dr.user_id = ?
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+       AND dr.deleted_at IS NULL
+     ORDER BY dr.report_date DESC`,
+    [userId, month]
+  );
+
+  return {
+    userId,
+    month,
+    logs: rows.map(r => ({
+      reportId: r.reportId,
+      reportDate: r.reportDate ? String(r.reportDate).slice(0, 10) : '',
+      workType: r.workType || '',
+      project: r.project || '',
+      area: r.area || '',
+      relatedParty: r.relatedParty || '',
+      machineModel: r.machineModel || '',
+      workContent: r.workContent || '',
+      workers: r.workers || '',
+      status: r.status || '',
+      submittedAt: r.submittedAt ? String(r.submittedAt).slice(0, 16) : '',
+    })),
+  };
+}
+
+module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getDailyCounts, getProjectProgress, getWorkerWorkTypes, getAreaDistribution, getProvinceWorkers, getUserMonthlyLogs };

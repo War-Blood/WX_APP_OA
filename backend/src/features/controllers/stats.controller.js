@@ -133,6 +133,18 @@ async function provinceWorkers(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * 用户月度公出日志明细
+ * POST /api/stats/user-monthly-logs
+ */
+async function userMonthlyLogs(req, res, next) {
+  try {
+    const { userId, month } = req.body;
+    const result = await coreStatsService.getUserMonthlyLogs(userId, month);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   home,
   activities,
@@ -143,4 +155,5 @@ module.exports = {
   workerWorkTypes,
   areaDistribution,
   provinceWorkers,
+  userMonthlyLogs,
 };

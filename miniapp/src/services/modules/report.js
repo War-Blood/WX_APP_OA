@@ -79,5 +79,10 @@ export const reportApi = {
   // M4: 区域分布
   getAreaDistribution(month) {
     return post('/api/stats/area-distribution', { month })
+  },
+
+  // 用户月度公出日志明细
+  getUserMonthlyLogs(userId, month) {
+    return post('/api/stats/user-monthly-logs', { userId, month })
   }
 }
