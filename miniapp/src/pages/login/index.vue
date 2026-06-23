@@ -279,6 +279,17 @@ async function handleAccountLogin() {
             if (res.code === 0 && res.data) {
               uni.setStorageSync('token', res.data.token)
               uni.setStorageSync('userInfo', res.data.user)
+              // pending 用户显示等待审核
+              if (res.data.user?.status === 'pending') {
+                uni.showModal({
+                  title: '等待审核',
+                  content: '已提交重新申请，请等待管理员审核通过后再登录。',
+                  showCancel: false,
+                  confirmText: '我知道了',
+                  success: () => uni.removeStorageSync('token')
+                })
+                return
+              }
               uni.reLaunch({ url: '/pages/home/index' })
             } else {
               uni.showToast({ title: res.message || '登录失败', icon: 'none' })

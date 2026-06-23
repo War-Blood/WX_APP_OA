@@ -50,14 +50,15 @@ async function login(code) {
       [openid]
     );
     if (deletedUser.length > 0) {
-      // 自动恢复已删除账号（重新申请即恢复）
-      await db.execute('UPDATE users SET deleted_at = NULL WHERE id = ?', [deletedUser[0].id]);
-      logger.info('用户重新申请 - 账号已恢复', { module: 'AUTH', userId: deletedUser[0].id });
-      const restoredUser = { ...deletedUser[0], deleted_at: null };
-      if (restoredUser.status === 'disabled') {
-        throw new BusinessError('您的账号已被禁用，请联系管理员');
-      }
-      return finalizeLogin(restoredUser);
+      // 重新发起申请：恢复账号但设为 pending，需管理员重新审核
+      await db.execute(
+        "UPDATE users SET deleted_at = NULL, status = 'pending' WHERE id = ?",
+        [deletedUser[0].id]
+      );
+      logger.info('用户重新申请 - 已提交审核', { module: 'AUTH', userId: deletedUser[0].id });
+      const reappliedUser = { ...deletedUser[0], deleted_at: null, status: 'pending' };
+      // 登录成功但前端会拦截 pending 状态，显示"等待审核"
+      return finalizeLogin(reappliedUser);
     }
     throw new BusinessError('您的账号未注册，请联系管理员');
   }
@@ -257,14 +258,23 @@ async function accountLogin(account, password) {
       [account]
     );
     if (deletedUser.length > 0) {
-      await db.execute('UPDATE users SET deleted_at = NULL WHERE id = ?', [deletedUser[0].id]);
-      logger.info('用户重新申请 - 账号已恢复（账号登录）', { module: 'AUTH', userId: deletedUser[0].id });
-      users = [{ ...deletedUser[0], deleted_at: null }];
+      // 重新发起申请：恢复账号但设为 pending，需管理员重新审核
+      await db.execute(
+        "UPDATE users SET deleted_at = NULL, status = 'pending' WHERE id = ?",
+        [deletedUser[0].id]
+      );
+      logger.info('用户重新申请 - 已提交审核（账号登录）', { module: 'AUTH', userId: deletedUser[0].id });
+      users = [{ ...deletedUser[0], deleted_at: null, status: 'pending' }];
     }
   }
   if (users.length === 0) throw new BusinessError('账号不存在');
   const user = users[0];
-  if (user.status !== 'active') throw new BusinessError('账号已被禁用，请联系管理员');
+  // 仅拒绝 disabled，pending 允许登录（前端拦截显示等待审核）
+  if (user.status === 'disabled') throw new BusinessError('账号已被禁用，请联系管理员');
+  if (user.status === 'pending') {
+    // pending 用户验证密码后返回 token，前端显示"等待审核"
+    logger.info('待审核用户账号登录', { module: 'AUTH', userId: user.id });
+  }
   if (!user.password_hash) throw new BusinessError('该账号未设置密码，请联系管理员');
 
   const isValid = await bcrypt.compare(password, user.password_hash);
