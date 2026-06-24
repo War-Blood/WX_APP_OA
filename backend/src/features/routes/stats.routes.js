@@ -1,0 +1,43 @@
+'use strict';
+
+const express = require('express');
+const router = express.Router();
+const statsController = require('../controllers/stats.controller');
+const { authenticate } = require('../../common/middleware/auth');
+
+/**
+ * 数据统计路由
+ * 所有路由需要登录认证
+ */
+
+// POST /api/stats/home — 首页统计数据
+router.post('/stats/home', authenticate, statsController.home);
+
+// POST /api/stats/activities — 最近动态列表（分页）
+router.post('/stats/activities', authenticate, statsController.activities);
+
+// POST /api/stats/profile — 个人中心统计
+router.post('/stats/profile', authenticate, statsController.profile);
+
+// POST /api/stats/reportStats — 日报统计看板
+router.post('/stats/reportStats', authenticate, statsController.reportStats);
+
+// POST /api/stats/daily-counts — 月度每日提交人次
+router.post('/stats/daily-counts', authenticate, statsController.dailyCounts);
+
+// POST /api/stats/project-progress — 项目进展看板
+router.post('/stats/project-progress', authenticate, statsController.projectProgress);
+
+// POST /api/stats/worker-work-types — 人员工作类型分布
+router.post('/stats/worker-work-types', authenticate, statsController.workerWorkTypes);
+
+// POST /api/stats/area-distribution — 省份人员分布
+router.post('/stats/area-distribution', authenticate, statsController.areaDistribution);
+
+// POST /api/stats/province-workers — 省份下钻人员列表
+router.post('/stats/province-workers', authenticate, statsController.provinceWorkers);
+
+// POST /api/stats/user-monthly-logs — 用户月度公出日志明细
+router.post('/stats/user-monthly-logs', authenticate, statsController.userMonthlyLogs);
+
+module.exports = router;

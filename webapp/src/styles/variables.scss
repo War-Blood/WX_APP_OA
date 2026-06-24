@@ -1,0 +1,82 @@
+// 主题色 - 高效蓝
+$primary-color: #2B6DE8;
+$primary-light: #4C8DF1;
+$primary-dark: #1A5AD4;
+
+// 功能色
+$success-color: #67C23A;
+$warning-color: #E6A23C;
+$danger-color: #F56C6C;
+$info-color: #909399;
+
+// 文字色
+$text-primary: #303133;
+$text-regular: #606266;
+$text-secondary: #909399;
+$text-placeholder: #C0C4CC;
+
+// 边框色
+$border-color: #DCDFE6;
+$border-light: #E4E7ED;
+$border-lighter: #EBEEF5;
+$border-extra-light: #F2F6FC;
+
+// 背景色
+$bg-color: #F5F7FA;
+$bg-white: #FFFFFF;
+
+// 字号
+$font-size-extra-large: 20px;
+$font-size-large: 18px;
+$font-size-medium: 16px;
+$font-size-base: 14px;
+$font-size-small: 13px;
+$font-size-extra-small: 12px;
+
+// 间距
+$spacing-extra-large: 32px;
+$spacing-large: 24px;
+$spacing-medium: 16px;
+$spacing-base: 12px;
+$spacing-small: 8px;
+$spacing-extra-small: 4px;
+
+// 圆角
+$border-radius-large: 8px;
+$border-radius-base: 4px;
+$border-radius-small: 2px;
+
+// 阴影
+$box-shadow-base: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+$box-shadow-light: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+// 侧边栏
+$sidebar-width: 220px;
+$sidebar-collapsed-width: 64px;
+$sidebar-bg: #304156;
+$sidebar-text: #BFCBD9;
+$sidebar-active-text: #409EFF;
+
+// 顶栏
+$header-height: 60px;
+$header-bg: #FFFFFF;
+
+// CSS Variables
+:root {
+  --primary-color: #{$primary-color};
+  --success-color: #{$success-color};
+  --warning-color: #{$warning-color};
+  --danger-color: #{$danger-color};
+  --info-color: #{$info-color};
+  
+  --text-primary: #{$text-primary};
+  --text-regular: #{$text-regular};
+  --text-secondary: #{$text-secondary};
+  
+  --border-color: #{$border-color};
+  --bg-color: #{$bg-color};
+  
+  --sidebar-width: #{$sidebar-width};
+  --sidebar-collapsed-width: #{$sidebar-collapsed-width};
+  --header-height: #{$header-height};
+}

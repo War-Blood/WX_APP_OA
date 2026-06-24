@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.pnp/
+
+# Environment files (secure)
+.env
+.env.*
+.env.local
+.env.*.local
+!.env.example
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+pm2-*.log
+
+# Workspace (local dev data)
+
+# Removed AI tool directories (migrated to Claude Code)
+.trae/
+.workbuddy/
+.qoder/
+skill-backup/
+
+# System files
+nul
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Uploads (user data)
+uploads/
+
+# Design backup (large files)
+design-backup/
+
+# Test coverage
+coverage/
+.nyc_output/

@@ -1,0 +1,113 @@
+// 全局通用样式
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  font-size: 14px;
+  color: $text-primary;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: $bg-color;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $border-color;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: $text-secondary;
+}
+
+// 通用工具类
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.text-primary {
+  color: $primary-color;
+}
+
+.text-success {
+  color: $success-color;
+}
+
+.text-warning {
+  color: $warning-color;
+}
+
+.text-danger {
+  color: $danger-color;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+// 页面容器
+.page-container {
+  padding: $spacing-medium;
+  background-color: $bg-color;
+  min-height: calc(100vh - #{$header-height});
+}
+
+// 卡片样式
+.card {
+  background: $bg-white;
+  border-radius: $border-radius-large;
+  padding: $spacing-medium;
+  box-shadow: $box-shadow-light;
+}
+
+// 表格操作栏
+.table-operations {
+  margin-bottom: $spacing-medium;
+  display: flex;
+  gap: $spacing-small;
+}
+
+// 分页器
+.pagination {
+  margin-top: $spacing-medium;
+  display: flex;
+  justify-content: flex-end;
+}
