@@ -218,17 +218,16 @@
         </scroll-view>
       </view>
 
-      <!-- 省份排行 -->
+      <!-- 区域分布（昨日） -->
       <view v-if="areaData.length" class="card" style="margin-top:16rpx">
-        <text class="card-title">区域分布（省份）</text>
+        <text class="card-title">区域分布（昨日）</text>
         <view class="area-list">
-          <view v-for="(p, i) in areaData" :key="p.name" class="area-row" @tap="openProvinceDrill(p)">
-            <view class="area-left">
-              <text class="area-r">{{ i + 1 }}</text>
+          <view v-for="p in areaData" :key="p.name" class="area-row" @tap="openProvinceDrill(p)">
+            <view class="area-left-box">
               <text class="area-n">{{ p.name }}</text>
             </view>
-            <view class="area-right">
-              <text class="area-workers">{{ p.workers?.map(w => w.userName).join('、') || p.count + '人' }}</text>
+            <view class="area-right-box">
+              <text class="area-workers">{{ p.workers?.map(w => w.userName + (w.workerCode ? '·' + w.workerCode : '')).join('、') }}</text>
             </view>
           </view>
         </view>
@@ -647,10 +646,12 @@ onMounted(async () => {
 .area-left { display:flex; align-items:center; gap:14rpx; }
 .area-r { font-size:$font-sm; font-weight:700; color:$text-secondary; width:30rpx; text-align:center; }
 .area-n { font-size:26rpx; font-weight:500; color:$text-primary; }
-.area-right { display:flex; align-items:center; flex:1; min-width:0; }
+.area-row { display:flex; align-items:flex-start; gap:16rpx; }
+.area-left-box { width:100rpx; flex-shrink:0; display:flex; align-items:center; }
+.area-right-box { flex:1; min-width:0; display:flex; flex-wrap:wrap; align-items:center; }
 .area-c { font-size:24rpx; font-weight:600; color:$primary-color; }
 .area-proj { font-size:$font-xs; color:$text-secondary; background:$bg-form; padding:2rpx 8rpx; border-radius:$radius-sm; }
-.area-workers { font-size:22rpx; color:$text-regular; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.area-workers { font-size:22rpx; color:$text-regular; line-height:1.6; word-break:break-all; }
 
 // ===== 通用 =====
 .loading, .empty { display:flex; align-items:center; justify-content:center; padding:160rpx 0; font-size:$font-base; color:$text-secondary; }

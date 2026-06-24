@@ -751,27 +751,33 @@ async function getWorkerWorkTypes(month) {
  * @returns {Promise<Object>} { provinces: [{ name, count, projects }] }
  */
 async function getAreaDistribution(month) {
-  const targetMonth = (month && /^\d{4}-\d{2}$/.test(month)) ? month : new Date().toISOString().slice(0, 7);
+  // 仅统计昨日数据
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yyyy = yesterday.getFullYear();
+  const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
+  const dd = String(yesterday.getDate()).padStart(2, '0');
+  const yesterdayStr = `${yyyy}-${mm}-${dd}`;
 
-  // 1. 查当月所有报告（含区域和 workers 文本）
+  // 1. 查昨日所有报告（含区域和 workers 文本）
   const reports = await db.query(
     `SELECT dr.user_id, dr.report_date, dr.area, dr.project, dr.workers
      FROM daily_reports dr
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
-       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?`,
-    [targetMonth]
+       AND dr.report_date = ?`,
+    [yesterdayStr]
   );
 
-  // 2. 查当月关联表代填关系
+  // 2. 查昨日关联表代填关系
   const subs = await db.query(
     `SELECT drw.worker_uid AS user_id, dr.report_date, dr.area, dr.project
      FROM daily_report_workers drw
      JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
-       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?`,
-    [targetMonth]
+       AND dr.report_date = ?`,
+    [yesterdayStr]
   );
 
   // 3. 获取作业人员名单（用于 workers 文本名→ID 匹配 + uid→name映射）
@@ -842,7 +848,7 @@ async function getAreaDistribution(month) {
     }))
     .sort((a, b) => b.count - a.count);
 
-  return { month: targetMonth, provinces };
+  return { date: yesterdayStr, provinces };
 }
 
 /**
