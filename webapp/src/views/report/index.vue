@@ -241,6 +241,8 @@ async function handleSupplementReview() {
 function openEdit(row: Record<string, unknown>) {
   editData.value = {
     reportId: row.id,
+    reportDate: row.reportDate || row.date || '',
+    reportType: row.reportType || 'biz_trip',
     project: row.project || '',
     area: row.area || '',
     todayWorkType: row.todayWorkType || '',
@@ -249,8 +251,19 @@ function openEdit(row: Record<string, unknown>) {
     workers: row.workers || '',
     relatedParty: row.relatedParty || '',
     remark: row.remark || '',
+    todayWork: row.todayWork || '',
+    tomorrowPlan: row.tomorrowPlan || '',
+    entryDate: row.entryDate || '',
+    initialBizTripDate: row.initialBizTripDate || '',
+    requiredQty: Number(row.requiredQty) || undefined,
+    completedQty: Number(row.completedQty) || undefined,
+    personalBizTripDays: Number(row.personalBizTripDays) || undefined,
+    bizTripDays: Number(row.bizTripDays) || undefined,
+    supplementDate: row.supplementDate || '',
+    supplementReason: row.supplementReason || '',
+    issues: row.issues || '',
+    content: row.content || '',
     // 只读展示用
-    reportDate: row.reportDate || row.date || '',
     submitter: row.submitter || '',
     status: row.status || '',
   }
@@ -262,6 +275,8 @@ async function handleEditSubmit() {
   try {
     const res: ReportUpdateResult = await updateReport({
       reportId: editData.value.reportId as number,
+      reportDate: editData.value.reportDate as string,
+      reportType: editData.value.reportType as string,
       project: editData.value.project as string,
       area: editData.value.area as string,
       todayWorkType: editData.value.todayWorkType as string,
@@ -270,6 +285,18 @@ async function handleEditSubmit() {
       workers: editData.value.workers as string,
       relatedParty: editData.value.relatedParty as string,
       remark: editData.value.remark as string,
+      todayWork: editData.value.todayWork as string,
+      tomorrowPlan: editData.value.tomorrowPlan as string,
+      entryDate: editData.value.entryDate as string,
+      initialBizTripDate: editData.value.initialBizTripDate as string,
+      requiredQty: editData.value.requiredQty as number,
+      completedQty: editData.value.completedQty as number,
+      personalBizTripDays: editData.value.personalBizTripDays as number,
+      bizTripDays: editData.value.bizTripDays as number,
+      supplementDate: editData.value.supplementDate as string,
+      supplementReason: editData.value.supplementReason as string,
+      issues: editData.value.issues as string,
+      content: editData.value.content as string,
     })
     editVisible.value = false
     if (res.changes && res.changes.length > 0) {
@@ -446,7 +473,7 @@ onMounted(() => { loadStats(); loadReports() })
     </template>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="日报详情" width="700px" destroy-on-close>
+    <el-dialog v-model="detailVisible" title="日报详情" width="750px" destroy-on-close>
       <el-descriptions :column="2" border size="small">
         <el-descriptions-item label="日期">{{ detailData.reportDate || detailData.date || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
@@ -455,17 +482,35 @@ onMounted(() => { loadStats(); loadReports() })
           <el-tag v-else-if="detailData.status === 'approved'" type="success" size="small">已通过</el-tag>
           <el-tag v-else-if="detailData.status === 'rejected'" type="danger" size="small">已驳回</el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="日志类型">
+          <el-tag :type="getReportTypeTag(detailData.reportType as string).type as 'success' | 'warning' | 'info' || 'info'" size="small">
+            {{ getReportTypeTag(detailData.reportType as string).text }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="及时性">{{ detailData.timeliness === 'delayed' ? '延迟' : detailData.timeliness === 'on_time' ? '正常' : '-' }}</el-descriptions-item>
         <el-descriptions-item label="项目">{{ detailData.project || '-' }}</el-descriptions-item>
         <el-descriptions-item label="区域">{{ detailData.area || '-' }}</el-descriptions-item>
         <el-descriptions-item label="作业人员">{{ detailData.workers || '-' }}</el-descriptions-item>
         <el-descriptions-item label="机型">{{ detailData.machineModel || '-' }}</el-descriptions-item>
         <el-descriptions-item label="工作类型">{{ detailData.todayWorkType || '-' }}</el-descriptions-item>
         <el-descriptions-item label="人数">{{ detailData.workerCount || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="入场日期">{{ detailData.entryDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="初始出差日期">{{ detailData.initialBizTripDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="需求数量">{{ detailData.requiredQty ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="完成数量">{{ detailData.completedQty ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="个人出差天数">{{ detailData.personalBizTripDays ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="项目出差天数">{{ detailData.bizTripDays ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="补录日期">{{ detailData.supplementDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="补录原因">{{ detailData.supplementReason || '-' }}</el-descriptions-item>
         <el-descriptions-item label="今日工作" :span="2">{{ detailData.todayWork || '-' }}</el-descriptions-item>
         <el-descriptions-item label="明日计划" :span="2">{{ detailData.tomorrowPlan || '-' }}</el-descriptions-item>
         <el-descriptions-item label="工作内容" :span="2">{{ detailData.workContent || '-' }}</el-descriptions-item>
         <el-descriptions-item label="相关方" :span="2">{{ detailData.relatedParty || '-' }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detailData.remark || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="问题反馈" :span="2">{{ detailData.issues || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="协调事项" :span="2">{{ detailData.content || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ detailData.createTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间">{{ detailData.updateTime || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
@@ -507,10 +552,9 @@ onMounted(() => { loadStats(); loadReports() })
     </el-dialog>
 
     <!-- 编辑弹窗 -->
-    <el-dialog v-model="editVisible" title="编辑公出日志" width="650px" destroy-on-close>
+    <el-dialog v-model="editVisible" title="编辑公出日志" width="750px" destroy-on-close>
       <template v-if="editData.reportId">
-        <el-descriptions :column="2" border size="small" class="edit-readonly">
-          <el-descriptions-item label="日期">{{ editData.reportDate }}</el-descriptions-item>
+        <el-descriptions :column="3" border size="small" class="edit-readonly">
           <el-descriptions-item label="填写人">{{ editData.submitter }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag v-if="editData.status === 'approved'" type="success" size="small">已通过</el-tag>
@@ -523,7 +567,21 @@ onMounted(() => { loadStats(); loadReports() })
 
         <el-divider />
 
-        <el-form :model="editData" label-width="100px" label-position="right" size="default">
+        <el-form :model="editData" label-width="110px" label-position="right" size="default">
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="日报日期">
+                <el-date-picker v-model="editData.reportDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="日志类型">
+                <el-select v-model="editData.reportType" style="width:100%">
+                  <el-option v-for="o in reportTypeOptions.filter(o => o.value)" :key="o.value" :label="o.label" :value="o.value" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
           <el-row :gutter="16">
             <el-col :span="12">
               <el-form-item label="项目名称">
@@ -550,6 +608,54 @@ onMounted(() => { loadStats(); loadReports() })
               </el-form-item>
             </el-col>
           </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="入场日期">
+                <el-date-picker v-model="editData.entryDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="初始出差日期">
+                <el-date-picker v-model="editData.initialBizTripDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="需求数量">
+                <el-input-number v-model="editData.requiredQty" :min="0" style="width:100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="完成数量">
+                <el-input-number v-model="editData.completedQty" :min="0" style="width:100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="个人出差天数">
+                <el-input-number v-model="editData.personalBizTripDays" :min="0" style="width:100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="项目出差天数">
+                <el-input-number v-model="editData.bizTripDays" :min="0" style="width:100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16" v-if="editData.reportType === 'biz_trip_supplement'">
+            <el-col :span="12">
+              <el-form-item label="补录日期">
+                <el-date-picker v-model="editData.supplementDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="补录原因">
+                <el-input v-model="editData.supplementReason" placeholder="补录原因" />
+              </el-form-item>
+            </el-col>
+          </el-row>
           <el-form-item label="作业人员">
             <el-input v-model="editData.workers" placeholder="多个人员用、分隔" />
           </el-form-item>
@@ -558,6 +664,18 @@ onMounted(() => { loadStats(); loadReports() })
           </el-form-item>
           <el-form-item label="工作内容">
             <el-input v-model="editData.workContent" type="textarea" :rows="3" placeholder="从事工作内容" />
+          </el-form-item>
+          <el-form-item label="今日工作小结">
+            <el-input v-model="editData.todayWork" type="textarea" :rows="3" placeholder="当日工作小结" />
+          </el-form-item>
+          <el-form-item label="明日计划">
+            <el-input v-model="editData.tomorrowPlan" type="textarea" :rows="2" placeholder="明日工作计划" />
+          </el-form-item>
+          <el-form-item label="问题反馈">
+            <el-input v-model="editData.issues" type="textarea" :rows="2" placeholder="存在问题" />
+          </el-form-item>
+          <el-form-item label="协调事项">
+            <el-input v-model="editData.content" type="textarea" :rows="2" placeholder="需要协调的事项" />
           </el-form-item>
           <el-form-item label="备注">
             <el-input v-model="editData.remark" type="textarea" :rows="2" placeholder="备注信息" />

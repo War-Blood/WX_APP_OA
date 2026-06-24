@@ -84,5 +84,10 @@ export const reportApi = {
   // 用户月度公出日志明细
   getUserMonthlyLogs(userId, month) {
     return post('/api/stats/user-monthly-logs', { userId, month })
+  },
+
+  // 省份下钻人员列表
+  getProvinceWorkers(province, month) {
+    return post('/api/stats/province-workers', { province, month })
   }
 }

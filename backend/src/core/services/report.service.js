@@ -245,14 +245,28 @@ async function updateReport(reportId, data, editorId, meta = {}) {
 
   // 允许编辑的字段白名单：inputKey → { col, label }
   const EDITABLE_FIELDS = {
-    project:       { col: 'project',         label: '项目名称' },
-    area:          { col: 'area',            label: '项目区域' },
-    todayWorkType: { col: 'today_work_type', label: '工作类型' },
-    workContent:   { col: 'work_content',    label: '工作内容' },
-    machineModel:  { col: 'machine_model',   label: '机型' },
-    workers:       { col: 'workers',         label: '作业人员' },
-    relatedParty:  { col: 'related_party',   label: '相关方单位' },
-    remark:        { col: 'remark',          label: '备注' },
+    project:         { col: 'project',             label: '项目名称' },
+    area:            { col: 'area',                label: '项目区域' },
+    reportDate:      { col: 'report_date',         label: '日报日期' },
+    todayWorkType:   { col: 'today_work_type',     label: '工作类型' },
+    workContent:     { col: 'work_content',        label: '工作内容' },
+    machineModel:    { col: 'machine_model',       label: '机型' },
+    workers:         { col: 'workers',             label: '作业人员' },
+    relatedParty:    { col: 'related_party',       label: '相关方单位' },
+    remark:          { col: 'remark',              label: '备注' },
+    todayWork:       { col: 'today_work',          label: '今日工作' },
+    tomorrowPlan:    { col: 'tomorrow_plan',       label: '明日计划' },
+    entryDate:       { col: 'entry_date',          label: '入场日期' },
+    initialBizTripDate: { col: 'initial_biz_trip_date', label: '初始出差日期' },
+    requiredQty:     { col: 'required_qty',        label: '需求数量' },
+    completedQty:    { col: 'completed_qty',       label: '完成数量' },
+    supplementDate:  { col: 'supplement_date',     label: '补录日期' },
+    supplementReason:{ col: 'supplement_reason',   label: '补录原因' },
+    personalBizTripDays: { col: 'personal_biz_trip_days', label: '个人出差天数' },
+    bizTripDays:     { col: 'biz_trip_days',       label: '项目出差天数' },
+    issues:          { col: 'issues',              label: '存在问题' },
+    content:         { col: 'content',             label: '协调事项' },
+    reportType:      { col: 'report_type',         label: '日志类型' },
   };
 
   const setClauses = [];

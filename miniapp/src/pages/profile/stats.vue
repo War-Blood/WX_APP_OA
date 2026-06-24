@@ -222,7 +222,7 @@
       <view v-if="areaData.length" class="card" style="margin-top:16rpx">
         <text class="card-title">区域分布（省份）</text>
         <view class="area-list">
-          <view v-for="(p, i) in areaData" :key="p.name" class="area-row">
+          <view v-for="(p, i) in areaData" :key="p.name" class="area-row" @tap="openProvinceDrill(p)">
             <view class="area-left">
               <text class="area-r">{{ i + 1 }}</text>
               <text class="area-n">{{ p.name }}</text>
@@ -260,6 +260,25 @@
             </view>
             <text v-if="log.project" class="drill-log-proj">{{ log.project }} · {{ log.area }}</text>
             <text v-if="log.workContent" class="drill-log-content">{{ log.workContent }}</text>
+          </view>
+        </scroll-view>
+      </view>
+    </view>
+
+    <!-- 省份下钻人员弹窗 -->
+    <view v-if="provinceDrill" class="drill-overlay" @tap="closeProvinceDrill">
+      <view class="drill-panel" @tap.stop>
+        <view class="drill-header">
+          <text class="drill-title">{{ provinceDrill.name }} · {{ provinceDrill.count }}人</text>
+          <text class="drill-close" @tap="closeProvinceDrill">✕</text>
+        </view>
+        <scroll-view v-if="provinceLoading" class="drill-loading"><text>加载中...</text></scroll-view>
+        <scroll-view v-else-if="!provinceWorkers.length" class="drill-empty"><text>暂无人员数据</text></scroll-view>
+        <scroll-view v-else class="drill-body" scroll-y>
+          <view v-for="w in provinceWorkers" :key="w.userId" class="drill-log">
+            <text class="drill-log-date">{{ w.userName }}</text>
+            <text class="drill-log-type">{{ w.workerCode }}</text>
+            <text v-if="w.project" class="drill-log-proj">{{ w.project }}</text>
           </view>
         </scroll-view>
       </view>
@@ -388,6 +407,27 @@ async function openDrill(w) {
 function closeDrill() {
   drillUser.value = null
   drillLogs.value = []
+}
+
+// ============ 省份下钻 ============
+const provinceDrill = ref(null)
+const provinceWorkers = ref([])
+const provinceLoading = ref(false)
+
+async function openProvinceDrill(p) {
+  provinceDrill.value = p
+  provinceLoading.value = true
+  provinceWorkers.value = []
+  try {
+    const res = await reportApi.getProvinceWorkers(p.name, workTypeMonth.value)
+    if (res.code === 0 && res.data) provinceWorkers.value = res.data.workers || []
+  } catch { provinceWorkers.value = [] }
+  finally { provinceLoading.value = false }
+}
+
+function closeProvinceDrill() {
+  provinceDrill.value = null
+  provinceWorkers.value = []
 }
 
 // ============ 全员当日 ============

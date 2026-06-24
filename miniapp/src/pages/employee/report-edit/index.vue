@@ -54,8 +54,8 @@
           <picker
             mode="date"
             :value="reportDate"
+            :start="yesterdayStr"
             :end="todayStr"
-            disabled
             @change="onDateChange"
           >
             <view class="form-picker">
@@ -556,6 +556,11 @@ async function locateArea() {
 
 // ===== 计算属性 =====
 const todayStr = computed(() => formatToday())
+const yesterdayStr = computed(() => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+})
 
 const submitLabel = computed(() => {
   if (currentTab.value === 'biz_trip_supplement') return '公出日志'

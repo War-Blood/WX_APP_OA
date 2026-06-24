@@ -97,12 +97,26 @@ export interface ReportUpdateParams {
   reportId: number
   project?: string
   area?: string
+  reportDate?: string
   todayWorkType?: string
   workContent?: string
   machineModel?: string
   workers?: string
   relatedParty?: string
   remark?: string
+  todayWork?: string
+  tomorrowPlan?: string
+  entryDate?: string
+  initialBizTripDate?: string
+  requiredQty?: number
+  completedQty?: number
+  supplementDate?: string
+  supplementReason?: string
+  personalBizTripDays?: number
+  bizTripDays?: number
+  issues?: string
+  content?: string
+  reportType?: string
 }
 
 /** 编辑报告响应 */

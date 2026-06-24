@@ -228,8 +228,11 @@ async function update(req, res, next) {
     }
 
     const editableKeys = [
-      'project', 'area', 'todayWorkType', 'workContent',
+      'project', 'area', 'reportDate', 'todayWorkType', 'workContent',
       'machineModel', 'workers', 'relatedParty', 'remark',
+      'todayWork', 'tomorrowPlan', 'entryDate', 'initialBizTripDate',
+      'requiredQty', 'completedQty', 'supplementDate', 'supplementReason',
+      'personalBizTripDays', 'bizTripDays', 'issues', 'content', 'reportType',
     ];
 
     const updateData = {};
