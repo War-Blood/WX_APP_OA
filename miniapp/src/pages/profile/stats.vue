@@ -228,8 +228,7 @@
               <text class="area-n">{{ p.name }}</text>
             </view>
             <view class="area-right">
-              <text class="area-c">{{ p.count }}人</text>
-              <text class="area-proj">{{ p.projects?.length || 0 }}项目</text>
+              <text class="area-workers">{{ p.workers?.map(w => w.userName).join('、') || p.count + '人' }}</text>
             </view>
           </view>
         </view>
@@ -648,9 +647,10 @@ onMounted(async () => {
 .area-left { display:flex; align-items:center; gap:14rpx; }
 .area-r { font-size:$font-sm; font-weight:700; color:$text-secondary; width:30rpx; text-align:center; }
 .area-n { font-size:26rpx; font-weight:500; color:$text-primary; }
-.area-right { display:flex; align-items:center; gap:14rpx; }
+.area-right { display:flex; align-items:center; flex:1; min-width:0; }
 .area-c { font-size:24rpx; font-weight:600; color:$primary-color; }
 .area-proj { font-size:$font-xs; color:$text-secondary; background:$bg-form; padding:2rpx 8rpx; border-radius:$radius-sm; }
+.area-workers { font-size:22rpx; color:$text-regular; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 // ===== 通用 =====
 .loading, .empty { display:flex; align-items:center; justify-content:center; padding:160rpx 0; font-size:$font-base; color:$text-secondary; }

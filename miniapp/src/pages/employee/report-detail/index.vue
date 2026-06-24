@@ -29,7 +29,7 @@
               </text>
             </view>
           </view>
-          <text class="header-meta">提交时间：{{ report.submitTime || report.time || report.createdAt || '' }}</text>
+          <text class="header-meta">提交时间：{{ report.submitTime || report.time || report.createdAt || report.createTime || '' }}</text>
         </view>
 
         <!-- 补公出审核结果卡片 -->
@@ -92,6 +92,31 @@
             <text class="field-label">作业人员</text>
             <text class="field-value">{{ report.workers || report.workerNames }}</text>
           </view>
+          <view v-if="report.workerCount > 0" class="field-row">
+            <text class="field-label">作业人数</text>
+            <text class="field-value">{{ report.workerCount }}</text>
+          </view>
+        </view>
+
+        <!-- 基本信息 -->
+        <view v-if="report.entryDate || report.initialBizTripDate || report.personalBizTripDays > 0 || report.timeliness" class="field-card">
+          <text class="card-title">基本信息</text>
+          <view v-if="report.entryDate" class="field-row">
+            <text class="field-label">入场日期</text>
+            <text class="field-value">{{ report.entryDate }}</text>
+          </view>
+          <view v-if="report.initialBizTripDate" class="field-row">
+            <text class="field-label">初始出差日期</text>
+            <text class="field-value">{{ report.initialBizTripDate }}</text>
+          </view>
+          <view v-if="report.personalBizTripDays > 0" class="field-row">
+            <text class="field-label">个人出差天数</text>
+            <text class="field-value">{{ report.personalBizTripDays }}</text>
+          </view>
+          <view v-if="report.timeliness" class="field-row">
+            <text class="field-label">及时性</text>
+            <text class="field-value" :class="{ 'reject-text': report.timeliness === 'delayed' }">{{ report.timeliness === 'delayed' ? '延迟' : report.timeliness === 'on_time' ? '正常' : report.timeliness }}</text>
+          </view>
         </view>
 
         <!-- 工作量 -->
@@ -129,16 +154,16 @@
           <view v-if="report.tomorrowPlan" class="card-text-content">{{ report.tomorrowPlan }}</view>
         </view>
 
-        <!-- 问题与协调（公司日报） -->
-        <view v-if="report.reportType === 'office' && (report.issues || report.coordination)" class="content-card">
+        <!-- 问题与协调（公司日报 + 公出日志） -->
+        <view v-if="report.issues || report.coordination || report.content" class="content-card">
           <text class="card-title">其他事项</text>
           <view v-if="report.issues" style="margin-bottom:20rpx;">
             <text class="field-label" style="display:block;margin-bottom:8rpx;">遇到的问题</text>
             <text class="card-text-content">{{ report.issues }}</text>
           </view>
-          <view v-if="report.coordination">
+          <view v-if="report.coordination || report.content">
             <text class="field-label" style="display:block;margin-bottom:8rpx;">需协调事项</text>
-            <text class="card-text-content">{{ report.coordination }}</text>
+            <text class="card-text-content">{{ report.coordination || report.content }}</text>
           </view>
         </view>
 

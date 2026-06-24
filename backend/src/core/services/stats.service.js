@@ -774,51 +774,72 @@ async function getAreaDistribution(month) {
     [targetMonth]
   );
 
-  // 3. 获取作业人员名单（用于 workers 文本名→ID 匹配）
+  // 3. 获取作业人员名单（用于 workers 文本名→ID 匹配 + uid→name映射）
   const fieldWorkers = await db.query(
-    `SELECT id, nickname, user_name FROM users
+    `SELECT id, nickname, user_name, worker_code FROM users
      WHERE is_field_worker = 1 AND deleted_at IS NULL`
   );
   const nameToUid = {};
-  fieldWorkers.forEach(w => { const n = (w.nickname || w.user_name || '').trim(); if (n) nameToUid[n] = w.id; });
+  const uidToInfo = {}; // uid → { userName, workerCode }
+  fieldWorkers.forEach(w => {
+    const n = (w.nickname || w.user_name || '').trim();
+    if (n) nameToUid[n] = w.id;
+    uidToInfo[w.id] = { userName: n, workerCode: w.worker_code || '' };
+  });
 
   // 4. 构建每人最新省份信息 map
-  const personMap = {}; // uid → { province, dateStr, projects: Set }
-  const addPerson = (uid, date, area, project) => {
+  const personMap = {}; // uid → { province, dateStr, projects: Set, userName }
+  const addPerson = (uid, date, area, project, userName) => {
     if (!uid || !area) return;
     const province = area.split('-')[0];
     const d = date instanceof Date ? date.toISOString().slice(0,10) : String(date).slice(0,10);
     if (!personMap[uid] || d > personMap[uid].dateStr) {
-      personMap[uid] = { province, dateStr: d, projects: new Set([project]) };
+      personMap[uid] = { province, dateStr: d, projects: new Set([project]), userName: userName || uidToInfo[uid]?.userName || '' };
     } else if (d === personMap[uid].dateStr) {
       personMap[uid].projects.add(project);
     }
   };
 
-  // 提交人
-  reports.forEach(r => addPerson(r.user_id, r.report_date, r.area, r.project));
+  // 提交人（补充 userName）
+  reports.forEach(r => addPerson(r.user_id, r.report_date, r.area, r.project, ''));
   // 关联表代填
-  subs.forEach(r => addPerson(r.user_id, r.report_date, r.area, r.project));
+  subs.forEach(r => addPerson(r.user_id, r.report_date, r.area, r.project, ''));
   // workers 文本兜底
   reports.forEach(r => {
     if (!r.workers) return;
     const names = r.workers.split(/[、,，\s\/\n]+/).map(s => s.trim()).filter(Boolean);
     names.forEach(name => {
       const uid = nameToUid[name];
-      if (uid && uid !== r.user_id) addPerson(uid, r.report_date, r.area, r.project);
+      if (uid && uid !== r.user_id) addPerson(uid, r.report_date, r.area, r.project, name);
     });
   });
 
+  // 补全提交人的 userName（通过 uidToInfo 或从 users 表查）
+  // uidToInfo 已覆盖所有 fieldWorker，提交人通常也是 fieldWorker
+  for (const [uid, p] of Object.entries(personMap)) {
+    if (!p.userName && uidToInfo[uid]) p.userName = uidToInfo[uid].userName;
+  }
+
   // 5. 按省份聚合
   const provMap = {};
-  Object.values(personMap).forEach(p => {
-    if (!provMap[p.province]) provMap[p.province] = { count: 0, projects: new Set() };
+  Object.entries(personMap).forEach(([uid, p]) => {
+    if (!provMap[p.province]) provMap[p.province] = { count: 0, projects: new Set(), workers: [] };
     provMap[p.province].count++;
     p.projects.forEach(pr => provMap[p.province].projects.add(pr));
+    provMap[p.province].workers.push({
+      userId: Number(uid),
+      userName: p.userName || '',
+      workerCode: uidToInfo[uid]?.workerCode || '',
+    });
   });
 
   const provinces = Object.entries(provMap)
-    .map(([name, data]) => ({ name, count: data.count, projects: [...data.projects].slice(0, 10) }))
+    .map(([name, data]) => ({
+      name,
+      count: data.count,
+      projects: [...data.projects].slice(0, 10),
+      workers: data.workers,
+    }))
     .sort((a, b) => b.count - a.count);
 
   return { month: targetMonth, provinces };
