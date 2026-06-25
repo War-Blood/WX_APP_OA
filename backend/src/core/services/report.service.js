@@ -359,9 +359,9 @@ async function batchCreateLeaveLogs(opts) {
 
     const [result] = await db.query(
       `INSERT INTO daily_reports
-        (user_id, report_date, report_type, today_work_type, work_content, workers, remark, entry_date, initial_biz_trip_date, status, timeliness, submitted_at)
-       VALUES (?, ?, 'biz_trip', ?, ?, ?, ?, ?, ?, 'approved', 'on_time', NOW())`,
-      [userId, dateStr, todayWorkType, todayWorkType, userName, remark || null, entryDate || null, initialBizTripDate || null]
+        (user_id, report_date, report_type, today_work_type, today_work, work_content, workers, remark, entry_date, initial_biz_trip_date, status, timeliness, submitted_at)
+       VALUES (?, ?, 'biz_trip', ?, ?, ?, ?, ?, ?, ?, 'approved', 'on_time', NOW())`,
+      [userId, dateStr, todayWorkType, todayWorkType, todayWorkType, userName, remark || null, entryDate || null, initialBizTripDate || null]
     );
     createdIds.push(result.insertId);
   }
