@@ -250,8 +250,8 @@
           </view>
         </view>
 
-        <!-- 今日工作（始终显示） -->
-        <view class="section-card">
+        <!-- 今日工作（请假/调休时隐藏） -->
+        <view v-if="!isLeaveOrRest" class="section-card">
           <text class="section-title">今日工作</text>
           <view class="form-group">
             <text class="form-label">今日工作小结 <text class="required">*</text></text>
