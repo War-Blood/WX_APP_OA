@@ -357,11 +357,15 @@ async function batchCreateLeaveLogs(opts) {
     const [userRows] = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
     const userName = userRows.length > 0 ? (userRows[0].nickname || userRows[0].user_name || '') : '';
 
+    // 构造可读的今日工作模板
+    const reasonText = remark ? `，原因：${remark}` : '';
+    const todayWorkText = `${todayWorkType}：${leaveStartDate} 至 ${leaveEndDate}${reasonText}`;
+
     const [result] = await db.query(
       `INSERT INTO daily_reports
         (user_id, report_date, report_type, today_work_type, today_work, work_content, workers, remark, entry_date, initial_biz_trip_date, status, timeliness, submitted_at)
        VALUES (?, ?, 'biz_trip', ?, ?, ?, ?, ?, ?, ?, 'approved', 'on_time', NOW())`,
-      [userId, dateStr, todayWorkType, todayWorkType, todayWorkType, userName, remark || null, entryDate || null, initialBizTripDate || null]
+      [userId, dateStr, todayWorkType, todayWorkText, todayWorkType, userName, remark || null, entryDate || null, initialBizTripDate || null]
     );
     createdIds.push(result.insertId);
   }
