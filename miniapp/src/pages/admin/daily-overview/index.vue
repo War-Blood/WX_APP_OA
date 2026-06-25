@@ -56,12 +56,12 @@
         </view>
       </view>
 
-      <!-- 已提交人员 -->
-      <view v-if="activeWorkers.length > 0" class="section">
-        <text class="section-header section-header--active">已提交 ({{ activeWorkers.length }})</text>
+      <!-- 补公出 -->
+      <view v-if="supplementWorkers.length > 0" class="section">
+        <text class="section-header section-header--supplement">补公出 ({{ supplementWorkers.length }})</text>
         <view class="card-list">
           <view
-            v-for="w in activeWorkers"
+            v-for="w in supplementWorkers"
             :key="w.userId"
             class="worker-card"
             :class="'worker-card--' + w.status"
@@ -76,9 +76,7 @@
               <text v-if="w.area" class="card-area">{{ w.area }}</text>
             </view>
             <view class="card-right">
-              <text class="card-status-tag" :class="'tag--' + w.status">
-                {{ statusLabelMap[w.status] || w.status }}
-              </text>
+              <text class="card-status-tag tag--supplement">补公出</text>
               <text v-if="w.workType" class="card-work-type">{{ w.workType }}</text>
               <text v-if="w.submittedAt" class="card-time">{{ formatTime(w.submittedAt) }}</text>
             </view>
@@ -103,6 +101,36 @@
               <text class="card-status-tag" :class="'tag--' + w.status">
                 {{ statusLabelMap[w.status] || w.status }}
               </text>
+              <text v-if="w.submittedAt" class="card-time">{{ formatTime(w.submittedAt) }}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 已提交人员 -->
+      <view v-if="activeWorkers.length > 0" class="section">
+        <text class="section-header section-header--active">已提交 ({{ activeWorkers.length }})</text>
+        <view class="card-list">
+          <view
+            v-for="w in activeWorkers"
+            :key="w.userId"
+            class="worker-card"
+            :class="'worker-card--' + w.status"
+            @tap="goToDetail(w)"
+          >
+            <view class="card-left">
+              <text class="card-name">{{ w.userName }}</text>
+              <text class="card-code">{{ w.workerCode || '' }}</text>
+            </view>
+            <view class="card-mid">
+              <text v-if="w.project" class="card-project">{{ w.project }}</text>
+              <text v-if="w.area" class="card-area">{{ w.area }}</text>
+            </view>
+            <view class="card-right">
+              <text class="card-status-tag" :class="'tag--' + w.status">
+                {{ statusLabelMap[w.status] || w.status }}
+              </text>
+              <text v-if="w.workType" class="card-work-type">{{ w.workType }}</text>
               <text v-if="w.submittedAt" class="card-time">{{ formatTime(w.submittedAt) }}</text>
             </view>
           </view>
@@ -183,9 +211,14 @@ const missingWorkers = computed(() => {
   return response.value.workers.filter(w => w.status === 'missing')
 })
 
+const supplementWorkers = computed(() => {
+  if (!response.value) return []
+  return response.value.workers.filter(w => w.status === 'supplement')
+})
+
 const activeWorkers = computed(() => {
   if (!response.value) return []
-  return response.value.workers.filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'rest')
+  return response.value.workers.filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'rest' && w.status !== 'supplement')
 })
 
 const leaveRestWorkers = computed(() => {

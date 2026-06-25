@@ -101,6 +101,42 @@
           </view>
         </view>
 
+        <!-- 补公出 -->
+        <view v-if="dailySupplementWorkers.length" class="daily-section">
+          <text class="section-header section-header--supplement">补公出 ({{ dailySupplementWorkers.length }})</text>
+          <view class="daily-card-list">
+            <view v-for="w in dailySupplementWorkers" :key="w.userId" class="worker-card" :class="'worker-card--' + w.status" @tap="goDailyDetail(w)">
+              <view class="card-left">
+                <text class="card-name">{{ w.userName }}</text>
+                <text class="card-code">{{ w.workerCode || '' }}</text>
+              </view>
+              <view class="card-mid">
+                <text v-if="w.project" class="card-project">{{ w.project }}</text>
+                <text v-if="w.area" class="card-area">{{ w.area }}</text>
+              </view>
+              <view class="card-right">
+                <text class="card-status-tag tag--supplement">补公出</text>
+                <text v-if="w.workType" class="card-work-type">{{ w.workType }}</text>
+                <text v-if="w.submittedAt" class="card-time">{{ fmtTime(w.submittedAt) }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 请假/调休 -->
+        <view v-if="dailyLeaveWorkers.length" class="daily-section">
+          <text class="section-header section-header--leave">请假/调休 ({{ dailyLeaveWorkers.length }})</text>
+          <view class="daily-card-list">
+            <view v-for="w in dailyLeaveWorkers" :key="w.userId" class="worker-card worker-card--leave">
+              <view class="card-left">
+                <text class="card-name">{{ w.userName }}</text>
+                <text class="card-code">{{ w.workerCode || '' }}</text>
+              </view>
+              <text class="card-status-tag" :class="'tag--' + w.status">{{ statusLabel(w.status) }}</text>
+            </view>
+          </view>
+        </view>
+
         <!-- 已提交 -->
         <view v-if="dailyActiveWorkers.length" class="daily-section">
           <text class="section-header section-header--active">已提交 ({{ dailyActiveWorkers.length }})</text>
@@ -119,20 +155,6 @@
                 <text v-if="w.workType" class="card-work-type">{{ w.workType }}</text>
                 <text v-if="w.submittedAt" class="card-time">{{ fmtTime(w.submittedAt) }}</text>
               </view>
-            </view>
-          </view>
-        </view>
-
-        <!-- 请假/调休 -->
-        <view v-if="dailyLeaveWorkers.length" class="daily-section">
-          <text class="section-header section-header--leave">请假/调休 ({{ dailyLeaveWorkers.length }})</text>
-          <view class="daily-card-list">
-            <view v-for="w in dailyLeaveWorkers" :key="w.userId" class="worker-card worker-card--leave">
-              <view class="card-left">
-                <text class="card-name">{{ w.userName }}</text>
-                <text class="card-code">{{ w.workerCode || '' }}</text>
-              </view>
-              <text class="card-status-tag" :class="'tag--' + w.status">{{ statusLabel(w.status) }}</text>
             </view>
           </view>
         </view>
@@ -450,7 +472,8 @@ const dailySubmitted = computed(() => {
 })
 
 const dailyMissingWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'missing'))
-const dailyActiveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'rest'))
+const dailySupplementWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'supplement'))
+const dailyActiveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'rest' && w.status !== 'supplement'))
 const dailyLeaveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'leave' || w.status === 'rest'))
 
 function fmtTime(dt) { if (!dt) return ''; const p = String(dt).split(' '); return p[1] ? p[1].slice(0, 5) : dt }

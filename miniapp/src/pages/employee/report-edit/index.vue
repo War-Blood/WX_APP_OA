@@ -511,7 +511,9 @@ const formData = ref({
   supplementReason: '',
   tomorrowPlan: '',
   issues: '',
-  coordination: ''
+  coordination: '',
+  entryDate: '',
+  initialBizTripDate: ''
 })
 
 // 省市区选择器初始值
