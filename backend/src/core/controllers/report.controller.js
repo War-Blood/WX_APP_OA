@@ -162,7 +162,7 @@ async function submit(req, res, next) {
 
     const result = await reportService.submit(data, userId);
 
-    res.json(success({ reportId: result.reportId }));
+    res.json(success(result));
   } catch (err) {
     next(err);
   }

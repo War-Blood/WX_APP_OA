@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
-import { getReportList, getWorkerStats, deleteReport, reviewAction, reviewSupplement, updateReport } from '@/api/report'
+import { getReportList, getReportDetail, getWorkerStats, deleteReport, reviewAction, reviewSupplement, updateReport } from '@/api/report'
 import type { ReportUpdateResult } from '@/api/report'
 import type { AllStatsResponse } from '@/api/report'
 
@@ -35,7 +35,7 @@ const workerTotal = ref(0)
 
 // 详情弹窗
 const detailVisible = ref(false)
-const detailData = ref<Record<string, unknown>>({})
+const detailData = ref<Record<string, any>>({})
 
 // 审核弹窗（补公出）
 const reviewVisible = ref(false)
@@ -211,7 +211,14 @@ async function handleReview(row: Record<string, unknown>, action: 'approve' | 'r
   }
 }
 
-function showDetail(row: Record<string, unknown>) { detailData.value = row; detailVisible.value = true }
+async function showDetail(row: Record<string, unknown>) {
+  try {
+    detailData.value = await getReportDetail(String(row.id))
+  } catch {
+    detailData.value = row  // fallback to table row
+  }
+  detailVisible.value = true
+}
 
 // --- 补公出审核 ---
 function openSupplementReview(row: Record<string, unknown>) {
