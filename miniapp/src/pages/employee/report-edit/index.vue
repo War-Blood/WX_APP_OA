@@ -409,7 +409,7 @@
 
     <!-- 机型输入弹窗（多选 tags） -->
     <view v-if="showMachineInput" class="popup-mask" @tap="showMachineInput = false">
-      <view class="popup-panel" @tap.stop>
+      <view class="popup-panel" @tap.stop style="max-height:50vh;">
         <view class="popup-header">
           <text class="popup-title">添加机型</text>
           <text class="popup-close" @tap="showMachineInput = false">完成</text>
@@ -417,10 +417,13 @@
         <view class="popup-search">
           <input
             class="popup-search-input"
-            placeholder="输入机型名称，回车添加..."
+            placeholder="输入机型名称"
             v-model="machineInputText"
             @confirm="addMachineTag"
           />
+          <view class="popup-add-btn" @tap="addMachineTag">
+            <text class="popup-add-btn-text">添加</text>
+          </view>
         </view>
         <!-- 历史建议 -->
         <scroll-view v-if="filteredMachineSuggestions.length > 0" class="popup-list" scroll-y style="max-height:360rpx;">
@@ -434,7 +437,7 @@
           </view>
         </scroll-view>
         <view v-else class="popup-empty" style="padding:32rpx;">
-          <text class="popup-empty-text">输入新机型名称后按回车添加</text>
+          <text class="popup-empty-text">输入新机型名称后点"添加"或按回车</text>
         </view>
       </view>
     </view>
@@ -940,8 +943,8 @@ async function saveDraft() {
     reportDate: reportDate.value,
     todayWorkType: selectedWorkType.value,
     tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
-    entryDate: userStore.entryDate,
-    initialBizTripDate: userStore.entryDate,
+    entryDate: formData.value.entryDate || userStore.entryDate,
+    initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
     workerIds: isLeaveOrRest.value ? [] : selectedWorkerIds.value
   }
   try {
@@ -1019,8 +1022,8 @@ async function handleSubmit() {
       reportDate: effectiveDate,
       todayWorkType: selectedWorkType.value,
       tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
-      entryDate: userStore.entryDate,
-      initialBizTripDate: userStore.entryDate,
+      entryDate: formData.value.entryDate || userStore.entryDate,
+      initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
       workerIds: isLeaveOrRest.value ? [] : selectedWorkerIds.value,
       project: formData.value.project,
       area: formData.value.area,
@@ -1475,15 +1478,35 @@ async function handleSubmit() {
 }
 .popup-title { font-size: 32rpx; font-weight: 600; color: #333; }
 .popup-close { font-size: 28rpx; color: #999; }
-.popup-search { padding: 0 32rpx 16rpx; }
+.popup-search {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 0 32rpx 16rpx;
+}
 .popup-search-input {
+  flex: 1;
   height: 72rpx;
   padding: 0 20rpx;
   background: #F7F8FA;
   border-radius: 12rpx;
   font-size: 28rpx;
-  width: 100%;
   box-sizing: border-box;
+}
+.popup-add-btn {
+  flex-shrink: 0;
+  height: 72rpx;
+  padding: 0 28rpx;
+  background: #2B6DE8;
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.popup-add-btn-text {
+  font-size: 26rpx;
+  color: #fff;
+  font-weight: 500;
 }
 .popup-list { max-height: 500rpx; padding: 0 32rpx; }
 .popup-item {

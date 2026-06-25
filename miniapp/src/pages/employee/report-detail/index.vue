@@ -99,7 +99,7 @@
         </view>
 
         <!-- 基本信息 -->
-        <view v-if="report.entryDate || report.initialBizTripDate || report.personalBizTripDays > 0 || report.timeliness" class="field-card">
+        <view v-if="report.entryDate || report.initialBizTripDate || report.personalBizTripDays > 0 || report.bizTripDays > 0 || report.timeliness" class="field-card">
           <text class="card-title">基本信息</text>
           <view v-if="report.entryDate" class="field-row">
             <text class="field-label">入场日期</text>
@@ -112,6 +112,10 @@
           <view v-if="report.personalBizTripDays > 0" class="field-row">
             <text class="field-label">个人出差天数</text>
             <text class="field-value">{{ report.personalBizTripDays }}</text>
+          </view>
+          <view v-if="report.bizTripDays > 0" class="field-row">
+            <text class="field-label">项目出差天数</text>
+            <text class="field-value">{{ report.bizTripDays }}</text>
           </view>
           <view v-if="report.timeliness" class="field-row">
             <text class="field-label">及时性</text>

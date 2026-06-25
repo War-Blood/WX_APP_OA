@@ -553,7 +553,7 @@ onMounted(() => { loadStats(); loadReports() })
 
     <!-- 编辑弹窗 -->
     <el-dialog v-model="editVisible" title="编辑公出日志" width="750px" destroy-on-close>
-      <template v-if="editData.reportId">
+      <template v-if="editVisible">
         <el-descriptions :column="3" border size="small" class="edit-readonly">
           <el-descriptions-item label="填写人">{{ editData.submitter }}</el-descriptions-item>
           <el-descriptions-item label="状态">
