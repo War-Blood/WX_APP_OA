@@ -353,9 +353,9 @@ async function batchCreateLeaveLogs(opts) {
       continue;
     }
 
-    // 取当前用户昵称作为 workers 文本
-    const [userRows] = await db.query('SELECT nickname FROM users WHERE id = ?', [userId]);
-    const userName = userRows.length > 0 ? userRows[0].nickname : '';
+    // 取当前用户名称作为 workers 文本（nickname 可能为空，回退到 user_name）
+    const [userRows] = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
+    const userName = userRows.length > 0 ? (userRows[0].nickname || userRows[0].user_name || '') : '';
 
     const [result] = await db.query(
       `INSERT INTO daily_reports
