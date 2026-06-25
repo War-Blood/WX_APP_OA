@@ -108,6 +108,22 @@ async function submit(req, res, next) {
 
     const isLeaveOrRest = data.todayWorkType === '请假' || data.todayWorkType === '调休';
 
+    // 请假/调休：需起止日期，不校验 project/area/workerIds
+    if (isLeaveOrRest) {
+      if (!data.leaveStartDate) {
+        throw new ValidationError('请假起始日期不能为空');
+      }
+      if (!data.leaveEndDate) {
+        throw new ValidationError('请假结束日期不能为空');
+      }
+      if (data.leaveEndDate < data.leaveStartDate) {
+        throw new ValidationError('结束日期不能早于起始日期');
+      }
+      if (!data.workerIds) {
+        data.workerIds = [];
+      }
+    }
+
     if (reportType === 'biz_trip' || reportType === 'biz_trip_supplement') {
       // 请假/调休时 project/area/workerIds 可为空
       if (!isLeaveOrRest) {
@@ -119,11 +135,6 @@ async function submit(req, res, next) {
         }
         if (!data.workerIds || !Array.isArray(data.workerIds) || data.workerIds.length === 0) {
           throw new ValidationError('作业人员不能为空');
-        }
-      } else {
-        // 请假/调休时前端传 workerIds: []，后端跳过代填
-        if (!data.workerIds) {
-          data.workerIds = [];
         }
       }
 
