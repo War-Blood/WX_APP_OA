@@ -357,10 +357,19 @@ async function batchCreateLeaveLogs(opts) {
     const [userRows] = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
     const userName = userRows.length > 0 ? (userRows[0].nickname || userRows[0].user_name || '') : '';
 
+    // 与正常公出日志保持一致的字段结构，仅填写必要值，其余为 null/0
     const [result] = await db.query(
       `INSERT INTO daily_reports
-        (user_id, report_date, report_type, project, today_work_type, workers, status, timeliness, submitted_at)
-       VALUES (?, ?, 'biz_trip', ?, ?, ?, 'approved', 'on_time', NOW())`,
+        (user_id, report_date, report_type, project, area, today_work_type, today_work,
+         tomorrow_work_type, tomorrow_plan, work_content, machine_model, required_qty,
+         completed_qty, progress_percent, workers, issues, remark, entry_date,
+         initial_biz_trip_date, related_party, biz_trip_days, personal_biz_trip_days,
+         supplement_date, supplement_reason, content, status, timeliness, worker_count, submitted_at)
+       VALUES (?, ?, 'biz_trip', ?, NULL, ?, NULL,
+               NULL, NULL, NULL, NULL, 0,
+               0, 0, ?, NULL, NULL, NULL,
+               NULL, NULL, 0, 0,
+               NULL, NULL, NULL, 'approved', 'on_time', 0, NOW())`,
       [userId, dateStr, todayWorkType, todayWorkType, userName]
     );
     createdIds.push(result.insertId);
