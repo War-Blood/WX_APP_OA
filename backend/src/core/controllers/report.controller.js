@@ -108,15 +108,15 @@ async function submit(req, res, next) {
 
     const isLeaveOrRest = data.todayWorkType === '请假' || data.todayWorkType === '调休';
 
-    // 请假/调休：不校验 project/area，workerIds 正常校验
+    // 请假/调休：project 默认填类型名，跳过 project/area 必填校验
     if (isLeaveOrRest) {
-      if (!data.workerIds) {
-        data.workerIds = [];
+      if (!data.project) {
+        data.project = data.todayWorkType;
       }
     }
 
     if (reportType === 'biz_trip' || reportType === 'biz_trip_supplement') {
-      // 请假/调休时 project/area/workerIds 可为空
+      // 请假/调休时 project/area 可为空
       if (!isLeaveOrRest) {
         if (!data.project) {
           throw new ValidationError('项目名称不能为空');
@@ -124,9 +124,9 @@ async function submit(req, res, next) {
         if (!data.area) {
           throw new ValidationError('项目区域不能为空');
         }
-        if (!data.workerIds || !Array.isArray(data.workerIds) || data.workerIds.length === 0) {
-          throw new ValidationError('作业人员不能为空');
-        }
+      }
+      if (!data.workerIds || !Array.isArray(data.workerIds) || data.workerIds.length === 0) {
+        throw new ValidationError('作业人员不能为空');
       }
 
       if (reportType === 'biz_trip_supplement') {

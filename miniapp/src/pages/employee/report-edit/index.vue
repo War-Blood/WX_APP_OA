@@ -54,8 +54,6 @@
           <picker
             mode="date"
             :value="reportDate"
-            :start="isLeaveOrRest ? '' : yesterdayStr"
-            :end="isLeaveOrRest ? '' : todayStr"
             @change="onDateChange"
           >
             <view class="form-picker">
@@ -85,9 +83,25 @@
 
       <!-- ========== 公出日志 / 补公出日志 表单 ========== -->
       <template v-if="currentTab !== 'office'">
-        <!-- 请假/调休：简化表单（填写人自动为当前用户） -->
+        <!-- 请假/调休：仅显示作业人员 -->
         <view v-if="isLeaveOrRest" class="section-card">
-          <text class="section-title">请假信息</text>
+          <text class="section-title">作业信息</text>
+          <view class="form-group">
+            <text class="form-label">作业人员 <text class="required">*</text></text>
+            <view class="worker-trigger" @tap="showWorkerPicker = true">
+              <text v-if="selectedWorkerIds.length === 0" class="worker-placeholder">选择作业人员（可多选）</text>
+              <text v-else class="worker-placeholder" style="color:#333;">
+                已选 {{ selectedWorkerIds.length }} 人
+              </text>
+              <text class="picker-arrow">›</text>
+            </view>
+            <view v-if="selectedWorkerIds.length > 0" class="worker-tags">
+              <view v-for="wid in selectedWorkerIds" :key="wid" class="worker-tag" @tap="removeWorker(wid)">
+                <text class="worker-tag-text">{{ getWorkerName(wid) }}</text>
+                <text class="worker-tag-close">×</text>
+              </view>
+            </view>
+          </view>
           <view class="form-group">
             <text class="form-label">备注原因</text>
             <textarea class="form-textarea" placeholder="请假/调休原因..." v-model="formData.remark" maxlength="500" />
@@ -486,6 +500,8 @@ const allMachineOptions = ref([...loadMachineHistory(), ...builtinMachines])
 // ===== 响应式状态 =====
 const currentTab = ref('biz_trip')
 const reportDate = ref(formatToday())
+const leaveStartDate = ref('')
+const leaveEndDate = ref('')
 const selectedWorkType = ref('')
 const selectedWorkerIds = ref([])
 const showWorkerPicker = ref(false)
@@ -740,6 +756,8 @@ onMounted(async () => {
       if (saved.reportDate) reportDate.value = saved.reportDate
       if (saved.selectedWorkType) selectedWorkType.value = saved.selectedWorkType
       if (saved.selectedWorkerIds) selectedWorkerIds.value = saved.selectedWorkerIds
+      if (saved.leaveStartDate) leaveStartDate.value = saved.leaveStartDate
+      if (saved.leaveEndDate) leaveEndDate.value = saved.leaveEndDate
       Object.keys(formData.value).forEach(k => {
         if (saved[k] !== undefined) formData.value[k] = saved[k]
       })
@@ -808,6 +826,8 @@ watch(
         selectedWorkerIds: selectedWorkerIds.value,
         ...formData.value,
         machineModel: machineModels.value.join(','),
+        leaveStartDate: leaveStartDate.value,
+        leaveEndDate: leaveEndDate.value,
         savedAt: new Date().toISOString()
       }
       uni.setStorageSync('report_auto_draft', JSON.stringify(draft))
@@ -958,11 +978,9 @@ async function saveDraft() {
     tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
     entryDate: formData.value.entryDate || userStore.entryDate,
     initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
-    workerIds: selectedWorkerIds.value
-  }
-  // 请假/调休：project 默认填充
-  if (isLeaveOrRest.value) {
-    payload.project = selectedWorkType.value
+    workerIds: selectedWorkerIds.value,
+    leaveStartDate: undefined,
+    leaveEndDate: undefined
   }
   try {
     await reportApi.saveDraft(payload)
@@ -985,6 +1003,14 @@ async function handleSubmit() {
   if (!selectedWorkType.value && currentTab.value !== 'office') {
     uni.showToast({ title: '请选择工作类型', icon: 'none' })
     return
+  }
+
+  // 请假/调休：校验作业人员
+  if (isLeaveOrRest.value) {
+    if (selectedWorkerIds.value.length === 0) {
+      uni.showToast({ title: '请选择作业人员', icon: 'none' })
+      return
+    }
   }
 
   // 公出日志/补公出：内容区可见时校验
@@ -1041,7 +1067,7 @@ async function handleSubmit() {
       tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
       entryDate: formData.value.entryDate || userStore.entryDate,
       initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
-      workerIds: isLeaveOrRest.value ? [userStore.userInfo?.id].filter(Boolean) : selectedWorkerIds.value,
+      workerIds: selectedWorkerIds.value,
       project: isLeaveOrRest.value ? selectedWorkType.value : formData.value.project,
       area: formData.value.area,
       relatedParty: formData.value.relatedParty,

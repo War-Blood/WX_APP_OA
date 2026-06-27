@@ -513,7 +513,7 @@ async function submit(data, userId) {
     }
 
     // 4b. 写入代填关联表（非请假/调休且 workerIds 非空）
-    if (workerIds && workerIds.length > 0) {
+    if (!isLeaveOrRest && workerIds && workerIds.length > 0) {
       // 先清理旧的代填关联（如果更新已有记录）
       if (existing.length > 0) {
         await conn.execute(
