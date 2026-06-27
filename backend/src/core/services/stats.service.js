@@ -868,12 +868,9 @@ async function getAreaDistribution(month) {
 async function getProvinceWorkers(province, month) {
   if (!province) throw new BusinessError('province 必填');
 
-  let dateCondition = 'AND dr.report_date = CURDATE() - INTERVAL 1 DAY';
+  // 与 getAreaDistribution 保持一致，固定查昨日数据
+  const dateCondition = 'AND dr.report_date = CURDATE() - INTERVAL 1 DAY';
   const params = [`${province}-%`];
-  if (month && /^\d{4}-\d{2}$/.test(month)) {
-    dateCondition = 'AND DATE_FORMAT(dr.report_date, \'%Y-%m\') = ?';
-    params.push(month);
-  }
 
   // 与 getAreaDistribution 一致：使用昨日数据
   const reports = await db.query(
