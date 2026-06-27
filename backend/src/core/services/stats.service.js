@@ -803,6 +803,8 @@ async function getAreaDistribution(month) {
   const personMap = {}; // uid → { province, dateStr, projects: Set, userName }
   const addPerson = (uid, date, area, project, userName) => {
     if (!uid || !area) return;
+    // 只处理含 '-' 的标准格式（省-市），排除GPS定位等非标准格式
+    if (!area.includes('-')) return;
     const province = area.split('-')[0];
     const d = date instanceof Date ? date.toISOString().slice(0,10) : String(date).slice(0,10);
     if (!personMap[uid] || d > personMap[uid].dateStr) {
@@ -866,45 +868,99 @@ async function getAreaDistribution(month) {
 async function getProvinceWorkers(province, month) {
   if (!province) throw new BusinessError('province 必填');
 
-  let dateCondition = '';
+  let dateCondition = 'AND dr.report_date = CURDATE() - INTERVAL 1 DAY';
   const params = [`${province}-%`];
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     dateCondition = 'AND DATE_FORMAT(dr.report_date, \'%Y-%m\') = ?';
     params.push(month);
   }
 
-  const rows = await db.query(
-    `SELECT DISTINCT
-       u.id AS userId,
-       u.nickname AS userName,
-       u.worker_code AS workerCode,
-       dr.area,
-       dr.project
+  // 与 getAreaDistribution 一致：使用昨日数据
+  const reports = await db.query(
+    `SELECT dr.id, dr.user_id, dr.report_date, dr.area, dr.project, dr.workers
      FROM daily_reports dr
-     JOIN users u ON dr.user_id = u.id
      WHERE dr.status = 'approved'
        AND dr.report_type != 'office'
        AND dr.area LIKE ?
-       ${dateCondition}
-     ORDER BY u.worker_code`,
+       ${dateCondition}`,
     params
   );
 
-  // 每人只取一条（最新区域和项目）
-  const workerMap = {};
-  rows.forEach(r => {
-    if (!workerMap[r.userId]) {
-      workerMap[r.userId] = {
-        userId: r.userId,
-        userName: r.userName || '',
-        workerCode: r.workerCode || '',
-        area: r.area || '',
-        project: r.project || '',
-      };
+  // 三条路径收集人员：直接提交人 + daily_report_workers + workers文本
+  const personSet = new Map(); // key: userId
+  const uids = [...new Set(reports.map(r => r.user_id))];
+
+  // 预加载用户信息
+  const uidToInfo = {};
+  if (uids.length > 0) {
+    const userRows = await db.query(
+      `SELECT id, nickname, user_name, worker_code FROM users WHERE id IN (${uids.map(() => '?').join(',')})`,
+      uids
+    );
+    userRows.forEach(u => {
+      uidToInfo[u.id] = { userName: u.nickname || u.user_name || '', workerCode: u.worker_code || '' };
+    });
+  }
+
+  // 加载代填关联
+  const reportIds = reports.map(r => r.id);
+  let subs = [];
+  if (reportIds.length > 0) {
+    subs = await db.query(
+      `SELECT DISTINCT drw.worker_uid AS user_id, dr.area, dr.project, dr.id AS report_id
+       FROM daily_report_workers drw
+       JOIN daily_reports dr ON dr.id = drw.report_id
+       WHERE drw.report_id IN (${reportIds.map(() => '?').join(',')})`,
+      reportIds
+    );
+    // 补充代填人员的用户信息
+    const subUids = [...new Set(subs.map(s => s.user_id))].filter(uid => !uidToInfo[uid]);
+    if (subUids.length > 0) {
+      const subUserRows = await db.query(
+        `SELECT id, nickname, user_name, worker_code FROM users WHERE id IN (${subUids.map(() => '?').join(',')})`,
+        subUids
+      );
+      subUserRows.forEach(u => {
+        uidToInfo[u.id] = { userName: u.nickname || u.user_name || '', workerCode: u.worker_code || '' };
+      });
     }
+  }
+
+  const addPerson = (uid, area, project) => {
+    if (!uid) return;
+    if (!personSet.has(uid)) {
+      personSet.set(uid, {
+        userId: uid,
+        userName: uidToInfo[uid]?.userName || '',
+        workerCode: uidToInfo[uid]?.workerCode || '',
+        area: area || '',
+        project: project || '',
+      });
+    }
+  };
+
+  // 路径1: 直接提交人
+  reports.forEach(r => addPerson(r.user_id, r.area, r.project));
+
+  // 路径2: daily_report_workers
+  subs.forEach(r => addPerson(r.user_id, r.area, r.project));
+
+  // 路径3: workers 文本字段匹配
+  const nameToUid = {};
+  Object.entries(uidToInfo).forEach(([uid, info]) => {
+    if (info.userName) nameToUid[info.userName] = Number(uid);
+  });
+  reports.forEach(r => {
+    if (!r.workers) return;
+    const names = r.workers.split(/[、,，\s\/\n]+/).map(s => s.trim()).filter(Boolean);
+    names.forEach(name => {
+      const uid = nameToUid[name];
+      if (uid && uid !== r.user_id) addPerson(uid, r.area, r.project);
+    });
   });
 
-  return { province, workers: Object.values(workerMap) };
+  const workers = [...personSet.values()].sort((a, b) => (a.workerCode || '').localeCompare(b.workerCode || ''));
+  return { province, workers };
 }
 
 /**
