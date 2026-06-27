@@ -317,68 +317,6 @@ async function updateReport(reportId, data, editorId, meta = {}) {
 }
 
 // ==============================
-// 请假/调休 — 批量生成多天日志
-// ==============================
-
-/**
- * @param {Object} opts
- * @param {number} opts.userId
- * @param {string} opts.todayWorkType - '请假' | '调休'
- * @param {string} opts.leaveStartDate - YYYY-MM-DD
- * @param {string} opts.leaveEndDate - YYYY-MM-DD
- * @param {string} [opts.remark] - 备注原因
- * @param {string} [opts.entryDate] - 入场日期
- * @param {string} [opts.initialBizTripDate] - 初始出差日期
- */
-async function batchCreateLeaveLogs(opts) {
-  const { userId, todayWorkType, leaveStartDate, leaveEndDate, remark, entryDate, initialBizTripDate } = opts;
-
-  const start = new Date(leaveStartDate);
-  const end = new Date(leaveEndDate);
-
-  const createdIds = [];
-  const skippedDates = [];
-
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().slice(0, 10);
-
-    // 检查当日是否已有日志
-    const [existing] = await db.query(
-      'SELECT id FROM daily_reports WHERE user_id = ? AND report_date = ? AND deleted_at IS NULL',
-      [userId, dateStr]
-    );
-
-    if (existing.length > 0) {
-      skippedDates.push(dateStr);
-      continue;
-    }
-
-    // 取当前用户名称作为 workers 文本（nickname 可能为空，回退到 user_name）
-    const [userRows] = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
-    const userName = userRows.length > 0 ? (userRows[0].nickname || userRows[0].user_name || '') : '';
-
-    // 与正常公出日志保持一致的字段结构，仅填写必要值，其余为 null/0
-    const [result] = await db.query(
-      `INSERT INTO daily_reports
-        (user_id, report_date, report_type, project, area, today_work_type, today_work,
-         tomorrow_work_type, tomorrow_plan, work_content, machine_model, required_qty,
-         completed_qty, progress_percent, workers, issues, remark, entry_date,
-         initial_biz_trip_date, related_party, biz_trip_days, personal_biz_trip_days,
-         supplement_date, supplement_reason, content, status, timeliness, worker_count, submitted_at)
-       VALUES (?, ?, 'biz_trip', ?, NULL, ?, NULL,
-               NULL, NULL, NULL, NULL, 0,
-               0, 0, ?, NULL, NULL, NULL,
-               NULL, NULL, 0, 0,
-               NULL, NULL, NULL, 'approved', 'on_time', 0, NOW())`,
-      [userId, dateStr, todayWorkType, todayWorkType, userName]
-    );
-    createdIds.push(result.insertId);
-  }
-
-  return { reportId: createdIds[0] || null, created: createdIds.length, createdIds, skippedDates };
-}
-
-// ==============================
 // 提交日报 v2.0（改造核心）
 // ==============================
 
@@ -438,20 +376,10 @@ async function submit(data, userId) {
     personalBizTripDays,
     bizTripDays,
     status: requestStatus,
-    leaveStartDate,
-    leaveEndDate,
   } = data;
 
   const isDraft = requestStatus === 'draft';
   const isLeaveOrRest = todayWorkType === '请假' || todayWorkType === '调休';
-
-  // 请假/调休 + 日期范围 → 批量生成多天日志
-  if (isLeaveOrRest && !isDraft && leaveStartDate && leaveEndDate) {
-    return await batchCreateLeaveLogs({
-      userId, todayWorkType, leaveStartDate, leaveEndDate,
-      remark, entryDate, initialBizTripDate,
-    });
-  }
 
   // 补公出日志：report_date 使用补录日期而非提交日期
   // 这样同一用户可以补录多个不同日期，且重复检测按补录日期判断
@@ -585,7 +513,7 @@ async function submit(data, userId) {
     }
 
     // 4b. 写入代填关联表（非请假/调休且 workerIds 非空）
-    if (!isLeaveOrRest && workerIds && workerIds.length > 0) {
+    if (workerIds && workerIds.length > 0) {
       // 先清理旧的代填关联（如果更新已有记录）
       if (existing.length > 0) {
         await conn.execute(

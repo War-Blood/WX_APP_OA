@@ -54,8 +54,8 @@
           <picker
             mode="date"
             :value="reportDate"
-            :start="yesterdayStr"
-            :end="todayStr"
+            :start="isLeaveOrRest ? '' : yesterdayStr"
+            :end="isLeaveOrRest ? '' : todayStr"
             @change="onDateChange"
           >
             <view class="form-picker">
@@ -85,26 +85,22 @@
 
       <!-- ========== 公出日志 / 补公出日志 表单 ========== -->
       <template v-if="currentTab !== 'office'">
-        <!-- 请假/调休：日期范围选择 -->
+        <!-- 请假/调休：简化表单（仅作业人员+备注） -->
         <view v-if="isLeaveOrRest" class="section-card">
           <text class="section-title">请假信息</text>
           <view class="form-group">
-            <text class="form-label">起始日期 <text class="required">*</text></text>
-            <picker mode="date" :value="leaveStartDate" @change="e => leaveStartDate = e.detail.value">
-              <view class="form-picker">
-                <text class="picker-value" :class="{ 'picker-placeholder': !leaveStartDate }">{{ leaveStartDate || '请选择起始日期' }}</text>
-                <text class="picker-icon">▾</text>
+            <text class="form-label">作业人员 <text class="required">*</text></text>
+            <view class="worker-trigger" @tap="showWorkerPicker = true">
+              <text v-if="selectedWorkerIds.length === 0" class="worker-placeholder">选择作业人员（可多选）</text>
+              <text v-else class="worker-placeholder" style="color:#333;">已选 {{ selectedWorkerIds.length }} 人</text>
+              <text class="picker-arrow">›</text>
+            </view>
+            <view v-if="selectedWorkerIds.length > 0" class="worker-tags">
+              <view v-for="wid in selectedWorkerIds" :key="wid" class="worker-tag" @tap="removeWorker(wid)">
+                <text class="worker-tag-text">{{ getWorkerName(wid) }}</text>
+                <text class="worker-tag-close">×</text>
               </view>
-            </picker>
-          </view>
-          <view class="form-group">
-            <text class="form-label">结束日期 <text class="required">*</text></text>
-            <picker mode="date" :value="leaveEndDate" @change="e => leaveEndDate = e.detail.value">
-              <view class="form-picker">
-                <text class="picker-value" :class="{ 'picker-placeholder': !leaveEndDate }">{{ leaveEndDate || '请选择结束日期' }}</text>
-                <text class="picker-icon">▾</text>
-              </view>
-            </picker>
+            </view>
           </view>
           <view class="form-group">
             <text class="form-label">备注原因</text>
@@ -504,8 +500,6 @@ const allMachineOptions = ref([...loadMachineHistory(), ...builtinMachines])
 // ===== 响应式状态 =====
 const currentTab = ref('biz_trip')
 const reportDate = ref(formatToday())
-const leaveStartDate = ref('')
-const leaveEndDate = ref('')
 const selectedWorkType = ref('')
 const selectedWorkerIds = ref([])
 const showWorkerPicker = ref(false)
@@ -760,8 +754,6 @@ onMounted(async () => {
       if (saved.reportDate) reportDate.value = saved.reportDate
       if (saved.selectedWorkType) selectedWorkType.value = saved.selectedWorkType
       if (saved.selectedWorkerIds) selectedWorkerIds.value = saved.selectedWorkerIds
-      if (saved.leaveStartDate) leaveStartDate.value = saved.leaveStartDate
-      if (saved.leaveEndDate) leaveEndDate.value = saved.leaveEndDate
       Object.keys(formData.value).forEach(k => {
         if (saved[k] !== undefined) formData.value[k] = saved[k]
       })
@@ -830,8 +822,6 @@ watch(
         selectedWorkerIds: selectedWorkerIds.value,
         ...formData.value,
         machineModel: machineModels.value.join(','),
-        leaveStartDate: leaveStartDate.value,
-        leaveEndDate: leaveEndDate.value,
         savedAt: new Date().toISOString()
       }
       uni.setStorageSync('report_auto_draft', JSON.stringify(draft))
@@ -982,9 +972,11 @@ async function saveDraft() {
     tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
     entryDate: formData.value.entryDate || userStore.entryDate,
     initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
-    workerIds: isLeaveOrRest.value ? [] : selectedWorkerIds.value,
-    leaveStartDate: isLeaveOrRest.value ? leaveStartDate.value : undefined,
-    leaveEndDate: isLeaveOrRest.value ? leaveEndDate.value : undefined
+    workerIds: selectedWorkerIds.value
+  }
+  // 请假/调休：project 默认填充
+  if (isLeaveOrRest.value) {
+    payload.project = selectedWorkType.value
   }
   try {
     await reportApi.saveDraft(payload)
@@ -1009,20 +1001,10 @@ async function handleSubmit() {
     return
   }
 
-  // 请假/调休：校验日期范围
-  if (isLeaveOrRest.value) {
-    if (!leaveStartDate.value) {
-      uni.showToast({ title: '请选择起始日期', icon: 'none' })
-      return
-    }
-    if (!leaveEndDate.value) {
-      uni.showToast({ title: '请选择结束日期', icon: 'none' })
-      return
-    }
-    if (leaveEndDate.value < leaveStartDate.value) {
-      uni.showToast({ title: '结束日期不能早于起始日期', icon: 'none' })
-      return
-    }
+  // 请假/调休：校验作业人员
+  if (isLeaveOrRest.value && selectedWorkerIds.value.length === 0) {
+    uni.showToast({ title: '请选择作业人员', icon: 'none' })
+    return
   }
 
   // 公出日志/补公出：内容区可见时校验
@@ -1079,10 +1061,8 @@ async function handleSubmit() {
       tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
       entryDate: formData.value.entryDate || userStore.entryDate,
       initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
-      workerIds: isLeaveOrRest.value ? [] : selectedWorkerIds.value,
-      leaveStartDate: isLeaveOrRest.value ? leaveStartDate.value : undefined,
-      leaveEndDate: isLeaveOrRest.value ? leaveEndDate.value : undefined,
-      project: formData.value.project,
+      workerIds: selectedWorkerIds.value,
+      project: isLeaveOrRest.value ? selectedWorkType.value : formData.value.project,
       area: formData.value.area,
       relatedParty: formData.value.relatedParty,
       machineModel: machineModels.value.join(','),
@@ -1136,15 +1116,7 @@ async function handleSubmit() {
       todayWorkType: selectedWorkType.value
     }))
 
-    const created = res.data?.created || 1
-    const skipped = res.data?.skippedDates || []
-    let msg = '提交成功'
-    if (isLeaveOrRest.value && created > 1) {
-      msg = `已生成 ${created} 天${selectedWorkType.value}记录`
-    }
-    if (skipped.length > 0) {
-      msg += `，${skipped.join('、')} 已有日志已跳过`
-    }
+    const msg = currentTab.value === 'biz_trip_supplement' ? '已提交，等待管理员审核' : '提交成功'
     uni.showToast({ title: msg, icon: 'success' })
     setTimeout(() => uni.navigateBack(), 1500)
   } catch {

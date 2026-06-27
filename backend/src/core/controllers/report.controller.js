@@ -108,17 +108,8 @@ async function submit(req, res, next) {
 
     const isLeaveOrRest = data.todayWorkType === '请假' || data.todayWorkType === '调休';
 
-    // 请假/调休：需起止日期，不校验 project/area/workerIds
+    // 请假/调休：不校验 project/area，workerIds 正常校验
     if (isLeaveOrRest) {
-      if (!data.leaveStartDate) {
-        throw new ValidationError('请假起始日期不能为空');
-      }
-      if (!data.leaveEndDate) {
-        throw new ValidationError('请假结束日期不能为空');
-      }
-      if (data.leaveEndDate < data.leaveStartDate) {
-        throw new ValidationError('结束日期不能早于起始日期');
-      }
       if (!data.workerIds) {
         data.workerIds = [];
       }
