@@ -318,11 +318,10 @@
         <scroll-view v-if="provinceLoading" class="drill-loading"><text>加载中...</text></scroll-view>
         <scroll-view v-else-if="!provinceWorkers.length" class="drill-empty"><text>暂无人员数据</text></scroll-view>
         <scroll-view v-else class="drill-body" scroll-y>
-          <view v-for="w in provinceWorkers" :key="w.userId" class="drill-log" @tap="provinceWorkerToDrill(w)">
+          <view v-for="w in provinceWorkers" :key="w.userId" class="drill-log">
             <text class="drill-log-date">{{ w.userName }}</text>
             <text class="drill-log-type">{{ w.workerCode }}</text>
             <text v-if="w.project" class="drill-log-proj">{{ w.project }}</text>
-            <text class="drill-log-arrow">›</text>
           </view>
         </scroll-view>
       </view>
@@ -472,11 +471,6 @@ async function openProvinceDrill(p) {
 function closeProvinceDrill() {
   provinceDrill.value = null
   provinceWorkers.value = []
-}
-
-function provinceWorkerToDrill(w) {
-  closeProvinceDrill()
-  openDrill({ userId: w.userId, userName: w.userName, workerCode: w.workerCode })
 }
 
 // ============ 项目日志弹窗 ============
