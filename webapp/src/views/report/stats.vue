@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
-  getStats, getWorkerStats, getDailyCounts, getProjectProgress, getWorkerWorkTypes,
+  getStats, getWorkerStats, getDailyCounts, getProjectProgress, getWorkerWorkTypes, getReportList,
   type AllStatsResponse,
   type DailyCountItem, type ProjectProgressItem, type WorkerWorkTypeItem
 } from '@/api/report'
@@ -25,6 +25,22 @@ let calChart: echarts.ECharts | null = null
 const progLoading = ref(false)
 const progList = ref<ProjectProgressItem[]>([])
 const progMonth = ref(new Date().toISOString().slice(0, 7))
+
+// 项目日志弹窗
+const projLogVisible = ref(false)
+const projLogTitle = ref('')
+const projLogList = ref<any[]>([])
+const projLogLoading = ref(false)
+async function openProjLogs(row: ProjectProgressItem) {
+  projLogTitle.value = row.project
+  projLogVisible.value = true
+  projLogLoading.value = true
+  try {
+    const res = await getReportList({ keyword: row.project, pageSize: 200 })
+    projLogList.value = res.list || []
+  } catch { projLogList.value = [] }
+  finally { projLogLoading.value = false }
+}
 
 // 人员工作类型分布
 const workTypeLoading = ref(false)
@@ -384,7 +400,7 @@ onUnmounted(() => {
           </div>
         </div>
       </template>
-      <el-table :data="progList" v-loading="progLoading" stripe border>
+      <el-table :data="progList" v-loading="progLoading" stripe border @row-click="openProjLogs" highlight-current-row style="cursor:pointer">
         <el-table-column prop="project" label="项目名称" min-width="140" show-overflow-tooltip />
         <el-table-column label="区域" width="80">
           <template #default="{ row }">{{ row.area || '—' }}</template>
@@ -404,6 +420,23 @@ onUnmounted(() => {
         <el-table-column prop="logCount" label="日志条数" width="90" align="center" />
         <el-table-column prop="dayCount" label="天数" width="70" align="center" />
       </el-table>
+
+      <!-- 项目日志弹窗 -->
+      <el-dialog v-model="projLogVisible" :title="'项目日志：' + projLogTitle" width="800px" destroy-on-close>
+        <el-table :data="projLogList" v-loading="projLogLoading" stripe border max-height="500">
+          <el-table-column prop="reportDate" label="日期" width="110" />
+          <el-table-column label="填写人" width="100">
+            <template #default="{ row }">{{ row.submitter || (row as any).userName || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="workers" label="作业人员" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="todayWorkType" label="工作类型" width="100" />
+          <el-table-column prop="completedQty" label="完成量" width="80" align="center" />
+          <el-table-column prop="requiredQty" label="需求量" width="80" align="center" />
+          <el-table-column label="进度" width="90" align="center">
+            <template #default="{ row }">{{ row.requiredQty > 0 ? Math.round(row.completedQty / row.requiredQty * 100) + '%' : '-' }}</template>
+          </el-table-column>
+        </el-table>
+      </el-dialog>
     </el-card>
 
     <!-- 人员工作类型分布 -->

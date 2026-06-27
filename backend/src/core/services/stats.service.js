@@ -550,7 +550,7 @@ async function getDailyCounts(month) {
 }
 
 /**
- * 项目进展看板（按项目聚合当月进展，取 MAX 值）
+ * 项目进展看板（按项目聚合当月进展，取最新一条记录的完成/需求值）
  * @param {string} month - 月份 (YYYY-MM)
  * @returns {Promise<Object>} { month, projects: [...] }
  */
@@ -559,22 +559,28 @@ async function getProjectProgress(month) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
 
-  // 按项目聚合：MAX(completed_qty)/MAX(required_qty)，统计作业人员数和区域
+  // 子查询取每个项目最新一条记录的 id，再 JOIN 取完整数据
   const rows = await db.query(
     `SELECT
        dr.project,
-       MAX(dr.area) AS area,
-       MAX(dr.completed_qty) AS completed_qty,
-       MAX(dr.required_qty) AS required_qty,
-       COUNT(*) AS log_count,
-       COUNT(DISTINCT dr.report_date) AS day_count
+       dr.area,
+       dr.completed_qty,
+       dr.required_qty,
+       sub.log_count,
+       sub.day_count
      FROM daily_reports dr
-     WHERE dr.status = 'approved'
-       AND dr.report_type != 'office'
-       AND dr.project IS NOT NULL
-       AND dr.project != ''
-       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
-     GROUP BY dr.project`,
+     JOIN (
+       SELECT project,
+         MAX(id) AS latest_id,
+         COUNT(*) AS log_count,
+         COUNT(DISTINCT report_date) AS day_count
+       FROM daily_reports
+       WHERE status = 'approved'
+         AND report_type != 'office'
+         AND project IS NOT NULL AND project != ''
+         AND DATE_FORMAT(report_date, '%Y-%m') = ?
+       GROUP BY project
+     ) sub ON dr.id = sub.latest_id`,
     [month]
   );
 
