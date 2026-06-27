@@ -54,6 +54,8 @@
           <picker
             mode="date"
             :value="reportDate"
+            :start="isLeaveOrRest ? '' : yesterdayStr"
+            :end="isLeaveOrRest ? '' : todayStr"
             @change="onDateChange"
           >
             <view class="form-picker">
