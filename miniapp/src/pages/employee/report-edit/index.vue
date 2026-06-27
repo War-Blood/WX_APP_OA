@@ -604,6 +604,11 @@ const isLeaveOrRest = computed(() => {
   return selectedWorkType.value === '请假' || selectedWorkType.value === '调休'
 })
 
+// 切换工作类型时自动刷新日期为今天
+watch(selectedWorkType, () => {
+  reportDate.value = formatToday()
+})
+
 const showContentFields = computed(() => {
   if (currentTab.value === 'office') return false
   return !isLeaveOrRest.value
