@@ -124,6 +124,18 @@ async function submit(req, res, next) {
         if (!data.area) {
           throw new ValidationError('项目区域不能为空');
         }
+        if (!data.initialBizTripDate) {
+          throw new ValidationError('初始出差时间不能为空');
+        }
+        if (!data.workContent) {
+          throw new ValidationError('工作内容不能为空');
+        }
+        if (data.requiredQty == null || data.requiredQty === '') {
+          throw new ValidationError('需求数量不能为空');
+        }
+        if (data.completedQty == null || data.completedQty === '') {
+          throw new ValidationError('完成数量不能为空');
+        }
       }
       if (!data.workerIds || !Array.isArray(data.workerIds) || data.workerIds.length === 0) {
         throw new ValidationError('作业人员不能为空');

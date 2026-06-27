@@ -131,7 +131,7 @@
               </picker>
             </view>
             <view class="form-group">
-              <text class="form-label">初始出差时间</text>
+              <text class="form-label">初始出差时间 <text class="required">*</text></text>
               <picker mode="date" :value="formData.initialBizTripDate" @change="e => formData.initialBizTripDate = e.detail.value">
                 <view class="form-picker">
                   <text class="picker-value" :class="{ 'picker-placeholder': !formData.initialBizTripDate }">{{ formData.initialBizTripDate || '请选择初始出差时间' }}</text>
@@ -220,7 +220,7 @@
               </view>
             </view>
             <view class="form-group">
-              <text class="form-label">工作内容</text>
+              <text class="form-label">工作内容 <text class="required">*</text></text>
               <textarea
                 class="form-textarea"
                 placeholder="如 IPC故障处理、叶片振动传感器安装"
@@ -235,11 +235,11 @@
             <text class="section-title">工作量统计</text>
             <view class="form-row">
               <view class="form-group form-half">
-                <text class="form-label">需求数量</text>
+                <text class="form-label">需求数量 <text class="required">*</text></text>
                 <input class="form-input" placeholder="0" type="number" v-model.number="formData.requiredQty" />
               </view>
               <view class="form-group form-half">
-                <text class="form-label">完成数量</text>
+                <text class="form-label">完成数量 <text class="required">*</text></text>
                 <input class="form-input" placeholder="0" type="number" v-model.number="formData.completedQty" />
               </view>
             </view>
@@ -1021,6 +1021,22 @@ async function handleSubmit() {
     }
     if (!formData.value.area) {
       uni.showToast({ title: '请输入项目区域', icon: 'none' })
+      return
+    }
+    if (!formData.value.initialBizTripDate) {
+      uni.showToast({ title: '请选择初始出差时间', icon: 'none' })
+      return
+    }
+    if (!formData.value.workContent) {
+      uni.showToast({ title: '请输入工作内容', icon: 'none' })
+      return
+    }
+    if (formData.value.requiredQty == null || formData.value.requiredQty === '') {
+      uni.showToast({ title: '请输入需求数量', icon: 'none' })
+      return
+    }
+    if (formData.value.completedQty == null || formData.value.completedQty === '') {
+      uni.showToast({ title: '请输入完成数量', icon: 'none' })
       return
     }
     if (selectedWorkerIds.value.length === 0) {
