@@ -85,23 +85,9 @@
 
       <!-- ========== 公出日志 / 补公出日志 表单 ========== -->
       <template v-if="currentTab !== 'office'">
-        <!-- 请假/调休：简化表单（仅作业人员+备注） -->
+        <!-- 请假/调休：简化表单（填写人自动为当前用户） -->
         <view v-if="isLeaveOrRest" class="section-card">
           <text class="section-title">请假信息</text>
-          <view class="form-group">
-            <text class="form-label">作业人员 <text class="required">*</text></text>
-            <view class="worker-trigger" @tap="showWorkerPicker = true">
-              <text v-if="selectedWorkerIds.length === 0" class="worker-placeholder">选择作业人员（可多选）</text>
-              <text v-else class="worker-placeholder" style="color:#333;">已选 {{ selectedWorkerIds.length }} 人</text>
-              <text class="picker-arrow">›</text>
-            </view>
-            <view v-if="selectedWorkerIds.length > 0" class="worker-tags">
-              <view v-for="wid in selectedWorkerIds" :key="wid" class="worker-tag" @tap="removeWorker(wid)">
-                <text class="worker-tag-text">{{ getWorkerName(wid) }}</text>
-                <text class="worker-tag-close">×</text>
-              </view>
-            </view>
-          </view>
           <view class="form-group">
             <text class="form-label">备注原因</text>
             <textarea class="form-textarea" placeholder="请假/调休原因..." v-model="formData.remark" maxlength="500" />
@@ -1001,12 +987,6 @@ async function handleSubmit() {
     return
   }
 
-  // 请假/调休：校验作业人员
-  if (isLeaveOrRest.value && selectedWorkerIds.value.length === 0) {
-    uni.showToast({ title: '请选择作业人员', icon: 'none' })
-    return
-  }
-
   // 公出日志/补公出：内容区可见时校验
   if (currentTab.value !== 'office' && showContentFields.value) {
     if (!formData.value.project) {
@@ -1061,7 +1041,7 @@ async function handleSubmit() {
       tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
       entryDate: formData.value.entryDate || userStore.entryDate,
       initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
-      workerIds: selectedWorkerIds.value,
+      workerIds: isLeaveOrRest.value ? [userStore.userInfo?.id].filter(Boolean) : selectedWorkerIds.value,
       project: isLeaveOrRest.value ? selectedWorkType.value : formData.value.project,
       area: formData.value.area,
       relatedParty: formData.value.relatedParty,
