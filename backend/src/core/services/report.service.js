@@ -427,7 +427,12 @@ async function submit(data, userId) {
       `SELECT id, nickname FROM users WHERE id IN (${wPlaceholders})`,
       workerIds
     );
-    workersText = userRows.map(u => u.nickname).join('、');
+    workersText = userRows.map(u => u.nickname || '').join('、');
+  }
+  // workers 为空时，默认填入提交人自己
+  if (!workersText) {
+    const [selfRows] = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
+    workersText = selfRows.length > 0 ? (selfRows[0].nickname || selfRows[0].user_name || '') : '';
   }
 
   // 4. 插入 daily_reports（使用事务包裹 + 代填关联表写入）
