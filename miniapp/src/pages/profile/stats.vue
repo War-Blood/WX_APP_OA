@@ -201,7 +201,7 @@
       <view v-if="projLoading" class="loading"><text>加载中...</text></view>
       <view v-else-if="!projData.length" class="empty"><text>暂无项目数据</text></view>
       <view v-else class="proj-list">
-        <view v-for="p in projData" :key="p.project" class="card proj-card">
+        <view v-for="p in projData" :key="p.project" class="card proj-card" @tap="openProjDetail(p)">
           <view class="proj-head">
             <text class="proj-name">{{ p.project }}</text>
             <text class="proj-tag">{{ p.area || '--' }}</text>
@@ -280,6 +280,28 @@
               <text v-if="log.submitterName" class="drill-log-by">by {{ log.submitterName }}</text>
             </view>
             <text v-if="log.project" class="drill-log-proj">{{ log.project }} · {{ log.area }}</text>
+            <text v-if="log.workContent" class="drill-log-content">{{ log.workContent }}</text>
+          </view>
+        </scroll-view>
+      </view>
+    </view>
+
+    <!-- 项目日志弹窗 -->
+    <view v-if="projDetail" class="drill-overlay" @tap="closeProjDetail">
+      <view class="drill-panel" @tap.stop>
+        <view class="drill-header">
+          <text class="drill-title">{{ projDetail.project }} · {{ projDetail.logCount }}条日志</text>
+          <text class="drill-close" @tap="closeProjDetail">✕</text>
+        </view>
+        <scroll-view v-if="projDetailLoading" class="drill-loading"><text>加载中...</text></scroll-view>
+        <scroll-view v-else-if="!projDetailLogs.length" class="drill-empty"><text>暂无日志</text></scroll-view>
+        <scroll-view v-else class="drill-body" scroll-y>
+          <view v-for="log in projDetailLogs" :key="log.reportId" class="drill-log" @tap="goTeamDetail({ reportId: log.reportId })">
+            <view class="drill-log-head">
+              <text class="drill-log-date">{{ fmt(log.reportDate) }}</text>
+              <text class="drill-log-type">{{ log.todayWorkType }}</text>
+            </view>
+            <text v-if="log.workers" class="drill-log-proj">{{ log.workers }}</text>
             <text v-if="log.workContent" class="drill-log-content">{{ log.workContent }}</text>
           </view>
         </scroll-view>
@@ -449,6 +471,29 @@ async function openProvinceDrill(p) {
 function closeProvinceDrill() {
   provinceDrill.value = null
   provinceWorkers.value = []
+}
+
+// ============ 项目日志弹窗 ============
+const projDetail = ref(null)
+const projDetailLogs = ref([])
+const projDetailLoading = ref(false)
+
+async function openProjDetail(p) {
+  projDetail.value = p
+  projDetailLoading.value = true
+  projDetailLogs.value = []
+  try {
+    const res = await reportApi.getList({ keyword: p.project, pageSize: 200 })
+    if (res.code === 0 && res.data) {
+      projDetailLogs.value = res.data.list.map(r => ({ ...r, reportId: r.id }))
+    }
+  } catch { projDetailLogs.value = [] }
+  finally { projDetailLoading.value = false }
+}
+
+function closeProjDetail() {
+  projDetail.value = null
+  projDetailLogs.value = []
 }
 
 // ============ 全员当日 ============
