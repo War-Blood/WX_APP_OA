@@ -767,7 +767,7 @@ async function getAreaDistribution(month) {
 
   // 1. 查昨日所有报告（含区域和 workers 文本）
   const reports = await db.query(
-    `SELECT dr.user_id, dr.report_date, dr.area, dr.project, dr.workers
+    `SELECT dr.id, dr.user_id, dr.report_date, dr.area, dr.project, dr.workers
      FROM daily_reports dr
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
@@ -786,39 +786,74 @@ async function getAreaDistribution(month) {
     [yesterdayStr]
   );
 
-  // 3. 获取作业人员名单（用于 workers 文本名→ID 匹配 + uid→name映射）
-  const fieldWorkers = await db.query(
-    `SELECT id, nickname, user_name, worker_code FROM users
-     WHERE is_field_worker = 1 AND deleted_at IS NULL`
-  );
+  // 3. 收集所有涉及的 userId（提交人 + 代填人），构建 uid→info
+  const allUids = new Set();
+  reports.forEach(r => allUids.add(r.user_id));
+  subs.forEach(s => allUids.add(s.user_id));
+
+  const uidToInfo = {};
+  if (allUids.size > 0) {
+    const uidList = [...allUids];
+    const userRows = await db.query(
+      `SELECT id, nickname, user_name, worker_code FROM users WHERE id IN (${uidList.map(() => '?').join(',')})`,
+      uidList
+    );
+    userRows.forEach(u => {
+      uidToInfo[u.id] = { userName: u.nickname || u.user_name || '', workerCode: u.worker_code || '' };
+    });
+  }
+
+  // 4. 构建 name→uid 映射（基于已知用户）
   const nameToUid = {};
-  const uidToInfo = {}; // uid → { userName, workerCode }
-  fieldWorkers.forEach(w => {
-    const n = (w.nickname || w.user_name || '').trim();
-    if (n) nameToUid[n] = w.id;
-    uidToInfo[w.id] = { userName: n, workerCode: w.worker_code || '' };
+  Object.entries(uidToInfo).forEach(([uid, info]) => {
+    if (info.userName) nameToUid[info.userName] = Number(uid);
   });
 
-  // 4. 构建每人最新省份信息 map
-  const personMap = {}; // uid → { province, dateStr, projects: Set, userName }
+  // 5. 预扫描 workers 文本，收集未匹配的名字批量查 users 表
+  const unknownNames = new Set();
+  reports.forEach(r => {
+    if (!r.workers) return;
+    const names = r.workers.split(/[、,，\s\/\n]+/).map(s => s.trim()).filter(Boolean);
+    names.forEach(name => {
+      if (name && !nameToUid[name]) unknownNames.add(name);
+    });
+  });
+
+  if (unknownNames.size > 0) {
+    const nameList = [...unknownNames];
+    const extraRows = await db.query(
+      `SELECT id, nickname, user_name, worker_code FROM users
+       WHERE (nickname IN (${nameList.map(() => '?').join(',')})
+              OR user_name IN (${nameList.map(() => '?').join(',')}))
+         AND deleted_at IS NULL`,
+      [...nameList, ...nameList]
+    );
+    extraRows.forEach(u => {
+      if (!uidToInfo[u.id]) {
+        uidToInfo[u.id] = { userName: u.nickname || u.user_name || '', workerCode: u.worker_code || '' };
+      }
+      const n = (u.nickname || u.user_name || '').trim();
+      if (n && !nameToUid[n]) nameToUid[n] = u.id;
+    });
+  }
+
+  // 6. 三路径收集人员 — key = `${uid}_${province}`（省内去重，跨省并存）
+  const personMap = {};
   const addPerson = (uid, date, area, project, userName) => {
     if (!uid || !area) return;
-    // 只处理含 '-' 的标准格式（省-市），排除GPS定位等非标准格式
     if (!area.includes('-')) return;
     const province = area.split('-')[0];
+    const key = `${uid}_${province}`;
     const d = date instanceof Date ? date.toISOString().slice(0,10) : String(date).slice(0,10);
-    if (!personMap[uid] || d > personMap[uid].dateStr) {
-      personMap[uid] = { province, dateStr: d, projects: new Set([project]), userName: userName || uidToInfo[uid]?.userName || '' };
-    } else if (d === personMap[uid].dateStr) {
-      personMap[uid].projects.add(project);
+    if (!personMap[key] || d > personMap[key].dateStr) {
+      personMap[key] = { uid, province, dateStr: d, projects: new Set([project]), userName: userName || uidToInfo[uid]?.userName || '' };
+    } else if (d === personMap[key].dateStr) {
+      personMap[key].projects.add(project);
     }
   };
 
-  // 提交人（补充 userName）
   reports.forEach(r => addPerson(r.user_id, r.report_date, r.area, r.project, ''));
-  // 关联表代填
-  subs.forEach(r => addPerson(r.user_id, r.report_date, r.area, r.project, ''));
-  // workers 文本兜底
+  subs.forEach(s => addPerson(s.user_id, s.report_date, s.area, s.project, ''));
   reports.forEach(r => {
     if (!r.workers) return;
     const names = r.workers.split(/[、,，\s\/\n]+/).map(s => s.trim()).filter(Boolean);
@@ -828,22 +863,16 @@ async function getAreaDistribution(month) {
     });
   });
 
-  // 补全提交人的 userName（通过 uidToInfo 或从 users 表查）
-  // uidToInfo 已覆盖所有 fieldWorker，提交人通常也是 fieldWorker
-  for (const [uid, p] of Object.entries(personMap)) {
-    if (!p.userName && uidToInfo[uid]) p.userName = uidToInfo[uid].userName;
-  }
-
-  // 5. 按省份聚合
+  // 7. 按省份聚合
   const provMap = {};
-  Object.entries(personMap).forEach(([uid, p]) => {
+  Object.entries(personMap).forEach(([key, p]) => {
     if (!provMap[p.province]) provMap[p.province] = { count: 0, projects: new Set(), workers: [] };
     provMap[p.province].count++;
     p.projects.forEach(pr => provMap[p.province].projects.add(pr));
     provMap[p.province].workers.push({
-      userId: Number(uid),
-      userName: p.userName || '',
-      workerCode: uidToInfo[uid]?.workerCode || '',
+      userId: p.uid,
+      userName: p.userName || uidToInfo[p.uid]?.userName || '',
+      workerCode: uidToInfo[p.uid]?.workerCode || '',
     });
   });
 
@@ -872,7 +901,7 @@ async function getProvinceWorkers(province, month) {
   const dateCondition = 'AND dr.report_date = CURDATE() - INTERVAL 1 DAY';
   const params = [`${province}-%`];
 
-  // 与 getAreaDistribution 一致：使用昨日数据
+  // 1. 查该省昨日所有报告
   const reports = await db.query(
     `SELECT dr.id, dr.user_id, dr.report_date, dr.area, dr.project, dr.workers
      FROM daily_reports dr
@@ -883,46 +912,71 @@ async function getProvinceWorkers(province, month) {
     params
   );
 
-  // 三条路径收集人员：直接提交人 + daily_report_workers + workers文本
-  const personSet = new Map(); // key: userId
-  const uids = [...new Set(reports.map(r => r.user_id))];
+  // 2. 查关联表代填
+  const reportIds = reports.map(r => r.id);
+  let subs = [];
+  if (reportIds.length > 0) {
+    subs = await db.query(
+      `SELECT DISTINCT drw.worker_uid AS user_id, dr.area, dr.project
+       FROM daily_report_workers drw
+       JOIN daily_reports dr ON dr.id = drw.report_id
+       WHERE drw.report_id IN (${reportIds.map(() => '?').join(',')})`,
+      reportIds
+    );
+  }
 
-  // 预加载用户信息
+  // 3. 收集所有 userId（提交人 + 代填人），构建 uid→info
+  const allUids = new Set();
+  reports.forEach(r => allUids.add(r.user_id));
+  subs.forEach(s => allUids.add(s.user_id));
+
   const uidToInfo = {};
-  if (uids.length > 0) {
+  if (allUids.size > 0) {
+    const uidList = [...allUids];
     const userRows = await db.query(
-      `SELECT id, nickname, user_name, worker_code FROM users WHERE id IN (${uids.map(() => '?').join(',')})`,
-      uids
+      `SELECT id, nickname, user_name, worker_code FROM users WHERE id IN (${uidList.map(() => '?').join(',')})`,
+      uidList
     );
     userRows.forEach(u => {
       uidToInfo[u.id] = { userName: u.nickname || u.user_name || '', workerCode: u.worker_code || '' };
     });
   }
 
-  // 加载代填关联
-  const reportIds = reports.map(r => r.id);
-  let subs = [];
-  if (reportIds.length > 0) {
-    subs = await db.query(
-      `SELECT DISTINCT drw.worker_uid AS user_id, dr.area, dr.project, dr.id AS report_id
-       FROM daily_report_workers drw
-       JOIN daily_reports dr ON dr.id = drw.report_id
-       WHERE drw.report_id IN (${reportIds.map(() => '?').join(',')})`,
-      reportIds
+  // 4. 构建 name→uid 映射，预扫描 workers 文本补全未知名字
+  const nameToUid = {};
+  Object.entries(uidToInfo).forEach(([uid, info]) => {
+    if (info.userName) nameToUid[info.userName] = Number(uid);
+  });
+
+  const unknownNames = new Set();
+  reports.forEach(r => {
+    if (!r.workers) return;
+    const names = r.workers.split(/[、,，\s\/\n]+/).map(s => s.trim()).filter(Boolean);
+    names.forEach(name => {
+      if (name && !nameToUid[name]) unknownNames.add(name);
+    });
+  });
+
+  if (unknownNames.size > 0) {
+    const nameList = [...unknownNames];
+    const extraRows = await db.query(
+      `SELECT id, nickname, user_name, worker_code FROM users
+       WHERE (nickname IN (${nameList.map(() => '?').join(',')})
+              OR user_name IN (${nameList.map(() => '?').join(',')}))
+         AND deleted_at IS NULL`,
+      [...nameList, ...nameList]
     );
-    // 补充代填人员的用户信息
-    const subUids = [...new Set(subs.map(s => s.user_id))].filter(uid => !uidToInfo[uid]);
-    if (subUids.length > 0) {
-      const subUserRows = await db.query(
-        `SELECT id, nickname, user_name, worker_code FROM users WHERE id IN (${subUids.map(() => '?').join(',')})`,
-        subUids
-      );
-      subUserRows.forEach(u => {
+    extraRows.forEach(u => {
+      if (!uidToInfo[u.id]) {
         uidToInfo[u.id] = { userName: u.nickname || u.user_name || '', workerCode: u.worker_code || '' };
-      });
-    }
+      }
+      const n = (u.nickname || u.user_name || '').trim();
+      if (n && !nameToUid[n]) nameToUid[n] = u.id;
+    });
   }
 
+  // 5. 三路径收集人员（省内去重）
+  const personSet = new Map();
   const addPerson = (uid, area, project) => {
     if (!uid) return;
     if (!personSet.has(uid)) {
@@ -936,17 +990,8 @@ async function getProvinceWorkers(province, month) {
     }
   };
 
-  // 路径1: 直接提交人
   reports.forEach(r => addPerson(r.user_id, r.area, r.project));
-
-  // 路径2: daily_report_workers
-  subs.forEach(r => addPerson(r.user_id, r.area, r.project));
-
-  // 路径3: workers 文本字段匹配
-  const nameToUid = {};
-  Object.entries(uidToInfo).forEach(([uid, info]) => {
-    if (info.userName) nameToUid[info.userName] = Number(uid);
-  });
+  subs.forEach(s => addPerson(s.user_id, s.area, s.project));
   reports.forEach(r => {
     if (!r.workers) return;
     const names = r.workers.split(/[、,，\s\/\n]+/).map(s => s.trim()).filter(Boolean);

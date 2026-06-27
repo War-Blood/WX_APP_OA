@@ -87,7 +87,7 @@ export const reportApi = {
   },
 
   // 省份下钻人员列表
-  getProvinceWorkers(province, month) {
-    return post('/api/stats/province-workers', { province, month })
+  getProvinceWorkers(province) {
+    return post('/api/stats/province-workers', { province })
   }
 }

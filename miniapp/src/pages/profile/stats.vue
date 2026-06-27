@@ -462,7 +462,7 @@ async function openProvinceDrill(p) {
   provinceLoading.value = true
   provinceWorkers.value = []
   try {
-    const res = await reportApi.getProvinceWorkers(p.name, workTypeMonth.value)
+    const res = await reportApi.getProvinceWorkers(p.name)
     if (res.code === 0 && res.data) provinceWorkers.value = res.data.workers || []
   } catch { provinceWorkers.value = [] }
   finally { provinceLoading.value = false }
