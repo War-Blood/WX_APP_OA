@@ -115,6 +115,26 @@ const router = createRouter({
           ]
         },
         {
+          path: 'attendance',
+          name: 'Attendance',
+          redirect: '/attendance/schedule',
+          meta: { title: '考勤管理', icon: 'Calendar' },
+          children: [
+            {
+              path: 'schedule',
+              name: 'AttendanceSchedule',
+              component: () => import('@/views/attendance/Schedule.vue'),
+              meta: { title: '排班日历' }
+            },
+            {
+              path: 'summary',
+              name: 'AttendanceSummary',
+              component: () => import('@/views/attendance/Summary.vue'),
+              meta: { title: '考勤汇总' }
+            }
+          ]
+        },
+        {
           path: 'modules',
           name: 'Modules',
           component: () => import('@/views/modules/index.vue'),

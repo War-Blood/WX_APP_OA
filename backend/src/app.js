@@ -130,6 +130,10 @@ app.use('/api', wpsRoutes);
 const complianceRoutes = require('./features/compliance/routes/compliance.routes');
 app.use('/api/compliance', complianceRoutes);
 
+// 考勤管理路由
+const attendanceRoutes = require('./features/attendance/routes/attendance.routes');
+app.use('/api/attendance', attendanceRoutes);
+
 // 10. 404 处理
 app.use((req, res) => {
   res.status(404).json({

@@ -226,6 +226,54 @@
         "enablePullDownRefresh": false,
         "componentPlaceholder": { "nav-bar": "view" }
       }
+    },
+    {
+      "path": "pages/attendance/my-schedule/index",
+      "style": {
+        "navigationBarTitleText": "我的排班",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/attendance/leave-apply/index",
+      "style": {
+        "navigationBarTitleText": "请假申请",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/attendance/trip-start/index",
+      "style": {
+        "navigationBarTitleText": "出差开始",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/attendance/trip-end/index",
+      "style": {
+        "navigationBarTitleText": "出差结束",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/attendance/leave-list/index",
+      "style": {
+        "navigationBarTitleText": "我的申请",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/attendance/leave-detail/index",
+      "style": {
+        "navigationBarTitleText": "申请详情",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
     }
   ],
   "tabBar": {
