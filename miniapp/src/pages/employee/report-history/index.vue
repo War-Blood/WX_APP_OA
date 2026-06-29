@@ -101,17 +101,17 @@ const filteredList = computed(() => reportList.value)
 
 // ===== 日志类型标签 =====
 function getTypeLabel(type) {
-  const map = { biz_trip: '公出', biz_trip_supplement: '补公出', office: '公司日报' }
+  const map = { biz_trip: '公出', biz_trip_supplement: '补公出' }
   return map[type] || type || '日报'
 }
 
 function getTypeBg(type) {
-  const map = { biz_trip: '#EDF2FF', biz_trip_supplement: '#FFF8E1', office: '#F0FDF4' }
+  const map = { biz_trip: '#EDF2FF', biz_trip_supplement: '#FFF8E1' }
   return map[type] || '#F5F5F5'
 }
 
 function getTypeColor(type) {
-  const map = { biz_trip: '#2B6DE8', biz_trip_supplement: '#F59E0B', office: '#22C55E' }
+  const map = { biz_trip: '#2B6DE8', biz_trip_supplement: '#F59E0B' }
   return map[type] || '#999999'
 }
 

@@ -54,8 +54,8 @@
           <picker
             mode="date"
             :value="reportDate"
-            :start="isLeaveOrRest ? '' : yesterdayStr"
-            :end="isLeaveOrRest ? '' : todayStr"
+            :start="isLeave ? '' : yesterdayStr"
+            :end="isLeave ? '' : todayStr"
             @change="onDateChange"
           >
             <view class="form-picker">
@@ -86,7 +86,7 @@
       <!-- ========== 公出日志 / 补公出日志 表单 ========== -->
       <template v-if="currentTab !== 'office'">
         <!-- 请假/调休：仅显示作业人员 -->
-        <view v-if="isLeaveOrRest" class="section-card">
+        <view v-if="isLeave" class="section-card">
           <text class="section-title">作业信息</text>
           <view class="form-group">
             <text class="form-label">作业人员 <text class="required">*</text></text>
@@ -249,7 +249,7 @@
         </view>
 
         <!-- 今日工作（请假/调休时隐藏） -->
-        <view v-if="!isLeaveOrRest" class="section-card">
+        <view v-if="!isLeave" class="section-card">
           <text class="section-title">今日工作</text>
           <view class="form-group">
             <text class="form-label">今日工作小结 <text class="required">*</text></text>
@@ -483,11 +483,10 @@ const userStore = useUserStore()
 // ===== 常量 =====
 const typeTabs = [
   { key: 'biz_trip', label: '公出日志' },
-  { key: 'biz_trip_supplement', label: '补公出日志' },
-  { key: 'office', label: '公司日报' }
+  { key: 'biz_trip_supplement', label: '补公出日志' }
 ]
 
-const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休']
+const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假']
 
 // 机型数据：从本地存储加载历史+内置列表
 function loadMachineHistory() {
@@ -600,7 +599,7 @@ const submitLabel = computed(() => {
   return '公出日志'
 })
 
-const isLeaveOrRest = computed(() => {
+const isLeave = computed(() => {
   return selectedWorkType.value === '请假' || selectedWorkType.value === '调休'
 })
 
@@ -611,7 +610,7 @@ watch(selectedWorkType, () => {
 
 const showContentFields = computed(() => {
   if (currentTab.value === 'office') return false
-  return !isLeaveOrRest.value
+  return !isLeave.value
 })
 
 const filteredMachineSuggestions = computed(() => {
@@ -1013,7 +1012,7 @@ async function handleSubmit() {
   }
 
   // 请假/调休：校验作业人员
-  if (isLeaveOrRest.value) {
+  if (isLeave.value) {
     if (selectedWorkerIds.value.length === 0) {
       uni.showToast({ title: '请选择作业人员', icon: 'none' })
       return
@@ -1091,7 +1090,7 @@ async function handleSubmit() {
       entryDate: formData.value.entryDate || userStore.entryDate,
       initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
       workerIds: selectedWorkerIds.value,
-      project: isLeaveOrRest.value ? selectedWorkType.value : formData.value.project,
+      project: isLeave.value ? selectedWorkType.value : formData.value.project,
       area: formData.value.area,
       relatedParty: formData.value.relatedParty,
       machineModel: machineModels.value.join(','),

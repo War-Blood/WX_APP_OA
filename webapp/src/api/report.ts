@@ -148,7 +148,7 @@ export function getWorkerStats(params: { keyword?: string }): Promise<{ total: n
 
 /** 提交参数 */
 export interface ReportSubmitParams {
-  reportType: 'biz_trip' | 'biz_trip_supplement' | 'office'
+  reportType: 'biz_trip' | 'biz_trip_supplement'
   reportDate: string
   project?: string
   area?: string
@@ -243,7 +243,7 @@ export interface DailyStatusWorker {
   project: string | null
   area: string | null
   workType: string | null
-  status: 'submitted' | 'supplement' | 'office' | 'substituted' | 'leave' | 'rest' | 'missing'
+  status: 'submitted' | 'supplement' | 'office' | 'substituted' | 'leave' | 'missing'
   submittedAt: string | null
   substituteBy: string | null
 }
@@ -255,7 +255,6 @@ export interface DailyStatusSummary {
   office: number
   substituted: number
   leave: number
-  rest: number
   missing: number
 }
 

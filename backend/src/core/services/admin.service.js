@@ -14,9 +14,17 @@ const { nextWorkerCode } = require('../../common/utils/worker-code');
  * 获取用户列表（带分页和筛选）
  */
 async function getUserList({ page = 1, pageSize = 20, keyword, role, department, status }) {
-  const conditions = ['deleted_at IS NULL'];
+  const conditions = ['deleted_at IS NULL', "status = 'active'"];
   const params = [];
 
+  // status 参数传 'all' 时可覆盖默认过滤，查询所有状态的用户
+  if (status && status !== 'active') {
+    conditions.pop(); // 移除默认 status = 'active'
+    if (status !== 'all') {
+      conditions.push('status = ?');
+      params.push(status);
+    }
+  }
   if (keyword) {
     conditions.push('(nickname LIKE ? OR user_name LIKE ? OR department LIKE ?)');
     params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
@@ -28,10 +36,6 @@ async function getUserList({ page = 1, pageSize = 20, keyword, role, department,
   if (department) {
     conditions.push('department = ?');
     params.push(department);
-  }
-  if (status) {
-    conditions.push('status = ?');
-    params.push(status);
   }
 
   const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';

@@ -19,7 +19,7 @@ const logger = require('../../common/utils/logger');
  */
 async function list({ page = 1, pageSize = 20, keyword, fieldWorkerOnly }) {
   // 只查询在职人员
-  const conditions = ['u.deleted_at IS NULL', "u.worker_status = 'active'"];
+  const conditions = ['u.deleted_at IS NULL', "u.worker_status = 'active'", "u.status = 'active'"];
   const params = [];
 
   // 小程序选人时只看作业人员

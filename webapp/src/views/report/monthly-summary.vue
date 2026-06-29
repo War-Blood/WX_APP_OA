@@ -16,15 +16,14 @@ const selectedMonth = ref('')
 const loading = ref(false)
 const data = ref<MonthlySummaryResponse | null>(null)
 
-const workTypeKeys = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休']
+const workTypeKeys = ['工作（陆）', '工作（海）', '待工', '在途', '请假']
 
 const barColors: Record<string, string> = {
   '工作（陆）': '#409EFF',
   '工作（海）': '#67C23A',
   '待工': '#E6A23C',
   '在途': '#909399',
-  '请假': '#F56C6C',
-  '调休': '#B37FEB'
+  '请假': '#F56C6C'
 }
 
 const selectedUserName = computed(() => {

@@ -379,7 +379,7 @@ async function submit(data, userId) {
   } = data;
 
   const isDraft = requestStatus === 'draft';
-  const isLeaveOrRest = todayWorkType === '请假' || todayWorkType === '调休';
+  const isLeave = todayWorkType === '请假';
 
   // 补公出日志：report_date 使用补录日期而非提交日期
   // 这样同一用户可以补录多个不同日期，且重复检测按补录日期判断
@@ -387,8 +387,8 @@ async function submit(data, userId) {
     ? supplementDate
     : reportDate;
 
-  // 1. 检查是否已被代填（非草稿、非请假/调休时检查）
-  if (!isDraft && !isLeaveOrRest) {
+  // 1. 检查是否已被代填（非草稿、非请假时检查）
+  if (!isDraft && !isLeave) {
     const subCheck = await db.query(
       `SELECT dr.id AS reportId, u.nickname AS submitterName
        FROM daily_report_workers drw
@@ -402,9 +402,9 @@ async function submit(data, userId) {
     }
   }
 
-  // 2. 请假/调休时自动填充 work_content
+  // 2. 请假时自动填充 work_content
   let finalWorkContent = workContent;
-  if (isLeaveOrRest && !finalWorkContent) {
+  if (isLeave && !finalWorkContent) {
     finalWorkContent = todayWorkType;
   }
 
@@ -517,8 +517,8 @@ async function submit(data, userId) {
       resultReportId = result[0].insertId;
     }
 
-    // 4b. 写入代填关联表（非请假/调休且 workerIds 非空）
-    if (!isLeaveOrRest && workerIds && workerIds.length > 0) {
+    // 4b. 写入代填关联表（非请假且 workerIds 非空）
+    if (!isLeave && workerIds && workerIds.length > 0) {
       // 先清理旧的代填关联（如果更新已有记录）
       if (existing.length > 0) {
         await conn.execute(
@@ -799,6 +799,7 @@ async function getTeamLogs(userId, days = 7) {
      WHERE dr.related_party = ?
        AND (${projectConditions.join(' OR ')})
        AND u.id != ?
+       AND u.status = 'active'
        AND u.deleted_at IS NULL`,
     [relatedParty, ...projectParams, userId]
   );
@@ -929,7 +930,7 @@ async function exportAttendanceCSV(month) {
   // 1. 获取所有在职人员
   const workers = await db.query(
     `SELECT id, user_name, worker_code FROM users
-     WHERE worker_status = 'active' AND deleted_at IS NULL
+     WHERE worker_status = 'active' AND deleted_at IS NULL AND status = 'active'
      ORDER BY worker_code ASC`
   );
 
@@ -983,7 +984,7 @@ async function exportAttendanceCSV(month) {
   // 工作类型缩写
   const typeAbbr = {
     '工作（陆）': '陆', '工作（海）': '海', '待工': '待',
-    '在途': '途', '请假': '假', '调休': '休'
+    '在途': '途', '请假': '假'
   };
 
   workers.forEach(w => {
@@ -992,15 +993,11 @@ async function exportAttendanceCSV(month) {
     const map = reportMap[w.id] || {};
     for (let day = 1; day <= daysInMonth; day++) {
       const wt = map[String(day)] || '';
-      // 转换: 提交人本人且有工作类型
-      if (wt && wt !== '请假' && wt !== '调休') {
+      if (wt && wt !== '请假') {
         row.push(typeAbbr[wt] || wt);
         total++;
       } else if (wt === '请假') {
         row.push('假');
-        total++;
-      } else if (wt === '调休') {
-        row.push('休');
         total++;
       } else {
         row.push('');

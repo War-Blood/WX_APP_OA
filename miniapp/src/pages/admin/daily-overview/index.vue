@@ -84,12 +84,12 @@
         </view>
       </view>
 
-      <!-- 请假/调休 -->
-      <view v-if="leaveRestWorkers.length > 0" class="section">
-        <text class="section-header section-header--leave">请假/调休 ({{ leaveRestWorkers.length }})</text>
+      <!-- 请假 -->
+      <view v-if="leaveWorkers.length > 0" class="section">
+        <text class="section-header section-header--leave">请假 ({{ leaveWorkers.length }})</text>
         <view class="card-list">
           <view
-            v-for="w in leaveRestWorkers"
+            v-for="w in leaveWorkers"
             :key="w.userId"
             class="worker-card worker-card--leave"
           >
@@ -171,7 +171,6 @@ const statusLabelMap = {
   office: '公司日报',
   substituted: '已代填',
   leave: '请假',
-  rest: '调休',
   missing: '未提交'
 }
 
@@ -203,7 +202,7 @@ const missingCount = computed(() => response.value?.summary?.missing || 0)
 const submittedCount = computed(() => {
   if (!response.value) return 0
   const s = response.value.summary
-  return (s.submitted || 0) + (s.substituted || 0) + (s.supplement || 0) + (s.office || 0) + (s.leave || 0) + (s.rest || 0)
+  return (s.submitted || 0) + (s.substituted || 0) + (s.supplement || 0) + (s.office || 0) + (s.leave || 0)
 })
 
 const missingWorkers = computed(() => {
@@ -218,12 +217,12 @@ const supplementWorkers = computed(() => {
 
 const activeWorkers = computed(() => {
   if (!response.value) return []
-  return response.value.workers.filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'rest' && w.status !== 'supplement')
+  return response.value.workers.filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'supplement')
 })
 
-const leaveRestWorkers = computed(() => {
+const leaveWorkers = computed(() => {
   if (!response.value) return []
-  return response.value.workers.filter(w => w.status === 'leave' || w.status === 'rest')
+  return response.value.workers.filter(w => w.status === 'leave')
 })
 
 // 数据加载

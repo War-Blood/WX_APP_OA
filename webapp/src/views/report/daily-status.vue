@@ -27,29 +27,23 @@ const statusOptions = [
   { label: '已提交', value: 'submitted' },
   { label: '已代填', value: 'substituted' },
   { label: '补公出', value: 'supplement' },
-  { label: '公司日报', value: 'office' },
   { label: '请假', value: 'leave' },
-  { label: '调休', value: 'rest' },
   { label: '未提交', value: 'missing' }
 ]
 
 const statusLabelMap: Record<string, string> = {
   submitted: '已提交',
   supplement: '补公出',
-  office: '公司日报',
   substituted: '已代填',
   leave: '请假',
-  rest: '调休',
   missing: '未提交'
 }
 
 const statusTagTypeMap: Record<string, string> = {
   submitted: 'success',
   supplement: 'warning',
-  office: 'primary',
   substituted: '',
   leave: 'info',
-  rest: 'info',
   missing: 'danger'
 }
 
@@ -59,9 +53,7 @@ const sortOrder: Record<string, number> = {
   supplement: 1,
   substituted: 2,
   submitted: 3,
-  office: 4,
-  leave: 5,
-  rest: 6
+  leave: 5
 }
 
 // 过滤后的数据
@@ -99,7 +91,6 @@ const summaryItems = computed<{ key: string; label: string; count: number; color
     { key: 'supplement', label: '补公出', count: s.supplement, color: '#E6A23C' },
     { key: 'office', label: '公司日报', count: s.office, color: '#409EFF' },
     { key: 'leave', label: '请假', count: s.leave, color: '#909399' },
-    { key: 'rest', label: '调休', count: s.rest, color: '#909399' },
     { key: 'missing', label: '缺失', count: s.missing, color: '#F56C6C' }
   ]
 })

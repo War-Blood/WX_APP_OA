@@ -190,6 +190,7 @@ async function getAllStats() {
   const missingRows = await db.query(
     `SELECT COUNT(*) AS cnt FROM users u
      WHERE u.worker_status = 'active'
+       AND u.status = 'active'
        AND u.deleted_at IS NULL
        AND u.role NOT IN ('admin', 'superadmin')
        AND u.id NOT IN (
@@ -303,7 +304,7 @@ async function getMonthlySummary(userId, month) {
     [userId, month]
   );
 
-  const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休'];
+  const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假'];
   const breakdown = {};
   workTypes.forEach(wt => { breakdown[wt] = 0; });
   breakdownRows.forEach(r => {
@@ -343,6 +344,7 @@ async function getDailyStatus(dateStr) {
     `SELECT id, nickname, user_name, worker_code, worker_status
      FROM users
      WHERE worker_status = 'active' AND deleted_at IS NULL
+       AND status = 'active'
        AND is_field_worker = 1
      ORDER BY id ASC`
   );
@@ -427,7 +429,6 @@ async function getDailyStatus(dateStr) {
     office: 0,
     substituted: 0,
     leave: 0,
-    rest: 0,
     missing: 0,
   };
 
@@ -454,8 +455,6 @@ async function getDailyStatus(dateStr) {
 
       if (ownReport.today_work_type === '请假') {
         status = 'leave';
-      } else if (ownReport.today_work_type === '调休') {
-        status = 'rest';
       } else if (ownReport.report_type === 'biz_trip_supplement') {
         status = 'supplement';
       } else if (ownReport.report_type === 'office') {
@@ -626,6 +625,7 @@ async function getWorkerWorkTypes(month) {
   const activeWorkers = await db.query(
     `SELECT id, nickname, user_name, worker_code
      FROM users WHERE worker_status = 'active' AND deleted_at IS NULL
+       AND status = 'active'
        AND is_field_worker = 1
      ORDER BY id ASC`
   );
@@ -725,7 +725,7 @@ async function getWorkerWorkTypes(month) {
     });
   });
 
-  const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休'];
+  const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假'];
   const workers = activeWorkers.map(w => {
     const map = typeMap[w.id] || {};
     const workTypesObj = {};

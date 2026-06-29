@@ -455,7 +455,7 @@ onUnmounted(() => {
       <el-table :data="workTypeList" v-loading="workTypeLoading" stripe border>
         <el-table-column prop="userName" label="姓名" width="90" />
         <el-table-column prop="workerCode" label="工号" width="80" />
-        <el-table-column v-for="wt in ['工作（陆）','工作（海）','待工','在途','请假','调休']" :key="wt" :label="wt.replace('工作（','').replace('）','')" width="76" align="center">
+        <el-table-column v-for="wt in ['工作（陆）','工作（海）','待工','在途','请假']" :key="wt" :label="wt.replace('工作（','').replace('）','')" width="76" align="center">
           <template #default="{ row }">
             <span
               :style="{

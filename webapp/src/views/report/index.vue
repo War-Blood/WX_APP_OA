@@ -59,8 +59,7 @@ const statusOptions = [
 const reportTypeOptions = [
   { label: '全部', value: '' },
   { label: '公出日志', value: 'biz_trip' },
-  { label: '补公出日志', value: 'biz_trip_supplement' },
-  { label: '公司日报', value: 'office' }
+  { label: '补公出日志', value: 'biz_trip_supplement' }
 ]
 
 const workTypeOptions = [
@@ -69,8 +68,7 @@ const workTypeOptions = [
   { label: '工作（海）', value: '工作（海）' },
   { label: '待工', value: '待工' },
   { label: '在途', value: '在途' },
-  { label: '请假', value: '请假' },
-  { label: '调休', value: '调休' }
+  { label: '请假', value: '请假' }
 ]
 
 const tabItems = [
@@ -83,8 +81,7 @@ const tabItems = [
 function getReportTypeTag(reportType: string): { text: string; type: string } {
   const map: Record<string, { text: string; type: string }> = {
     biz_trip: { text: '公出日志', type: 'success' },
-    biz_trip_supplement: { text: '补公出', type: 'warning' },
-    office: { text: '公司日报', type: 'info' }
+    biz_trip_supplement: { text: '补公出', type: 'warning' }
   }
   return map[reportType] || { text: reportType, type: '' }
 }

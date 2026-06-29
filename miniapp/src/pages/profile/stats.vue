@@ -424,8 +424,8 @@ function projColor(p) { if (p === null) return '#C0C4CC'; if (p < 50) return '#E
 // ============ 人员分布 ============
 const workTypeData = ref([])
 const workTypeMonth = ref(nowMonth())
-const wtLabels = ['工作（陆）','工作（海）','待工','在途','请假','调休']
-const wtShort = ['陆','海','待','途','假','休']
+const wtLabels = ['工作（陆）','工作（海）','待工','在途','请假']
+const wtShort = ['陆','海','待','途','假']
 function wtMax(k) { return Math.max(1, ...workTypeData.value.map(w => w.workTypes[k] || 0)) }
 function wtCellBg(v, max) { if (!v) return 'transparent'; const p = v / max; return p <= .25 ? '#E8F5E9' : p <= .5 ? '#A5D6A7' : '#66BB6A' }
 
@@ -513,18 +513,18 @@ const dailyMissing = computed(() => dailyResponse.value?.summary?.missing || 0)
 const dailySubmitted = computed(() => {
   if (!dailyResponse.value) return 0
   const s = dailyResponse.value.summary
-  return (s.submitted || 0) + (s.substituted || 0) + (s.supplement || 0) + (s.office || 0) + (s.leave || 0) + (s.rest || 0)
+  return (s.submitted || 0) + (s.substituted || 0) + (s.supplement || 0) + (s.office || 0) + (s.leave || 0)
 })
 
 const dailyMissingWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'missing'))
 const dailySupplementWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'supplement'))
-const dailyActiveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'rest' && w.status !== 'supplement'))
-const dailyLeaveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'leave' || w.status === 'rest'))
+const dailyActiveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'supplement'))
+const dailyLeaveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'leave'))
 
 function fmtTime(dt) { if (!dt) return ''; const p = String(dt).split(' '); return p[1] ? p[1].slice(0, 5) : dt }
 
 function statusLabel(s) {
-  const m = { submitted: '已提交', supplement: '补公出', office: '公司日报', substituted: '已代填', leave: '请假', rest: '调休', missing: '未提交' }
+  const m = { submitted: '已提交', supplement: '补公出', office: '公司日报', substituted: '已代填', leave: '请假', missing: '未提交' }
   return m[s] || s
 }
 

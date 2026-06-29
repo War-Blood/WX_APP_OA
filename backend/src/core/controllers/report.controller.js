@@ -101,23 +101,23 @@ async function submit(req, res, next) {
       data.todayWorkType = '工作（陆）';
     }
 
-    const validWorkTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休'];
+    const validWorkTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假'];
     if (!validWorkTypes.includes(data.todayWorkType)) {
       throw new ValidationError(`无效的工作类型: ${data.todayWorkType}`);
     }
 
-    const isLeaveOrRest = data.todayWorkType === '请假' || data.todayWorkType === '调休';
+    const isLeave = data.todayWorkType === '请假';
 
-    // 请假/调休：project 默认填类型名，跳过 project/area 必填校验
-    if (isLeaveOrRest) {
+    // 请假：project 默认填类型名，跳过 project/area 必填校验
+    if (isLeave) {
       if (!data.project) {
         data.project = data.todayWorkType;
       }
     }
 
     if (reportType === 'biz_trip' || reportType === 'biz_trip_supplement') {
-      // 请假/调休时 project/area 可为空
-      if (!isLeaveOrRest) {
+      // 请假时 project/area 可为空
+      if (!isLeave) {
         if (!data.project) {
           throw new ValidationError('项目名称不能为空');
         }
@@ -148,10 +148,6 @@ async function submit(req, res, next) {
         if (!data.supplementReason) {
           throw new ValidationError('补录原因不能为空');
         }
-      }
-    } else if (reportType === 'office') {
-      if (!data.todayWork) {
-        throw new ValidationError('今日工作内容不能为空（公司日报）');
       }
     }
 
@@ -262,7 +258,7 @@ async function update(req, res, next) {
       if (updateData.todayWorkType === '工作' || updateData.todayWorkType === '作业') {
         updateData.todayWorkType = '工作（陆）';
       }
-      const validWorkTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假', '调休'];
+      const validWorkTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假'];
       if (!validWorkTypes.includes(updateData.todayWorkType)) {
         throw new ValidationError(`无效的工作类型: ${updateData.todayWorkType}`);
       }
