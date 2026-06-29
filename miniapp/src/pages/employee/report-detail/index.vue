@@ -205,7 +205,7 @@
     </scroll-view>
 
     <!-- 补公出审核操作栏 -->
-    <view v-if="report?.reportType === 'biz_trip_supplement' && report?.supplementStatus === 'pending_review'" class="bottom-bar supplement-bar">
+    <view v-if="report?.reportType === 'biz_trip_supplement' && report?.status === 'pending_review'" class="bottom-bar supplement-bar">
       <view class="btn-reject" hover-class="btn-press" @tap="handleSupplementReject">
         <text class="btn-reject-text">驳回</text>
       </view>
@@ -343,7 +343,7 @@ async function handleSupplementApprove() {
       try {
         await reportApi.reviewSupplement({ reportId: report.value.id, decision: 'special' })
         uni.showToast({ title: '已通过', icon: 'success' })
-        report.value.supplementStatus = 'special'
+        report.value.status = 'special'
       } catch (e) {
         uni.showToast({ title: e.message || '操作失败', icon: 'none' })
       }
@@ -360,7 +360,7 @@ async function handleSupplementReject() {
       try {
         await reportApi.reviewSupplement({ reportId: report.value.id, decision: 'forget' })
         uni.showToast({ title: '已驳回', icon: 'success' })
-        report.value.supplementStatus = 'delayed'
+        report.value.status = 'delayed'
       } catch (e) {
         uni.showToast({ title: e.message || '操作失败', icon: 'none' })
       }
