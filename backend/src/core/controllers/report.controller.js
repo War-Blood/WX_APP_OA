@@ -92,6 +92,10 @@ async function submit(req, res, next) {
     // ---- 参数校验（按 reportType 区分必填字段） ----
     const reportType = data.reportType || 'biz_trip';
 
+    if (!['biz_trip', 'biz_trip_supplement'].includes(reportType)) {
+      throw new ValidationError(`无效的日志类型: ${reportType}`);
+    }
+
     if (!data.reportDate) {
       throw new ValidationError('日报日期不能为空');
     }
