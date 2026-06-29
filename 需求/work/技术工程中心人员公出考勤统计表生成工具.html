@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>技术工程中心人员公出考勤统计表生成工具</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;
+    background: #f0f2f5;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 25px 15px;
+}
+.container {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    width: 100%;
+    max-width: 1100px;
+    padding: 25px 30px;
+}
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+.header h1 {
+    font-size: 20px;
+    color: #2B579A;
+    margin-bottom: 4px;
+}
+.header p {
+    font-size: 13px;
+    color: #888;
+}
+
+/* 年月选择 */
+.month-selector {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+.month-selector label {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+}
+.month-selector select, .month-selector input {
+    padding: 6px 10px;
+    border: 1px solid #d0d0d0;
+    border-radius: 5px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+}
+.month-selector select:focus, .month-selector input:focus {
+    border-color: #4472C4;
+}
+.month-selector .hint {
+    font-size: 12px;
+    color: #999;
+}
+
+/* 日期选择网格 */
+.date-grid-wrap {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px 15px;
+    margin-bottom: 18px;
+    background: #fafbfc;
+}
+.date-grid-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.date-grid-header .title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+}
+.date-grid-header .actions {
+    display: flex;
+    gap: 8px;
+}
+.date-grid-header .actions button {
+    padding: 3px 12px;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    color: #555;
+}
+.date-grid-header .actions button:hover {
+    background: #eef3fb;
+    border-color: #4472C4;
+}
+.date-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+.date-grid .weekday-header {
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: #666;
+    padding: 4px 0;
+}
+.date-grid .weekday-header.weekend { color: #e53935; }
+.date-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 6px;
+    border-radius: 5px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    user-select: none;
+}
+.date-cell:hover { border-color: #b0c4e8; }
+.date-cell input[type="checkbox"] { cursor: pointer; flex-shrink: 0; }
+.date-cell .day-num { font-weight: bold; min-width: 18px; }
+.date-cell .day-label {
+    font-size: 11px;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.date-cell.weekend { background: #fff3f0; }
+.date-cell.weekend .day-num { color: #e53935; }
+.date-cell.holiday { background: #fff8e1; }
+.date-cell.holiday .day-num { color: #f57f17; }
+.date-cell.holiday .day-label { color: #f57f17; }
+.date-cell.workday { background: #f1f8e9; }
+.date-cell.workday .day-num { color: #2e7d32; }
+.date-cell.workday .day-label { color: #2e7d32; }
+.date-cell.checked { border-color: #4472C4; background: #e3edfa !important; }
+
+/* 文件选择 */
+.section-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.section-title .badge {
+    background: #4472C4;
+    color: #fff;
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-weight: normal;
+}
+.drop-zone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 20px 15px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    background: #fafbfc;
+}
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: #4472C4;
+    background: #eef3fb;
+}
+.drop-zone .icon { font-size: 30px; color: #4472C4; margin-bottom: 4px; }
+.drop-zone .text { font-size: 13px; color: #666; }
+.drop-zone .hint { font-size: 12px; color: #aaa; margin-top: 3px; }
+.drop-zone input[type="file"] { display: none; }
+.file-list { margin-top: 8px; }
+.file-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 10px; background: #f8f9fb; border-radius: 5px; margin-bottom: 3px; font-size: 13px;
+}
+.file-item .name { color: #333; }
+.file-item .status { font-size: 12px; padding: 1px 8px; border-radius: 8px; }
+.file-item .status.ok { background: #e8f5e9; color: #2e7d32; }
+.file-item .status.err { background: #fbe9e7; color: #c62828; }
+.file-item .records { color: #888; font-size: 12px; }
+
+/* 按钮 */
+.btn-row { display: flex; gap: 10px; margin: 12px 0; }
+.btn {
+    padding: 9px 24px; border: none; border-radius: 6px;
+    font-size: 14px; font-weight: bold; cursor: pointer;
+    transition: all 0.2s; font-family: inherit;
+}
+.btn-primary { background: #4472C4; color: #fff; flex: 1; }
+.btn-primary:hover { background: #3a62b0; }
+.btn-primary:disabled { background: #b0c4e8; cursor: not-allowed; }
+.btn-secondary { background: #e8e8e8; color: #555; }
+.btn-secondary:hover { background: #d5d5d5; }
+
+/* 日志 */
+.log-area {
+    background: #1e1e1e; color: #d4d4d4;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px; padding: 10px 14px; border-radius: 6px;
+    height: 150px; overflow-y: auto; line-height: 1.6; margin-top: 6px;
+}
+.log-area .log-info { color: #d4d4d4; }
+.log-area .log-success { color: #4caf50; }
+.log-area .log-error { color: #f44336; }
+.log-area .log-highlight { color: #ffc107; }
+
+.status-bar {
+    margin-top: 10px; padding: 7px 12px;
+    background: #f5f5f5; border-radius: 6px;
+    font-size: 13px; color: #666; text-align: center;
+}
+.status-bar.active { color: #4472C4; font-weight: bold; }
+.status-bar.done { color: #2e7d32; font-weight: bold; }
+.status-bar.error { color: #c62828; font-weight: bold; }
+
+/* 预览 */
+.preview-section { margin-top: 10px; }
+.preview-section summary {
+    cursor: pointer; font-size: 13px; color: #4472C4; font-weight: bold; user-select: none;
+}
+.preview-table-wrap { overflow-x: auto; margin-top: 6px; border: 1px solid #e0e0e0; border-radius: 6px; }
+.preview-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.preview-table th {
+    background: #4472C4; color: #fff; padding: 5px 8px; border: 1px solid #3a62b0;
+}
+.preview-table td { padding: 4px 8px; border: 1px solid #e0e0e0; text-align: center; }
+.preview-table .title-row td { background: #2B579A; color: #fff; font-size: 14px; font-weight: bold; text-align: center; }
+.preview-table .summary-header td { background: #4472C4; color: #fff; font-weight: bold; }
+.preview-table .summary-row td { background: #FFF8E1; }
+.preview-table .name-row td { background: #D6E4F0; font-weight: bold; }
+.preview-table .empty-cell { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>技术工程中心人员公出考勤统计表生成工具</h1>
+        <p>选择年月 → 勾选统计日期 → 上传费用明细文件 → 自动生成考勤统计表</p>
+    </div>
+
+    <!-- 年月选择 -->
+    <div class="month-selector">
+        <label>年份：</label>
+        <select id="yearSelect"></select>
+        <label>月份：</label>
+        <select id="monthSelect"></select>
+        <button class="btn-secondary" style="padding:5px 14px;font-size:12px" id="btnRefreshDates">刷新日期</button>
+        <span class="hint">选择后自动生成该月所有日期，周末与法定节假日自动标注</span>
+    </div>
+
+    <!-- 日期选择 -->
+    <div class="date-grid-wrap" id="dateGridWrap">
+        <div class="date-grid-header">
+            <span class="title" id="dateGridTitle">请选择年份和月份</span>
+            <div class="actions">
+                <button id="btnSelectAll">全选</button>
+                <button id="btnSelectNone">清空</button>
+                <button id="btnSelectWeekends">仅周末/节假日</button>
+            </div>
+        </div>
+        <div class="date-grid" id="dateGrid">
+            <div class="weekday-header">日</div>
+            <div class="weekday-header weekend">一</div>
+            <div class="weekday-header weekend">二</div>
+            <div class="weekday-header weekend">三</div>
+            <div class="weekday-header weekend">四</div>
+            <div class="weekday-header weekend">五</div>
+            <div class="weekday-header weekend">六</div>
+            <div style="grid-column:1/8;text-align:center;padding:30px 0;color:#bbb;font-size:14px">
+                请先选择年份和月份，点击"刷新日期"
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件选择 -->
+    <div class="section-title">
+        <span>选择费用明细文件</span>
+        <span class="badge">支持 .xlsx / .xls</span>
+    </div>
+    <div class="drop-zone" id="dropZone">
+        <div class="icon">&#128196;</div>
+        <div class="text">点击选择文件，或将Excel文件拖拽到此处</div>
+        <div class="hint">支持多选，每人一个费用明细文件</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
+    </div>
+    <div class="file-list" id="fileList"></div>
+
+    <!-- 按钮 -->
+    <div class="btn-row">
+        <button class="btn btn-primary" id="btnGenerate" disabled>开始生成考勤统计表</button>
+        <button class="btn btn-secondary" id="btnClear">清空文件</button>
+    </div>
+
+    <!-- 日志 -->
+    <div class="section-title">运行日志</div>
+    <div class="log-area" id="logArea"></div>
+
+    <!-- 状态栏 -->
+    <div class="status-bar" id="statusBar">就绪，请选择年月并上传费用明细Excel文件</div>
+
+    <!-- 预览 -->
+    <details class="preview-section" id="previewSection">
+        <summary>预览生成结果</summary>
+        <div class="preview-table-wrap" id="previewWrap"></div>
+    </details>
+</div>
+
+<script>
+// ========== 2026年法定节假日数据 ==========
+const HOLIDAYS_2026 = {
+    holiday: {
+        '2026-01-01': '元旦', '2026-01-02': '元旦', '2026-01-03': '元旦',
+        '2026-02-15': '春节', '2026-02-16': '春节', '2026-02-17': '春节',
+        '2026-02-18': '春节', '2026-02-19': '春节', '2026-02-20': '春节',
+        '2026-02-21': '春节', '2026-02-22': '春节', '2026-02-23': '春节',
+        '2026-04-04': '清明', '2026-04-05': '清明', '2026-04-06': '清明',
+        '2026-05-01': '劳动节', '2026-05-02': '劳动节', '2026-05-03': '劳动节',
+        '2026-05-04': '劳动节', '2026-05-05': '劳动节',
+        '2026-06-19': '端午', '2026-06-20': '端午', '2026-06-21': '端午',
+        '2026-09-25': '中秋', '2026-09-26': '中秋', '2026-09-27': '中秋',
+        '2026-10-01': '国庆', '2026-10-02': '国庆', '2026-10-03': '国庆',
+        '2026-10-04': '国庆', '2026-10-05': '国庆', '2026-10-06': '国庆',
+        '2026-10-07': '国庆',
+    },
+    workday: {
+        '2026-02-14': '春节调休',
+        '2026-02-28': '春节调休',
+        '2026-05-09': '劳动节调休',
+        '2026-09-20': '国庆调休',
+        '2026-10-10': '国庆调休',
+    }
+};
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function getDateKey(year, month, day) { return `${year}-${pad(month)}-${pad(day)}`; }
+function getDaysInMonth(year, month) { return new Date(year, month, 0).getDate(); }
+function getDayOfWeek(year, month, day) { return new Date(year, month - 1, day).getDay(); }
+
+function getDateInfo(year, month, day) {
+    const key = getDateKey(year, month, day);
+    const dow = getDayOfWeek(year, month, day);
+    const isWeekend = (dow === 0 || dow === 6);
+    const isHoliday = !!HOLIDAYS_2026.holiday[key];
+    const isWorkday = !!HOLIDAYS_2026.workday[key];
+    let type = 'normal';
+    let label = '';
+    if (isHoliday) { type = 'holiday'; label = HOLIDAYS_2026.holiday[key]; }
+    else if (isWorkday) { type = 'workday'; label = HOLIDAYS_2026.workday[key]; }
+    else if (isWeekend) { type = 'weekend'; label = '周末'; }
+    return { key, dow, isWeekend, isHoliday, isWorkday, type, label };
+}
+
+// ========== 步骤1：将B列单元格内"."替换为"/" ==========
+function formatDateToYMD(dateStr) {
+    if (!dateStr || String(dateStr).trim() === '') return dateStr;
+    // 如果是Excel日期序列号（数字），转换为日期字符串
+    if (typeof dateStr === 'number' && dateStr > 1) {
+        // 使用 new Date(1900, 0, dateStr) 正确转换Excel序列号
+        // Excel序列号1=1900/1/1，但Excel有闰年bug（认为1900年2月29日存在）
+        // JS的Date对象知道1900年不是闰年，能自动处理此偏移
+        // WPS也有闰年bug，需减1校正
+        const dateObj = new Date(1900, 0, dateStr - 1);
+        const y = dateObj.getFullYear();
+        const m = dateObj.getMonth() + 1;
+        const d = dateObj.getDate();
+        return y + '/' + m + '/' + d;
+    }
+    // 仅将 . 替换为 /
+    return String(dateStr).trim().replace(/\./g, '/');
+}
+
+// ========== 步骤2：提取并格式化数据 ==========
+function extractPersonData(workbook, fileName) {
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    // 从C2单元格获取姓名，若为空则从文件名提取（去掉扩展名）
+    let name = (data[1] && data[1][2] && String(data[1][2]).trim()) || '';
+    if (!name) {
+        name = fileName.replace(/\.[^.]+$/, '').trim();
+    }
+    const dataStart = 4;
+    let dataEnd = data.length;
+    for (let i = dataStart; i < data.length; i++) {
+        const val = String(data[i][0] || '').trim();
+        if (['总计', '项目费用分解附表', '序号'].includes(val) && i > dataStart) { dataEnd = i; break; }
+    }
+    const bCol = [], cCol = [], dCol = [];
+    for (let i = dataStart; i < dataEnd; i++) {
+        const rawDate = data[i][1] || '';
+        bCol.push(formatDateToYMD(rawDate));
+        cCol.push(data[i][2] || '');
+        dCol.push(data[i][3] || '');
+    }
+    return { name, b: bCol, c: cCol, d: dCol };
+}
+
+// 从格式化后的日期字符串解析日期key
+function parseDateKeyFromFormatted(dateStr) {
+    if (!dateStr || String(dateStr).trim() === '') return null;
+    const s = String(dateStr).trim();
+    let m;
+    // 格式: YYYY/M/D
+    m = s.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+    if (m) {
+        return getDateKey(parseInt(m[1]), parseInt(m[2]), parseInt(m[3]));
+    }
+    // 格式: M/D（补全年份）
+    m = s.match(/^(\d{1,2})\/(\d{1,2})$/);
+    if (m && parseInt(m[1]) <= 12) {
+        return getDateKey(currentYear, parseInt(m[1]), parseInt(m[2]));
+    }
+    // 格式: M/D-M/D 范围（取起始日期）
+    m = s.match(/(\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})/);
+    if (m) {
+        return getDateKey(currentYear, parseInt(m[1]), parseInt(m[2]));
+    }
+    // 格式: D-D 同月范围（取起始日期）
+    m = s.match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
+    if (m && parseInt(m[1]) <= 31) {
+        return getDateKey(currentYear, currentMonth, parseInt(m[1]));
+    }
+    return null;
+}
+
+
+// ========== 步骤3：统计逻辑 ==========
+// 根据勾选日期，检索每人B列，当日期匹配且D列状态 != "休息" 且非空时计数
+function countOvertimeDays(personsData, checkedDates) {
+    const checkedSet = new Set(checkedDates);
+    const result = {};
+    personsData.forEach(p => {
+        let count = 0;
+        for (let i = 0; i < p.b.length; i++) {
+            const dateKey = parseDateKeyFromFormatted(p.b[i]);
+            if (dateKey && checkedSet.has(dateKey)) {
+                // 状态对应单元格内容非"请假"才计数
+                const status = String(p.d[i] || '').trim();
+                if (status !== '请假') {
+                    count++;
+                }
+            }
+        }
+        result[p.name] = count;
+    });
+    return result;
+}
+
+// ========== 步骤4：生成Excel工作簿（两个Sheet） ==========
+async function generateWorkbook(personsData, checkedDates) {
+    const counts = countOvertimeDays(personsData, checkedDates);
+
+    let maxRows = 0;
+    personsData.forEach(p => { if (p.b.length > maxRows) maxRows = p.b.length; });
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = '技术工程中心';
+    wb.created = new Date();
+
+    // ===== Sheet 1: 考勤原始记录 =====
+    const totalCols = personsData.length * 4;
+    const ws1 = wb.addWorksheet('考勤原始记录');
+
+    // 预计算勾选日期集合
+    const checkedSet = new Set(checkedDates);
+
+    // 列宽
+    const colWidths = [];
+    personsData.forEach(() => {
+        colWidths.push(12, 25, 10, 1);
+    });
+    colWidths.forEach((w, i) => { ws1.getColumn(i + 1).width = w; });
+
+    // 定义样式
+    const borderStyle = {
+        top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+        bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+        left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+        right: { style: 'thin', color: { argb: 'FFD0D0D0' } }
+    };
+    const centerAlign = { horizontal: 'center', vertical: 'middle' };
+
+    // 第1行：标题行
+    const titleRow = ws1.addRow([`${currentYear}年${currentMonth}月技术工程中心公出加班统计表`]);
+    ws1.mergeCells(1, 1, 1, totalCols);
+    titleRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2B579A' } };
+        cell.alignment = centerAlign;
+        cell.border = borderStyle;
+    });
+
+    // 第2行：姓名行
+    const nameRowData = [];
+    personsData.forEach(p => {
+        nameRowData.push(p.name, '', '', '');
+    });
+    const nameRow = ws1.addRow(nameRowData);
+    personsData.forEach((_, idx) => {
+        const startCol = idx * 4 + 1;
+        ws1.mergeCells(2, startCol, 2, startCol + 2);
+    });
+    nameRow.eachCell((cell) => {
+        cell.font = { bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E4F0' } };
+        cell.alignment = centerAlign;
+        cell.border = borderStyle;
+    });
+
+    // 第3行：表头行
+    const headerRowData = [];
+    personsData.forEach(() => { headerRowData.push('出差时间', '出差地', '状态', ''); });
+    const headerRow = ws1.addRow(headerRowData);
+    headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+        cell.alignment = centerAlign;
+        cell.border = borderStyle;
+    });
+
+    // 第4行起：数据行
+    const dataStartRow = 4;
+    for (let r = 0; r < maxRows; r++) {
+        const rowData = [];
+        personsData.forEach(p => {
+            rowData.push(
+                r < p.b.length ? p.b[r] : '',
+                r < p.c.length ? p.c[r] : '',
+                r < p.d.length ? p.d[r] : '',
+                ''
+            );
+        });
+        const excelRow = ws1.addRow(rowData);
+        const rowNum = dataStartRow + r;
+
+        // 判断此行每个人员的日期是否在勾选范围内
+        for (let pIdx = 0; pIdx < personsData.length; pIdx++) {
+            const dateStr = r < personsData[pIdx].b.length ? personsData[pIdx].b[r] : '';
+            const dateKey = dateStr ? parseDateKeyFromFormatted(dateStr) : null;
+            const isChecked = dateKey && checkedSet.has(dateKey);
+
+            for (let cc = 0; cc < 4; cc++) {
+                const colNum = pIdx * 4 + cc + 1;
+                const cell = excelRow.getCell(colNum);
+
+                // 出差时间列（cc === 0）先设置日期值（ExcelJS设置值可能重置样式，需先设值再设样式）
+                if (cc === 0 && dateStr) {
+                    const m = dateStr.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+                    if (m) {
+                        const y = parseInt(m[1]), mo = parseInt(m[2]), d = parseInt(m[3]);
+                        // 计算Excel序列号（含闰年bug），WPS能正确读取
+                        const dateObj = new Date(y, mo - 1, d);
+                        // Math.round消除UTC时区差导致的小数部分
+                        const serial = Math.round((dateObj - new Date(1899, 11, 30)) / (24 * 60 * 60 * 1000));
+                        cell.value = serial;
+                        cell.numFmt = 'yyyy/m/d';
+                    }
+                }
+
+                cell.alignment = centerAlign;
+                cell.border = borderStyle;
+
+                if (cc === 3) {
+                    // 间隔空列：浅灰色
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFAFAFA' } };
+                } else if (isChecked) {
+                    // 勾选日期的三列：黄色
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+                }
+            }
+        }
+    }
+
+    // 空行（分隔）
+    const emptyRow = ws1.addRow([]);
+    for (let c = 1; c <= totalCols; c++) {
+        const cell = emptyRow.getCell(c);
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFAFAFA' } };
+        cell.border = borderStyle;
+    }
+
+    // ===== Sheet 2: 加班记录统计表 =====
+    const ws2 = wb.addWorksheet('加班记录统计表');
+
+    ws2.getColumn(1).width = 6;
+    ws2.getColumn(2).width = 18;
+    ws2.getColumn(3).width = 16;
+
+    // 第1行：标题行
+    const sTitleRow = ws2.addRow([`${currentYear}年${currentMonth}月技术工程中心公出加班统计表`]);
+    ws2.mergeCells(1, 1, 1, 3);
+    sTitleRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+        cell.alignment = centerAlign;
+        cell.border = borderStyle;
+    });
+
+    // 第2行：表头行
+    const sHeaderRow = ws2.addRow(['序号', '姓名', '加班天数']);
+    sHeaderRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+        cell.alignment = centerAlign;
+        cell.border = borderStyle;
+    });
+
+    // 第3行起：数据行
+    personsData.forEach((p, idx) => {
+        const row = ws2.addRow([idx + 1, p.name, counts[p.name] || 0]);
+        row.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF8E1' } };
+            cell.alignment = centerAlign;
+            cell.border = borderStyle;
+        });
+    });
+
+    return wb;
+}
+async function saveWorkbook(wb, fileName) {
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/octet-stream' });
+
+    // 优先使用 File System Access API（弹出"另存为"对话框让用户选择保存路径）
+    if ('showSaveFilePicker' in window) {
+        try {
+            const opts = {
+                suggestedName: fileName,
+                types: [{
+                    description: 'Excel 工作簿',
+                    accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] }
+                }]
+            };
+            const handle = await window.showSaveFilePicker(opts);
+            const writable = await handle.createWritable();
+            await writable.write(buffer);
+            await writable.close();
+            return '已保存到：' + handle.name;
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                return '已取消保存';
+            }
+            // 失败则回退到下载
+        }
+    }
+
+    // 回退方案：浏览器下载
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return '浏览器下载';
+}
+
+// ========== UI逻辑 ==========
+const yearSelect = document.getElementById('yearSelect');
+const monthSelect = document.getElementById('monthSelect');
+const btnRefreshDates = document.getElementById('btnRefreshDates');
+const dateGrid = document.getElementById('dateGrid');
+const dateGridTitle = document.getElementById('dateGridTitle');
+const btnSelectAll = document.getElementById('btnSelectAll');
+const btnSelectNone = document.getElementById('btnSelectNone');
+const btnSelectWeekends = document.getElementById('btnSelectWeekends');
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+const fileList = document.getElementById('fileList');
+const btnGenerate = document.getElementById('btnGenerate');
+const btnClear = document.getElementById('btnClear');
+const logArea = document.getElementById('logArea');
+const statusBar = document.getElementById('statusBar');
+const previewWrap = document.getElementById('previewWrap');
+
+let loadedFiles = [];
+let checkedDates = new Set();
+let currentYear = 2026;
+let currentMonth = 5;
+
+(function initMonthSelector() {
+    for (let y = 2025; y <= 2030; y++) {
+        const opt = document.createElement('option');
+        opt.value = y; opt.textContent = y + '年';
+        yearSelect.appendChild(opt);
+    }
+    yearSelect.value = '2026';
+    for (let m = 1; m <= 12; m++) {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m + '月';
+        monthSelect.appendChild(opt);
+    }
+    monthSelect.value = '5';
+})();
+
+btnRefreshDates.addEventListener('click', renderDateGrid);
+
+function renderDateGrid() {
+    currentYear = parseInt(yearSelect.value);
+    currentMonth = parseInt(monthSelect.value);
+    const days = getDaysInMonth(currentYear, currentMonth);
+    dateGridTitle.textContent = `${currentYear}年${currentMonth}月 日期选择（共${days}天）`;
+    dateGrid.innerHTML = '';
+
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    weekdays.forEach((d, i) => {
+        const div = document.createElement('div');
+        div.className = 'weekday-header' + (i === 0 || i === 6 ? ' weekend' : '');
+        div.textContent = d;
+        dateGrid.appendChild(div);
+    });
+
+    const firstDay = getDayOfWeek(currentYear, currentMonth, 1);
+    for (let i = 0; i < firstDay; i++) {
+        dateGrid.appendChild(document.createElement('div'));
+    }
+
+    for (let d = 1; d <= days; d++) {
+        const info = getDateInfo(currentYear, currentMonth, d);
+        const cell = document.createElement('div');
+        cell.className = 'date-cell';
+        if (info.type === 'weekend') cell.classList.add('weekend');
+        else if (info.type === 'holiday') cell.classList.add('holiday');
+        else if (info.type === 'workday') cell.classList.add('workday');
+
+        const isChecked = checkedDates.has(info.key);
+        if (isChecked) cell.classList.add('checked');
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = isChecked; cb.dataset.key = info.key;
+
+        const daySpan = document.createElement('span');
+        daySpan.className = 'day-num'; daySpan.textContent = d;
+
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'day-label'; labelSpan.textContent = info.label;
+
+        cell.appendChild(cb);
+        cell.appendChild(daySpan);
+        cell.appendChild(labelSpan);
+
+        cell.addEventListener('click', (e) => {
+            if (e.target === cb) return;
+            cb.checked = !cb.checked;
+            toggleDate(info.key, cb.checked);
+            cb.dispatchEvent(new Event('change'));
+        });
+        cb.addEventListener('change', () => {
+            toggleDate(info.key, cb.checked);
+            cell.classList.toggle('checked', cb.checked);
+        });
+
+        dateGrid.appendChild(cell);
+    }
+}
+
+function toggleDate(key, checked) {
+    if (checked) checkedDates.add(key);
+    else checkedDates.delete(key);
+    updateGenerateButton();
+}
+
+btnSelectAll.addEventListener('click', () => {
+    dateGrid.querySelectorAll('.date-cell input[type="checkbox"]').forEach(cb => {
+        cb.checked = true;
+        cb.closest('.date-cell').classList.add('checked');
+        checkedDates.add(cb.dataset.key);
+    });
+    updateGenerateButton();
+});
+
+btnSelectNone.addEventListener('click', () => {
+    dateGrid.querySelectorAll('.date-cell input[type="checkbox"]').forEach(cb => {
+        cb.checked = false;
+        cb.closest('.date-cell').classList.remove('checked');
+        checkedDates.delete(cb.dataset.key);
+    });
+    updateGenerateButton();
+});
+
+btnSelectWeekends.addEventListener('click', () => {
+    dateGrid.querySelectorAll('.date-cell input[type="checkbox"]').forEach(cb => {
+        const cell = cb.closest('.date-cell');
+        const isRest = cell.classList.contains('weekend') || cell.classList.contains('holiday');
+        cb.checked = isRest;
+        cell.classList.toggle('checked', isRest);
+        if (isRest) checkedDates.add(cb.dataset.key);
+        else checkedDates.delete(cb.dataset.key);
+    });
+    updateGenerateButton();
+});
+
+function updateGenerateButton() {
+    const hasFiles = loadedFiles.length > 0 && loadedFiles.every(f => !f.error);
+    const hasDates = checkedDates.size > 0;
+    btnGenerate.disabled = !(hasFiles && hasDates);
+    if (hasDates) {
+        statusBar.textContent = `已勾选 ${checkedDates.size} 天，已加载 ${loadedFiles.filter(f => !f.error).length} 个文件，可以生成`;
+    } else {
+        statusBar.textContent = '请勾选要统计的日期';
+    }
+}
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault(); dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) handleFiles(fileInput.files);
+    fileInput.value = '';
+});
+
+function log(msg, type = 'info') {
+    const div = document.createElement('div');
+    div.className = `log-${type}`;
+    div.textContent = msg;
+    logArea.appendChild(div);
+    logArea.scrollTop = logArea.scrollHeight;
+}
+function clearLog() { logArea.innerHTML = ''; }
+function setStatus(text, type = '') {
+    statusBar.textContent = text;
+    statusBar.className = 'status-bar' + (type ? ' ' + type : '');
+}
+
+function handleFiles(files) {
+    clearLog();
+    const validFiles = [];
+    for (const file of files) {
+        const ext = file.name.toLowerCase().split('.').pop();
+        if (['xlsx', 'xls'].includes(ext)) validFiles.push(file);
+        else log(`跳过非Excel文件：${file.name}`, 'error');
+    }
+    if (validFiles.length === 0) {
+        log('未选择有效的Excel文件', 'error');
+        setStatus('未选择有效文件', 'error');
+        return;
+    }
+
+    loadedFiles = [];
+    log(`选择了 ${validFiles.length} 个文件，正在解析并统一日期格式...`, 'highlight');
+    let completed = 0;
+
+    validFiles.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const person = extractPersonData(workbook, file.name);
+                loadedFiles.push({ file, name: file.name, data: person, error: false });
+                log(`  ✓ ${person.name}（${person.b.length}条记录）`, 'success');
+            } catch (err) {
+                loadedFiles.push({ file, name: file.name, data: null, error: true });
+                log(`  ✗ ${file.name} 解析失败：${err.message}`, 'error');
+            } finally {
+                completed++;
+                if (completed === validFiles.length) {
+                    renderFileList();
+                    const okCount = loadedFiles.filter(f => !f.error).length;
+                    const errCount = loadedFiles.filter(f => f.error).length;
+                    if (okCount > 0) {
+                        setStatus(`已加载 ${okCount} 个文件${errCount > 0 ? `（${errCount} 个失败）` : ''}，请勾选日期后生成`, '');
+                    } else {
+                        setStatus('所有文件均解析失败', 'error');
+                    }
+                    updateGenerateButton();
+                }
+            }
+        };
+        reader.onerror = () => {
+            loadedFiles.push({ file, name: file.name, data: null, error: true });
+            log(`  ✗ ${file.name} 读取失败`, 'error');
+            completed++;
+            if (completed === validFiles.length) { renderFileList(); setStatus('部分文件读取失败', 'error'); updateGenerateButton(); }
+        };
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+function renderFileList() {
+    fileList.innerHTML = '';
+    loadedFiles.forEach((f) => {
+        const div = document.createElement('div');
+        div.className = 'file-item';
+        const statusClass = f.error ? 'err' : 'ok';
+        const statusText = f.error ? '解析失败' : '解析成功';
+        const records = f.error ? '' : `（${f.data.b.length}条记录）`;
+        div.innerHTML = `<span class="name">${f.name}</span><span><span class="records">${records}</span><span class="status ${statusClass}">${statusText}</span></span>`;
+        fileList.appendChild(div);
+    });
+}
+
+btnGenerate.addEventListener('click', async () => {
+    const valid = loadedFiles.filter(f => !f.error);
+    if (valid.length === 0 || checkedDates.size === 0) return;
+
+    clearLog();
+    log('='.repeat(50), 'highlight');
+    log(`  ${currentYear}年${currentMonth}月技术工程中心人员公出考勤统计表`, 'highlight');
+    log('='.repeat(50), 'highlight');
+    log(`  勾选日期：${checkedDates.size} 天`, 'info');
+    log(`  人员数量：${valid.length} 人`, 'info');
+
+    btnGenerate.disabled = true;
+    btnGenerate.textContent = '正在生成...';
+    setStatus('正在生成考勤统计表...', 'active');
+
+    try {
+        const personsData = valid.map(f => f.data);
+        const wb = await generateWorkbook(personsData, [...checkedDates]);
+
+        const fileName = `${currentYear}年${currentMonth}月技术工程中心公出加班统计表.xlsx`;
+        const result = await saveWorkbook(wb, fileName);
+
+        const counts = countOvertimeDays(personsData, [...checkedDates]);
+        log(`\n✓ 考勤统计表已生成！`, 'success');
+        log(`  保存方式：${result}`, 'info');
+        log(`\n  加班天数汇总：`, 'highlight');
+        personsData.forEach(p => {
+            log(`    ${p.name}：${counts[p.name] || 0} 天`, 'info');
+        });
+
+        setStatus('✓ 考勤统计表已生成并下载', 'done');
+        renderPreview(personsData, counts);
+
+    } catch (err) {
+        log(`\n✗ 生成失败：${err.message}`, 'error');
+        setStatus('生成失败', 'error');
+    } finally {
+        btnGenerate.disabled = false;
+        btnGenerate.textContent = '开始生成考勤统计表';
+    }
+});
+
+btnClear.addEventListener('click', () => {
+    loadedFiles = [];
+    fileList.innerHTML = '';
+    clearLog();
+    previewWrap.innerHTML = '';
+    document.getElementById('previewSection').open = false;
+    btnGenerate.disabled = true;
+    setStatus('已清空', '');
+});
+
+function renderPreview(personsData, counts) {
+    const maxRows = Math.max(...personsData.map(p => p.b.length));
+    const totalCols = personsData.length * 4;
+
+    let html = '<table class="preview-table">';
+
+    // 标题
+    html += `<tr><td colspan="${totalCols}" style="background:#2B579A;color:#fff;font-size:14px;font-weight:bold;text-align:center">Sheet1：考勤原始记录</td></tr>`;
+
+    // 姓名行
+    html += '<tr class="name-row">';
+    personsData.forEach(p => {
+        html += `<td colspan="3" style="background:#D6E4F0;font-weight:bold;text-align:center">${p.name}</td>`;
+        html += '<td style="background:#fafafa"></td>';
+    });
+    html += '</tr>';
+
+    // 表头行
+    html += '<tr>';
+    personsData.forEach(() => {
+        html += '<th>出差时间</th><th>出差地</th><th>状态</th><th style="background:#fafafa;border-color:#fafafa"></th>';
+    });
+    html += '</tr>';
+
+    // 数据行（最多15行）
+    const previewRows = Math.min(maxRows, 15);
+    for (let r = 0; r < previewRows; r++) {
+        html += '<tr>';
+        personsData.forEach(p => {
+            const b = r < p.b.length ? p.b[r] : '';
+            const c = r < p.c.length ? p.c[r] : '';
+            const d = r < p.d.length ? p.d[r] : '';
+            html += `<td>${b || '-'}</td><td>${c || '-'}</td><td>${d || '-'}</td>`;
+            html += '<td class="empty-cell"></td>';
+        });
+        html += '</tr>';
+    }
+    if (maxRows > 15) {
+        html += `<tr><td colspan="${totalCols}" style="text-align:center;color:#888;font-style:italic">... 共 ${maxRows} 行，仅预览前 15 行</td></tr>`;
+    }
+
+    // 空行
+    html += `<tr><td colspan="${totalCols}" style="background:#fafafa;height:8px"></td></tr>`;
+
+    // Sheet2 预览
+    html += `<tr><td colspan="${totalCols}" style="background:#4472C4;color:#fff;font-size:13px;font-weight:bold;text-align:center">Sheet2：加班记录统计表</td></tr>`;
+    html += '<tr class="summary-header"><th>序号</th><th>姓名</th><th>加班天数</th>';
+    for (let i = 3; i < totalCols; i++) html += '<th style="background:#fafafa;border-color:#fafafa"></th>';
+    html += '</tr>';
+
+    personsData.forEach((p, idx) => {
+        html += '<tr class="summary-row">';
+        html += `<td>${idx + 1}</td><td>${p.name}</td><td>${counts[p.name] || 0}</td>`;
+        for (let i = 3; i < totalCols; i++) html += '<td style="background:#fafafa"></td>';
+        html += '</tr>';
+    });
+
+    html += '</table>';
+    previewWrap.innerHTML = html;
+    document.getElementById('previewSection').open = true;
+}
+
+renderDateGrid();
+</script>
+</body>
+</html>
