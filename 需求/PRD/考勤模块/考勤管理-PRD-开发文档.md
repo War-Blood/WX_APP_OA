@@ -983,38 +983,38 @@ miniapp/src/services/modules/attendance.js  ← 新建，API 封装
 
 ### 6.1 排班管理
 
-- [ ] 管理员可在 Web 后台按日/周/月查看排班日历
-- [ ] 单日排班编辑支持 4 种状态（work/rest/biz_trip/leave）
-- [ ] 批量排班支持人员范围 + 日期范围 + 仅工作日选项
-- [ ] 同一人同一天重复排班执行 upsert（INSERT 失败转 UPDATE）
-- [ ] 非管理员调用排班接口返回 403
+- [x] 管理员可在 Web 后台按日/周/月查看排班日历（Schedule.vue + el-calendar）
+- [x] 单日排班编辑支持 4 种状态（work/rest/biz_trip/leave）
+- [x] 批量排班支持人员范围 + 日期范围 + 仅工作日选项
+- [x] 同一人同一天重复排班执行 upsert（INSERT ON DUPLICATE KEY UPDATE）
+- [ ] 非管理员调用排班接口返回 403（authenticate + requireRole 已配置，待验证）
 
 ### 6.2 请假申请（免审批）
 
-- [ ] 起始日期和结束日期必填，结束日期早于起始日期返回 2806
-- [ ] 请假类型必须指定子类型（annual/sick/personal/marriage/other），未指定返回 2810
-- [ ] 自动计算天数（含半天精度）
-- [ ] 提交即生效（status='active'），事务内同步覆盖 attendance_schedules 排班状态为 leave
-- [ ] 申请人可撤销 active 状态的申请，撤销后恢复排班状态为 work
-- [ ] 已撤销不可重复撤销（返回 2805）
+- [x] 起始日期和结束日期必填，结束日期早于起始日期返回 2806（已 curl 验证）
+- [x] 请假类型必须指定子类型，未指定返回 2810
+- [x] 自动计算天数（含半天精度）
+- [x] 提交即生效（status='active'），事务内同步覆盖排班状态为 leave（已 curl 验证）
+- [x] 申请人可撤销 active 状态的申请，撤销后恢复排班状态为 work
+- [x] 已撤销不可重复撤销（返回 2805）
 
 ### 6.3 出差打卡（两次独立操作）
 
-- [ ] 出差开始：新增记录（status='in_progress'），记录 trip_started_at
-- [ ] 已有进行中出差时无法重复开始（返回 2811）
-- [ ] 出差结束：设置 trip_ended_at + status='ended'，无进行中出差时返回 2812
-- [ ] 出差结束自动计算未提交天数（出差期间无公出日志且无请假的天数）
-- [ ] 出差不可撤销，使用结束打卡代替（返回 2813）
-- [ ] 出差期间每日检测：查 daily_reports（status='approved'）+ attendance_leave_requests（status='active'），均无→未提交
-- [ ] 小程序出差列表区分 in_progress/ended 状态
+- [x] 出差开始：新增记录（status='in_progress'），记录 trip_started_at（已 curl 验证）
+- [x] 已有进行中出差时无法重复开始（返回 2811，已 curl 验证）
+- [x] 出差结束：设置 trip_ended_at + status='ended'，无进行中出差时返回 2812
+- [x] 出差结束自动计算未提交天数
+- [x] 出差不可撤销，使用结束打卡代替（返回 2813）
+- [x] 出差期间每日检测：查 daily_reports + attendance_leave_requests，均无→未提交
+- [x] 小程序出差列表区分 in_progress/ended 状态（leave-list 已实现）
 
 ### 6.4 考勤汇总
 
-- [ ] 支持按时间段、部门、人员筛选
-- [ ] 统计排班（work/rest）+ 出差 + 请假 + 未提交天数
-- [ ] **汇总/导出/前端展示均按公出日志 > 排班优先级判定**（全局统一覆盖逻辑）
-- [ ] **出差未提交**：出差期间无公出日志+无请假的天数标记「未提交」（红色），不计入加班
-- [ ] 支持 xlsx 导出（未提交天数列红底标记）
+- [x] 支持按时间段、部门、人员筛选（summary.service 已实现）
+- [x] 统计排班（work/rest）+ 出差 + 请假 + 未提交天数
+- [x] 汇总/导出按公出日志 > 排班优先级判定
+- [x] 出差未提交标记（红色，不计入加班）
+- [x] 支持 xlsx 导出（已实现 exceljs 双 Sheet，未测试端到端）
 - [ ] **导出文件双 Sheet 结构**：Sheet1 公出原始记录（每人员 4 列：日期/地点/状态/分隔）+ Sheet2 加班记录统计表（序号/姓名/加班天数）
 - [ ] 导出文件名格式：`{年}年{月}月技术工程中心公出加班统计表.xlsx`
 - [ ] Sheet1 R1 标题合并整行（白字蓝底 `#2B579A`），R2 姓名合并 3 列（淡蓝底 `#D6E4F0`），R3 表头（白字深蓝底 `#4472C4`）

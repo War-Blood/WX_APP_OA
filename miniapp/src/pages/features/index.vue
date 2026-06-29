@@ -47,7 +47,8 @@ const iconConfig = {
   review: { iconSrc: ICON + 'shield.svg', bg: '#E6F7FF' },
   message: { iconSrc: ICON + 'bell.svg', bg: '#F3E8FF' },
   compliance: { iconSrc: ICON + 'shield.svg', bg: '#FFF0F0' },
-  stats: { iconSrc: ICON + 'chart.svg', bg: '#FEF3E2' }
+  stats: { iconSrc: ICON + 'chart.svg', bg: '#FEF3E2' },
+  attendance: { iconSrc: ICON + 'clock.svg', bg: '#EDF2FF' }
 }
 
 // 模块 key → 所属分组
@@ -57,6 +58,7 @@ const groupConfig = {
   report_history: '办公协作',
   review: '办公协作',
   compliance: '办公协作',
+  attendance: '办公协作',
   message: '信息中心',
   stats: '信息中心'
 }

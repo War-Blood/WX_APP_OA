@@ -103,7 +103,8 @@ const quickIconMap = {
   report_history: { iconSrc: '/static/icons/quick-check.svg', bg: '#E6F7FF' },
   review: { iconSrc: '/static/icons/quick-check.svg', bg: '#E6F7FF' },
   compliance: { iconSrc: '/static/icons/quick-check.svg', bg: '#FFF0F0' },
-  stats: { iconSrc: '/static/icons/quick-document.svg', bg: '#FEF3E2' }
+  stats: { iconSrc: '/static/icons/quick-document.svg', bg: '#FEF3E2' },
+  attendance: { iconSrc: '/static/icons/quick-clock.svg', bg: '#EDF2FF' }
 }
 const defaultQuickIcon = { iconSrc: '/static/icons/quick-document.svg', bg: '#FAFAFA' }
 
