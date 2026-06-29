@@ -1,8 +1,8 @@
 # 考勤管理 PRD — 开发文档
 
-> 版本: v1.0 | 日期: 2026-06-29 | 状态: 设计中
+> 版本: v2.0 | 日期: 2026-06-29 | 状态: 设计中
 >
-> 关联模块: 考勤 `attendance_schedules`、`attendance_leave_requests`、`attendance_approval_nodes`、`attendance_approval_transfers`、`dept_approval_config`
+> 关联模块: 考勤 `attendance_schedules`、`attendance_leave_requests`
 >
 > 导出模板参照: `需求/work/2026年5月技术工程中心公出加班统计表.xlsx`（双 Sheet 结构）+ `需求/work/技术工程中心人员公出考勤统计表生成工具.html`（exceljs 生成逻辑源）
 
@@ -12,40 +12,39 @@
 
 ### 1.1 功能定位
 
-考勤功能模块为「智慧办公助手 OA 系统」新增排班、出差请假审批、考勤汇总三大能力，覆盖小程序端（员工/审批人）与 Web 后台端（管理员）。
+考勤功能模块为「智慧办公助手 OA 系统」新增排班、出差打卡、请假申请、考勤汇总三大能力，覆盖小程序端（员工）与 Web 后台端（管理员）。
 
 | 角色 | 端 | 核心能力 |
 |------|----|---------|
-| 员工 `employee` | 小程序 `miniapp` | 查看个人排班、提交出差/请假申请、查看审批进度、查看个人考勤汇总 |
-| 部门领导 / 审批人 | 小程序 `miniapp` | 审核下属出差/请假、转交审核权、查看待办 |
-| 管理员 `admin` / `superadmin` | Web 后台 `webapp` | 排班日历管理（日/周/月+批量）、部门审核人配置、全公司考勤汇总与导出 |
-| 管理员 | 小程序 `miniapp` | 移动端排班查看、审批代办 |
+| 员工 `employee` | 小程序 `miniapp` | 查看个人排班、出差开始/结束打卡、提交请假申请（即时生效）、查看个人考勤汇总 |
+| 管理员 `admin` / `superadmin` | Web 后台 `webapp` | 排班日历管理（日/周/月+批量）、全公司考勤汇总与导出 |
+| 管理员 | 小程序 `miniapp` | 移动端排班查看 |
 
 ### 1.2 数据来源
 
-**新增表（5 张，零侵入现有系统）**：
+**新增表（2 张，零侵入现有系统）**：
 
 | 表名 | 用途 |
 |------|------|
 | `attendance_schedules` | 排班日历（简化状态制：user × date × status） |
-| `attendance_leave_requests` | 出差/请假申请单 |
-| `attendance_approval_nodes` | 考勤审核流节点（多级串行 + 意见 + 时间戳） |
-| `attendance_approval_transfers` | 审核转交记录 |
-| `dept_approval_config` | 部门默认审核人配置 |
+| `attendance_leave_requests` | 请假申请单（免审批，提交即生效）+ 出差打卡记录（开始/结束两次操作） |
 
-**复用现有表**：`users`（人员）、`departments`（部门树）、`messages`（通知推送）、`daily_reports`（**只读引用**——导出/汇总时读取公出日志的出差地、工作类型、工作内容）
+**复用现有表**：`users`（人员）、`departments`（部门树）、`messages`（通知推送）、`daily_reports`（**只读引用**——导出/汇总/出差未提交检测时读取公出日志）
 
-> ⚠️ 本模块**不修改任何现有表结构**，不修改 `approval_*` 审批引擎。考勤模块自建独立审批流，与现有审批引擎并行运作。
+> ⚠️ 本模块**不修改任何现有表结构**。考勤模块**请假免审批**——提交即生效。
+> **出差为两次打卡操作**：出差开始和出差结束分两次独立操作，不预设结束日期。
 >
-> ⚠️ 关于 `daily_reports`：考勤模块**只读取不写入**——审批通过后不回写日报（保持日报系统独立），但导出考勤汇总时**读取公出日志**获取出差地（`area`）、工作类型（`today_work_type`）、工作内容（`work_content`），作为 Sheet1「出差地」「状态」列的数据源。
+> ⚠️ 关于 `daily_reports`：考勤模块**只读取不写入**——导出考勤汇总、汇总查询、前端展示时**读取公出日志**获取项目区域（`area`）、工作类型（`today_work_type`）、工作内容（`work_content`）。同时用于**出差期间未提交检测**：出差中某日无公出日志且无请假 → 当日标记「未提交」。
 
 ### 1.3 设计原则
 
-1. **独立审批表**：考勤出差/请假审批使用自建 `attendance_approval_nodes`，采用多级串行审核（审批链终点为部门经理，部门经理通过即整单通过），支持转交，不依赖现有 `approval_instances`
-2. **不回写日报**：审批通过后不修改 `daily_reports`，模块边界清晰、零风险
-3. **只读引用公出日志**：导出/汇总时跨表读取 `daily_reports`（只 SELECT 不 UPDATE），获取出差地与工作类型，公出日志记录优先于排班状态
-4. **零侵入**：仅新增表、新增 `features/attendance/` 目录、新增错误码分区，不动现有代码
-5. **双端覆盖**：Web 后台提供完整管理能力，小程序提供员工/审批人移动端能力
+1. **请假免审批**：请假申请提交即生效（`status='active'`），事务内同步覆盖 `attendance_schedules` 对应日期的排班状态
+2. **出差两次打卡**：出差开始和出差结束为两次独立操作，不预设结束日期；出差开始后状态变为「出差中」，结束后记录结束时间
+3. **出差未提交检测**：出差期间每日检测——无公出日志（`daily_reports`）且无请假（`attendance_leave_requests`）→ 当日标记「未提交」
+4. **不回写日报**：提交后不修改 `daily_reports`，模块边界清晰、零风险
+5. **公出日志全局覆盖**：导出/汇总/前端展示三处统一按「公出日志 > 排班状态」优先级判定考勤状态
+6. **零侵入**：仅新增 2 张表、新增 `features/attendance/` 目录、新增错误码分区，不动现有代码
+7. **双端覆盖**：Web 后台提供完整管理能力，小程序提供员工移动端能力
 
 ---
 
@@ -54,15 +53,10 @@
 ### 2.1 新增表 ER 关系
 
 ```
-departments ──< dept_approval_config >── users
-                                              │
-users ──< attendance_schedules                │
-                                              │
-users ──< attendance_leave_requests >── attendance_approval_nodes ──< attendance_approval_transfers
-                                              │
-                                              └── users (approver_id)
+users ──< attendance_schedules
+users ──< attendance_leave_requests
 
-【只读引用】daily_reports (user_id + report_date) → 导出/汇总时跨表读取 area/today_work_type/work_content
+【只读引用】daily_reports (user_id + report_date) → 导出/汇总/展示时跨表读取 area/today_work_type/work_content
 ```
 
 ### 2.2 完整建表 SQL DDL
@@ -73,7 +67,7 @@ users ──< attendance_leave_requests >── attendance_approval_nodes ──
 -- ============================================
 -- 考勤功能模块 v2.1 - 数据库迁移脚本
 -- 执行时间: 2026-06-29
--- 变更内容: 新增 5 张考勤相关表
+-- 变更内容: 新增 2 张考勤相关表（免审批版）
 -- ============================================
 
 SET NAMES utf8mb4;
@@ -85,7 +79,7 @@ CREATE TABLE IF NOT EXISTS attendance_schedules (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id INT UNSIGNED NOT NULL COMMENT '被排班人员',
   schedule_date DATE NOT NULL COMMENT '排班日期',
-  status ENUM('work','rest','biz_trip','leave','compensatory') NOT NULL DEFAULT 'work' COMMENT '考勤状态: work=上班 rest=休息 biz_trip=出差 leave=请假 compensatory=调休',
+  status ENUM('work','rest','biz_trip','leave') NOT NULL DEFAULT 'work' COMMENT '考勤状态: work=上班 rest=休息 biz_trip=出差 leave=请假',
   note VARCHAR(200) DEFAULT NULL COMMENT '备注',
   created_by INT UNSIGNED NOT NULL COMMENT '排班操作人(管理员)',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -98,19 +92,28 @@ CREATE TABLE IF NOT EXISTS attendance_schedules (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='排班日历表';
 
 -- ============================================
--- 2. 出差/请假申请单表
+-- 2. 请假申请+出差打卡表
+--    leave: 日期范围申请，提交即生效
+--    biz_trip: 两次独立打卡（开始/结束），不预设结束日期
 -- ============================================
 CREATE TABLE IF NOT EXISTS attendance_leave_requests (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   applicant_id INT UNSIGNED NOT NULL COMMENT '申请人',
   request_type ENUM('biz_trip','leave') NOT NULL COMMENT '申请类型: biz_trip=出差 leave=请假',
-  leave_subtype VARCHAR(20) DEFAULT NULL COMMENT '请假子类型: annual/sick/personal/marriage/other（仅 leave 类型使用）',
-  start_date DATE NOT NULL COMMENT '起始日期',
-  end_date DATE NOT NULL COMMENT '结束日期',
-  days DECIMAL(5,1) NOT NULL COMMENT '时长(天)，含半天',
-  reason TEXT NOT NULL COMMENT '申请事由',
-  status ENUM('pending','reviewing','approved','rejected','cancelled') NOT NULL DEFAULT 'pending' COMMENT '审核状态',
-  current_node_order INT UNSIGNED DEFAULT 1 COMMENT '当前审核节点序号',
+
+  -- 请假专用字段（biz_trip 时为 NULL）
+  leave_subtype VARCHAR(20) DEFAULT NULL COMMENT '请假子类型: annual/sick/personal/marriage/other',
+  start_date DATE DEFAULT NULL COMMENT '请假起始日期（仅 leave）',
+  end_date DATE DEFAULT NULL COMMENT '请假结束日期（仅 leave）',
+  days DECIMAL(5,1) DEFAULT NULL COMMENT '请假时长(天)，含半天（仅 leave）',
+
+  -- 出差专用字段（leave 时为 NULL）
+  trip_started_at DATETIME DEFAULT NULL COMMENT '出差开始时间（仅 biz_trip）',
+  trip_ended_at DATETIME DEFAULT NULL COMMENT '出差结束时间（仅 biz_trip，NULL=出差中）',
+
+  reason TEXT DEFAULT NULL COMMENT '申请事由/出差备注',
+  status ENUM('active','cancelled','in_progress','ended') NOT NULL COMMENT '状态: active=请假生效 cancelled=已撤销 in_progress=出差中 ended=出差已结束',
+  source ENUM('admin','self') NOT NULL DEFAULT 'self' COMMENT '来源: admin=管理员代录 self=员工自助',
   cancelled_at DATETIME DEFAULT NULL COMMENT '撤销时间',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -118,61 +121,8 @@ CREATE TABLE IF NOT EXISTS attendance_leave_requests (
   INDEX idx_applicant_status (applicant_id, status),
   INDEX idx_request_type (request_type),
   INDEX idx_date_range (start_date, end_date),
-  INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='出差/请假申请单';
-
--- ============================================
--- 3. 考勤审核流节点表（独立审批，多级串行 + 转交）
--- ============================================
-CREATE TABLE IF NOT EXISTS attendance_approval_nodes (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  request_id INT UNSIGNED NOT NULL COMMENT '关联申请单',
-  node_order INT UNSIGNED NOT NULL COMMENT '审核顺序(1=第一级)，末级通常为部门经理',
-  approver_id INT UNSIGNED NOT NULL COMMENT '审核人',
-  action ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending' COMMENT '审核动作',
-  comment TEXT DEFAULT NULL COMMENT '审核意见',
-  acted_at DATETIME DEFAULT NULL COMMENT '审核时间戳',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (request_id) REFERENCES attendance_leave_requests(id) ON DELETE CASCADE,
-  FOREIGN KEY (approver_id) REFERENCES users(id),
-  INDEX idx_request_order (request_id, node_order),
-  INDEX idx_approver_action (approver_id, action)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='考勤审核流节点';
-
--- ============================================
--- 4. 审核转交记录表
--- ============================================
-CREATE TABLE IF NOT EXISTS attendance_approval_transfers (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  node_id INT UNSIGNED NOT NULL COMMENT '被转交的审核节点',
-  from_user_id INT UNSIGNED NOT NULL COMMENT '原审核人',
-  to_user_id INT UNSIGNED NOT NULL COMMENT '新审核人',
-  reason VARCHAR(200) NOT NULL COMMENT '转交原因',
-  transferred_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '转交时间',
-  FOREIGN KEY (node_id) REFERENCES attendance_approval_nodes(id) ON DELETE CASCADE,
-  FOREIGN KEY (from_user_id) REFERENCES users(id),
-  FOREIGN KEY (to_user_id) REFERENCES users(id),
-  INDEX idx_node (node_id),
-  INDEX idx_from_user (from_user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审核转交记录';
-
--- ============================================
--- 5. 部门默认审核人配置表
--- ============================================
-CREATE TABLE IF NOT EXISTS dept_approval_config (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  dept_id INT UNSIGNED NOT NULL COMMENT '部门',
-  approval_type ENUM('biz_trip','leave') NOT NULL COMMENT '申请类型',
-  approver_id INT UNSIGNED NOT NULL COMMENT '审核人',
-  node_order INT UNSIGNED NOT NULL COMMENT '审核顺序(1=第一级)，末级应为部门经理',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (dept_id) REFERENCES departments(id),
-  FOREIGN KEY (approver_id) REFERENCES users(id),
-  UNIQUE KEY uk_dept_type_order_approver (dept_id, approval_type, node_order, approver_id),
-  INDEX idx_dept_type (dept_id, approval_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='部门默认审核人配置';
+  INDEX idx_trip_status (status, trip_started_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='请假申请+出差打卡表';
 
 -- ============================================
 -- 迁移完成验证
@@ -182,7 +132,7 @@ SELECT 'v2.1 考勤模块迁移完成!' AS message;
 SELECT TABLE_NAME, TABLE_COMMENT
 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('attendance_schedules','attendance_leave_requests','attendance_approval_nodes','attendance_approval_transfers','dept_approval_config')
+  AND TABLE_NAME IN ('attendance_schedules','attendance_leave_requests')
 ORDER BY TABLE_NAME;
 ```
 
@@ -194,14 +144,12 @@ ORDER BY TABLE_NAME;
 // ──── 考勤 (2800-2899) ────
 ATTENDANCE_SCHEDULE_CONFLICT: 2801,    // 排班冲突（同一人同一天重复排班）
 ATTENDANCE_LEAVE_NOT_FOUND: 2802,      // 申请单不存在
-ATTENDANCE_NOT_APPROVER: 2803,         // 当前用户无审核权限
-ATTENDANCE_ALREADY_PROCESSED: 2804,    // 该节点已审核
-ATTENDANCE_CANNOT_CANCEL: 2805,        // 申请单不可撤销（已通过/已驳回）
+ATTENDANCE_CANNOT_CANCEL: 2805,        // 申请已撤销不可重复撤销
 ATTENDANCE_DATE_INVALID: 2806,         // 起止日期非法（结束早于开始）
-ATTENDANCE_NO_DEPT_CONFIG: 2807,       // 部门未配置审核人
-ATTENDANCE_TRANSFER_SELF: 2808,        // 不可转交给自己
-ATTENDANCE_TRANSFER_NOT_APPROVER: 2809,// 转交人无当前节点审核权
 ATTENDANCE_LEAVE_SUBTYPE_REQUIRED: 2810,// 请假必须指定子类型
+ATTENDANCE_TRIP_ALREADY_ACTIVE: 2811,   // 已有进行中的出差
+ATTENDANCE_TRIP_NOT_ACTIVE: 2812,       // 没有进行中的出差
+ATTENDANCE_TRIP_CANNOT_CANCEL: 2813,    // 出差不可撤销，请使用结束打卡
 ```
 
 ---
@@ -306,20 +254,45 @@ ATTENDANCE_LEAVE_SUBTYPE_REQUIRED: 2810,// 请假必须指定子类型
 }
 ```
 
-### 3.3 出差/请假申请接口
+### 3.3 请假申请接口（免审批，提交即生效）
 
-#### 3.3.1 提交申请
+> 请假保留日期范围申请模式：设置起始/结束日期，提交即生效，覆盖排班状态。
+
+#### 3.3.1 提交请假申请
 
 `POST /api/attendance/leave/apply` ｜ 登录用户
 
 ```json
 // 请求
 {
-  "requestType": "leave",         // biz_trip=出差 leave=请假
-  "leaveSubtype": "annual",       // 仅 leave 必填: annual/sick/personal/marriage/other
+  "requestType": "leave",
+  "leaveSubtype": "annual",       // 必填: annual/sick/personal/marriage/other
   "startDate": "2026-07-01",
   "endDate": "2026-07-03",
   "reason": "年假出游"
+}
+
+// 响应（成功）
+{ "code": 0, "message": "success", "data": { "requestId": 78, "days": 3.0, "status": "active" } }
+// 响应（失败）
+{ "code": 2806, "message": "结束日期不能早于起始日期", "data": null }
+{ "code": 2810, "message": "请假必须指定子类型", "data": null }
+```
+
+### 3.4 出差打卡接口（两次独立操作）
+
+> 出差拆为两次独立打卡：**出差开始**和**出差结束**，不预设结束日期。
+> 出差开始后状态变为「出差中」（`in_progress`），出差结束后记录结束时间（`ended`）。
+> 出差期间每日检测：无公出日志且无请假 → 标记「未提交」。
+
+#### 3.4.1 出差开始
+
+`POST /api/attendance/biz-trip/start` ｜ 登录用户
+
+```json
+// 请求
+{
+  "reason": "前往广州项目现场"       // 可选，出差备注
 }
 
 // 响应（成功）
@@ -327,28 +300,77 @@ ATTENDANCE_LEAVE_SUBTYPE_REQUIRED: 2810,// 请假必须指定子类型
   "code": 0,
   "message": "success",
   "data": {
-    "requestId": 78,
-    "days": 3.0,
-    "status": "reviewing",
-    "approvalNodes": [
-      { "nodeOrder": 1, "approverId": 5, "approverName": "李经理" },
-      { "nodeOrder": 2, "approverId": 8, "approverName": "王总监（部门经理）" }
-    ]
+    "requestId": 82,
+    "tripStartedAt": "2026-07-01T08:00:00.000Z",
+    "status": "in_progress"
   }
 }
 
-// 响应（失败 - 部门未配置审核人）
-{ "code": 2807, "message": "您的部门未配置出差审核人，请联系管理员", "data": null }
+// 响应（失败 - 已有进行中的出差）
+{ "code": 2811, "message": "已有进行中的出差，请先结束当前出差", "data": null }
 ```
 
-#### 3.3.2 我的申请列表
+#### 3.4.2 出差结束
+
+`POST /api/attendance/biz-trip/end` ｜ 登录用户
+
+```json
+// 请求
+{
+  "requestId": 82,                // 可选，不传则自动结束当前进行中的出差
+  "reason": "项目完成返回"         // 可选
+}
+
+// 响应（成功）
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "requestId": 82,
+    "tripStartedAt": "2026-07-01T08:00:00.000Z",
+    "tripEndedAt": "2026-07-05T18:00:00.000Z",
+    "tripDays": 5,
+    "missingDays": 1,             // 出差期间未提交公出日志的天数
+    "status": "ended"
+  }
+}
+
+// 响应（失败 - 无进行中的出差）
+{ "code": 2812, "message": "没有进行中的出差", "data": null }
+```
+
+#### 3.4.3 出差未提交检测
+
+> 在汇总查询和前端展示时实时计算。某日判定为「未提交」的条件：
+> 1. 该日处于出差期间（`trip_started_at ≤ date ≤ trip_ended_at` 或 `trip_ended_at IS NULL`）
+> 2. 该日无 `daily_reports` 记录（`status = 'approved' AND report_type != 'office'`）
+> 3. 该日无 `attendance_leave_requests` 请假记录（`request_type = 'leave' AND status = 'active'`）
+
+```sql
+-- 出差未提交检测伪 SQL
+SELECT d.date AS missing_date
+FROM date_series(:tripStart, COALESCE(:tripEnd, CURDATE())) d
+WHERE NOT EXISTS (
+  SELECT 1 FROM daily_reports dr
+  WHERE dr.user_id = :userId AND dr.report_date = d.date
+    AND dr.status = 'approved' AND dr.report_type != 'office'
+)
+AND NOT EXISTS (
+  SELECT 1 FROM attendance_leave_requests lr
+  WHERE lr.applicant_id = :userId AND lr.request_type = 'leave'
+    AND lr.status = 'active' AND d.date BETWEEN lr.start_date AND lr.end_date
+)
+```
+
+### 3.5 我的申请/出差列表
 
 `POST /api/attendance/leave/my-list` ｜ 登录用户
 
 ```json
 // 请求
 {
-  "status": null,          // 可选筛选: pending/reviewing/approved/rejected/cancelled
+  "requestType": null,        // 可选: biz_trip/leave，不传=全部
+  "status": null,             // 可选: active/cancelled/in_progress/ended
   "page": 1,
   "pageSize": 10
 }
@@ -360,15 +382,21 @@ ATTENDANCE_LEAVE_SUBTYPE_REQUIRED: 2810,// 请假必须指定子类型
   "data": {
     "list": [
       {
+        "id": 82,
+        "requestType": "biz_trip",
+        "tripStartedAt": "2026-07-01T08:00:00.000Z",
+        "tripEndedAt": null,                 // null = 出差中
+        "status": "in_progress",
+        "createdAt": "2026-07-01T08:00:00.000Z"
+      },
+      {
         "id": 78,
         "requestType": "leave",
         "leaveSubtype": "annual",
         "startDate": "2026-07-01",
         "endDate": "2026-07-03",
         "days": 3.0,
-        "status": "reviewing",
-        "currentNodeOrder": 1,
-        "currentApproverName": "李经理",
+        "status": "active",
         "createdAt": "2026-06-29T09:00:00.000Z"
       }
     ],
@@ -377,234 +405,64 @@ ATTENDANCE_LEAVE_SUBTYPE_REQUIRED: 2810,// 请假必须指定子类型
 }
 ```
 
-#### 3.3.3 申请详情（含完整审核流转）
+### 3.6 申请/出差详情
 
 `POST /api/attendance/leave/detail` ｜ 登录用户
 
 ```json
 // 请求
-{ "requestId": 78 }
+{ "requestId": 82 }
 
-// 响应
+// 响应（出差）
 {
-  "code": 0,
-  "message": "success",
+  "code": 0, "message": "success",
   "data": {
-    "request": {
-      "id": 78,
-      "applicantId": 12,
-      "applicantName": "张三",
-      "departmentName": "技术部",
-      "requestType": "leave",
-      "leaveSubtype": "annual",
-      "startDate": "2026-07-01",
-      "endDate": "2026-07-03",
-      "days": 3.0,
-      "reason": "年假出游",
-      "status": "reviewing",
-      "currentNodeOrder": 1,
-      "createdAt": "2026-06-29T09:00:00.000Z"
-    },
-    "approvalNodes": [
-      {
-        "id": 201,
-        "nodeOrder": 1,
-        "approverId": 5,
-        "approverName": "李经理",
-        "action": "pending",
-        "comment": null,
-        "actedAt": null
-      },
-      {
-        "id": 202,
-        "nodeOrder": 2,
-        "approverId": 8,
-        "approverName": "王总监（部门经理）",
-        "action": "pending",
-        "comment": null,
-        "actedAt": null
-      }
-    ],
-    "transfers": []
+    "id": 82,
+    "applicantId": 12,
+    "applicantName": "张三",
+    "departmentName": "技术部",
+    "requestType": "biz_trip",
+    "tripStartedAt": "2026-07-01T08:00:00.000Z",
+    "tripEndedAt": null,
+    "status": "in_progress",
+    "missingDates": ["2026-07-03", "2026-07-04"],  // 出差期间未提交的日期
+    "createdAt": "2026-07-01T08:00:00.000Z"
+  }
+}
+
+// 响应（请假）
+{
+  "code": 0, "message": "success",
+  "data": {
+    "id": 78,
+    "applicantId": 12,
+    "applicantName": "张三",
+    "departmentName": "技术部",
+    "requestType": "leave",
+    "leaveSubtype": "annual",
+    "startDate": "2026-07-01",
+    "endDate": "2026-07-03",
+    "days": 3.0,
+    "reason": "年假出游",
+    "status": "active",
+    "source": "self",
+    "createdAt": "2026-06-29T09:00:00.000Z"
   }
 }
 ```
 
-#### 3.3.4 撤销申请
+### 3.7 撤销申请
 
-`POST /api/attendance/leave/cancel` ｜ 申请人本人
+`POST /api/attendance/leave/cancel` ｜ 申请人本人（仅请假可用，出差用结束打卡）
 
 ```json
 // 请求
 { "requestId": 78 }
-
 // 响应（成功）
 { "code": 0, "message": "success", "data": { "cancelledAt": "2026-06-29T10:00:00.000Z" } }
-
-// 响应（失败 - 已通过不可撤）
-{ "code": 2805, "message": "已通过的申请不可撤销", "data": null }
-```
-
-#### 3.3.5 审核（通过/驳回）
-
-`POST /api/attendance/leave/approve` ｜ 当前节点审核人
-
-```json
-// 请求
-{
-  "requestId": 78,
-  "action": "approved",     // approved=通过 rejected=驳回
-  "comment": "同意"
-}
-
-// 响应（通过 - 推进到下一级）
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "requestStatus": "reviewing",
-    "nextNodeOrder": 2,
-    "nextApproverName": "王总监"
-  }
-}
-
-// 响应（通过 - 末级，申请单最终通过）
-{
-  "code": 0,
-  "message": "success",
-  "data": { "requestStatus": "approved", "nextNodeOrder": null }
-}
-
-// 响应（驳回 - 整单 rejected）
-{
-  "code": 0,
-  "message": "success",
-  "data": { "requestStatus": "rejected", "nextNodeOrder": null }
-}
-
-// 响应（失败 - 无审核权）
-{ "code": 2803, "message": "您不是当前节点的审核人", "data": null }
-```
-
-#### 3.3.6 转交审核权
-
-`POST /api/attendance/leave/transfer` ｜ 当前节点审核人
-
-```json
-// 请求
-{
-  "requestId": 78,
-  "toUserId": 15,
-  "reason": "出差无法及时处理"
-}
-
-// 响应（成功）
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "newApproverName": "赵主管",
-    "transferredAt": "2026-06-29T11:00:00.000Z"
-  }
-}
-
-// 响应（失败 - 转交给自己）
-{ "code": 2808, "message": "不可转交给自己", "data": null }
-```
-
-#### 3.3.7 待我审核列表
-
-`POST /api/attendance/leave/pending-list` ｜ 登录用户（审核人）
-
-```json
-// 请求
-{
-  "page": 1,
-  "pageSize": 10
-}
-
-// 响应
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "list": [
-      {
-        "requestId": 78,
-        "applicantName": "张三",
-        "departmentName": "技术部",
-        "requestType": "leave",
-        "startDate": "2026-07-01",
-        "endDate": "2026-07-03",
-        "days": 3.0,
-        "nodeOrder": 1,
-        "submittedAt": "2026-06-29T09:00:00.000Z"
-      }
-    ],
-    "total": 3, "page": 1, "pageSize": 10, "totalPages": 1
-  }
-}
-```
-
-### 3.4 部门审核人配置接口
-
-> 归属 `core-agent`，挂载于 admin 路由。
-
-#### 3.4.1 查询部门审核人配置
-
-`POST /api/admin/dept-approval-config/list` ｜ 管理员权限
-
-```json
-// 请求
-{
-  "departmentId": 5,
-  "approvalType": "leave"    // biz_trip/leave，不传=全部
-}
-
-// 响应
-{
-  "code": 0,
-  "message": "success",
-  "data": [
-    {
-      "id": 1,
-      "departmentId": 5,
-      "departmentName": "技术部",
-      "approvalType": "leave",
-      "approverId": 5,
-      "approverName": "李经理",
-      "nodeOrder": 1
-    },
-    {
-      "id": 2,
-      "departmentId": 5,
-      "departmentName": "技术部",
-      "approvalType": "leave",
-      "approverId": 8,
-      "approverName": "王总监（部门经理）",
-      "nodeOrder": 2
-    }
-  ]
-}
-```
-
-#### 3.4.2 保存部门审核人配置
-
-`POST /api/admin/dept-approval-config/save` ｜ 管理员权限
-
-```json
-// 请求（整体覆盖某部门某类型的配置）
-{
-  "departmentId": 5,
-  "approvalType": "leave",
-  "config": [
-    { "approverId": 5, "nodeOrder": 1 },
-    { "approverId": 8, "nodeOrder": 2 }
-  ]
-}
-
-// 响应
-{ "code": 0, "message": "success", "data": { "saved": 2 } }
+// 响应（失败）
+{ "code": 2805, "message": "申请已撤销不可重复撤销", "data": null }
+{ "code": 2813, "message": "出差请使用结束打卡，不可撤销", "data": null }
 ```
 
 ### 3.5 考勤汇总接口
@@ -636,10 +494,9 @@ ATTENDANCE_LEAVE_SUBTYPE_REQUIRED: 2810,// 请假必须指定子类型
         "departmentName": "技术部",
         "workDays": 18,        // 排班上班天数
         "restDays": 4,         // 排班休息天数
-        "bizTripDays": 3.0,    // 出差天数（已审批通过）
-        "leaveDays": 2.0,      // 请假天数（已审批通过）
-        "compensatoryDays": 1.0, // 调休天数
-        "pendingLeaveDays": 1.0 // 审批中的请假天数
+        "bizTripDays": 3.0,    // 出差天数（公出日志已通过 + 排班出差）
+        "leaveDays": 2.0,      // 请假天数（公出日志请假 + 排班请假）
+        "missingDays": 1       // 出差期间未提交天数
       }
     ],
     "total": 30, "page": 1, "pageSize": 50, "totalPages": 1
@@ -707,21 +564,23 @@ async function exportSummary({ startDate, endDate, departmentId, userId }) {
   const schedules = await querySchedules(persons, startDate, endDate); // 每人每日排班状态
   const month = parseMonth(startDate);                              // "2026年5月"
 
-  // 【关键】跨表只读引用公出日志 daily_reports，获取出差地/工作类型/工作内容
-  // 仅取非草稿、未删除、非办公室类型（report_type != 'office'）的公出日志
+  // 【关键】跨表只读引用公出日志 daily_reports，获取项目区域/工作类型/工作内容
+  // 仅取已通过、未删除、非办公室类型（report_type != 'office'）的公出日志
+  // 注意：status = 'approved' 与现有 report.service.js:890 导出逻辑一致
   const userIds = persons.map(p => p.id);
   const [dailyRows] = await pool.query(
     `SELECT user_id, report_date, area, today_work_type, work_content, status
        FROM daily_reports
       WHERE user_id IN (?)
         AND report_date BETWEEN ? AND ?
-        AND status != 'draft'
+        AND status = 'approved'
         AND deleted_at IS NULL
         AND report_type != 'office'
       ORDER BY user_id, report_date`,
     [userIds, startDate, endDate]
   );
   // 构建 { userId_date: { area, todayWorkType, workContent } } 索引
+  // 注意：area 字段含义为"项目区域"（省-市-区格式），导出"出差地"列取自此字段
   const dailyMap = {};
   dailyRows.forEach(r => {
     dailyMap[`${r.user_id}_${formatDateStr(r.report_date)}`] = {
@@ -816,11 +675,10 @@ async function exportSummary({ startDate, endDate, departmentId, userId }) {
 function mapWorkTypeToStatus(workType) {
   switch (workType) {
     case '工作（陆）': return '现场（陆）';
-    case '工作（海）': return '现场（陆）';   // 海上作业归入现场
+    case '工作（海）': return '现场（海）';   // 海上作业独立标记（查漏修正）
     case '在途':       return '在途';
     case '待工':       return '休息';
     case '请假':       return '请假';
-    case '调休':       return '调休';
     default:           return workType || '';
   }
 }
@@ -832,7 +690,6 @@ function mapScheduleStatus(scheduleStatus) {
     case 'biz_trip':      return '在途';
     case 'rest':          return '休息';
     case 'leave':         return '请假';
-    case 'compensatory':  return '调休';
     default:              return '';
   }
 }
@@ -860,192 +717,155 @@ function batchSchedule(userIds, startDate, endDate, status, weekdaysOnly):
   return { inserted, updated, total: inserted + updated }
 ```
 
-**状态枚举**：`work`(上班) / `rest`(休息) / `biz_trip`(出差) / `leave`(请假) / `compensatory`(调休)
+**状态枚举**：`work`(上班) / `rest`(休息) / `biz_trip`(出差) / `leave`(请假)
 
-### 4.2 申请提交规则
+### 4.2 请假申请规则（免审批，提交即生效）
 
 ```
-// 伪代码：提交申请
-function applyLeave(applicantId, requestType, leaveSubtype, startDate, endDate, reason):
-  // 1. 校验日期
+// 伪代码：提交请假申请——提交即生效，事务内覆盖排班状态
+function applyLeave(applicantId, leaveSubtype, startDate, endDate, reason):
   if endDate < startDate: throw ATTENDANCE_DATE_INVALID
-  if requestType == 'leave' && !leaveSubtype: throw ATTENDANCE_LEAVE_SUBTYPE_REQUIRED
+  if !leaveSubtype: throw ATTENDANCE_LEAVE_SUBTYPE_REQUIRED
 
-  // 2. 计算天数（含半天，按自然日）
   days = calcDays(startDate, endDate)
 
-  // 3. 查申请人部门
-  deptId = getUserDept(applicantId)
-
-  // 4. 查部门审核人配置
-  configs = queryDeptApprovalConfig(deptId, requestType)
-  if configs.isEmpty: throw ATTENDANCE_NO_DEPT_CONFIG
-
-  // 5. 事务：建申请单 + 生成审核节点（多级串行）
   BEGIN TRANSACTION
-    requestId = INSERT attendance_leave_requests (..., status='reviewing', current_node_order=1)
-    for config in configs:
-      INSERT attendance_approval_nodes (request_id, node_order, approver_id, action='pending')
+    requestId = INSERT attendance_leave_requests
+      (applicant_id, request_type='leave', leave_subtype, start_date, end_date, days, reason, status='active')
+    // 遍历日期范围，逐日覆盖排班状态为 leave
+    for date in [startDate, endDate]:
+      UPSERT attendance_schedules SET status='leave'
+        WHERE user_id=applicantId AND schedule_date=date
   COMMIT
 
-  // 6. 推送消息给第一级审核人（node_order 最小者）
-  firstApprover = configs.filter(node_order == min(node_order)).first()
-  sendMessage(firstApprover.approver_id, '您有新的考勤申请待审核', requestId)
-
-  return { requestId, days, status: 'reviewing', approvalNodes }
+  return { requestId, days, status: 'active' }
 ```
 
-### 4.3 审核流转状态机
+### 4.3 出差打卡规则（两次独立操作）
+
+#### 4.3.1 出差开始
 
 ```
-// 状态流转
-// pending(待提交) → reviewing(审核中) → approved(通过) / rejected(驳回) / cancelled(撤销)
-//
-// 注意：申请提交后直接进入 reviewing（首级节点已激活）
-// pending 状态保留给未来"草稿"功能，当前不使用
-//
-// 审批链约定：末级节点为部门经理，部门经理通过 = 整单通过（无需更高级别审批）
+function startBizTrip(applicantId, reason):
+  // 检查是否有进行中的出差
+  active = SELECT FROM attendance_leave_requests
+    WHERE applicant_id=applicantId AND request_type='biz_trip' AND status='in_progress'
+  if active: throw ATTENDANCE_TRIP_ALREADY_ACTIVE
 
-// 伪代码：审核动作（多级串行）
-function approve(requestId, approverId, action, comment):
-  request = getRequest(requestId)
-  if request.status != 'reviewing': throw ATTENDANCE_ALREADY_PROCESSED
+  // 创建出差记录（不预设结束日期）
+  INSERT attendance_leave_requests
+    (applicant_id, request_type='biz_trip', trip_started_at=NOW(), status='in_progress', reason)
 
-  // 找到当前层级节点（current_node_order，串行模式下每级仅 1 个节点）
-  currentNode = getNodeByOrder(requestId, request.current_node_order)
-
-  // 校验当前用户是否有权审核
-  if currentNode.approver_id != approverId || currentNode.action != 'pending':
-    throw ATTENDANCE_NOT_APPROVER
-
-  // 记录审核结果
-  UPDATE attendance_approval_nodes SET action=?, comment=?, acted_at=NOW() WHERE id=currentNode.id
-
-  if action == 'rejected':
-    // 驳回 → 整单 rejected
-    UPDATE attendance_leave_requests SET status='rejected' WHERE id=requestId
-    notifyApplicant(requestId, 'rejected')
-    return { requestStatus: 'rejected', nextNodeOrder: null }
-
-  if action == 'approved':
-    // 推进到下一级
-    nextOrder = request.current_node_order + 1
-    nextNode = getNodeByOrder(requestId, nextOrder)
-    if nextNode == null:
-      // 已是末级（部门经理），整单通过
-      UPDATE attendance_leave_requests SET status='approved' WHERE id=requestId
-      notifyApplicant(requestId, 'approved')
-      return { requestStatus: 'approved', nextNodeOrder: null }
-    else:
-      UPDATE attendance_leave_requests SET current_node_order=nextOrder WHERE id=requestId
-      sendMessage(nextNode.approver_id, '您有新的考勤申请待审核', requestId)
-      return { requestStatus: 'reviewing', nextNodeOrder: nextOrder }
+  return { requestId, tripStartedAt, status: 'in_progress' }
 ```
 
-### 4.4 审核规则
-
-- **多级串行**：按 `node_order` 从小到大逐级激活，当前级审核完成（通过）后 `current_node_order + 1`
-- **审批终点**：审批链末级配置为部门经理，部门经理审核通过即整单 `approved`，无需更高级别审批
-- **驳回即终止**：任一级驳回，整单立即转为 `rejected`，不再推进
-- **无竞争审核**：每级仅 1 名审核人，不存在多人同时审核同一级的场景
-
-### 4.5 转交规则
+#### 4.3.2 出差结束 + 未提交检测
 
 ```
-// 伪代码：转交
-function transfer(requestId, fromUserId, toUserId, reason):
-  if fromUserId == toUserId: throw ATTENDANCE_TRANSFER_SELF
+function endBizTrip(applicantId, requestId, reason):
+  request = requestId ? getRequest(requestId) : getActiveTrip(applicantId)
+  if !request || request.status != 'in_progress': throw ATTENDANCE_TRIP_NOT_ACTIVE
 
-  request = getRequest(requestId)
-  if request.status != 'reviewing': throw ATTENDANCE_ALREADY_PROCESSED
+  // 计算未提交天数：出差期间每日查公出日志 + 请假
+  missingDays = 0
+  for date in [request.trip_started_at, today]:
+    hasReport = queryDailyReport(applicantId, date)  // status='approved', report_type!='office'
+    hasLeave = queryLeaveRequest(applicantId, date)   // status='active', date BETWEEN start/end
+    if !hasReport && !hasLeave:
+      missingDays++
 
-  // 找到当前层级中 fromUserId 的待审节点
-  currentNode = getNodeByOrder(requestId, request.current_node_order)
-  if currentNode.approver_id != fromUserId || currentNode.action != 'pending':
-    throw ATTENDANCE_TRANSFER_NOT_APPROVER
+  UPDATE attendance_leave_requests
+    SET trip_ended_at=NOW(), status='ended'
+    WHERE id=request.id
 
-  BEGIN TRANSACTION
-    // 记录转交
-    INSERT attendance_approval_transfers (node_id, from_user_id, to_user_id, reason)
-    // 更新节点审核人
-    UPDATE attendance_approval_nodes SET approver_id=toUserId WHERE id=currentNode.id
-  COMMIT
-
-  sendMessage(toUserId, '您有转交来的考勤申请待审核', requestId)
-  return { newApproverName: getUserName(toUserId), transferredAt: now() }
+  return { requestId, tripEndedAt, missingDays, status: 'ended' }
 ```
 
-### 4.6 撤销规则
+### 4.4 撤销规则（仅请假）
 
 ```
+// 出差不可撤销，使用结束打卡代替
 function cancel(requestId, applicantId):
   request = getRequest(requestId)
+  if request.request_type == 'biz_trip': throw ATTENDANCE_TRIP_CANNOT_CANCEL
   if request.applicant_id != applicantId: throw FORBIDDEN
-  if request.status not in ['pending','reviewing']: throw ATTENDANCE_CANNOT_CANCEL
-  UPDATE attendance_leave_requests SET status='cancelled', cancelled_at=NOW() WHERE id=requestId
-  // 通知当前待审人申请已撤销
-  notifyCurrentApprovers(requestId, '申请已撤销')
+  if request.status != 'active': throw ATTENDANCE_CANNOT_CANCEL
+
+  BEGIN TRANSACTION
+    UPDATE attendance_leave_requests SET status='cancelled', cancelled_at=NOW() WHERE id=requestId
+    for date in [request.start_date, request.end_date]:
+      UPDATE attendance_schedules SET status='work' WHERE user_id=applicantId AND schedule_date=date
+  COMMIT
 ```
 
-### 4.7 汇总规则
+### 4.5 汇总规则（公出日志 > 排班 + 未提交检测）
 
 ```
-// 伪代码：汇总统计
 function summary(startDate, endDate, departmentId, userId):
   users = filterUsers(departmentId, userId)
-  result = []
   for user in users:
-    // 1. 排班统计：从 attendance_schedules 按 date 范围
-    schedule = querySchedules(user.id, startDate, endDate)
-    workDays = schedule.filter(status=='work').count
-    restDays = schedule.filter(status=='rest').count
+    workDays = 0; restDays = 0; bizTripDays = 0; leaveDays = 0; missingDays = 0
 
-    // 2. 出差/请假统计：从 attendance_leave_requests 按 date 范围，仅 status='approved'
-    approved = queryRequests(user.id, startDate, endDate, status='approved')
-    bizTripDays = approved.filter(type=='biz_trip').sum(days)
-    leaveDays = approved.filter(type=='leave').sum(days)
+    for date in [startDate, endDate]:
+      dailyReport = queryDailyReport(user.id, date)  // 公出日志（status='approved'）
+      schedule = querySchedule(user.id, date)          // 排班
+      activeTrip = queryActiveTrip(user.id, date)       // 出差期间（trip_started ≤ date ≤ trip_ended/NOW）
+      activeLeave = queryActiveLeave(user.id, date)     // 请假期间（date BETWEEN start/end, status='active'）
 
-    // 3. 调休：排班 status='compensatory' 的天数
-    compensatoryDays = schedule.filter(status=='compensatory').count
+      // 优先级：公出日志 > 排班
+      if dailyReport:
+        status = mapWorkTypeToStatus(dailyReport.today_work_type)
+      else if schedule:
+        status = mapScheduleStatus(schedule.status)
+      else:
+        continue
 
-    // 4. 审批中：status in ['reviewing'] 的天数
-    pending = queryRequests(user.id, startDate, endDate, status='reviewing')
-    pendingLeaveDays = pending.filter(type=='leave').sum(days)
+      // 累计统计
+      switch status:
+        case '现场（陆）': workDays++
+        case '在途':       bizTripDays++
+        case '休息':       restDays++
+        case '请假':       leaveDays++
 
-    result.push({ userId, workDays, restDays, bizTripDays, leaveDays, compensatoryDays, pendingLeaveDays })
+      // 出差未提交检测：处于出差中 + 无公出日志 + 无请假
+      if activeTrip && !dailyReport && !activeLeave:
+        missingDays++
+
+    result.push({ userId, workDays, restDays, bizTripDays, leaveDays })
   return result
 ```
 
-> ⚠️ 汇总仅统计 `status='approved'` 的出差/请假记录，`reviewing` 状态单独展示为"审批中"。
+> ⚠️ 汇总统计基于全局覆盖逻辑：公出日志（`daily_reports`，`status='approved'`）优先于排班状态。导出/汇总/前端展示三处统一此优先级。无审批流程，无"审批中"天数。
 
-### 4.8 导出状态映射（公出日志优先 + 排班兜底）
+### 4.5 考勤状态判定逻辑（全局统一）
 
-导出 Sheet1 的「出差地」「状态」列数据按以下优先级取值：
+考勤状态判定在**导出 Excel、汇总查询、前端展示**三处统一按以下优先级：
 
 **数据源优先级**：
-1. **公出日志 `daily_reports`**（最高优先级）—— 某人某天有公出日志记录时，取其 `area`（出差地）、`today_work_type`（状态映射源）、`work_content`（工作内容）
-2. **排班 `attendance_schedules`**（兜底）—— 无公出日志时，按排班状态映射
-3. **空值** —— 既无公出日志也无排班记录，三列均留空
+1. **公出日志 `daily_reports`**（`status='approved'`，最高优先级）—— 取 `area`（项目区域）、`today_work_type`（状态映射源）、`work_content`（工作内容）
+2. **排班 `attendance_schedules`**（兜底）—— 已含出差/请假申请覆盖
+3. **空值** —— 既无公出日志也无排班，留空
 
-**公出日志字段映射**：
+**公出日志字段说明**：
 
-| `daily_reports` 字段 | 导出列 | 说明 |
-|---------------------|--------|------|
-| `report_date` | 出差时间 | 格式化为日期 |
-| `area` | 出差地 | 项目区域，如"广东省-广州市-天河区" |
-| `today_work_type` | 状态（经映射） | 见下表映射 |
-| `work_content` | （可选扩展列） | 从事工作内容 |
+| `daily_reports` 字段 | 含义 | 导出/展示映射 |
+|---------------------|------|-------------|
+| `report_date` | 报告日期 | → 出差时间 |
+| `area` | **项目区域**（省-市-区格式，如"广东省-深圳市-南山区"） | → 导出"出差地"列 |
+| `today_work_type` | 工作类型 | → 状态（经映射） |
+| `work_content` | 工作内容 | → 可选扩展列 |
 
-**`today_work_type` → 导出状态映射**：
+> ⚠️ `area` 字段含义为"项目区域"（员工填报公出日志时选择的省-市-区），**非"出差地"**。系统无独立"出差地"字段，导出"出差地"列实际取自 `area`（项目区域）。
+
+**`today_work_type` → 状态映射**（当前 5 项，无调休）：
 
 | `daily_reports.today_work_type` | 导出展示状态 | 计入加班天数 |
 |-------------------------------|-------------|------------|
 | `工作（陆）` | `现场（陆）` | ✅ 计入 |
-| `工作（海）` | `现场（陆）` | ✅ 计入（海上作业归入现场） |
+| `工作（海）` | `现场（海）` | ✅ 计入（海上作业独立标记） |
 | `在途` | `在途` | ✅ 计入 |
 | `待工` | `休息` | ❌ 不计入 |
 | `请假` | `请假` | ❌ 不计入 |
-| `调休` | `调休` | ❌ 不计入 |
 
 **排班状态兜底映射**（无公出日志时）：
 
@@ -1055,24 +875,25 @@ function summary(startDate, endDate, departmentId, userId):
 | `biz_trip` | `在途` | ✅ 计入 |
 | `rest` | `休息` | ❌ 不计入 |
 | `leave` | `请假` | ❌ 不计入 |
-| `compensatory` | `调休` | ❌ 不计入 |
 
-**加班天数计算公式**：`overtimeDays = count(现场（陆）) + count(在途)`
+**出差未提交标识**：处于出差期间 + 该日无公出日志 + 无请假 → 状态列显示 `未提交`（红色高亮），不计入任何统计。
 
-**公出日志查询 SQL**（参数化，跨表只读）：
+**加班天数计算公式**：`overtimeDays = count(现场（陆）) + count(现场（海）) + count(在途)`
+
+**公出日志查询 SQL**（参数化，跨表只读，`status = 'approved'` 与现有 `report.service.js:890` 一致）：
 
 ```sql
 SELECT user_id, report_date, area, today_work_type, work_content, status
   FROM daily_reports
  WHERE user_id IN (?, ?, ...)
    AND report_date BETWEEN ? AND ?
-   AND status != 'draft'
+   AND status = 'approved'
    AND deleted_at IS NULL
    AND report_type != 'office'
  ORDER BY user_id, report_date
 ```
 
-> ⚠️ **只读约束**：考勤模块仅 `SELECT` 读取 `daily_reports`，禁止 `INSERT`/`UPDATE`/`DELETE`，不修改日报系统任何数据。公出日志记录优先于排班状态，确保导出的出差地和工作类型反映员工实际填报的公出情况。
+> ⚠️ **只读约束**：考勤模块仅 `SELECT` 读取 `daily_reports`，禁止 `INSERT`/`UPDATE`/`DELETE`，不修改日报系统任何数据。公出日志记录优先于排班状态，确保导出/汇总/展示反映员工实际填报的公出情况。
 
 ---
 
@@ -1086,15 +907,13 @@ backend/src/features/attendance/          ← 新建，data-agent 主管
 │   └── attendance.routes.js              ← 路由层（仅分发+中间件）
 ├── controllers/
 │   ├── schedule.controller.js            ← 排班
-│   ├── leave.controller.js               ← 出差/请假申请
+│   ├── leave.controller.js               ← 出差/请假申请（免审批）
 │   └── summary.controller.js             ← 汇总
 └── services/
     ├── schedule.service.js
-    ├── leave.service.js                  ← 含审核+转交逻辑
+    ├── leave.service.js                  ← 含申请覆盖排班 + 撤销恢复逻辑
     └── summary.service.js
 ```
-
-> `dept_approval_config` 的 CRUD 归属 `core-agent`，在 `backend/src/core/services/admin.service.js` 扩展 + `core/routes/admin.routes.js` 增加路由。
 
 ### 5.2 路由挂载
 
@@ -1114,13 +933,8 @@ app.use('/api/attendance', attendanceRoutes);
 // ──── 考勤 (2800-2899) ────
 ATTENDANCE_SCHEDULE_CONFLICT: 2801,
 ATTENDANCE_LEAVE_NOT_FOUND: 2802,
-ATTENDANCE_NOT_APPROVER: 2803,
-ATTENDANCE_ALREADY_PROCESSED: 2804,
 ATTENDANCE_CANNOT_CANCEL: 2805,
 ATTENDANCE_DATE_INVALID: 2806,
-ATTENDANCE_NO_DEPT_CONFIG: 2807,
-ATTENDANCE_TRANSFER_SELF: 2808,
-ATTENDANCE_TRANSFER_NOT_APPROVER: 2809,
 ATTENDANCE_LEAVE_SUBTYPE_REQUIRED: 2810,
 ```
 
@@ -1131,9 +945,7 @@ webapp/src/api/attendance.ts              ← 新建，API 定义
 webapp/src/views/attendance/              ← 新建
 ├── index.vue                             ← 考勤管理入口
 ├── Schedule.vue                          ← 排班日历管理（日/周/月+批量）
-├── Approval.vue                          ← 出差/请假审批列表
-├── Summary.vue                           ← 考勤汇总与导出
-└── DeptApprovalConfig.vue                ← 部门审核人配置
+└── Summary.vue                           ← 考勤汇总与导出
 ```
 
 ### 5.5 前端 miniapp
@@ -1141,10 +953,9 @@ webapp/src/views/attendance/              ← 新建
 ```
 miniapp/src/pages/attendance/             ← 新建
 ├── my-schedule/index.vue                 ← 我的排班（日历视图）
-├── leave-apply/index.vue                 ← 出差/请假申请
+├── leave-apply/index.vue                 ← 出差/请假申请（提交即生效）
 ├── leave-list/index.vue                  ← 我的申请列表
-├── leave-detail/index.vue                ← 申请详情（含审核流转）
-├── leave-approve/index.vue               ← 待我审核
+├── leave-detail/index.vue                ← 申请详情
 └── leave-summary/index.vue               ← 个人考勤汇总
 
 miniapp/src/services/modules/attendance.js  ← 新建，API 封装
@@ -1155,7 +966,6 @@ miniapp/src/services/modules/attendance.js  ← 新建，API 封装
 | 代码范围 | 归属 Agent | 说明 |
 |---------|-----------|------|
 | `backend/src/features/attendance/**` | data-agent | 考勤模块全部后端代码 |
-| `backend/src/core/**`（dept_approval_config） | core-agent | 部门审核人配置扩展 |
 | `webapp/src/views/attendance/**` + `api/attendance.ts` | webapp-core-agent | Web 考勤页面 |
 | `miniapp/src/pages/attendance/**` + `services/modules/attendance.js` | miniapp-core-agent | 小程序考勤页面 |
 | `backend/src/common/utils/constants.js` | common-agent | 错误码分区新增 |
@@ -1169,72 +979,42 @@ miniapp/src/services/modules/attendance.js  ← 新建，API 封装
 ### 6.1 排班管理
 
 - [ ] 管理员可在 Web 后台按日/周/月查看排班日历
-- [ ] 单日排班编辑支持 5 种状态（work/rest/biz_trip/leave/compensatory）
+- [ ] 单日排班编辑支持 4 种状态（work/rest/biz_trip/leave）
 - [ ] 批量排班支持人员范围 + 日期范围 + 仅工作日选项
 - [ ] 同一人同一天重复排班执行 upsert（INSERT 失败转 UPDATE）
 - [ ] 非管理员调用排班接口返回 403
 
-### 6.2 出差/请假申请
+### 6.2 出差/请假申请（免审批）
 
 - [ ] 起始日期和结束日期必填，结束日期早于起始日期返回 2806
 - [ ] 请假类型必须指定子类型（annual/sick/personal/marriage/other）
 - [ ] 自动计算天数（含半天精度）
-- [ ] 提交时按申请人部门配置自动生成审核节点
-- [ ] 部门未配置审核人返回 2807
+- [ ] 提交即生效（status='active'），事务内同步覆盖 attendance_schedules 排班状态
 - [ ] 小程序可查看我的申请列表和详情
+- [ ] 申请人可撤销 active 状态的申请，撤销后恢复排班状态
+- [ ] 已撤销的申请不可重复撤销（返回 2805）
 
-### 6.3 审核流转
-
-- [ ] 多级串行审核按 node_order 逐级激活
-- [ ] 审批链末级为部门经理，部门经理通过即整单 approved
-- [ ] 任一级驳回整单 rejected，不再推进
-- [ ] 每级仅 1 名审核人，无竞争/并行审核
-- [ ] 审核记录含审核人、动作、意见、时间戳
-- [ ] 申请详情返回完整审核流转记录
-- [ ] 无审核权用户调用审核返回 2803
-
-### 6.4 转交审核
-
-- [ ] 当前节点审核人可转交给他人
-- [ ] 转交后节点 approver_id 更新
-- [ ] 转交记录写入 attendance_approval_transfers
-- [ ] 新审核人收到消息通知
-- [ ] 不可转交给自己（返回 2808）
-
-### 6.5 撤销申请
-
-- [ ] 申请人可撤销 pending/reviewing 状态的申请
-- [ ] 已 approved/rejected 的申请不可撤销（返回 2805）
-- [ ] 撤销后通知当前待审人
-
-### 6.6 考勤汇总
+### 6.3 考勤汇总
 
 - [ ] 支持按时间段、部门、人员筛选
-- [ ] 统计排班（work/rest/compensatory）+ 出差 + 请假天数
-- [ ] 出差/请假仅统计 approved，reviewing 单独展示
+- [ ] 统计排班（work/rest）+ 出差 + 请假天数
+- [ ] **汇总/导出/前端展示均按公出日志 > 排班优先级判定**（全局统一覆盖逻辑）
 - [ ] 支持 xlsx 导出
 - [ ] **导出文件双 Sheet 结构**：Sheet1 公出原始记录（每人员 4 列：日期/地点/状态/分隔）+ Sheet2 加班记录统计表（序号/姓名/加班天数）
 - [ ] 导出文件名格式：`{年}年{月}月技术工程中心公出加班统计表.xlsx`
 - [ ] Sheet1 R1 标题合并整行（白字蓝底 `#2B579A`），R2 姓名合并 3 列（淡蓝底 `#D6E4F0`），R3 表头（白字深蓝底 `#4472C4`）
 - [ ] 列宽循环 `[12, 25, 10, 1]`，边框 thin `#D0D0D0`
-- [ ] 状态映射正确：`work→现场（陆）`、`biz_trip→在途`、`rest→休息`、`leave→请假`、`compensatory→调休`
-- [ ] 已通过的请假/出差申请覆盖当日排班状态（请假申请优先于排班）
-- [ ] 加班天数 = `现场（陆）` + `在途` 天数之和
-- [ ] 导出格式严格参照 `需求/work/2026年5月技术工程中心公出加班统计表.xlsx` 模板
-- [ ] **导出时跨表只读引用 `daily_reports` 公出日志**，获取出差地（`area`）、工作类型（`today_work_type`）、工作内容（`work_content`）
+- [ ] 状态映射正确：`work→现场（陆）`、`biz_trip→在途`、`rest→休息`、`leave→请假`
+- [ ] **公出日志 today_work_type 映射正确**：`工作（陆）→现场（陆）`、`工作（海）→现场（海）`、`在途→在途`、`待工→休息`、`请假→请假`（无调休）
+- [ ] **导出时跨表只读引用 `daily_reports` 公出日志**，获取项目区域（`area`）、工作类型（`today_work_type`）、工作内容（`work_content`）
 - [ ] 公出日志记录优先于排班状态——某日有公出日志则取其 area/today_work_type，无则回落到排班状态映射
-- [ ] 公出日志查询条件：`status != 'draft' AND deleted_at IS NULL AND report_type != 'office'`
+- [ ] 公出日志查询条件：`status = 'approved' AND deleted_at IS NULL AND report_type != 'office'`（与现有 report.service.js:890 一致）
 - [ ] 公出日志仅 SELECT 读取，禁止 INSERT/UPDATE/DELETE（不修改日报系统）
-- [ ] `today_work_type` 映射正确：`工作（陆）→现场（陆）`、`工作（海）→现场（陆）`、`在途→在途`、`待工→休息`、`请假→请假`、`调休→调休`
+- [ ] **area 字段为"项目区域"（省-市-区格式），导出"出差地"列取自此字段**（非独立出差地字段）
+- [ ] 加班天数 = `现场（陆）` + `现场（海）` + `在途` 天数之和
+- [ ] 导出格式严格参照 `需求/work/2026年5月技术工程中心公出加班统计表.xlsx` 模板
 
-### 6.7 部门审核人配置
-
-- [ ] 管理员可按部门 × 类型查询审核人配置
-- [ ] 支持多级审核人 + 顺序配置
-- [ ] 末级审核人应配置为部门经理
-- [ ] 保存时整体覆盖该部门该类型的配置
-
-### 6.8 通用约束
+### 6.4 通用约束
 
 - [ ] SQL 全部参数化查询（`pool.execute()` / `pool.query()`）
 - [ ] 接口统一响应 `{code,message,data}`
@@ -1250,49 +1030,50 @@ miniapp/src/services/modules/attendance.js  ← 新建，API 封装
 
 | 阶段 | 内容 | 依赖 | 归属 Agent |
 |------|------|------|-----------|
-| P1 基础 | 执行 DDL 迁移脚本（5 张表） + constants.js 新增 2800-2899 + dept_approval_config 接口 + admin 配置页 | 无 | common-agent / core-agent / webapp-admin-agent |
+| P1 基础 | 执行 DDL 迁移脚本（2 张表） + constants.js 新增 2800-2899 | 无 | common-agent / data-agent |
 | P2 排班 | schedule 接口（list/upsert/batch） + webapp 排班日历管理页 + miniapp 我的排班页 | P1 | data-agent / webapp-core-agent / miniapp-core-agent |
-| P3 申请 | leave.service（apply/my-list/detail/cancel/approve/transfer/pending-list） + miniapp 申请/审核全流程 | P1 | data-agent / miniapp-core-agent |
-| P4 汇总 | summary.service（list/export，导出格式参照 `需求/work/2026年5月技术工程中心公出加班统计表.xlsx` 模板，双 Sheet + exceljs 生成） + webapp 汇总页 + 导出 | P2 + P3 | data-agent / webapp-core-agent |
+| P3 申请 | leave.service（apply/my-list/detail/cancel，免审批+覆盖排班） + miniapp 申请/撤销流程 | P1 | data-agent / miniapp-core-agent |
+| P4 汇总 | summary.service（list/export，导出格式参照 `需求/work/2026年5月技术工程中心公出加班统计表.xlsx` 模板，双 Sheet + exceljs 生成 + 公出日志全局覆盖） + webapp 汇总页 + 导出 | P2 + P3 | data-agent / webapp-core-agent |
 
 > P2 与 P3 可并行开发（均仅依赖 P1）。P4 依赖 P2+P3 完成。
 
 ---
 
-## 八、对照现有模块查漏（2026-06-29）
+## 八、对照现有模块查漏（2026-06-29 v2.0 已修正）
 
-### 🔴 必须修正
+### ✅ 已修正
 
-**1. 调休已从系统删除**
+**1. 调休已从系统删除（已同步 PRD）**
 
-项目刚完成"前后端全删调休"（`be4b230`），`todayWorkType` 枚举已不含调休。PRD 以下位置需同步：
+git 提交 `be4b230`（"删除日报(office)+调休"）已完成核心删除：
+- 前端 `report-edit/index.vue:489`：workTypes 现为 `['工作（陆）','工作（海）','待工','在途','请假']`（无调休）
+- 后端 `report.service.js:382`：不再按请假处理调休
 
-| 行 | 原内容 | 建议 |
-|:--:|------|------|
-| DDL 86 | `ENUM(...,'compensatory')` | 删除 `compensatory` |
-| 823 | `case '调休': return '调休'` | 删除该分支 |
-| 834 | `case 'compensatory': return '调休'` | 删除该分支 |
+**PRD 已同步修正**：
+- `attendance_schedules.status` ENUM 删除 `compensatory`（仅 4 项：work/rest/biz_trip/leave）
+- 所有映射表删除"调休"行
+- today_work_type 映射仅 5 项（无调休）
 
-**2. 独立审批引擎重复造轮子**
+**2. 独立审批引擎重复造轮子（已彻底移除审批）**
 
-PRD 设计了 3 张新审批表，但现有 `approval_instances` + `approval_flow_nodes` + `approval.service.js` 已完整实现多级串行审批（逐级流转、驳回终止、事务、抄送）。两套审批系统功能重叠。
+v2.0 已彻底移除审批流程——删除 `attendance_approval_nodes`、`attendance_approval_transfers`、`dept_approval_config` 三张表及全部审批接口/逻辑。出差/请假改为"提交即生效"，不再有任何审批引擎。
 
-建议：复用现有 `approval_*` 体系。
-- 在 `approval_types` 插入 `leave`/`travel` 记录即可
-- 申请调 `approval.service.create()`，审核调 `approval.service.approve()`
-- 仅保留 `dept_approval_config` 表（现有系统无部门默认审核人配置）
-- P3 阶段后端代码量可降低约 60%
+**3. 导出 SQL status 过滤（已修正）**
 
-### 🟡 建议
+原 PRD 用 `status != 'draft'`，现有系统 `report.service.js:890` 导出用 `status = 'approved'`。
 
-**3. 导出 SQL 漏 status 过滤**（行 718）：`AND status != 'draft'` 应为 `AND status = 'approved'`，避免审核中/驳回日志污染导出。
+**已修正**：PRD 导出 SQL 统一改为 `status = 'approved'`（与现有系统一致），避免审核中/驳回日志污染导出。
 
-**4. 排班粒度**：`user_id × date` 对固定排班冗余，可加一张默认规则表 + 当前表仅存例外。
+**4. 工作海映射（已修正）**
 
-**5. 映射 `工作（海）→现场（陆）`**：建议独立为 `现场（海）`，海上和陆上是不同工作环境。
+**已修正**：`工作（海）` 映射为独立的 `现场（海）`，而非并入 `现场（陆）`。海上和陆上是不同工作环境，应区分展示。
 
-### 🟢 OK
+**5. area 字段语义（已澄清）**
 
-- 错误码 2800-2899 未占用 ✅
-- 目录 `features/attendance/` 与现有 `features/compliance/` 一致 ✅
-- Agent 归属 data-agent 合理 ✅
+`daily_reports.area` 含义为"项目区域"（省-市-区格式，如"广东省-深圳市-南山区"），**非"出差地"**。系统无独立"出差地"字段。
+
+**已修正**：PRD 4.5 节明确说明导出"出差地"列实际取自 `area`（项目区域字段），并在字段映射表中标注语义。
+
+### 🟡 建议（未改）
+
+**6. 排班粒度**：`user_id × date` 对固定排班冗余，未来可加一张默认规则表 + 当前表仅存例外。当前简化状态制已足够满足需求。
