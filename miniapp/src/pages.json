@@ -138,7 +138,7 @@
     {
       "path": "pages/admin/review-list/index",
       "style": {
-        "navigationBarTitleText": "审核管理",
+        "navigationBarTitleText": "日志审核",
         "navigationStyle": "custom",
         "componentPlaceholder": {
           "nav-bar": "view"

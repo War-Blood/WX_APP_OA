@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <nav-bar title="审核管理" :showBack="true" />
+    <nav-bar title="日志审核" :showBack="true" />
 
     <view class="tabs">
       <view
@@ -30,22 +30,8 @@
           hover-class="card-hover"
           @tap="goToDetail(item)"
         >
-          <!-- 缺失报告标识 -->
-          <view v-if="activeTab === 'missing'" class="missing-tag">
-            <text class="tag-icon">!</text>
-            <text class="tag-text">缺失报告({{ daysLate(item.report_date) }}天)</text>
-          </view>
-          
           <view class="card-header">
-            <!-- 缺失报告用项目维度展示 -->
-            <view v-if="activeTab === 'missing'" class="user-info">
-              <view class="name-block" style="flex: 1;">
-                <text class="user-name">{{ item.project || '(未指定项目)' }}</text>
-                <text class="project-name">人员: {{ item.workers || '-' }}</text>
-              </view>
-            </view>
-            <!-- 普通审核用用户维度展示 -->
-            <view v-else class="user-info">
+            <view class="user-info">
               <view class="avatar-circle">
                 <image
                   v-if="item.avatar"
@@ -81,7 +67,6 @@ import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { useUserStore } from '@/stores/user'
 import { reviewApi } from '@/services/modules/review'
-import { complianceApi } from '@/services/modules/compliance'
 import { reportApi } from '@/services/modules/report'
 
 const userStore = useUserStore()
@@ -100,9 +85,7 @@ const activeTab = ref('pending')
 const tabs = [
   { key: 'pending', label: '待审核' },
   { key: 'approved', label: '已通过' },
-  { key: 'rejected', label: '已驳回' },
-  { key: 'supplement', label: '补公出审核' },
-  { key: 'missing', label: '缺失报告' }
+  { key: 'rejected', label: '已驳回' }
 ]
 
 const reviewList = ref([])
@@ -117,20 +100,13 @@ function getInitial(name) {
   return name ? name.slice(0, 1) : '?'
 }
 
-function daysLate(dateStr) {
-  if (!dateStr) return 0
-  const d = new Date(dateStr)
-  const now = new Date()
-  return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
-}
-
 function getStatusBg(status) {
-  const map = { pending: '#FFF8F0', approved: '#EFFDF5', rejected: '#FFF0F0', missing: '#FFF0F0', reviewed: '#EFFDF5' }
+  const map = { pending: '#FFF8F0', approved: '#EFFDF5', rejected: '#FFF0F0', reviewed: '#EFFDF5' }
   return map[status] || '#F5F5F5'
 }
 
 function getStatusColor(status) {
-  const map = { pending: '#F59E0B', approved: '#22C55E', rejected: '#EF4444', missing: '#EF4444', reviewed: '#22C55E' }
+  const map = { pending: '#F59E0B', approved: '#22C55E', rejected: '#EF4444', reviewed: '#22C55E' }
   return map[status] || '#999999'
 }
 
@@ -140,11 +116,6 @@ function switchTab(key) {
 }
 
 function goToDetail(item) {
-  if (activeTab.value === 'missing') return
-  if (activeTab.value === 'supplement') {
-    uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + item.id })
-    return
-  }
   uni.navigateTo({ url: '/pages/admin/review-detail/index?id=' + item.id })
 }
 
@@ -176,47 +147,34 @@ async function loadAll(reset = true) {
       pageSize: 20,
     }
 
-    let listRes
-    if (activeTab.value === 'missing') {
-      listRes = await complianceApi.getMissingReports({
-        page: currentPage.value,
-        pageSize: 20
-      })
-    } else if (activeTab.value === 'supplement') {
-      const supplementStatus = params.status === 'supplement' ? 'pending' : params.status
-      listRes = await reportApi.getPendingReviews({
-        status: supplementStatus,
-        page: currentPage.value,
-        pageSize: 20
-      })
+    let normalizedList = []
+    if (activeTab.value === 'pending') {
+      // 待审核 = 普通审核 + 补公出审核
+      const [reviewRes, supplementRes] = await Promise.all([
+        reviewApi.getList({ status: 'pending', page: currentPage.value, pageSize: 10 }),
+        reportApi.getPendingReviews({ status: 'pending', page: currentPage.value, pageSize: 10 })
+      ])
+      const reviewList = (reviewRes.data.list || []).map(item => ({ ...item }))
+      const supplementList = (supplementRes.data.list || []).map(item => ({
+        ...item,
+        id: item.reportId,
+        user: item.submitterName,
+        status: 'pending',
+        statusText: '补公出',
+        desc: `补录日期: ${item.supplementDate || '-'}  |  项目: ${item.project || '-'}`,
+        time: item.createdAt
+      }))
+      normalizedList = [...reviewList, ...supplementList]
     } else {
       const [res] = await Promise.all([
         reviewApi.getList(params),
         reviewApi.getReviewStats().catch(() => ({ data: {} })),
       ])
-      listRes = res
-    }
-
-    const list = listRes.data.list || []
-    let normalizedList
-    if (activeTab.value === 'missing') {
-      normalizedList = list.map(item => ({ ...item, status: 'missing', statusText: '缺失' }))
-    } else if (activeTab.value === 'supplement') {
-      normalizedList = list.map(item => ({
-        ...item,
-        id: item.reportId,
-        user: item.submitterName,
-        status: item.status === 'pending_review' ? 'pending' : 'reviewed',
-        statusText: item.status === 'pending_review' ? '待审核' : '已审核',
-        desc: `补录日期: ${item.supplementDate || '-'}  |  项目: ${item.project || '-'}`,
-        time: item.createdAt
-      }))
-    } else {
-      normalizedList = list
+      normalizedList = res.data.list || []
     }
     if (reset) { reviewList.value = normalizedList }
     else { reviewList.value = [...reviewList.value, ...normalizedList] }
-    if (list.length < 20) { noMoreData.value = true }
+    if (normalizedList.length < 20) { noMoreData.value = true }
   } catch (err) {
     console.error('加载审核数据失败', err)
   } finally {
@@ -288,26 +246,6 @@ async function loadAll(reset = true) {
 
 .card-hover {
   background: #FAFBFC;
-}
-
-.missing-tag {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  padding: 12rpx 20rpx;
-  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-  border-radius: 8rpx;
-  margin-bottom: 16rpx;
-}
-
-.tag-icon {
-  font-size: 28rpx;
-}
-
-.tag-text {
-  font-size: 26rpx;
-  color: #d32f2f;
-  font-weight: 600;
 }
 
 .card-header {

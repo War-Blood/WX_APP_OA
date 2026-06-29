@@ -7,7 +7,7 @@ function getFallbackModules() {
     { key: 'approval', name: '审批管理', icon: 'approval', route: '/pages/approval/index/index', visible: true, sort: 1 },
     { key: 'report', name: '公出日志', icon: 'report', route: '/pages/employee/report-edit/index', visible: true, sort: 2 },
     { key: 'report_history', name: '日报历史', icon: 'history', route: '/pages/employee/report-history/index', visible: true, sort: 3 },
-    { key: 'review', name: '审核管理', icon: 'review', route: '/pages/admin/review-list/index', visible: true, sort: 4 },
+    { key: 'review', name: '日志审核', icon: 'review', route: '/pages/admin/review-list/index', visible: true, sort: 4 },
     { key: 'message', name: '消息中心', icon: 'message', route: '/pages/message/index/index', visible: true, sort: 5 },
     { key: 'compliance', name: '合规记录', icon: 'compliance', route: '/pages/compliance/my-compliance/index', visible: true, sort: 6 },
     { key: 'stats', name: '公出统计', icon: 'stats', route: '/pages/profile/stats', visible: true, sort: 7 }
