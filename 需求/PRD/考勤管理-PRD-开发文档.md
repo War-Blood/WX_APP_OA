@@ -1,6 +1,6 @@
 # 考勤管理 PRD — 开发文档
 
-> 版本: v2.0 | 日期: 2026-06-29 | 状态: 设计中
+> 版本: v2.1 | 日期: 2026-06-29 | 状态: 设计中
 >
 > 关联模块: 考勤 `attendance_schedules`、`attendance_leave_requests`
 >
@@ -936,6 +936,9 @@ ATTENDANCE_LEAVE_NOT_FOUND: 2802,
 ATTENDANCE_CANNOT_CANCEL: 2805,
 ATTENDANCE_DATE_INVALID: 2806,
 ATTENDANCE_LEAVE_SUBTYPE_REQUIRED: 2810,
+ATTENDANCE_TRIP_ALREADY_ACTIVE: 2811,
+ATTENDANCE_TRIP_NOT_ACTIVE: 2812,
+ATTENDANCE_TRIP_CANNOT_CANCEL: 2813,
 ```
 
 ### 5.4 前端 webapp
@@ -953,9 +956,11 @@ webapp/src/views/attendance/              ← 新建
 ```
 miniapp/src/pages/attendance/             ← 新建
 ├── my-schedule/index.vue                 ← 我的排班（日历视图）
-├── leave-apply/index.vue                 ← 出差/请假申请（提交即生效）
-├── leave-list/index.vue                  ← 我的申请列表
-├── leave-detail/index.vue                ← 申请详情
+├── leave-apply/index.vue                 ← 请假申请（日期范围，提交即生效）
+├── trip-start/index.vue                  ← 出差开始打卡
+├── trip-end/index.vue                    ← 出差结束打卡 + 未提交提示
+├── leave-list/index.vue                  ← 我的申请/出差列表
+├── leave-detail/index.vue                ← 申请/出差详情（含未提交日期）
 └── leave-summary/index.vue               ← 个人考勤汇总
 
 miniapp/src/services/modules/attendance.js  ← 新建，API 封装
@@ -984,22 +989,32 @@ miniapp/src/services/modules/attendance.js  ← 新建，API 封装
 - [ ] 同一人同一天重复排班执行 upsert（INSERT 失败转 UPDATE）
 - [ ] 非管理员调用排班接口返回 403
 
-### 6.2 出差/请假申请（免审批）
+### 6.2 请假申请（免审批）
 
 - [ ] 起始日期和结束日期必填，结束日期早于起始日期返回 2806
-- [ ] 请假类型必须指定子类型（annual/sick/personal/marriage/other）
+- [ ] 请假类型必须指定子类型（annual/sick/personal/marriage/other），未指定返回 2810
 - [ ] 自动计算天数（含半天精度）
-- [ ] 提交即生效（status='active'），事务内同步覆盖 attendance_schedules 排班状态
-- [ ] 小程序可查看我的申请列表和详情
-- [ ] 申请人可撤销 active 状态的申请，撤销后恢复排班状态
-- [ ] 已撤销的申请不可重复撤销（返回 2805）
+- [ ] 提交即生效（status='active'），事务内同步覆盖 attendance_schedules 排班状态为 leave
+- [ ] 申请人可撤销 active 状态的申请，撤销后恢复排班状态为 work
+- [ ] 已撤销不可重复撤销（返回 2805）
 
-### 6.3 考勤汇总
+### 6.3 出差打卡（两次独立操作）
+
+- [ ] 出差开始：新增记录（status='in_progress'），记录 trip_started_at
+- [ ] 已有进行中出差时无法重复开始（返回 2811）
+- [ ] 出差结束：设置 trip_ended_at + status='ended'，无进行中出差时返回 2812
+- [ ] 出差结束自动计算未提交天数（出差期间无公出日志且无请假的天数）
+- [ ] 出差不可撤销，使用结束打卡代替（返回 2813）
+- [ ] 出差期间每日检测：查 daily_reports（status='approved'）+ attendance_leave_requests（status='active'），均无→未提交
+- [ ] 小程序出差列表区分 in_progress/ended 状态
+
+### 6.4 考勤汇总
 
 - [ ] 支持按时间段、部门、人员筛选
-- [ ] 统计排班（work/rest）+ 出差 + 请假天数
+- [ ] 统计排班（work/rest）+ 出差 + 请假 + 未提交天数
 - [ ] **汇总/导出/前端展示均按公出日志 > 排班优先级判定**（全局统一覆盖逻辑）
-- [ ] 支持 xlsx 导出
+- [ ] **出差未提交**：出差期间无公出日志+无请假的天数标记「未提交」（红色），不计入加班
+- [ ] 支持 xlsx 导出（未提交天数列红底标记）
 - [ ] **导出文件双 Sheet 结构**：Sheet1 公出原始记录（每人员 4 列：日期/地点/状态/分隔）+ Sheet2 加班记录统计表（序号/姓名/加班天数）
 - [ ] 导出文件名格式：`{年}年{月}月技术工程中心公出加班统计表.xlsx`
 - [ ] Sheet1 R1 标题合并整行（白字蓝底 `#2B579A`），R2 姓名合并 3 列（淡蓝底 `#D6E4F0`），R3 表头（白字深蓝底 `#4472C4`）
@@ -1014,7 +1029,7 @@ miniapp/src/services/modules/attendance.js  ← 新建，API 封装
 - [ ] 加班天数 = `现场（陆）` + `现场（海）` + `在途` 天数之和
 - [ ] 导出格式严格参照 `需求/work/2026年5月技术工程中心公出加班统计表.xlsx` 模板
 
-### 6.4 通用约束
+### 6.5 通用约束
 
 - [ ] SQL 全部参数化查询（`pool.execute()` / `pool.query()`）
 - [ ] 接口统一响应 `{code,message,data}`
@@ -1032,7 +1047,7 @@ miniapp/src/services/modules/attendance.js  ← 新建，API 封装
 |------|------|------|-----------|
 | P1 基础 | 执行 DDL 迁移脚本（2 张表） + constants.js 新增 2800-2899 | 无 | common-agent / data-agent |
 | P2 排班 | schedule 接口（list/upsert/batch） + webapp 排班日历管理页 + miniapp 我的排班页 | P1 | data-agent / webapp-core-agent / miniapp-core-agent |
-| P3 申请 | leave.service（apply/my-list/detail/cancel，免审批+覆盖排班） + miniapp 申请/撤销流程 | P1 | data-agent / miniapp-core-agent |
+| P3 申请 | leave.service（apply/my-list/detail/cancel） + biz_trip.service（start/end + 未提交检测） + miniapp 请假申请/撤销 + 出差打卡流程 | P1 | data-agent / miniapp-core-agent |
 | P4 汇总 | summary.service（list/export，导出格式参照 `需求/work/2026年5月技术工程中心公出加班统计表.xlsx` 模板，双 Sheet + exceljs 生成 + 公出日志全局覆盖） + webapp 汇总页 + 导出 | P2 + P3 | data-agent / webapp-core-agent |
 
 > P2 与 P3 可并行开发（均仅依赖 P1）。P4 依赖 P2+P3 完成。
