@@ -116,6 +116,10 @@ function switchTab(key) {
 }
 
 function goToDetail(item) {
+  if (item.type === 'supplement') {
+    uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + item.id })
+    return
+  }
   uni.navigateTo({ url: '/pages/admin/review-detail/index?id=' + item.id })
 }
 
@@ -161,6 +165,7 @@ async function loadAll(reset = true) {
         user: item.submitterName,
         status: 'pending',
         statusText: '补公出',
+        type: 'supplement',
         desc: `补录日期: ${item.supplementDate || '-'}  |  项目: ${item.project || '-'}`,
         time: item.createdAt
       }))

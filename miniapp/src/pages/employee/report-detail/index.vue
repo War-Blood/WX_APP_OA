@@ -204,6 +204,15 @@
       </template>
     </scroll-view>
 
+    <!-- 补公出审核操作栏 -->
+    <view v-if="report?.reportType === 'biz_trip_supplement' && report?.supplementStatus === 'pending_review'" class="bottom-bar supplement-bar">
+      <view class="btn-reject" hover-class="btn-press" @tap="handleSupplementReject">
+        <text class="btn-reject-text">驳回</text>
+      </view>
+      <view class="btn-approve" hover-class="btn-press" @tap="handleSupplementApprove">
+        <text class="btn-approve-text">通过</text>
+      </view>
+    </view>
     <view v-if="report?.status === 'rejected'" class="bottom-bar">
       <view class="btn-revise" hover-class="btn-press" @tap="goToRevise">
         <text class="btn-revise-text">修改重提</text>
@@ -323,6 +332,40 @@ async function goToRevise() {
   if (!report.value) return
   uni.navigateTo({ url: '/pages/employee/rejected-edit/index?id=' + report.value.id })
   isSubmitting.value = false
+}
+
+async function handleSupplementApprove() {
+  uni.showModal({
+    title: '审核通过',
+    content: '确认通过该补公出日志？',
+    success: async (modalRes) => {
+      if (!modalRes.confirm) return
+      try {
+        await reportApi.reviewSupplement({ reportId: report.value.id, decision: 'special' })
+        uni.showToast({ title: '已通过', icon: 'success' })
+        report.value.supplementStatus = 'special'
+      } catch (e) {
+        uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+      }
+    }
+  })
+}
+
+async function handleSupplementReject() {
+  uni.showModal({
+    title: '驳回审核',
+    content: '确认驳回该补公出日志？',
+    success: async (modalRes) => {
+      if (!modalRes.confirm) return
+      try {
+        await reportApi.reviewSupplement({ reportId: report.value.id, decision: 'forget' })
+        uni.showToast({ title: '已驳回', icon: 'success' })
+        report.value.supplementStatus = 'delayed'
+      } catch (e) {
+        uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+      }
+    }
+  })
 }
 </script>
 
@@ -553,6 +596,54 @@ async function goToRevise() {
 
 .btn-press {
   opacity: 0.85;
+}
+
+.supplement-bar {
+  display: flex;
+  gap: 24rpx;
+}
+
+.btn-reject {
+  flex: 1;
+  height: 96rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 48rpx;
+  background: #FFFFFF;
+  border: 2rpx solid #EF4444;
+}
+
+.btn-reject:active {
+  background: #FFF5F5;
+}
+
+.btn-reject-text {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #EF4444;
+  letter-spacing: 2rpx;
+}
+
+.btn-approve {
+  flex: 1;
+  height: 96rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 48rpx;
+  background: linear-gradient(135deg, #2B6DE8, #4A8AF4);
+}
+
+.btn-approve:active {
+  opacity: 0.9;
+}
+
+.btn-approve-text {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #FFFFFF;
+  letter-spacing: 2rpx;
 }
 
 .loading-wrap {
