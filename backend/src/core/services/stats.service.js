@@ -339,8 +339,28 @@ async function getMonthlySummary(userId, month) {
 async function getDailyStatus(dateStr) {
   const date = dateStr || formatDate(new Date());
 
-  // 所有在职外场人员
-  const workers = await db.query(
+  // 从当日报告反查所有涉及的用户（含离职、非作业人员），不再用 worker_status/is_field_worker 过滤
+  const today = formatDate(new Date());
+  const allUserRows = await db.query(
+    `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
+     FROM users u
+     INNER JOIN daily_reports dr ON u.id = dr.user_id
+     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
+       AND u.deleted_at IS NULL
+     UNION
+     SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
+     FROM users u
+     INNER JOIN daily_report_workers drw ON u.id = drw.worker_uid
+     INNER JOIN daily_reports dr ON drw.report_id = dr.id
+     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
+       AND u.deleted_at IS NULL
+     ORDER BY id ASC`,
+    [date, date]
+  );
+  const workers = allUserRows;
+
+  // 仅用于"未提交"判定：当日应提交但在职未交的人员
+  const activeFieldWorkers = await db.query(
     `SELECT id, nickname, user_name, worker_code, worker_status
      FROM users
      WHERE worker_status = 'active' AND deleted_at IS NULL
@@ -348,6 +368,16 @@ async function getDailyStatus(dateStr) {
        AND is_field_worker = 1
      ORDER BY id ASC`
   );
+  const activeWorkerIds = new Set(activeFieldWorkers.map(w => w.id));
+
+  // 合并：有报告的人 + 在职未交的人（完整的人员列表）
+  const reportUserIds = new Set(workers.map(w => w.id));
+  const allUserMap = new Map();
+  workers.forEach(w => allUserMap.set(w.id, w));
+  activeFieldWorkers.forEach(w => {
+    if (!allUserMap.has(w.id)) allUserMap.set(w.id, w);
+  });
+  const mergedWorkers = [...allUserMap.values()].sort((a, b) => (a.id - b.id));
 
   // 当日所有已提交的日报（排除草稿和已删除，含审核中/已通过/已驳回）
   const reports = await db.query(
@@ -421,7 +451,7 @@ async function getDailyStatus(dateStr) {
     });
   });
 
-  // 为每个在职人员确定状态
+  // 为所有涉及人员确定状态（含离职/非作业人员）
   const workerList = [];
   const summary = {
     submitted: 0,
@@ -432,7 +462,7 @@ async function getDailyStatus(dateStr) {
     missing: 0,
   };
 
-  for (const w of workers) {
+  for (const w of mergedWorkers) {
     const ownReport = reportMapByUser[w.id];
     const subReport = subReportMap[w.id];
     const isSubstituted = !!subReport;
@@ -473,10 +503,14 @@ async function getDailyStatus(dateStr) {
 
       // 查找代填人姓名
       const submitterId = subReport.submitterId;
-      const submitterUser = workers.find(u => u.id === submitterId);
+      const submitterUser = mergedWorkers.find(u => u.id === submitterId);
       substituteBy = submitterUser ? (submitterUser.nickname || submitterUser.user_name) : '';
-    } else {
+    } else if (activeWorkerIds.has(w.id)) {
+      // 仅在职外场人员标记为"未提交"，已离职或非作业人员无报告则跳过
       status = 'missing';
+    } else {
+      // 非在职外场人员且无报告 → 不展示
+      continue;
     }
 
     summary[status] = (summary[status] || 0) + 1;
@@ -621,13 +655,24 @@ async function getWorkerWorkTypes(month) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
 
-  // 所有在职人员
+  // 从当月报告反查所有涉及的用户（含离职、非作业人员）
   const activeWorkers = await db.query(
-    `SELECT id, nickname, user_name, worker_code
-     FROM users WHERE worker_status = 'active' AND deleted_at IS NULL
-       AND status = 'active'
-       AND is_field_worker = 1
-     ORDER BY id ASC`
+    `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
+     FROM users u
+     INNER JOIN daily_reports dr ON u.id = dr.user_id
+     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+       AND u.deleted_at IS NULL
+     UNION
+     SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
+     FROM users u
+     INNER JOIN daily_report_workers drw ON u.id = drw.worker_uid
+     INNER JOIN daily_reports dr ON drw.report_id = dr.id
+     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+       AND u.deleted_at IS NULL
+     ORDER BY id ASC`,
+    [month, month]
   );
 
   // 当月本人提交的工作类型分布（按日期去重，防同天公出+补公出双计）
