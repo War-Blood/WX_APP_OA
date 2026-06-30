@@ -339,21 +339,21 @@ async function getMonthlySummary(userId, month) {
 async function getDailyStatus(dateStr) {
   const date = dateStr || formatDate(new Date());
 
-  // 从当日报告反查所有涉及的用户（含离职、非作业人员），不再用 worker_status/is_field_worker 过滤
+  // 从当日报告反查所有涉及的用户（排除管理员），不再用 worker_status/is_field_worker 过滤
   const today = formatDate(new Date());
   const allUserRows = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
      FROM users u
      INNER JOIN daily_reports dr ON u.id = dr.user_id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND u.deleted_at IS NULL
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')
      UNION
      SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
      FROM users u
      INNER JOIN daily_report_workers drw ON u.id = drw.worker_uid
      INNER JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND u.deleted_at IS NULL
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')
      ORDER BY id ASC`,
     [date, date]
   );
@@ -655,14 +655,14 @@ async function getWorkerWorkTypes(month) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
 
-  // 从当月报告反查所有涉及的用户（含离职、非作业人员）
+  // 从当月报告反查所有涉及的用户（排除管理员，含离职/非作业人员）
   const activeWorkers = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
      FROM users u
      INNER JOIN daily_reports dr ON u.id = dr.user_id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
-       AND u.deleted_at IS NULL
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')
      UNION
      SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
      FROM users u
@@ -670,7 +670,7 @@ async function getWorkerWorkTypes(month) {
      INNER JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
-       AND u.deleted_at IS NULL
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')
      ORDER BY id ASC`,
     [month, month]
   );
