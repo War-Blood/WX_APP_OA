@@ -447,4 +447,35 @@ async function disableTOTP(userId) {
   return { enabled: false };
 }
 
-module.exports = { login, qywxLogin, adminLogin, accountLogin, getProfile, updateProfile, linkQywxAccount, setupTOTP, enableTOTP, disableTOTP };
+/**
+ * 刷新 Token
+ * @description 验证当前有效 token，签发新 token。超过 30 天不活跃则拒绝刷新。
+ * @param {Object} user - req.user（当前登录用户信息，含 iat）
+ * @returns {Promise<{token: string, user: Object}>}
+ */
+async function refreshToken(user) {
+  const now = Math.floor(Date.now() / 1000);
+  const maxAge = 30 * 24 * 3600; // 30 天
+
+  if (user.iat && now - user.iat > maxAge) {
+    throw new BusinessError('登录已超30天未活跃，请重新登录', 401);
+  }
+
+  // 查最新用户信息
+  const users = await db.query('SELECT * FROM users WHERE id = ? AND deleted_at IS NULL', [user.userId]);
+  if (users.length === 0) {
+    throw new BusinessError('账号不存在或已注销');
+  }
+  const u = users[0];
+  if (u.status !== 'active') {
+    throw new BusinessError('账号已被禁用，请联系管理员');
+  }
+
+  const payload = { userId: u.id, role: u.role, userName: u.user_name };
+  const token = jwt.sign(payload, config.jwt.secret, { expiresIn: config.jwt.expiresIn });
+
+  const { password: _, totp_secret: __, openid: ___, qywx_userid: ____, ...profile } = u;
+  return { token, user: profile };
+}
+
+module.exports = { login, qywxLogin, adminLogin, accountLogin, getProfile, updateProfile, linkQywxAccount, setupTOTP, enableTOTP, disableTOTP, refreshToken };

@@ -12,14 +12,53 @@ const request = axios.create({
   }
 })
 
+// Token 自动续期（每天一次，防并发）
+let isRefreshing = false
+let refreshPromise: Promise<void> | null = null
+const REFRESH_INTERVAL = 24 * 3600 * 1000
+
+async function ensureFreshToken() {
+  const userStore = useUserStore()
+  const token = userStore.token
+  if (!token) return
+
+  const lastRefresh = localStorage.getItem('token_refreshed_at')
+  if (lastRefresh && Date.now() - Number(lastRefresh) < REFRESH_INTERVAL) return
+
+  if (isRefreshing) { await refreshPromise; return }
+
+  isRefreshing = true
+  refreshPromise = (async () => {
+    try {
+      const res = await axios.post(
+        (import.meta.env.VITE_API_BASE_URL || '') + '/api/auth/refresh-token',
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (res.data?.code === 0) {
+        userStore.setToken(res.data.data.token)
+        localStorage.setItem('token_refreshed_at', String(Date.now()))
+      }
+    } catch { /* 静默失败，下次再试 */ }
+    finally { isRefreshing = false; refreshPromise = null }
+  })()
+  await refreshPromise
+}
+
 // 请求拦截器
 request.interceptors.request.use(
-  (config) => {
+  async (config) => {
     const userStore = useUserStore()
     const token = userStore.token
 
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+      // Token 自动续期（非刷新接口本身，避免递归）
+      if (!config.url?.includes('/auth/refresh-token')) {
+        await ensureFreshToken()
+        config.headers.Authorization = `Bearer ${userStore.token}`
+      } else {
+        config.headers.Authorization = `Bearer ${token}`
+      }
     }
 
     return config

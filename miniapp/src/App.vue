@@ -13,6 +13,27 @@ import { onLaunch, onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
+const REFRESH_INTERVAL = 24 * 3600 * 1000 // 1 天
+
+function tryAutoRefresh() {
+  const token = uni.getStorageSync('token')
+  if (!token) return
+  const lastRefresh = uni.getStorageSync('token_refreshed_at') || 0
+  if (Date.now() - lastRefresh < REFRESH_INTERVAL) return
+
+  uni.request({
+    url: 'https://warblood.online/api/auth/refresh-token',
+    method: 'POST',
+    header: { 'Authorization': 'Bearer ' + token },
+    success: (res) => {
+      if (res.data?.code === 0) {
+        uni.setStorageSync('token', res.data.data.token)
+        uni.setStorageSync('token_refreshed_at', Date.now())
+      }
+    },
+    fail: () => { /* 静默失败，下次再试 */ }
+  })
+}
 
 onLaunch(() => {
   appStore.fetchModules()
@@ -42,6 +63,8 @@ onShow(() => {
   if (userInfo?.status === 'pending' && currentRoute !== 'pages/login/index') {
     uni.reLaunch({ url: '/pages/login/index?pending=1' })
   }
+  // Token 自动续期（每天一次）
+  tryAutoRefresh()
 })
 </script>
 

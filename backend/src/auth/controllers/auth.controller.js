@@ -197,4 +197,14 @@ async function redeemInviteCode(req, res, next) {
   }
 }
 
-module.exports = { login, getProfile, updateProfile, adminLogin, accountLogin, qywxLogin, linkQywx, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha, redeemInviteCode };
+/**
+ * POST /api/auth/refresh-token — 刷新 Token（每日自动续期）
+ */
+async function refreshToken(req, res, next) {
+  try {
+    const result = await authService.refreshToken(req.user);
+    res.json(success(result, 'Token 已刷新'));
+  } catch (err) { next(err); }
+}
+
+module.exports = { login, getProfile, updateProfile, adminLogin, accountLogin, qywxLogin, linkQywx, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha, redeemInviteCode, refreshToken };
