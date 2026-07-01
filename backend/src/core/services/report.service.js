@@ -1029,19 +1029,28 @@ async function exportToWecomSheet(startDate, endDate) {
   const webhookUrl = `https://qyapi.weixin.qq.com/cgi-bin/wedoc/smartsheet/webhook?key=${webhookKey}`;
 
   // 1. 查询符合条件的日报（排除请假，只取已通过）
-  const rows = await db.query(
+  let rows = await db.query(
     `SELECT dr.id, dr.report_date, dr.project, dr.today_work_type, dr.workers, dr.user_id,
             u.nickname AS submitter_nickname, u.user_name AS submitter_name
      FROM daily_reports dr
      LEFT JOIN users u ON dr.user_id = u.id AND u.deleted_at IS NULL AND u.openid IS NOT NULL AND u.openid != '' AND u.role NOT IN ('admin', 'superadmin')
      WHERE dr.report_date BETWEEN ? AND ?
        AND dr.today_work_type != '请假'
+       AND dr.today_work_type != '公司'
+       AND dr.today_work_type IS NOT NULL AND dr.today_work_type != ''
        AND dr.status = 'approved'
        AND dr.deleted_at IS NULL
      ORDER BY dr.report_date ASC`,
     [startDate, endDate]
   );
 
+  if (rows.length === 0) {
+    return { success: true, totalRecords: 0, batches: 0, deleted: 0 };
+  }
+
+  // 1.4 过滤无映射关系的记录（公司/NULL/空不导出）
+  const VALID_TYPES = new Set(['在途', '工作', '工作（陆）', '工作（海）', '待工']);
+  rows = rows.filter(r => VALID_TYPES.has(r.today_work_type));
   if (rows.length === 0) {
     return { success: true, totalRecords: 0, batches: 0, deleted: 0 };
   }
@@ -1132,8 +1141,16 @@ async function exportToWecomSheet(startDate, endDate) {
   }
 
   // 3. 构建 add_records（人员列改为 text 类型）
+  const STATUS_MAP = {
+    '在途': '在途',
+    '工作': '现场（陆）',
+    '工作（陆）': '现场（陆）',
+    '工作（海）': '现场（海）',
+    '待工': '休息',
+  };
+
   const addRecords = rows.map(row => {
-    const statusText = row.today_work_type === '在途' ? '在途' : '休息';
+    const statusText = STATUS_MAP[row.today_work_type];
 
     const dateStr = row.report_date instanceof Date
       ? row.report_date.toISOString().split('T')[0]
