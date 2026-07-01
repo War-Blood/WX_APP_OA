@@ -1032,7 +1032,7 @@ async function exportToWecomSheet(startDate, endDate) {
     `SELECT dr.id, dr.report_date, dr.project, dr.today_work_type, dr.workers, dr.user_id,
             u.nickname AS submitter_nickname, u.user_name AS submitter_name
      FROM daily_reports dr
-     LEFT JOIN users u ON dr.user_id = u.id AND u.deleted_at IS NULL AND u.openid IS NOT NULL AND u.openid != ''
+     LEFT JOIN users u ON dr.user_id = u.id AND u.deleted_at IS NULL AND u.openid IS NOT NULL AND u.openid != '' AND u.role NOT IN ('admin', 'superadmin')
      WHERE dr.report_date BETWEEN ? AND ?
        AND dr.today_work_type != '请假'
        AND dr.status = 'approved'
@@ -1056,7 +1056,7 @@ async function exportToWecomSheet(startDate, endDate) {
     const drwRows = await db.query(
       `SELECT drw.report_id, u.nickname, u.user_name
        FROM daily_report_workers drw
-       LEFT JOIN users u ON drw.worker_uid = u.id AND u.deleted_at IS NULL AND u.openid IS NOT NULL AND u.openid != ''
+       LEFT JOIN users u ON drw.worker_uid = u.id AND u.deleted_at IS NULL AND u.openid IS NOT NULL AND u.openid != '' AND u.role NOT IN ('admin', 'superadmin')
        WHERE drw.report_id IN (${idPlaceholders})`,
       reportIds
     );
@@ -1086,7 +1086,8 @@ async function exportToWecomSheet(startDate, endDate) {
       `SELECT nickname, user_name FROM users
        WHERE (nickname IN (${namePlaceholders}) OR user_name IN (${namePlaceholders}))
          AND deleted_at IS NULL
-         AND openid IS NOT NULL AND openid != ''`,
+         AND openid IS NOT NULL AND openid != ''
+         AND role NOT IN ('admin', 'superadmin')`,
       [...names, ...names]
     );
     userRows.forEach(u => {
