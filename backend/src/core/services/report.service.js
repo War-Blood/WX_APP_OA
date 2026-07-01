@@ -3,6 +3,7 @@
 const axios = require('axios');
 const db = require('../../common/config/database');
 const config = require('../../common/config/env');
+const logger = require('../../common/utils/logger');
 const { NotFoundError, BusinessError } = require('../../common/utils/errors');
 const { ErrorCode } = require('../../common/utils/constants');
 
@@ -1042,11 +1043,42 @@ async function exportToWecomSheet(startDate, endDate) {
   );
 
   if (rows.length === 0) {
-    return { success: true, totalRecords: 0, batches: 0 };
+    return { success: true, totalRecords: 0, batches: 0, deleted: 0 };
+  }
+
+  // 1.5 查询已有导出记录 → 删除企微表格旧数据 → 实现增量覆盖
+  const reportIds = rows.map(r => r.id);
+
+  // 查 wecom_sheet_records 获取已有的 record_id
+  const existingRecords = await db.query(
+    `SELECT daily_report_id, record_id FROM wecom_sheet_records
+     WHERE daily_report_id IN (${reportIds.map(() => '?').join(',')})`,
+    reportIds
+  );
+
+  let deletedCount = 0;
+  if (existingRecords.length > 0) {
+    const oldRecordIds = existingRecords.map(r => r.record_id);
+    const DEL_BATCH = 100;
+    for (let i = 0; i < oldRecordIds.length; i += DEL_BATCH) {
+      const batch = oldRecordIds.slice(i, i + DEL_BATCH);
+      try {
+        await axios.post(webhookUrl, { delete_records: { record_ids: batch } }, { timeout: 30000 });
+        deletedCount += batch.length;
+      } catch (err) {
+        // 删除失败不阻塞，记录日志继续
+        const errMsg = err.response?.data?.errmsg || err.message;
+        logger.warn('删除企微表格旧记录失败', { batch: i + 1, error: errMsg });
+      }
+    }
+    // 清理 DB 记录
+    await db.query(
+      `DELETE FROM wecom_sheet_records WHERE daily_report_id IN (${reportIds.map(() => '?').join(',')})`,
+      reportIds
+    );
   }
 
   // 2. 双路径获取人员姓名
-  const reportIds = rows.map(r => r.id);
   const NAME_SPLIT_RE = /[、,，\s\/\n]+/;
 
   // 路径 A: daily_report_workers 关联表 → worker_uid → nickname/user_name
@@ -1138,28 +1170,48 @@ async function exportToWecomSheet(startDate, endDate) {
     };
   });
 
-  // 4. 分批发送（每批最多 100 条）
+  // 4. 分批发送（每批最多 100 条），捕获返回的 record_id
   const BATCH_SIZE = 100;
   const batches = [];
+  const batchReportIds = []; // 每批对应的 daily_report_id 列表
   for (let i = 0; i < addRecords.length; i += BATCH_SIZE) {
     batches.push(addRecords.slice(i, i + BATCH_SIZE));
+    batchReportIds.push(reportIds.slice(i, i + BATCH_SIZE));
   }
 
   const errors = [];
+  const allRecordIds = []; // [{daily_report_id, record_id}]
   for (let i = 0; i < batches.length; i++) {
     try {
-      await axios.post(webhookUrl, { add_records: batches[i] }, { timeout: 30000 });
+      const res = await axios.post(webhookUrl, { add_records: batches[i] }, { timeout: 30000 });
+      // 企微返回: { add_records: [{ record_id, values }, ...] } — 顺序与输入一致
+      const returned = res.data?.add_records || [];
+      returned.forEach((rec, idx) => {
+        if (rec.record_id && batchReportIds[i][idx]) {
+          allRecordIds.push({ daily_report_id: batchReportIds[i][idx], record_id: rec.record_id });
+        }
+      });
     } catch (err) {
       const errMsg = err.response?.data?.errmsg || err.message;
       errors.push(`第 ${i + 1}/${batches.length} 批发送失败: ${errMsg}`);
     }
   }
 
+  // 存储 record_id 映射
+  if (allRecordIds.length > 0) {
+    const valuePlaceholders = allRecordIds.map(() => '(?, ?)').join(',');
+    const flatValues = allRecordIds.flatMap(r => [r.daily_report_id, r.record_id]);
+    await db.query(
+      `INSERT IGNORE INTO wecom_sheet_records (daily_report_id, record_id) VALUES ${valuePlaceholders}`,
+      flatValues
+    );
+  }
+
   if (errors.length > 0) {
     throw new BusinessError(`企业微信智能表格 Webhook 发送失败: ${errors.join('; ')}`);
   }
 
-  return { success: true, totalRecords: addRecords.length, batches: batches.length };
+  return { success: true, totalRecords: addRecords.length, batches: batches.length, deleted: deletedCount };
 }
 
 module.exports = {
