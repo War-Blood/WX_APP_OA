@@ -1030,7 +1030,7 @@ async function exportToWecomSheet(startDate, endDate) {
   // 1. 查询符合条件的日报（排除请假，只取已通过）
   const rows = await db.query(
     `SELECT dr.id, dr.report_date, dr.project, dr.today_work_type, dr.workers, dr.user_id,
-            u.qywx_userid AS submitter_qywx_userid, u.user_name AS submitter_name
+            u.nickname AS submitter_nickname, u.user_name AS submitter_name
      FROM daily_reports dr
      LEFT JOIN users u ON dr.user_id = u.id AND u.deleted_at IS NULL AND u.openid IS NOT NULL AND u.openid != ''
      WHERE dr.report_date BETWEEN ? AND ?
@@ -1045,29 +1045,30 @@ async function exportToWecomSheet(startDate, endDate) {
     return { success: true, totalRecords: 0, batches: 0 };
   }
 
-  // 2. 双路径获取人员 qywx_userid
+  // 2. 双路径获取人员姓名
   const reportIds = rows.map(r => r.id);
   const NAME_SPLIT_RE = /[、,，\s\/\n]+/;
 
-  // 路径 A: daily_report_workers 关联表 → 直接拿 worker_uid → qywx_userid
-  const drwMap = {}; // reportId → [{user_id}]
+  // 路径 A: daily_report_workers 关联表 → worker_uid → nickname/user_name
+  const drwNameMap = {}; // reportId → Set of names
   if (reportIds.length > 0) {
     const idPlaceholders = reportIds.map(() => '?').join(',');
     const drwRows = await db.query(
-      `SELECT drw.report_id, u.qywx_userid
+      `SELECT drw.report_id, u.nickname, u.user_name
        FROM daily_report_workers drw
        LEFT JOIN users u ON drw.worker_uid = u.id AND u.deleted_at IS NULL AND u.openid IS NOT NULL AND u.openid != ''
-       WHERE drw.report_id IN (${idPlaceholders})
-         AND u.qywx_userid IS NOT NULL AND u.qywx_userid != ''`,
+       WHERE drw.report_id IN (${idPlaceholders})`,
       reportIds
     );
     drwRows.forEach(r => {
-      if (!drwMap[r.report_id]) drwMap[r.report_id] = [];
-      drwMap[r.report_id].push({ user_id: r.qywx_userid });
+      if (!drwNameMap[r.report_id]) drwNameMap[r.report_id] = new Set();
+      const name = r.nickname || r.user_name;
+      if (name) drwNameMap[r.report_id].add(name);
     });
   }
 
-  // 路径 B: workers 文本字段解析（兜底），同时匹配 nickname 和 user_name
+  // 路径 B: workers 文本字段解析（兜底），匹配 nickname 和 user_name → 取 user_name 为显示名
+  const nameToDisplayName = {};
   const workerNameSet = new Set();
   rows.forEach(row => {
     if (row.workers) {
@@ -1078,65 +1079,51 @@ async function exportToWecomSheet(startDate, endDate) {
     }
   });
 
-  const nameToQywxUserid = {};
   if (workerNameSet.size > 0) {
     const names = Array.from(workerNameSet);
     const namePlaceholders = names.map(() => '?').join(',');
     const userRows = await db.query(
-      `SELECT nickname, user_name, qywx_userid FROM users
+      `SELECT nickname, user_name FROM users
        WHERE (nickname IN (${namePlaceholders}) OR user_name IN (${namePlaceholders}))
          AND deleted_at IS NULL
-         AND openid IS NOT NULL AND openid != ''
-         AND qywx_userid IS NOT NULL AND qywx_userid != ''`,
+         AND openid IS NOT NULL AND openid != ''`,
       [...names, ...names]
     );
     userRows.forEach(u => {
-      if (u.qywx_userid) {
-        if (u.nickname) nameToQywxUserid[u.nickname] = u.qywx_userid;
-        if (u.user_name) nameToQywxUserid[u.user_name] = u.qywx_userid;
+      const display = u.user_name || u.nickname;
+      if (display) {
+        if (u.nickname) nameToDisplayName[u.nickname] = display;
+        if (u.user_name) nameToDisplayName[u.user_name] = display;
       }
     });
   }
 
-  // 3. 构建 add_records
+  // 3. 构建 add_records（人员列改为 text 类型）
   const addRecords = rows.map(row => {
-    // 每日状态：在途→在途，其余非请假→休息
     const statusText = row.today_work_type === '在途' ? '在途' : '休息';
 
-    // 格式化日期
     const dateStr = row.report_date instanceof Date
       ? row.report_date.toISOString().split('T')[0]
       : String(row.report_date).split('T')[0];
 
-    // 人员列表：提交者 + daily_report_workers + workers 文本（去重）
-    const userIds = [];
-    const seenUserIds = new Set();
+    // 人员名单：提交者 + daily_report_workers + workers 文本（去重，用 user_name 显示）
+    const nameSet = new Set();
 
     // 提交者
-    if (row.submitter_qywx_userid) {
-      userIds.push({ user_id: row.submitter_qywx_userid });
-      seenUserIds.add(row.submitter_qywx_userid);
-    }
+    const submitterName = row.submitter_name || row.submitter_nickname;
+    if (submitterName) nameSet.add(submitterName);
 
-    // 路径 A: daily_report_workers 关联表
-    const drwUsers = drwMap[row.id] || [];
-    drwUsers.forEach(u => {
-      if (!seenUserIds.has(u.user_id)) {
-        userIds.push(u);
-        seenUserIds.add(u.user_id);
-      }
-    });
+    // 路径 A: daily_report_workers
+    const drwNames = drwNameMap[row.id];
+    if (drwNames) drwNames.forEach(n => nameSet.add(n));
 
-    // 路径 B: workers 文本字段解析（兜底）
+    // 路径 B: workers 文本
     if (row.workers) {
       row.workers.split(NAME_SPLIT_RE).forEach(name => {
         const trimmed = name.trim();
         if (!trimmed) return;
-        const qywxId = nameToQywxUserid[trimmed];
-        if (qywxId && !seenUserIds.has(qywxId)) {
-          userIds.push({ user_id: qywxId });
-          seenUserIds.add(qywxId);
-        }
+        const displayName = nameToDisplayName[trimmed];
+        if (displayName) nameSet.add(displayName);
       });
     }
 
@@ -1145,7 +1132,7 @@ async function exportToWecomSheet(startDate, endDate) {
         fuC4ir: dateStr,
         fkwUBD: row.project || '',
         feXHua: [{ text: statusText }],
-        f3LD2v: userIds.length > 0 ? userIds : [{ user_id: '' }],
+        f3LD2v: Array.from(nameSet).join('、'),
       },
     };
   });
