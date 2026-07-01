@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
-import { getReportList, getReportDetail, getWorkerStats, deleteReport, reviewAction, reviewSupplement, updateReport } from '@/api/report'
+import { getReportList, getReportDetail, getWorkerStats, deleteReport, reviewAction, reviewSupplement, updateReport, exportToWecomSheet } from '@/api/report'
 import type { ReportUpdateResult } from '@/api/report'
 import type { AllStatsResponse } from '@/api/report'
 
@@ -23,6 +23,7 @@ const workTypeFilter = ref('')
 const startDate = ref('')
 const endDate = ref('')
 const attendanceMonth = ref(new Date().toISOString().slice(0, 7))
+const wecomExporting = ref(false)
 const reportList = ref<Record<string, unknown>[]>([])
 const reportTotal = ref(0)
 const reportPage = ref(1)
@@ -170,6 +171,22 @@ async function handleExportAttendance() {
     ElMessage.success('考勤导出成功')
   } catch {
     ElMessage.error('导出失败')
+  }
+}
+
+async function handleExportWecom() {
+  if (!startDate.value || !endDate.value) {
+    ElMessage.warning('请选择开始和结束日期')
+    return
+  }
+  wecomExporting.value = true
+  try {
+    const res = await exportToWecomSheet({ startDate: startDate.value, endDate: endDate.value })
+    ElMessage.success(`成功导出 ${res.totalRecords} 条记录到企业微信智能表格`)
+  } catch (err: any) {
+    ElMessage.error(err?.message || '导出到企业微信表格失败')
+  } finally {
+    wecomExporting.value = false
   }
 }
 
@@ -408,6 +425,7 @@ onMounted(() => { loadStats(); loadReports() })
           <el-button type="success" :icon="Download" @click="handleExport">导出CSV</el-button>
           <el-date-picker v-model="attendanceMonth" type="month" placeholder="选择月份" style="width:140px" format="YYYY-MM" value-format="YYYY-MM" />
           <el-button type="primary" :icon="Download" @click="handleExportAttendance">导出考勤</el-button>
+          <el-button type="warning" :icon="Download" :loading="wecomExporting" @click="handleExportWecom">导出到企微表格</el-button>
         </div>
       </div>
       <el-table :data="reportList" v-loading="loading" stripe border highlight-current-row @row-click="showDetail" style="cursor:pointer">

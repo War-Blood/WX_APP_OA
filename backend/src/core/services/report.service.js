@@ -1,6 +1,8 @@
 'use strict';
 
+const axios = require('axios');
 const db = require('../../common/config/database');
+const config = require('../../common/config/env');
 const { NotFoundError, BusinessError } = require('../../common/utils/errors');
 const { ErrorCode } = require('../../common/utils/constants');
 
@@ -1010,6 +1012,126 @@ async function exportAttendanceCSV(month) {
   return csvRows.join('\n');
 }
 
+/**
+ * 导出公出日报到企业微信智能表格 Webhook
+ * @description 按日期范围查询非请假已通过的日报，格式化后 POST 到企微智能表格
+ * @param {string} startDate - 开始日期 YYYY-MM-DD
+ * @param {string} endDate - 结束日期 YYYY-MM-DD
+ * @returns {Promise<{success: boolean, totalRecords: number, batches: number}>}
+ */
+async function exportToWecomSheet(startDate, endDate) {
+  const webhookKey = config.wecomSmartSheet?.webhookKey;
+  if (!webhookKey) {
+    throw new BusinessError('未配置企业微信智能表格 Webhook Key');
+  }
+
+  const webhookUrl = `https://qyapi.weixin.qq.com/cgi-bin/wedoc/smartsheet/webhook?key=${webhookKey}`;
+
+  // 1. 查询符合条件的日报（排除请假，只取已通过）
+  const rows = await db.query(
+    `SELECT dr.id, dr.report_date, dr.project, dr.today_work_type, dr.workers, dr.user_id,
+            u.qywx_userid AS submitter_qywx_userid, u.user_name AS submitter_name
+     FROM daily_reports dr
+     LEFT JOIN users u ON dr.user_id = u.id AND u.deleted_at IS NULL
+     WHERE dr.report_date BETWEEN ? AND ?
+       AND dr.today_work_type != '请假'
+       AND dr.status = 'approved'
+       AND dr.deleted_at IS NULL
+     ORDER BY dr.report_date ASC`,
+    [startDate, endDate]
+  );
+
+  if (rows.length === 0) {
+    return { success: true, totalRecords: 0, batches: 0 };
+  }
+
+  // 2. 收集所有 workers 名称，批量查询 qywx_userid
+  const workerNameSet = new Set();
+  rows.forEach(row => {
+    if (row.workers) {
+      row.workers.split('、').forEach(name => {
+        const trimmed = name.trim();
+        if (trimmed) workerNameSet.add(trimmed);
+      });
+    }
+  });
+
+  const nameToQywxUserid = {};
+  if (workerNameSet.size > 0) {
+    const workerNames = Array.from(workerNameSet);
+    const placeholders = workerNames.map(() => '?').join(',');
+    const userRows = await db.query(
+      `SELECT user_name, qywx_userid FROM users
+       WHERE user_name IN (${placeholders}) AND deleted_at IS NULL AND qywx_userid IS NOT NULL AND qywx_userid != ''`,
+      workerNames
+    );
+    userRows.forEach(u => {
+      if (u.qywx_userid) nameToQywxUserid[u.user_name] = u.qywx_userid;
+    });
+  }
+
+  // 3. 构建 add_records
+  const addRecords = rows.map(row => {
+    // 每日状态：在途→在途，其余非请假→休息
+    const statusText = row.today_work_type === '在途' ? '在途' : '休息';
+
+    // 格式化日期
+    const dateStr = row.report_date instanceof Date
+      ? row.report_date.toISOString().split('T')[0]
+      : String(row.report_date).split('T')[0];
+
+    // 人员列表：提交者 + workers（去重）
+    const userIds = [];
+    const seenUserIds = new Set();
+    if (row.submitter_qywx_userid) {
+      userIds.push({ user_id: row.submitter_qywx_userid });
+      seenUserIds.add(row.submitter_qywx_userid);
+    }
+    if (row.workers) {
+      row.workers.split('、').forEach(name => {
+        const trimmed = name.trim();
+        const qywxId = nameToQywxUserid[trimmed];
+        if (qywxId && !seenUserIds.has(qywxId)) {
+          userIds.push({ user_id: qywxId });
+          seenUserIds.add(qywxId);
+        }
+      });
+    }
+
+    return {
+      values: {
+        fuC4ir: dateStr,
+        fkwUBD: row.project || '',
+        feXHua: [{ text: statusText }],
+        f3LD2v: userIds.length > 0 ? userIds : [{ user_id: '' }],
+      },
+    };
+  });
+
+  // 4. 分批发送（每批最多 100 条）
+  const BATCH_SIZE = 100;
+  const batches = [];
+  for (let i = 0; i < addRecords.length; i += BATCH_SIZE) {
+    batches.push(addRecords.slice(i, i + BATCH_SIZE));
+  }
+
+  const errors = [];
+  for (let i = 0; i < batches.length; i++) {
+    try {
+      await axios.post(webhookUrl, { add_records: batches[i] }, { timeout: 30000 });
+    } catch (err) {
+      const errMsg = err.response?.data?.errmsg || err.message;
+      errors.push(`第 ${i + 1}/${batches.length} 批发送失败: ${errMsg}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new BusinessError(`企业微信智能表格 Webhook 发送失败: ${errors.join('; ')}`);
+  }
+
+  return { success: true, totalRecords: addRecords.length, batches: batches.length };
+}
+
 module.exports = {
   list,
   detail,
@@ -1021,6 +1143,7 @@ module.exports = {
   getWorkerStats,
   exportCSV,
   exportAttendanceCSV,
+  exportToWecomSheet,
   checkDuplicate,
   getTodayStatus,
   getPendingReviews,

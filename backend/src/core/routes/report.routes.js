@@ -97,4 +97,7 @@ router.post('/export', authenticate, reportController.exportCSV);
 // POST /api/report/export-attendance — 导出月度考勤矩阵
 router.post('/export-attendance', authenticate, reportController.exportAttendance);
 
+// POST /api/report/export-wecom-sheet — 导出到企业微信智能表格（仅 admin+）
+router.post('/export-wecom-sheet', ...adminAuth, reportController.exportToWecomSheet);
+
 module.exports = router;

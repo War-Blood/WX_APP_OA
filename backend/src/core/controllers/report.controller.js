@@ -544,6 +544,21 @@ async function exportAttendance(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * 导出到企业微信智能表格
+ * POST /api/report/export-wecom-sheet
+ */
+async function exportToWecomSheet(req, res, next) {
+  try {
+    const { startDate, endDate } = req.body;
+    if (!startDate || !endDate) {
+      return res.json(fail('请选择开始和结束日期'));
+    }
+    const result = await reportService.exportToWecomSheet(startDate, endDate);
+    res.json(success(result, `成功导出 ${result.totalRecords} 条记录到企业微信智能表格`));
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   list,
   detail,
@@ -564,4 +579,5 @@ module.exports = {
   workerStats,
   exportCSV,
   exportAttendance,
+  exportToWecomSheet,
 };

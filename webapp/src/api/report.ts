@@ -442,3 +442,17 @@ export interface ProvinceWorkersResponse {
 export function getProvinceWorkers(province: string, month?: string): Promise<ProvinceWorkersResponse> {
   return request.post('/stats/province-workers', { province, month })
 }
+
+// ===== 企业微信智能表格导出 =====
+
+/** 企业微信智能表格导出响应 */
+export interface WecomSheetExportResult {
+  success: boolean
+  totalRecords: number
+  batches: number
+}
+
+/** 导出到企业微信智能表格 */
+export function exportToWecomSheet(params: { startDate: string; endDate: string }): Promise<WecomSheetExportResult> {
+  return request.post('/report/export-wecom-sheet', params)
+}

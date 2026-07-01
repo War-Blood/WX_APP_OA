@@ -112,6 +112,11 @@ const config = {
 
   // Swagger
   swaggerEnabled: process.env.SWAGGER_ENABLED === 'true',
+
+  // 企业微信智能表格 Webhook
+  wecomSmartSheet: {
+    webhookKey: process.env.WECOM_SMARTSHEET_WEBHOOK_KEY || '',
+  },
 };
 
 module.exports = config;
