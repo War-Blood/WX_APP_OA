@@ -3,7 +3,7 @@
 const reportService = require('../services/report.service');
 const statsService = require('../services/stats.service');
 const db = require('../../common/config/database');
-const { success, paginated } = require('../../common/utils/response');
+const { success, fail, paginated } = require('../../common/utils/response');
 const { ValidationError } = require('../../common/utils/errors');
 const { ErrorCode } = require('../../common/utils/constants');
 
