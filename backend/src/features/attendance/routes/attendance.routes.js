@@ -12,6 +12,8 @@ const summaryController = require('../controllers/summary.controller');
 router.post('/schedule/list', authenticate, requireRole('admin', 'superadmin'), scheduleController.list);
 router.post('/schedule/upsert', authenticate, requireRole('admin', 'superadmin'), scheduleController.upsert);
 router.post('/schedule/batch', authenticate, requireRole('admin', 'superadmin'), scheduleController.batch);
+// ===== 个人排班（登录用户） =====
+router.post('/schedule/my-schedule', authenticate, scheduleController.mySchedule);
 
 // ===== 请假申请（登录用户） =====
 router.post('/leave/apply', authenticate, leaveController.apply);

@@ -82,4 +82,18 @@ async function batch({ userIds, startDate, endDate, status, note, weekdaysOnly, 
   return { inserted, updated, total: inserted + updated };
 }
 
-module.exports = { list, upsert, batch };
+/**
+ * 查询当前用户的个人排班（不限制角色）
+ */
+async function mySchedule({ userId, startDate, endDate }) {
+  const rows = await db.query(
+    `SELECT id, user_id AS userId, schedule_date AS scheduleDate, status, note
+     FROM attendance_schedules
+     WHERE user_id = ? AND schedule_date BETWEEN ? AND ?
+     ORDER BY schedule_date`,
+    [userId, startDate, endDate]
+  );
+  return rows;
+}
+
+module.exports = { list, upsert, batch, mySchedule };

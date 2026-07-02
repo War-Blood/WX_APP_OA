@@ -31,4 +31,13 @@ async function batch(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, upsert, batch };
+async function mySchedule(req, res, next) {
+  try {
+    const { startDate, endDate } = req.body;
+    if (!startDate || !endDate) throw new ValidationError('起止日期不能为空');
+    const rows = await scheduleService.mySchedule({ userId: req.user.userId, startDate, endDate });
+    res.json(success(rows));
+  } catch (err) { next(err); }
+}
+
+module.exports = { list, upsert, batch, mySchedule };
