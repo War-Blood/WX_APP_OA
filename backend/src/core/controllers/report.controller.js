@@ -137,8 +137,14 @@ async function submit(req, res, next) {
         if (data.requiredQty == null || data.requiredQty === '') {
           throw new ValidationError('需求数量不能为空');
         }
+        if (Number(data.requiredQty) <= 0) {
+          throw new ValidationError('需求数量必须大于0');
+        }
         if (data.completedQty == null || data.completedQty === '') {
           throw new ValidationError('完成数量不能为空');
+        }
+        if (Number(data.completedQty) > Number(data.requiredQty)) {
+          throw new ValidationError('完成数量不能大于需求数量');
         }
       }
       if (!data.workerIds || !Array.isArray(data.workerIds) || data.workerIds.length === 0) {

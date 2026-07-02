@@ -11,7 +11,7 @@ function getFallbackModules() {
     { key: 'message', name: '消息中心', icon: 'message', route: '/pages/message/index/index', visible: true, sort: 5 },
     { key: 'compliance', name: '合规记录', icon: 'compliance', route: '/pages/compliance/my-compliance/index', visible: true, sort: 6 },
     { key: 'stats', name: '公出统计', icon: 'stats', route: '/pages/profile/stats', visible: true, sort: 7 },
-    { key: 'attendance', name: '考勤打卡', icon: 'attendance', route: '/pages/attendance/leave-list/index', visible: true, sort: 8 }
+    { key: 'attendance', name: '考勤打卡', icon: 'attendance', route: '/pages/attendance/my-schedule/index', visible: true, sort: 8 }
   ]
 }
 
