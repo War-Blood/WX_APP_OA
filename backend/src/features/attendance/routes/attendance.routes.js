@@ -18,6 +18,7 @@ router.post('/leave/apply', authenticate, leaveController.apply);
 router.post('/leave/my-list', authenticate, leaveController.myList);
 router.post('/leave/detail', authenticate, leaveController.detail);
 router.post('/leave/cancel', authenticate, leaveController.cancel);
+router.post('/leave/update', authenticate, leaveController.updateRequest);
 
 // ===== 出差打卡（登录用户） =====
 router.post('/biz-trip/start', authenticate, leaveController.startTrip);

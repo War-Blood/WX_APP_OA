@@ -60,4 +60,14 @@ async function endTrip(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { apply, myList, detail, cancel, startTrip, endTrip };
+async function updateRequest(req, res, next) {
+  try {
+    const { requestId, leaveSubtype, startDate, endDate, reason } = req.body;
+    if (!requestId) throw new ValidationError('requestId 不能为空');
+    if (!startDate || !endDate) throw new ValidationError('起止日期不能为空');
+    const result = await leaveService.updateRequest(requestId, req.user.userId, { leaveSubtype, startDate, endDate, reason });
+    res.json(success(result, '修改成功'));
+  } catch (err) { next(err); }
+}
+
+module.exports = { apply, myList, detail, cancel, startTrip, endTrip, updateRequest };

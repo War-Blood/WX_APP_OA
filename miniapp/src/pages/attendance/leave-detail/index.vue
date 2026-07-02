@@ -30,6 +30,7 @@
       <view class="btn-end" @tap="handleEndTrip"><text>结束出差</text></view>
     </view>
     <view v-if="data?.requestType === 'leave' && data?.status === 'active'" class="bottom-bar">
+      <view class="btn-edit" @tap="handleEdit"><text>修改信息</text></view>
       <view class="btn-cancel" @tap="handleCancel"><text>撤销申请</text></view>
     </view>
     <view v-else-if="!data" class="loading">加载中...</view>
@@ -73,6 +74,17 @@ async function handleCancel() {
   } catch (e) { uni.showToast({ title: e.message, icon: 'none' }) }
 }
 
+function handleEdit() {
+  const d = data.value
+  const params = new URLSearchParams()
+  params.set('editId', id.value)
+  if (d.leaveSubtype) params.set('type', d.leaveSubtype)
+  if (d.startDate) params.set('start', d.startDate)
+  if (d.endDate) params.set('end', d.endDate)
+  if (d.reason) params.set('reason', d.reason)
+  uni.navigateTo({ url: '/pages/attendance/leave-apply/index?' + params.toString() })
+}
+
 function handleEndTrip() {
   uni.navigateTo({ url: '/pages/attendance/trip-end/index' })
 }
@@ -98,6 +110,7 @@ function handleEndTrip() {
 .missing-date { font-size: 24rpx; color: #EF4444; display: block; padding: 4rpx 0; }
 .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; box-shadow: 0 -2rpx 12rpx rgba(0,0,0,.04); display: flex; gap: 24rpx; }
 .btn-end { flex: 1; height: 88rpx; display: flex; align-items: center; justify-content: center; border-radius: 44rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); color: #FFF; font-size: 30rpx; font-weight: 600; }
+.btn-edit { flex: 1; height: 88rpx; display: flex; align-items: center; justify-content: center; border-radius: 44rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); color: #FFF; font-size: 30rpx; font-weight: 600; }
 .btn-cancel { flex: 1; height: 88rpx; display: flex; align-items: center; justify-content: center; border-radius: 44rpx; background: #FFF; border: 2rpx solid #EF4444; color: #EF4444; font-size: 30rpx; font-weight: 600; }
 .loading { flex: 1; display: flex; align-items: center; justify-content: center; }
 </style>

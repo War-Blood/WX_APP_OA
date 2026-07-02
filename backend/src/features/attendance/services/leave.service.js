@@ -163,4 +163,62 @@ async function calcMissingDates(userId, start, end) {
   return dates;
 }
 
-module.exports = { apply, cancel, myList, detail, calcMissingDates };
+/**
+ * 修改请假申请 — 事务内：取消旧申请 → 创建新申请 → 覆盖排班
+ */
+async function updateRequest(requestId, applicantId, { leaveSubtype, startDate, endDate, reason }) {
+  if (!leaveSubtype) throw new BusinessError('请假必须指定子类型', null, ErrorCode.ATTENDANCE_LEAVE_SUBTYPE_REQUIRED);
+  if (endDate < startDate) throw new BusinessError('结束日期不能早于起始日期', null, ErrorCode.ATTENDANCE_DATE_INVALID);
+
+  const rows = await db.query('SELECT * FROM attendance_leave_requests WHERE id = ?', [requestId]);
+  if (!rows.length) throw new BusinessError('申请单不存在', null, ErrorCode.ATTENDANCE_LEAVE_NOT_FOUND);
+
+  const req = rows[0];
+  if (req.request_type !== 'leave') throw new BusinessError('仅请假可修改');
+  if (req.applicant_id !== applicantId) throw new BusinessError('无权操作', null, 1001);
+  if (req.status !== 'active') throw new BusinessError('仅生效中的申请可修改');
+
+  const days = calcDays(startDate, endDate);
+
+  return db.transaction(async (conn) => {
+    // 1. 取消旧申请
+    await conn.execute(
+      'UPDATE attendance_leave_requests SET status = ?, cancelled_at = NOW() WHERE id = ?',
+      ['cancelled', requestId]
+    );
+    // 2. 恢复旧排班
+    const oldCur = new Date(req.start_date);
+    const oldEnd = new Date(req.end_date);
+    while (oldCur <= oldEnd) {
+      const ds = oldCur.toISOString().slice(0, 10);
+      await conn.execute(
+        'UPDATE attendance_schedules SET status = ?, updated_at = NOW() WHERE user_id = ? AND schedule_date = ?',
+        ['work', applicantId, ds]
+      );
+      oldCur.setDate(oldCur.getDate() + 1);
+    }
+    // 3. 创建新申请
+    const result = await conn.execute(
+      `INSERT INTO attendance_leave_requests (applicant_id, request_type, leave_subtype, start_date, end_date, days, reason, status, source)
+       VALUES (?, 'leave', ?, ?, ?, ?, ?, 'active', 'self')`,
+      [applicantId, leaveSubtype, startDate, endDate, days, reason]
+    );
+    const newRequestId = result[0].insertId;
+    // 4. 新排班覆盖
+    const newCur = new Date(startDate);
+    const newEnd = new Date(endDate);
+    while (newCur <= newEnd) {
+      const ds = newCur.toISOString().slice(0, 10);
+      await conn.execute(
+        `INSERT INTO attendance_schedules (user_id, schedule_date, status, created_by)
+         VALUES (?, ?, 'leave', ?)
+         ON DUPLICATE KEY UPDATE status = 'leave', updated_at = NOW()`,
+        [applicantId, ds, applicantId]
+      );
+      newCur.setDate(newCur.getDate() + 1);
+    }
+    return { requestId: newRequestId, days, status: 'active' };
+  });
+}
+
+module.exports = { apply, cancel, myList, detail, calcMissingDates, updateRequest };

@@ -9,6 +9,7 @@ export const attendanceApi = {
   getMyLeaveList: (params) => post('/api/attendance/leave/my-list', params),
   getLeaveDetail: (requestId) => post('/api/attendance/leave/detail', { requestId }),
   cancelLeave: (requestId) => post('/api/attendance/leave/cancel', { requestId }),
+  updateLeave: (data) => post('/api/attendance/leave/update', data),
 
   // 出差打卡
   startTrip: (data) => post('/api/attendance/biz-trip/start', data || {}),

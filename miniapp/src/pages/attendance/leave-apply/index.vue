@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <nav-bar title="请假申请" :showBack="true" />
+    <nav-bar :title="editId ? '修改请假' : '请假申请'" :showBack="true" />
     <scroll-view class="content" scroll-y>
       <view class="card">
         <text class="card-title">请假信息</text>
@@ -33,7 +33,7 @@
       </view>
       <view class="btn-area">
         <view class="btn-primary" :class="{ 'btn-disabled': submitting }" @tap="handleSubmit">
-          <text class="btn-text">{{ submitting ? '提交中...' : '提交申请' }}</text>
+          <text class="btn-text">{{ submitting ? '提交中...' : (editId ? '保存修改' : '提交申请') }}</text>
         </view>
       </view>
     </scroll-view>
@@ -41,17 +41,34 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
 
 const leaveTypes = ['年假', '事假', '病假', '婚假', '丧假', '其他']
 const leaveTypeMap = { '年假': 'annual', '事假': 'sick', '病假': 'personal', '婚假': 'marriage', '丧假': 'funeral', '其他': 'other' }
+const leaveTypeReverse = { annual: 0, sick: 1, personal: 2, marriage: 3, funeral: 4, other: 5 }
 const leaveTypeIdx = ref(-1)
 const today = new Date().toISOString().slice(0, 10)
 const submitting = ref(false)
+const editId = ref('')
 
 const form = ref({ leaveSubtype: '', startDate: '', endDate: '', reason: '' })
+
+onMounted(() => {
+  const pages = getCurrentPages()
+  const q = pages[pages.length - 1].options || pages[pages.length - 1].$route?.query || {}
+  if (q.editId) {
+    editId.value = q.editId
+    form.value.leaveSubtype = q.type || ''
+    form.value.startDate = q.start || ''
+    form.value.endDate = q.end || ''
+    form.value.reason = q.reason || ''
+    if (q.type && leaveTypeReverse[q.type] !== undefined) {
+      leaveTypeIdx.value = leaveTypeReverse[q.type]
+    }
+  }
+})
 
 const computedDays = computed(() => {
   if (!form.value.startDate || !form.value.endDate) return 0
@@ -73,8 +90,12 @@ async function handleSubmit() {
   if (computedDays.value <= 0) return uni.showToast({ title: '结束日期不能早于开始日期', icon: 'none' })
   submitting.value = true
   try {
-    await attendanceApi.applyLeave(form.value)
-    uni.showToast({ title: '提交成功', icon: 'success' })
+    if (editId.value) {
+      await attendanceApi.updateLeave({ requestId: editId.value, ...form.value })
+    } else {
+      await attendanceApi.applyLeave(form.value)
+    }
+    uni.showToast({ title: editId.value ? '修改成功' : '提交成功', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 1500)
   } catch (e) {
     uni.showToast({ title: e.message || '提交失败', icon: 'none' })
