@@ -38,6 +38,7 @@ const ErrorCode = {
   // ──── 系统级 (1000-1099) ────
   VALIDATION_ERROR: 1001,
   NOT_FOUND: 1002,
+  AUTH_ERROR: 1003,                 // Token 无效/过期/未提供
 
   // ──── 认证 (1100-1199) ────
   AUTH_WECHAT_FAILED: 1101,

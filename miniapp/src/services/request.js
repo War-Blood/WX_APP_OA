@@ -10,6 +10,20 @@ function redirectToLogin() {
   uni.reLaunch({ url: '/pages/login/index' })
 }
 
+function isAuthError(code, message) {
+  if (code === 1003) return true
+  const msg = message || ''
+  return msg.includes('Token 已过期') || msg.includes('无效的 Token') || msg.includes('未提供有效的认证令牌') || msg.includes('账号已被禁用')
+}
+
+function handleAuthError() {
+  uni.removeStorageSync('token')
+  uni.removeStorageSync('userInfo')
+  uni.removeStorageSync('token_refreshed_at')
+  showToast('登录已过期，请重新登录')
+  redirectToLogin()
+}
+
 function getToken() {
   return uni.getStorageSync('token')
 }
@@ -45,12 +59,9 @@ async function realRequest(config) {
           return
         }
         if (statusCode >= 200 && statusCode < 300) {
-          // Token 过期：后端返回 HTTP200 + code:401，需清除 token 并跳转登录
-          if (responseData.code === 401) {
-            uni.removeStorageSync('token')
-            uni.removeStorageSync('userInfo')
-            showToast('登录已过期，请重新登录')
-            redirectToLogin()
+          // Auth 错误：清除 token 并跳转登录
+          if (isAuthError(responseData.code, responseData.message)) {
+            handleAuthError()
             reject(new Error('Token 已过期'))
             return
           }

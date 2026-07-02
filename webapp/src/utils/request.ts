@@ -68,6 +68,12 @@ request.interceptors.request.use(
   }
 )
 
+function isAuthError(code: number | null, message: string): boolean {
+  if (code === 1003) return true
+  const msg = message || ''
+  return msg.includes('Token 已过期') || msg.includes('无效的 Token') || msg.includes('未提供有效的认证令牌') || msg.includes('账号已被禁用')
+}
+
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
@@ -76,6 +82,14 @@ request.interceptors.response.use(
     // 成功
     if (code === 0) {
       return data
+    }
+
+    // Auth 错误：清除 token 并跳转登录
+    if (isAuthError(code, message)) {
+      ElMessage.error(message || '登录已过期，请重新登录')
+      useUserStore().logout()
+      router.push('/login')
+      return Promise.reject(new Error(message))
     }
 
     // 业务错误
