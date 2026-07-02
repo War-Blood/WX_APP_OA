@@ -274,6 +274,14 @@
         "navigationStyle": "custom",
         "componentPlaceholder": { "nav-bar": "view" }
       }
+    },
+    {
+      "path": "pages/attendance/leave-summary/index",
+      "style": {
+        "navigationBarTitleText": "个人汇总",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
     }
   ],
   "tabBar": {

@@ -3,6 +3,7 @@ import { post } from '../request'
 export const attendanceApi = {
   // 排班
   getScheduleList: (params) => post('/api/attendance/schedule/list', params),
+  getMySchedule: (params) => post('/api/attendance/schedule/my-schedule', params),
 
   // 请假
   applyLeave: (data) => post('/api/attendance/leave/apply', data),
