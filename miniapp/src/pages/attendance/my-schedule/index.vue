@@ -33,6 +33,11 @@
         <text v-if="selectedNote" class="popup-note">{{ selectedNote }}</text>
       </view>
     </view>
+    <view class="bottom-bar">
+      <view class="bb-btn" @tap="goPage('/pages/attendance/leave-apply/index')"><text>请假申请</text></view>
+      <view class="bb-btn primary" @tap="goPage('/pages/attendance/trip-start/index')"><text>出差开始</text></view>
+      <view class="bb-btn" @tap="goPage('/pages/attendance/leave-list/index')"><text>我的申请</text></view>
+    </view>
   </view>
 </template>
 
@@ -111,6 +116,8 @@ async function loadData() {
   } catch { scheduleMap.value = {} }
 }
 
+function goPage(url) { uni.navigateTo({ url }) }
+
 onMounted(() => loadData())
 </script>
 
@@ -137,4 +144,7 @@ onMounted(() => loadData())
 .popup-date { font-size: 30rpx; font-weight: 600; color: #333; display: block; margin-bottom: 16rpx; }
 .popup-status { display: inline-block; padding: 4rpx 16rpx; border-radius: 20rpx; font-size: 24rpx; font-weight: 500; }
 .popup-note { font-size: 24rpx; color: #999; display: block; margin-top: 12rpx; }
+.bottom-bar { display: flex; gap: 16rpx; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; box-shadow: 0 -2rpx 8rpx rgba(0,0,0,.06); }
+.bb-btn { flex: 1; text-align: center; padding: 20rpx 0; border-radius: 44rpx; background: #EDF2FF; font-size: 28rpx; color: #2B6DE8; font-weight: 500; }
+.bb-btn.primary { background: #2B6DE8; color: #FFF; }
 </style>

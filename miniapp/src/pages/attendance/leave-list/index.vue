@@ -1,6 +1,10 @@
 <template>
   <view class="page">
-    <nav-bar title="我的申请" :showBack="true" />
+    <nav-bar title="我的申请" :showBack="true">
+      <template #right>
+        <view class="nav-add" @tap="showAddMenu"><text class="add-icon">+</text></view>
+      </template>
+    </nav-bar>
     <view class="tabs">
       <view v-for="t in filterTabs" :key="t.key" class="tab" @tap="switchTab(t.key)">
         <text :class="{ active: activeTab === t.key }">{{ t.label }}</text>
@@ -47,6 +51,15 @@ const refreshing = ref(false)
 
 function fmt(t) { if (!t) return ''; return t.slice(0, 16).replace('T', ' ') }
 
+function showAddMenu() {
+  uni.showActionSheet({
+    itemList: ['请假申请', '出差开始'],
+    success: (res) => {
+      const urls = ['/pages/attendance/leave-apply/index', '/pages/attendance/trip-start/index']
+      uni.navigateTo({ url: urls[res.tapIndex] })
+    }
+  })
+}
 function switchTab(k) { activeTab.value = k; page.value = 1; loadData(true); }
 function goDetail(item) { uni.navigateTo({ url: '/pages/attendance/leave-detail/index?id=' + item.id }) }
 
@@ -87,4 +100,6 @@ onMounted(() => loadData())
 .info.active { color: #F59E0B; font-weight: 500; }
 .card-time { font-size: 22rpx; color: #BBB; margin-top: 8rpx; display: block; }
 .empty { text-align: center; padding: 120rpx 0; font-size: 28rpx; color: #999; }
+.nav-add { width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; }
+.add-icon { font-size: 48rpx; color: #2B6DE8; font-weight: 300; line-height: 1; }
 </style>
