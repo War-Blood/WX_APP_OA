@@ -64,3 +64,8 @@ export function getSummaryList(params: {
 export function exportSummary(params: {
   startDate: string; endDate: string; departmentId?: number; userId?: number
 }) { return request.post('/api/attendance/summary/export', params, { responseType: 'blob' }) }
+
+// 请假/出差管理（管理员）
+export function getLeaveList(params: {
+  page?: number; pageSize?: number; requestType?: string; status?: string; departmentId?: number
+}) { return request.post('/api/attendance/leave/my-list', params) }

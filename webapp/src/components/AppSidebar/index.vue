@@ -31,6 +31,14 @@ const allMenuItems = [
   },
   { path: '/project', title: '项目管理', icon: 'FolderOpened', roles: ['admin', 'superadmin'] },
   {
+    path: '/attendance', title: '考勤管理', icon: 'Calendar', roles: ['admin', 'superadmin'],
+    children: [
+      { path: '/attendance/schedule', title: '排班管理' },
+      { path: '/attendance/summary', title: '考勤汇总' },
+      { path: '/attendance/leave-manage', title: '请假出差管理' }
+    ]
+  },
+  {
     path: '/compliance', title: '合规管理', icon: 'Verified', roles: ['admin', 'superadmin'],
     children: [
       { path: '/compliance/dashboard', title: '合规统计看板' },

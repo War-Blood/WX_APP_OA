@@ -54,6 +54,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getSummaryList, exportSummary } from '@/api/attendance'
+import { getDepartmentList } from '@/api/user'
 
 const loading = ref(false)
 const dateRange = ref<string[]>([])
@@ -68,6 +69,8 @@ onMounted(() => {
   const last = now.toISOString().slice(0,10)
   dateRange.value = [first, last]
   loadData()
+  // 加载部门列表
+  getDepartmentList().then((res: any) => { deptOptions.value = res.data || res || [] }).catch(() => {})
 })
 
 async function loadData() {

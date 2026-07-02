@@ -131,6 +131,12 @@ const router = createRouter({
               name: 'AttendanceSummary',
               component: () => import('@/views/attendance/Summary.vue'),
               meta: { title: '考勤汇总' }
+            },
+            {
+              path: 'leave-manage',
+              name: 'AttendanceLeaveManage',
+              component: () => import('@/views/attendance/LeaveManage.vue'),
+              meta: { title: '请假出差管理' }
             }
           ]
         },

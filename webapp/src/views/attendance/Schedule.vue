@@ -71,6 +71,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getScheduleList, upsertSchedule, batchSchedule } from '@/api/attendance'
+import { getDepartmentList, getUserList } from '@/api/user'
 
 const statusOptions = [
   { label: '上班', value: 'work' }, { label: '休息', value: 'rest' },
@@ -146,7 +147,10 @@ async function doBatch() {
 
 onMounted(async () => {
   await loadData()
-  // TODO: 加载部门列表和人员列表
+  // 加载部门列表
+  try { const res = await getDepartmentList(); deptOptions.value = (res as any).data || res || [] } catch { /* */ }
+  // 加载人员列表
+  try { const res = await getUserList({ pageSize: 500 }); userOptions.value = ((res as any).list || (res as any).data?.list || []).map((u: any) => ({ id: u.id, name: u.nickName || u.nickname || u.userName || u.username })) } catch { /* */ }
 })
 </script>
 
