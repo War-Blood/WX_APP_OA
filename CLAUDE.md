@@ -93,7 +93,7 @@ common/config/database.js → 数据访问层：仅 SQL 执行
 - **小程序使用 rpx 单位**，设计主题色 `#2B6DE8`（高效蓝）
 - **Web 后台 TypeScript 严格模式**，提交前必须 `npm run type-check`
 - **提交前清理**：禁止残留 `console.log`、`debugger`、注释掉的代码、硬编码密钥
-- **禁止自动 push**：Git 提交仅限本地，推送需人工确认
+- **自动 push test**：每次 `git commit` 后自动 `git push origin <current-branch>:test`，无需人工确认。禁止 push stable/main
 
 ---
 
