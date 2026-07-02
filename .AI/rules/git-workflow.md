@@ -52,7 +52,7 @@ fix/问题描述             → fix/login-crash
 ## 工作流
 
 1. AI 在 `feature/xxx` 或 `fix/xxx` 上开发，commit 到本地
-2. 用户说「推送到测试」→ AI 将当前分支合并到 `test` 并 push
+2. **每次 commit 后自动** push 到 `origin/test`（无需用户确认）
 3. 测试验证通过 → **用户手动**合并 `test` → `stable`
 4. 确认可用 → **用户手动**合并 `stable` → `main` 并 push
 
