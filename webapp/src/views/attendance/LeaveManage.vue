@@ -115,8 +115,8 @@ async function loadData() {
     if (filters.status) params.status = filters.status
     if (filters.departmentId) params.departmentId = filters.departmentId
     const res: any = await getLeaveList(params)
-    tableData.value = res.data?.list || []
-    pagination.total = res.data?.total || 0
+    tableData.value = res.list || []
+    pagination.total = res.total || 0
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }
 }

@@ -178,9 +178,9 @@ async function loadData() {
   const first = `${y}-${String(m+1).padStart(2,'0')}-01`
   const last = new Date(y, m+1, 0).toISOString().slice(0,10)
   try {
-    const res = await getScheduleList({ startDate: first, endDate: last, departmentId: filters.departmentId || undefined, pageSize: 500 })
+    const res = await getScheduleList({ startDate: first, endDate: last, departmentId: filters.departmentId || undefined, pageSize: 500 }) as any
     const map: Record<string, any> = {}
-    ;(res.data?.list || []).forEach((s: any) => {
+    ;(res.list || []).forEach((s: any) => {
       if (!map[s.scheduleDate]) map[s.scheduleDate] = { work: 0, biz_trip: 0, rest: 0, leave: 0 }
       map[s.scheduleDate][s.status]++
     })
@@ -207,8 +207,8 @@ async function doBatch() {
       userIds: batchForm.userIds,
       startDate: batchForm.dateRange[0], endDate: batchForm.dateRange[1],
       status: batchForm.status, note: batchForm.note, weekdaysOnly: batchForm.weekdaysOnly
-    })
-    ElMessage.success(`完成：新增${res.data.inserted}，更新${res.data.updated}`)
+    }) as any
+    ElMessage.success(`完成：新增${res.inserted}，更新${res.updated}`)
     batchVisible.value = false; loadData()
   } catch { ElMessage.error('操作失败') }
 }

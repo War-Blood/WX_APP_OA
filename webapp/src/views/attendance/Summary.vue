@@ -81,9 +81,9 @@ async function loadData() {
       startDate: dateRange.value[0], endDate: dateRange.value[1],
       departmentId: filters.departmentId || undefined,
       page: pagination.page, pageSize: pagination.pageSize
-    })
-    tableData.value = res.data?.list || []
-    pagination.total = res.data?.total || 0
+    }) as any
+    tableData.value = res.list || []
+    pagination.total = res.total || 0
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }
 }
