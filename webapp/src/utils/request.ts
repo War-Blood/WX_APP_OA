@@ -77,6 +77,8 @@ function isAuthError(code: number | null, message: string): boolean {
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
+    // Blob 响应（文件下载）直接返回，不解析 JSON
+    if (response.config.responseType === 'blob') return response.data
     const { code, message, data } = response.data
 
     // 成功

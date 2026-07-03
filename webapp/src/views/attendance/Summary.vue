@@ -95,7 +95,7 @@ async function handleExport() {
       startDate: dateRange.value[0], endDate: dateRange.value[1],
       departmentId: filters.departmentId || undefined
     })
-    const url = URL.createObjectURL(new Blob([res.data]))
+    const url = URL.createObjectURL(res as any)
     const a = document.createElement('a'); a.href = url
     const m = dateRange.value[0].split('-')
     a.download = `${m[0]}年${parseInt(m[1])}月技术工程中心公出加班统计表.xlsx`

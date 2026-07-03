@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <nav-bar title="个人考勤汇总" :showBack="true" @back="handleBack" />
+    <nav-bar title="个人考勤汇总" :showBack="true" />
 
     <!-- 月份选择 -->
     <view class="month-selector">
@@ -178,16 +178,6 @@ async function loadData() {
   }
 }
 
-function handleBack() {
-  uni.navigateBack({
-    fail: () => {
-      uni.switchTab({
-        url: '/pages/features/index',
-        fail: () => { uni.showToast({ title: '页面跳转失败', icon: 'none' }) }
-      })
-    }
-  })
-}
 
 function handleCellClick(cell) {
   if (!cell.date || !cell.status || cell.status === 'none') return
@@ -223,8 +213,8 @@ loadData()
 .stat-label { display: block; font-size: 24rpx; color: #999999; margin-top: 4rpx; }
 .stat-work .stat-num { color: #2B6DE8; }
 .stat-biz .stat-num { color: #F59E0B; }
-.stat-rest .stat-num { color: #22C55E; }
-.stat-leave .stat-num { color: #EF4444; }
+.stat-rest .stat-num { color: #909399; }
+.stat-leave .stat-num { color: #8B5CF6; }
 
 .missing-card {
   display: flex; align-items: center; margin: 0 24rpx 16rpx;
@@ -257,8 +247,8 @@ loadData()
 .dot { width: 16rpx; height: 16rpx; border-radius: 4rpx; }
 .dot-work { background: #2B6DE8; }
 .dot-biz { background: #F59E0B; }
-.dot-rest { background: #22C55E; }
-.dot-leave { background: #EF4444; }
+.dot-rest { background: #909399; }
+.dot-leave { background: #8B5CF6; }
 .dot-missing { background: #EF4444; }
 
 /* 日期详情弹窗 */

@@ -42,7 +42,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
@@ -84,10 +84,9 @@ async function loadData(reset = true) {
   } catch { uni.showToast({ title: '加载失败', icon: 'none' }) }
 }
 
-async function loadMore() { page.value++; loadData(false); }
+async function loadMore() { page.value++; try { await loadData(false) } catch { page.value-- } }
 async function onRefresh() { refreshing.value = true; await loadData(true); refreshing.value = false; }
 
-onMounted(() => loadData())
 onShow(() => loadData())
 </script>
 

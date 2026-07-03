@@ -113,7 +113,7 @@ async function loadData() {
     const map = {}
     ;(res.data?.list || []).forEach(s => { map[s.scheduleDate] = s })
     scheduleMap.value = map
-  } catch { scheduleMap.value = {} }
+  } catch { uni.showToast({ title: '加载失败', icon: 'none' }); scheduleMap.value = {} }
 }
 
 function goPage(url) { uni.navigateTo({ url }) }

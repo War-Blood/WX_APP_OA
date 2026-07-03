@@ -45,10 +45,12 @@ const missingDates = ref([])
 
 const tripDays = computed(() => {
   if (!trip.value?.tripStartedAt) return 0
-  // 日期粒度：忽略时分秒，按日历天数计算
-  const start = new Date(trip.value.tripStartedAt.slice(0, 10))
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  return Math.floor((today - start) / 86400000) + 1
+  // 统一使用本地时间避免 UTC 解析偏移
+  const st = new Date(trip.value.tripStartedAt)
+  const start = new Date(st.getFullYear(), st.getMonth(), st.getDate())
+  const today = new Date()
+  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  return Math.floor((todayDay - start) / 86400000) + 1
 })
 
 function fmtTime(t) { if (!t) return ''; return t.slice(0, 16).replace('T', ' ') }
@@ -61,7 +63,7 @@ onMounted(async () => {
       const detail = await attendanceApi.getLeaveDetail(trip.value.id)
       missingDates.value = detail.data?.missingDates || []
     }
-  } catch { /* */ }
+  } catch { uni.showToast({ title: '加载失败', icon: 'none' }) }
   finally { loading.value = false }
 })
 

@@ -17,7 +17,7 @@
         <template #date-cell="{ data }">
           <el-popover placement="bottom" :width="280" trigger="click" :visible="paintDate === data.day" @hide="paintDate = ''">
             <template #reference>
-              <div class="cell" :style="cellStyle(data.day)" @click="paintDate = data.day">
+              <div class="cell" :style="cellStyle(data.day)" @click="openPaint(data.day)">
                 <div class="cell-date">{{ data.day.split('-').pop() }}</div>
                 <div v-if="daySummary[data.day]" class="cell-status">{{ statusLabel(daySummary[data.day]) }}</div>
               </div>
@@ -120,7 +120,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getScheduleList, batchSchedule, getScheduleRules, saveScheduleRule, applyScheduleRule, type ScheduleRule } from '@/api/attendance'
 import { getDepartmentList, getUserList } from '@/api/user'
 
@@ -151,6 +151,7 @@ const applyDateRange = ref<string[]>([])
 const applyResult = ref<{ inserted: number; skipped: number } | null>(null)
 
 // 粉刷
+function openPaint(date: string) { paintStatus.value = 'work'; paintDate.value = date }
 const paintDate = ref('')
 const paintStatus = ref('work')
 
@@ -165,6 +166,7 @@ function cellStyle(day: string) {
 async function doPaint(date: string) {
   if (!userOptions.value.length) { ElMessage.warning('未加载人员列表'); return }
   try {
+    await ElMessageBox.confirm(`确认将 ${date} 全员设为「${statusOptions.find(o=>o.value===paintStatus.value)?.label}」？`, '确认操作', { type: 'warning' })
     await batchSchedule({ userIds: userOptions.value.map((u: any) => u.id).filter((id: any) => id != null), startDate: date, endDate: date, status: paintStatus.value, weekdaysOnly: false })
     ElMessage.success(`已为 ${date} 全员设置「${statusOptions.find(o=>o.value===paintStatus.value)?.label}」`)
     paintDate.value = ''
@@ -196,7 +198,7 @@ async function loadData() {
       else summary[date] = 'rest'
     }
     daySummary.value = summary
-  } catch { /* */ }
+  } catch { ElMessage.error('加载失败') }
 }
 
 function openBatchDialog() { batchVisible.value = true }
@@ -215,7 +217,7 @@ async function doBatch() {
 
 // ===== 排班规则 =====
 async function loadRules() {
-  try { const res: any = await getScheduleRules(); rules.value = res.data || res || [] } catch { /* */ }
+  try { const res: any = await getScheduleRules(); rules.value = res.data || res || [] } catch { ElMessage.error('加载失败') }
 }
 function openRuleDialog() { loadRules(); ruleVisible.value = true }
 function openNewRule() {
@@ -261,8 +263,8 @@ async function doApply() {
 
 onMounted(async () => {
   await loadData()
-  try { const res = await getDepartmentList(); deptOptions.value = (res as any).data || res || [] } catch { /* */ }
-  try { const res = await getUserList({ pageSize: 500 }); userOptions.value = ((res as any).list || (res as any).data?.list || []).map((u: any) => ({ id: u.id, name: u.nickName || u.nickname || u.userName || u.username })) } catch { /* */ }
+  try { const res = await getDepartmentList(); deptOptions.value = (res as any).data || res || [] } catch { ElMessage.error('加载失败') }
+  try { const res = await getUserList({ pageSize: 500 }); userOptions.value = ((res as any).list || (res as any).data?.list || []).map((u: any) => ({ id: u.id, name: u.nickName || u.nickname || u.userName || u.username })) } catch { ElMessage.error('加载失败') }
 })
 </script>
 
