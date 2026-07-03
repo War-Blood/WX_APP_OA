@@ -84,7 +84,7 @@ const statusMap: Record<string, string> = {
   active: '生效中', cancelled: '已撤销', in_progress: '进行中', ended: '已结束'
 }
 const leaveTypeMap: Record<string, string> = {
-  annual: '年假', sick: '事假', personal: '病假', marriage: '婚假', funeral: '丧假', other: '其他'
+  annual: '年假', sick: '病假', personal: '事假', marriage: '婚假', funeral: '丧假', other: '其他'
 }
 const statusType = (s: string) => {
   const m: Record<string, string> = { active: 'success', in_progress: 'warning', ended: 'info', cancelled: 'danger' }
@@ -109,9 +109,9 @@ async function loadData() {
     if (filters.requestType) params.requestType = filters.requestType
     if (filters.status) params.status = filters.status
     if (filters.departmentId) params.departmentId = filters.departmentId
-    const res = await getLeaveList(params)
-    tableData.value = res.list || []
-    pagination.total = res.total || 0
+    const res: any = await getLeaveList(params)
+    tableData.value = res.data?.list || []
+    pagination.total = res.data?.total || 0
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }
 }

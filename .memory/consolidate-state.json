@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "lastConsolidatedAt": null,
+  "stats": {
+    "totalCapturesProcessed": 0,
+    "domains": [],
+    "knowledgeFilesCreated": 0
+  },
+  "processedSessions": {}
+}

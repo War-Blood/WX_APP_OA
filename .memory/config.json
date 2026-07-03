@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "storage": {
+    "backend": "file"
+  },
+  "assistants": [
+    "claude-code",
+    "codebuddy"
+  ],
+  "debug": false,
+  "llm": {
+    "enabled": true,
+    "provider": "openai",
+    "baseUrl": "https://api.deepseek.com",
+    "model": "deepseek-chat",
+    "apiKey": "sk-e84e83d81c7649b9a19f92defc11e529",
+    "timeoutMs": 60000,
+    "maxInputChars": 24000,
+    "mode": "async"
+  },
+  "consolidate": {
+    "autoArchiveDays": 30,
+    "autoFlush": {
+      "enabled": true,
+      "minPendingSessions": 3,
+      "minIntervalMinutes": 30,
+      "maxPendingChars": 20000
+    }
+  }
+}

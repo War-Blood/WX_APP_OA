@@ -21,32 +21,32 @@
 
 ### 2.1 通用字段
 
-| 字段              | 中文名       | 类型 | 必填 | 说明                                    |
-| ----------------- | ------------ | ---- | ---- | --------------------------------------- |
-| `report_date`   | 日志日期     | DATE | ✅   |                                         |
-| `report_type`   | 日志类型     | ENUM | ✅   | biz_trip / biz_trip_supplement          |
-| `today_work`    | 今日工作小结 | TEXT | ❌   | 旧字段保留兼容                          |
-| `tomorrow_plan` | 明日计划     | TEXT | ❌   |                                         |
-| `remark`        | 备注         | TEXT | ❌   |                                         |
+| 字段              | 中文名       | 类型 | 必填 | 说明                           |
+| ----------------- | ------------ | ---- | ---- | ------------------------------ |
+| `report_date`   | 日志日期     | DATE | ✅   |                                |
+| `report_type`   | 日志类型     | ENUM | ✅   | biz_trip / biz_trip_supplement |
+| `today_work`    | 今日工作小结 | TEXT | ❌   | 旧字段保留兼容                 |
+| `tomorrow_plan` | 明日计划     | TEXT | ❌   |                                |
+| `remark`        | 备注         | TEXT | ❌   |                                |
 
 ### 2.2 公出/补公出专用字段
 
-| 字段                       | 中文名       | 类型    | 必填  | 说明                                                     |
-| -------------------------- | ------------ | ------- | ----- | -------------------------------------------------------- |
-| `project`                | 项目名称     | VARCHAR | 条件* | *请假/调休时可不填                                       |
-| `area`                   | 项目区域     | VARCHAR | 条件* | 省-市格式                                                |
-| `today_work_type`        | 今日工作类型 | VARCHAR | ✅    | 见下方枚举                                               |
-| `workers`                | 作业人员     | TEXT    | 条件* | 顿号分隔，填写多人后会传递给多个人，其他人员就无需填写。 |
-| `related_party`          | 相关方单位   | VARCHAR | ❌    |                                                          |
-| `machine_model`          | 机型         | VARCHAR | ❌    |                                                          |
-| `work_content`           | 工作内容     | TEXT    | 条件* | *请假/调休时可不填                                       |
-| `required_qty`           | 需求数量     | INT     | 条件* |                                                          |
-| `completed_qty`          | 完成数量     | INT     | 条件* |                                                          |
-| `entry_date`             | 入场日期     | DATE    | ❌    | 入场填写一次，后续copy                                   |
-| `initial_biz_trip_date`  | 初始出差日期 | DATE    | ❌    | 入场填写一次，后续copy                                   |
-| `biz_trip_days`          | 项目出差天数 | INT     | ❌    | 通过计算得到（入场到当日）                               |
-| `personal_biz_trip_days` | 个人出差天数 | INT     | ❌    | 通过计算得到（出差到当日）                               |
-| `tomorrow_work_type`     | 明日工作类型 | VARCHAR | ❌    |                                                          |
+| 字段                       | 中文名       | 类型    | 必填   | 说明                                                     |
+| -------------------------- | ------------ | ------- | ------ | -------------------------------------------------------- |
+| `project`                | 项目名称     | VARCHAR | 条件*  | *请假/调休时可不填                                       |
+| `area`                   | 项目区域     | VARCHAR | 条件*  | 省-市格式                                                |
+| `today_work_type`        | 今日工作类型 | VARCHAR | ✅     | 见下方枚举                                               |
+| `workers`                | 作业人员     | TEXT    | 条件*  | 顿号分隔，填写多人后会传递给多个人，其他人员就无需填写。 |
+| `related_party`          | 相关方单位   | VARCHAR | ❌     |                                                          |
+| `machine_model`          | 机型         | VARCHAR | ❌     |                                                          |
+| `work_content`           | 工作内容     | TEXT    | 条件*  | *请假/调休时可不填                                       |
+| `required_qty`           | 需求数量     | INT     | 条件*  |                                                          |
+| `completed_qty`          | 完成数量     | INT     | 条件*  |                                                          |
+| `entry_date`             | 入场日期     | DATE    | ❌     | 入场填写一次，后续copy                                   |
+| `initial_biz_trip_date`  | 初始出差日期 | DATE    | 条件*  | 入场填写一次，后续copy                                   |
+| `biz_trip_days`          | 项目出差天数 | INT     | ❌     | 通过计算得到（入场到当日）                               |
+| `personal_biz_trip_days` | 个人出差天数 | INT     | ❌     | 通过计算得到（出差到当日）                               |
+| `tomorrow_work_type`     | 明日工作类型 | VARCHAR | ❌     |                                                          |
 
 ### 2.3 补公出专用字段
 
@@ -97,10 +97,10 @@
 
 ### 3.3 全员当日状态
 
-| 展示                                                   | 来源字段                                                     |
-| ------------------------------------------------------ | ------------------------------------------------------------ |
-| 状态分类：已提交/被代填/补公出/请假/缺报 | `report_type` + `today_work_type` + `status`           |
-| 人员明细：姓名、项目、区域、工作类型、提交时间         | `project`, `area`, `today_work_type`, `submitted_at` |
+| 展示                                           | 来源字段                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------ |
+| 状态分类：已提交/被代填/补公出/请假/缺报       | `report_type` + `today_work_type` + `status`           |
+| 人员明细：姓名、项目、区域、工作类型、提交时间 | `project`, `area`, `today_work_type`, `submitted_at` |
 
 ### 3.4 月度工作占比（单人）
 
