@@ -12,6 +12,17 @@ description: 功能块开发阶段4——基建执行。当用户已有架构蓝
 - 阶段 2：全部 5 份文档（master-spec / prd / ui-ux / tech-overview / api-spec）
 - 阶段 3：架构蓝图（architecture-blueprint.md）
 
+## 设计技能调用
+
+生成前端代码前，按端调用对应设计 skill：
+
+| 端 | 调用的 Skill | 用途 |
+|----|------------|------|
+| **Webapp** | `frontend-design` | 视觉方向、配色、字体、布局、签名元素 |
+| **小程序** | `frontend-design` | 适配 rpx + OA 设计令牌 |
+
+> `frontend-design` 提供反模板化设计指导——避免千篇一律的 AI 风格，产出有辨识度的界面。
+
 ## 前置
 
 加载全部相关 Wiki：
