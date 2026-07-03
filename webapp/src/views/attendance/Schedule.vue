@@ -8,6 +8,7 @@
             <el-select v-model="filters.departmentId" placeholder="部门筛选" clearable style="width:160px" @change="loadData">
               <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
             </el-select>
+            <el-button @click="openRuleDialog">排班规则</el-button>
             <el-button type="primary" @click="openBatchDialog">批量排班</el-button>
           </div>
         </div>
@@ -65,13 +66,66 @@
       </el-form>
       <template #footer><el-button @click="batchVisible=false">取消</el-button><el-button type="primary" @click="doBatch">确定</el-button></template>
     </el-dialog>
+
+    <!-- 排班规则管理 -->
+    <el-dialog v-model="ruleVisible" title="排班规则" width="750px">
+      <el-table :data="rules" stripe>
+        <el-table-column prop="name" label="规则名称" min-width="160" />
+        <el-table-column label="周一~周日" min-width="280">
+          <template #default="{ row }">
+            <span v-for="(v, k) in row.weekConfig" :key="k" style="margin-right:6px">
+              <el-tag :type="statusType(v)" size="small">{{ statusLabel(v) }}</el-tag>
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="默认" width="70">
+          <template #default="{ row }"><el-tag v-if="row.isDefault" type="success" size="small">默认</el-tag></template>
+        </el-table-column>
+        <el-table-column label="操作" width="180">
+          <template #default="{ row }">
+            <el-button size="small" @click="editRule(row)">编辑</el-button>
+            <el-button size="small" type="primary" @click="openApplyDialog(row)">应用</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="openNewRule">新建规则</el-button>
+        <el-button @click="ruleVisible=false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 规则编辑 -->
+    <el-dialog v-model="ruleEditVisible" :title="editingRule.id ? '编辑规则' : '新建规则'" width="500px">
+      <el-form :model="editingRule" label-width="80px">
+        <el-form-item label="名称"><el-input v-model="editingRule.name" placeholder="例如：标准排班" /></el-form-item>
+        <el-form-item :label="'周' + w" v-for="w in [1,2,3,4,5,6,7]" :key="w">
+          <el-select v-model="editingRule.weekConfig[String(w)]">
+            <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="设为默认"><el-switch v-model="editingRule.isDefault" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="ruleEditVisible=false">取消</el-button><el-button type="primary" @click="saveRule">保存</el-button></template>
+    </el-dialog>
+
+    <!-- 应用规则 -->
+    <el-dialog v-model="applyVisible" title="应用排班规则" width="450px">
+      <el-form label-width="80px">
+        <el-form-item label="规则"><el-input :model-value="applyingRule?.name" disabled /></el-form-item>
+        <el-form-item label="日期范围"><el-date-picker v-model="applyDateRange" type="daterange" start-placeholder="开始" end-placeholder="结束" value-format="YYYY-MM-DD" /></el-form-item>
+      </el-form>
+      <div v-if="applyResult" style="margin:12px 0;padding:12px;background:#f0f9eb;border-radius:6px">
+        ✅ 生成 {{ applyResult.inserted }} 条，跳过 {{ applyResult.skipped }} 条（已有手动排班）
+      </div>
+      <template #footer><el-button @click="applyVisible=false">关闭</el-button><el-button type="primary" @click="doApply">生成排班</el-button></template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getScheduleList, upsertSchedule, batchSchedule, deleteSchedule } from '@/api/attendance'
+import { getScheduleList, upsertSchedule, batchSchedule, deleteSchedule, getScheduleRules, saveScheduleRule, applyScheduleRule, type ScheduleRule } from '@/api/attendance'
 import { getDepartmentList, getUserList } from '@/api/user'
 
 const statusOptions = [
@@ -94,6 +148,16 @@ const editVisible = ref(false)
 const editForm = reactive({ userId: 0, scheduleDate: '', status: 'work', note: '' })
 const batchVisible = ref(false)
 const batchForm = reactive({ userIds: [] as number[], dateRange: [] as string[], status: 'work', weekdaysOnly: true, note: '' })
+
+// 排班规则
+const ruleVisible = ref(false)
+const ruleEditVisible = ref(false)
+const applyVisible = ref(false)
+const rules = ref<ScheduleRule[]>([])
+const editingRule = reactive<ScheduleRule>({ name: '', weekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'rest', '7': 'rest' }, isDefault: false })
+const applyingRule = ref<ScheduleRule | null>(null)
+const applyDateRange = ref<string[]>([])
+const applyResult = ref<{ inserted: number; skipped: number } | null>(null)
 
 async function loadData() {
   const month = calendarDate.value
@@ -155,6 +219,42 @@ async function deleteDay(row: any) {
     dayWorkers.value = dayWorkers.value.filter((w: any) => w.id !== row.id)
     loadData()
   } catch { /* 取消或失败 */ }
+}
+
+// ===== 排班规则 =====
+async function loadRules() {
+  try { const res: any = await getScheduleRules(); rules.value = res.data || res || [] } catch { /* */ }
+}
+function openRuleDialog() { loadRules(); ruleVisible.value = true }
+function openNewRule() {
+  Object.assign(editingRule, { id: undefined, name: '', weekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'rest', '7': 'rest' }, isDefault: false })
+  ruleEditVisible.value = true
+}
+function editRule(row: ScheduleRule) {
+  Object.assign(editingRule, { ...JSON.parse(JSON.stringify(row)) })
+  ruleEditVisible.value = true
+}
+async function saveRule() {
+  try {
+    await saveScheduleRule({ ...editingRule, weekConfig: { ...editingRule.weekConfig } })
+    ElMessage.success('保存成功'); ruleEditVisible.value = false; loadRules()
+  } catch { ElMessage.error('保存失败') }
+}
+function openApplyDialog(row: ScheduleRule) {
+  applyingRule.value = row
+  applyResult.value = null
+  const now = new Date()
+  applyDateRange.value = [`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`, now.toISOString().slice(0,10)]
+  applyVisible.value = true
+}
+async function doApply() {
+  if (!applyingRule.value?.id || !applyDateRange.value?.length) { ElMessage.warning('请完善参数'); return }
+  try {
+    const res: any = await applyScheduleRule({ ruleId: applyingRule.value.id, startDate: applyDateRange.value[0], endDate: applyDateRange.value[1] })
+    applyResult.value = res.data || res
+    ElMessage.success(`排班已生成！新增 ${applyResult.value?.inserted}，跳过 ${applyResult.value?.skipped}`)
+    loadData()
+  } catch { ElMessage.error('生成失败') }
 }
 
 onMounted(async () => {

@@ -107,4 +107,83 @@ async function deleteSchedule(id) {
   return { deleted: true };
 }
 
-module.exports = { list, upsert, batch, mySchedule, deleteSchedule };
+/**
+ * 获取全部排班规则
+ */
+async function getRules() {
+  return await db.query(
+    `SELECT r.id, r.name, r.week_config AS weekConfig, r.is_default AS isDefault, r.created_at AS createdAt
+     FROM attendance_schedule_rules r ORDER BY r.is_default DESC, r.id ASC`
+  );
+}
+
+/**
+ * 保存排班规则（新增/更新）
+ * @param {object} param0
+ */
+async function saveRule({ id, name, weekConfig, isDefault, createdBy }) {
+  if (isDefault) {
+    // 唯一默认：取消其他默认
+    await db.execute('UPDATE attendance_schedule_rules SET is_default = 0 WHERE is_default = 1');
+  }
+  if (id) {
+    await db.execute(
+      'UPDATE attendance_schedule_rules SET name = ?, week_config = ?, is_default = ?, updated_at = NOW() WHERE id = ?',
+      [name, JSON.stringify(weekConfig), isDefault ? 1 : 0, id]
+    );
+    return { id, updated: true };
+  } else {
+    const result = await db.execute(
+      'INSERT INTO attendance_schedule_rules (name, week_config, is_default, created_by) VALUES (?, ?, ?, ?)',
+      [name, JSON.stringify(weekConfig), isDefault ? 1 : 0, createdBy]
+    );
+    return { id: result[0].insertId, created: true };
+  }
+}
+
+/**
+ * 应用规则到全员排班
+ * @param {object} param0
+ * @returns {{ inserted:number, skipped:number }}
+ */
+async function applyRule({ ruleId, startDate, endDate }) {
+  // 获取规则
+  const rules = await db.query('SELECT * FROM attendance_schedule_rules WHERE id = ?', [ruleId]);
+  if (!rules.length) throw new BusinessError('规则不存在', null, ErrorCode.ATTENDANCE_LEAVE_NOT_FOUND);
+  const weekConfig = typeof rules[0].week_config === 'string' ? JSON.parse(rules[0].week_config) : rules[0].week_config;
+
+  // 获取所有在职用户
+  const users = await db.query("SELECT id FROM users WHERE status = 'active' AND deleted_at IS NULL");
+
+  // 逐日逐人生成
+  let inserted = 0, skipped = 0;
+  const cur = new Date(startDate);
+  const end = new Date(endDate);
+
+  for (const user of users) {
+    cur.setTime(new Date(startDate).getTime());
+    while (cur <= end) {
+      // 星期几 → ISO (周一=1..周日=7)
+      const dow = cur.getDay() === 0 ? 7 : cur.getDay();
+      const status = weekConfig[String(dow)] || 'work';
+      const dateStr = cur.toISOString().slice(0, 10);
+
+      try {
+        await db.execute(
+          `INSERT INTO attendance_schedules (user_id, schedule_date, status, created_by)
+           VALUES (?, ?, ?, ?)`,
+          [user.id, dateStr, status, 1]
+        );
+        inserted++;
+      } catch (e) {
+        if (e.code === 'ER_DUP_ENTRY') {
+          skipped++; // 已有手动排班，不覆盖
+        } else { throw e; }
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+  return { inserted, skipped, total: inserted + skipped };
+}
+
+module.exports = { list, upsert, batch, mySchedule, deleteSchedule, getRules, saveRule, applyRule };

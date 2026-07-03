@@ -75,3 +75,9 @@ export function deleteSchedule(id: number) { return request.post('/api/attendanc
 
 // 删除请假/出差记录
 export function deleteLeave(requestId: number) { return request.post('/api/attendance/leave/delete', { requestId }) }
+
+// 排班规则
+export interface ScheduleRule { id?: number; name: string; weekConfig: Record<string, string>; isDefault: boolean; createdAt?: string }
+export function getScheduleRules() { return request.post('/api/attendance/schedule/rules') }
+export function saveScheduleRule(data: ScheduleRule) { return request.post('/api/attendance/schedule/rules/save', data) }
+export function applyScheduleRule(data: { ruleId: number; startDate: string; endDate: string }) { return request.post('/api/attendance/schedule/rules/apply', data) }

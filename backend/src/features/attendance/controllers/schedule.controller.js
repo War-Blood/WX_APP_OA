@@ -49,4 +49,29 @@ async function deleteSchedule(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, upsert, batch, mySchedule, deleteSchedule };
+async function getRules(req, res, next) {
+  try {
+    const rules = await scheduleService.getRules();
+    res.json(success(rules));
+  } catch (err) { next(err); }
+}
+
+async function saveRule(req, res, next) {
+  try {
+    const { id, name, weekConfig, isDefault } = req.body;
+    if (!name || !weekConfig) throw new ValidationError('名称和星期配置不能为空');
+    const result = await scheduleService.saveRule({ id: id || null, name, weekConfig, isDefault: !!isDefault, createdBy: req.user.userId });
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+async function applyRule(req, res, next) {
+  try {
+    const { ruleId, startDate, endDate } = req.body;
+    if (!ruleId || !startDate || !endDate) throw new ValidationError('ruleId/startDate/endDate 不能为空');
+    const result = await scheduleService.applyRule({ ruleId, startDate, endDate });
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+module.exports = { list, upsert, batch, mySchedule, deleteSchedule, getRules, saveRule, applyRule };
