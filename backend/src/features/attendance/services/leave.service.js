@@ -8,6 +8,22 @@ const { ErrorCode } = require('../../../common/utils/constants');
  * 请假服务 — apply / cancel / list / detail
  */
 
+/**
+ * 写入消息通知
+ * @param {number} receiverId - 接收人 ID
+ * @param {string} title - 标题
+ * @param {string} description - 描述
+ * @param {string} content - 内容
+ */
+async function sendMessage(receiverId, title, description, content) {
+  try {
+    await db.execute(
+      'INSERT INTO messages (receiver_id, type, title, description, content, is_read, created_at) VALUES (?, ?, ?, ?, ?, 0, NOW())',
+      [receiverId, 'attendance', title, description, content || '']
+    );
+  } catch (e) { /* 消息发送失败不影响主流程 */ }
+}
+
 async function apply({ applicantId, leaveSubtype, startDate, endDate, reason }) {
   if (!leaveSubtype) throw new BusinessError('请假必须指定子类型', null, ErrorCode.ATTENDANCE_LEAVE_SUBTYPE_REQUIRED);
   if (endDate < startDate) throw new BusinessError('结束日期不能早于起始日期', null, ErrorCode.ATTENDANCE_DATE_INVALID);
@@ -37,6 +53,10 @@ async function apply({ applicantId, leaveSubtype, startDate, endDate, reason }) 
     }
 
     return { requestId, days, status: 'active' };
+  }).then(async (result) => {
+    // 非事务：发送消息通知
+    await sendMessage(applicantId, '请假申请已生效', `${leaveSubtype} · ${startDate} → ${endDate}（${days}天）`, reason || '');
+    return result;
   });
 }
 
@@ -65,6 +85,10 @@ async function cancel(requestId, applicantId) {
       cur.setDate(cur.getDate() + 1);
     }
     return { cancelledAt: new Date().toISOString() };
+  }).then(async (result) => {
+    const dateRange = `${req.start_date.toISOString().slice(0, 10)} → ${req.end_date.toISOString().slice(0, 10)}`;
+    await sendMessage(applicantId, '请假申请已撤销', dateRange, '');
+    return result;
   });
 }
 

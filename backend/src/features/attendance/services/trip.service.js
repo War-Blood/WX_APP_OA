@@ -9,6 +9,22 @@ const { calcMissingDates } = require('./leave.service');
  * 出差打卡服务 — start / end
  */
 
+/**
+ * 写入消息通知
+ * @param {number} receiverId - 接收人 ID
+ * @param {string} title - 标题
+ * @param {string} description - 描述
+ * @param {string} content - 内容
+ */
+async function sendMessage(receiverId, title, description, content) {
+  try {
+    await db.execute(
+      'INSERT INTO messages (receiver_id, type, title, description, content, is_read, created_at) VALUES (?, ?, ?, ?, ?, 0, NOW())',
+      [receiverId, 'attendance', title, description, content || '']
+    );
+  } catch (e) { /* 消息发送失败不影响主流程 */ }
+}
+
 async function startTrip({ applicantId, reason }) {
   // 检查是否有进行中的出差
   const active = await db.query(
@@ -27,7 +43,12 @@ async function startTrip({ applicantId, reason }) {
 
   const row = await db.query('SELECT trip_started_at FROM attendance_leave_requests WHERE id = ?', [result[0].insertId]);
 
-  return { requestId: result[0].insertId, tripStartedAt: row[0].trip_started_at, status: 'in_progress' };
+  // 发送消息通知
+  const startTime = row[0].trip_started_at;
+  const startStr = startTime instanceof Date ? startTime.toISOString().slice(0, 16).replace('T', ' ') : '';
+  await sendMessage(applicantId, '出差已开始', `开始时间：${startStr}`, reason || '');
+
+  return { requestId: result[0].insertId, tripStartedAt: startTime, status: 'in_progress' };
 }
 
 async function endTrip({ applicantId, requestId, reason }) {
@@ -56,6 +77,10 @@ async function endTrip({ applicantId, requestId, reason }) {
     `UPDATE attendance_leave_requests SET trip_ended_at = NOW(), status = 'ended', reason = COALESCE(NULLIF(?, ''), reason) WHERE id = ?`,
     [reason || null, trip.id]
   );
+
+  // 发送消息通知
+  const missingText = missingDates.length > 0 ? `，未提交 ${missingDates.length} 天` : '';
+  await sendMessage(applicantId, '出差已结束', `共 ${tripDays} 天${missingText}`, reason || '');
 
   return {
     requestId: trip.id,
