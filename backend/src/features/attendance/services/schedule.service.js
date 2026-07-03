@@ -112,7 +112,8 @@ async function deleteSchedule(id) {
  */
 async function getRules() {
   return await db.query(
-    `SELECT r.id, r.name, r.week_config AS weekConfig, r.is_default AS isDefault, r.created_at AS createdAt
+    `SELECT r.id, r.name, r.week_config AS weekConfig, r.alt_week_config AS altWeekConfig,
+            r.alternating, r.is_default AS isDefault, r.created_at AS createdAt
      FROM attendance_schedule_rules r ORDER BY r.is_default DESC, r.id ASC`
   );
 }
@@ -121,21 +122,20 @@ async function getRules() {
  * 保存排班规则（新增/更新）
  * @param {object} param0
  */
-async function saveRule({ id, name, weekConfig, isDefault, createdBy }) {
+async function saveRule({ id, name, weekConfig, altWeekConfig, alternating, isDefault, createdBy }) {
   if (isDefault) {
-    // 唯一默认：取消其他默认
     await db.execute('UPDATE attendance_schedule_rules SET is_default = 0 WHERE is_default = 1');
   }
   if (id) {
     await db.execute(
-      'UPDATE attendance_schedule_rules SET name = ?, week_config = ?, is_default = ?, updated_at = NOW() WHERE id = ?',
-      [name, JSON.stringify(weekConfig), isDefault ? 1 : 0, id]
+      'UPDATE attendance_schedule_rules SET name = ?, week_config = ?, alt_week_config = ?, alternating = ?, is_default = ?, updated_at = NOW() WHERE id = ?',
+      [name, JSON.stringify(weekConfig), altWeekConfig ? JSON.stringify(altWeekConfig) : null, alternating ? 1 : 0, isDefault ? 1 : 0, id]
     );
     return { id, updated: true };
   } else {
     const result = await db.execute(
-      'INSERT INTO attendance_schedule_rules (name, week_config, is_default, created_by) VALUES (?, ?, ?, ?)',
-      [name, JSON.stringify(weekConfig), isDefault ? 1 : 0, createdBy]
+      'INSERT INTO attendance_schedule_rules (name, week_config, alt_week_config, alternating, is_default, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, JSON.stringify(weekConfig), altWeekConfig ? JSON.stringify(altWeekConfig) : null, alternating ? 1 : 0, isDefault ? 1 : 0, createdBy]
     );
     return { id: result[0].insertId, created: true };
   }
@@ -150,7 +150,10 @@ async function applyRule({ ruleId, startDate, endDate }) {
   // 获取规则
   const rules = await db.query('SELECT * FROM attendance_schedule_rules WHERE id = ?', [ruleId]);
   if (!rules.length) throw new BusinessError('规则不存在', null, ErrorCode.ATTENDANCE_LEAVE_NOT_FOUND);
-  const weekConfig = typeof rules[0].week_config === 'string' ? JSON.parse(rules[0].week_config) : rules[0].week_config;
+  const rule = rules[0];
+  const weekConfig = typeof rule.week_config === 'string' ? JSON.parse(rule.week_config) : rule.week_config;
+  const altWeekConfig = rule.alt_week_config ? (typeof rule.alt_week_config === 'string' ? JSON.parse(rule.alt_week_config) : rule.alt_week_config) : null;
+  const alternating = !!rule.alternating;
 
   // 获取所有在职用户
   const users = await db.query("SELECT id FROM users WHERE status = 'active' AND deleted_at IS NULL");
@@ -165,7 +168,13 @@ async function applyRule({ ruleId, startDate, endDate }) {
     while (cur <= end) {
       // 星期几 → ISO (周一=1..周日=7)
       const dow = cur.getDay() === 0 ? 7 : cur.getDay();
-      const status = weekConfig[String(dow)] || 'work';
+      // 大小周交替：偶数 ISO 周用 altWeekConfig
+      let config = weekConfig;
+      if (alternating && altWeekConfig) {
+        const weekNum = getISOWeek(cur);
+        if (weekNum % 2 === 0) config = altWeekConfig;
+      }
+      const status = config[String(dow)] || 'work';
       const dateStr = cur.toISOString().slice(0, 10);
 
       try {
@@ -184,6 +193,17 @@ async function applyRule({ ruleId, startDate, endDate }) {
     }
   }
   return { inserted, skipped, total: inserted + skipped };
+}
+
+/**
+ * ISO 8601 周数（周一~周日为一周）
+ */
+function getISOWeek(d) {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return 1 + Math.round(((date - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
 }
 
 module.exports = { list, upsert, batch, mySchedule, deleteSchedule, getRules, saveRule, applyRule };

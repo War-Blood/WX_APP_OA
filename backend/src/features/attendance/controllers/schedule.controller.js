@@ -58,9 +58,9 @@ async function getRules(req, res, next) {
 
 async function saveRule(req, res, next) {
   try {
-    const { id, name, weekConfig, isDefault } = req.body;
+    const { id, name, weekConfig, altWeekConfig, alternating, isDefault } = req.body;
     if (!name || !weekConfig) throw new ValidationError('名称和星期配置不能为空');
-    const result = await scheduleService.saveRule({ id: id || null, name, weekConfig, isDefault: !!isDefault, createdBy: req.user.userId });
+    const result = await scheduleService.saveRule({ id: id || null, name, weekConfig, altWeekConfig, alternating: !!alternating, isDefault: !!isDefault, createdBy: req.user.userId });
     res.json(success(result));
   } catch (err) { next(err); }
 }

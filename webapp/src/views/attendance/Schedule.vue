@@ -15,13 +15,27 @@
       </template>
       <el-calendar v-model="calendarDate">
         <template #date-cell="{ data }">
-          <div class="cell" @click="openDayDetail(data.date)">
-            <div class="cell-date">{{ data.day.split('-').pop() }}</div>
-            <div v-if="daySummary[data.day]" class="cell-summary">
-              <span v-if="daySummary[data.day].work" class="tag tag-work">{{ daySummary[data.day].work }}人</span>
-              <span v-if="daySummary[data.day].biz_trip" class="tag tag-trip">{{ daySummary[data.day].biz_trip }}人</span>
+          <el-popover placement="bottom" :width="280" trigger="click" :visible="paintDate === data.day" @hide="paintDate = ''">
+            <template #reference>
+              <div class="cell" :style="cellStyle(data.day)" @click="paintDate = data.day">
+                <div class="cell-date">{{ data.day.split('-').pop() }}</div>
+                <div v-if="daySummary[data.day]" class="cell-summary">
+                  <span v-if="daySummary[data.day].work" class="tag tag-work">{{ daySummary[data.day].work }}</span>
+                  <span v-if="daySummary[data.day].biz_trip" class="tag tag-trip">{{ daySummary[data.day].biz_trip }}</span>
+                  <span v-if="daySummary[data.day].rest" class="tag tag-rest">{{ daySummary[data.day].rest }}</span>
+                  <span v-if="daySummary[data.day].leave" class="tag tag-leave">{{ daySummary[data.day].leave }}</span>
+                </div>
+              </div>
+            </template>
+            <div style="text-align:center">
+              <div style="font-weight:600;margin-bottom:12px">{{ data.day }}</div>
+              <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px">
+                <el-button v-for="o in statusOptions" :key="o.value" :type="o.value === paintStatus ? 'primary' : 'default'" size="small" @click="paintStatus = o.value">{{ o.label }}</el-button>
+              </div>
+              <el-button type="primary" size="small" @click="doPaint(data.day)">应用到全员</el-button>
+              <el-button size="small" style="margin-left:8px" @click="paintDate='';openDayDetail(data.day)">查看详情</el-button>
             </div>
-          </div>
+          </el-popover>
         </template>
       </el-calendar>
     </el-card>
@@ -95,14 +109,31 @@
     </el-dialog>
 
     <!-- 规则编辑 -->
-    <el-dialog v-model="ruleEditVisible" :title="editingRule.id ? '编辑规则' : '新建规则'" width="500px">
+    <el-dialog v-model="ruleEditVisible" :title="editingRule.id ? '编辑规则' : '新建规则'" width="700px">
       <el-form :model="editingRule" label-width="80px">
         <el-form-item label="名称"><el-input v-model="editingRule.name" placeholder="例如：标准排班" /></el-form-item>
-        <el-form-item :label="'周' + w" v-for="w in [1,2,3,4,5,6,7]" :key="w">
-          <el-select v-model="editingRule.weekConfig[String(w)]">
-            <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
-          </el-select>
-        </el-form-item>
+        <el-form-item label="大小周"><el-switch v-model="editingRule.alternating" /></el-form-item>
+        <template v-if="!editingRule.alternating">
+          <el-form-item :label="'周' + w" v-for="w in [1,2,3,4,5,6,7]" :key="w">
+            <el-select v-model="editingRule.weekConfig[String(w)]">
+              <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+        </template>
+        <template v-else>
+          <el-divider>单周（奇数周）</el-divider>
+          <el-form-item :label="'周' + w" v-for="w in [1,2,3,4,5,6,7]" :key="'a'+w">
+            <el-select v-model="editingRule.weekConfig[String(w)]">
+              <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+          <el-divider>双周（偶数周）</el-divider>
+          <el-form-item :label="'周' + w" v-for="w in [1,2,3,4,5,6,7]" :key="'b'+w">
+            <el-select v-model="editingRule.altWeekConfig![String(w)]">
+              <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+          </el-form-item>
+        </template>
         <el-form-item label="设为默认"><el-switch v-model="editingRule.isDefault" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="ruleEditVisible=false">取消</el-button><el-button type="primary" @click="saveRule">保存</el-button></template>
@@ -154,10 +185,36 @@ const ruleVisible = ref(false)
 const ruleEditVisible = ref(false)
 const applyVisible = ref(false)
 const rules = ref<ScheduleRule[]>([])
-const editingRule = reactive<ScheduleRule>({ name: '', weekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'rest', '7': 'rest' }, isDefault: false })
+const editingRule = reactive<ScheduleRule>({ name: '', weekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'rest', '7': 'rest' }, altWeekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'work', '7': 'rest' }, alternating: false, isDefault: false })
 const applyingRule = ref<ScheduleRule | null>(null)
 const applyDateRange = ref<string[]>([])
 const applyResult = ref<{ inserted: number; skipped: number } | null>(null)
+
+// 粉刷
+const paintDate = ref('')
+const paintStatus = ref('work')
+
+// 单元格背景色规则
+function cellStyle(day: string) {
+  const s = daySummary.value[day]
+  if (!s) return {}
+  const bg: Record<string, string> = {}
+  if (s.leave) bg.backgroundColor = '#F5F3FF'
+  else if (s.biz_trip) bg.backgroundColor = '#FFF8E1'
+  else if (s.work && !s.rest) bg.backgroundColor = '#EDF2FF'
+  else if (s.rest && !s.work) bg.backgroundColor = '#F5F5F5'
+  return bg
+}
+
+async function doPaint(date: string) {
+  if (!userOptions.value.length) { ElMessage.warning('未加载人员列表'); return }
+  try {
+    await batchSchedule({ userIds: userOptions.value.map((u: any) => u.id), startDate: date, endDate: date, status: paintStatus.value, weekdaysOnly: false })
+    ElMessage.success(`已为 ${date} 全员设置「${statusOptions.find(o=>o.value===paintStatus.value)?.label}」`)
+    paintDate.value = ''
+    loadData()
+  } catch { ElMessage.error('操作失败') }
+}
 
 async function loadData() {
   const month = calendarDate.value
@@ -227,16 +284,26 @@ async function loadRules() {
 }
 function openRuleDialog() { loadRules(); ruleVisible.value = true }
 function openNewRule() {
-  Object.assign(editingRule, { id: undefined, name: '', weekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'rest', '7': 'rest' }, isDefault: false })
+  Object.assign(editingRule, { id: undefined, name: '', weekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'rest', '7': 'rest' }, altWeekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'work', '7': 'rest' }, alternating: false, isDefault: false })
   ruleEditVisible.value = true
 }
 function editRule(row: ScheduleRule) {
-  Object.assign(editingRule, { ...JSON.parse(JSON.stringify(row)) })
+  const copy = JSON.parse(JSON.stringify(row))
+  if (!copy.altWeekConfig) copy.altWeekConfig = { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'work', '7': 'rest' }
+  copy.alternating = !!copy.alternating
+  Object.assign(editingRule, copy)
   ruleEditVisible.value = true
 }
 async function saveRule() {
   try {
-    await saveScheduleRule({ ...editingRule, weekConfig: { ...editingRule.weekConfig } })
+    await saveScheduleRule({
+      id: editingRule.id,
+      name: editingRule.name,
+      weekConfig: { ...editingRule.weekConfig },
+      altWeekConfig: editingRule.alternating ? { ...editingRule.altWeekConfig } : null,
+      alternating: editingRule.alternating,
+      isDefault: editingRule.isDefault
+    })
     ElMessage.success('保存成功'); ruleEditVisible.value = false; loadRules()
   } catch { ElMessage.error('保存失败') }
 }
