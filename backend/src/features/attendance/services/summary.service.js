@@ -32,20 +32,21 @@ async function list({ startDate, endDate, departmentId, userId, page = 1, pageSi
   schedules.forEach(s => { const k = `${s.user_id}_${s.schedule_date.toISOString().slice(0,10)}`; schedMap[k] = s.status; });
 
   // 3. 查公出日志（只读引用）
-  const reports = await db.query(
+  const userIds = users.map(u => u.id);
+  const reports = userIds.length > 0 ? await db.query(
     `SELECT user_id, report_date, today_work_type FROM daily_reports
-     WHERE user_id IN (${users.map(() => '?').join(',')}) AND report_date BETWEEN ? AND ?
+     WHERE user_id IN (${userIds.map(() => '?').join(',')}) AND report_date BETWEEN ? AND ?
        AND status = 'approved' AND report_type != 'office'`,
-    [...users.map(u => u.id), startDate, endDate]
-  );
+    [...userIds, startDate, endDate]
+  ) : [];
   const reportMap = {};
   reports.forEach(r => { const k = `${r.user_id}_${r.report_date.toISOString().slice(0,10)}`; reportMap[k] = r.today_work_type; });
 
   // 4. 查出差/请假
-  const tripLeaves = await db.query(
-    `SELECT * FROM attendance_leave_requests WHERE applicant_id IN (${users.map(() => '?').join(',')})`,
-    users.map(u => u.id)
-  );
+  const tripLeaves = userIds.length > 0 ? await db.query(
+    `SELECT * FROM attendance_leave_requests WHERE applicant_id IN (${userIds.map(() => '?').join(',')})`,
+    userIds
+  ) : [];
 
   // 5. 逐人逐日汇总
   const result = users.map(u => {
@@ -302,4 +303,95 @@ function mapExportSchedule(s) {
 function mapWorkType(wt) { switch(wt) { case '工作（陆）': case '工作（海）': return 'work'; case '在途': return 'biz_trip'; case '待工': return 'rest'; case '请假': return 'leave'; default: return 'rest'; } }
 function mapSchedule(s) { switch(s) { case 'work': return 'work'; case 'rest': return 'rest'; case 'biz_trip': return 'biz_trip'; case 'leave': return 'leave'; default: return 'rest'; } }
 
-module.exports = { list, exportExcel };
+/**
+ * 个人考勤汇总 — 登录用户查自己的月度考勤（逐日综合 daily_reports + schedules）
+ * @param {object} param0
+ * @param {number} param0.userId - 用户 ID
+ * @param {string} param0.startDate - 起始日期 YYYY-MM-DD
+ * @param {string} param0.endDate - 结束日期 YYYY-MM-DD
+ * @returns {{ workDays:number, restDays:number, bizTripDays:number, leaveDays:number, missingDays:number, dailyList:Array }}
+ */
+async function mySummary({ userId, startDate, endDate }) {
+  // 1. 查该用户的排班
+  const schedules = await db.query(
+    'SELECT schedule_date, status, note FROM attendance_schedules WHERE user_id = ? AND schedule_date BETWEEN ? AND ?',
+    [userId, startDate, endDate]
+  );
+  const schedMap = {};
+  schedules.forEach(s => { schedMap[s.schedule_date.toISOString().slice(0, 10)] = s; });
+
+  // 2. 查公出日志（只读引用 daily_reports，公出日志 > 排班优先级）
+  const reports = await db.query(
+    `SELECT report_date, today_work_type, area, work_content FROM daily_reports
+     WHERE user_id = ? AND report_date BETWEEN ? AND ?
+       AND status = 'approved' AND report_type != 'office'`,
+    [userId, startDate, endDate]
+  );
+  const reportMap = {};
+  reports.forEach(r => {
+    reportMap[r.report_date.toISOString().slice(0, 10)] = { workType: r.today_work_type, area: r.area, note: r.work_content };
+  });
+
+  // 3. 查出差/请假记录
+  const tripLeaves = await db.query(
+    'SELECT * FROM attendance_leave_requests WHERE applicant_id = ?',
+    [userId]
+  );
+
+  // 4. 逐日汇总
+  let workDays = 0, restDays = 0, bizTripDays = 0, leaveDays = 0, missingDays = 0;
+  const dailyList = [];
+  const cur = new Date(startDate);
+  const end = new Date(endDate);
+
+  while (cur <= end) {
+    const ds = cur.toISOString().slice(0, 10);
+    const report = reportMap[ds];
+    const sched = schedMap[ds];
+
+    let displayStatus, note = '';
+
+    if (report) {
+      displayStatus = mapWorkType(report.workType);
+      note = report.note || '';
+    } else if (sched) {
+      displayStatus = mapSchedule(sched.status);
+      note = sched.note || '';
+    } else {
+      // 无排班也无公出日志
+      displayStatus = 'none';
+    }
+
+    switch (displayStatus) {
+      case 'work': workDays++; break;
+      case 'rest': restDays++; break;
+      case 'biz_trip': bizTripDays++; break;
+      case 'leave': leaveDays++; break;
+    }
+
+    // 出差未提交检测
+    const inTrip = tripLeaves.some(t =>
+      t.request_type === 'biz_trip' && t.status === 'in_progress' &&
+      t.applicant_id === userId &&
+      new Date(t.trip_started_at) <= cur
+    );
+    const inLeave = tripLeaves.some(t =>
+      t.request_type === 'leave' && t.status === 'active' &&
+      t.applicant_id === userId &&
+      ds >= t.start_date.toISOString().slice(0, 10) &&
+      ds <= t.end_date.toISOString().slice(0, 10)
+    );
+    if (inTrip && !report && !inLeave) {
+      missingDays++;
+      displayStatus = 'missing';
+    }
+
+    dailyList.push({ date: ds, status: displayStatus, note });
+
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return { workDays, restDays, bizTripDays, leaveDays, missingDays, dailyList };
+}
+
+module.exports = { list, exportExcel, mySummary };

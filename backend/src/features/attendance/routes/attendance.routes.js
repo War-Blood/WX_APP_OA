@@ -29,5 +29,7 @@ router.post('/biz-trip/end', authenticate, leaveController.endTrip);
 // ===== 考勤汇总（管理员） =====
 router.post('/summary/list', authenticate, requireRole('admin', 'superadmin'), summaryController.list);
 router.post('/summary/export', authenticate, requireRole('admin', 'superadmin'), summaryController.exportExcel);
+// ===== 个人考勤汇总（登录用户） =====
+router.post('/summary/my-summary', authenticate, summaryController.mySummary);
 
 module.exports = router;

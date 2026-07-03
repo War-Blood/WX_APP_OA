@@ -18,4 +18,6 @@ export const attendanceApi = {
 
   // 汇总（管理员）
   getSummary: (params) => post('/api/attendance/summary/list', params),
+  // 个人考勤汇总
+  getMySummary: (params) => post('/api/attendance/summary/my-summary', params),
 }

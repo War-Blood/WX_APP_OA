@@ -24,4 +24,13 @@ async function exportExcel(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, exportExcel };
+async function mySummary(req, res, next) {
+  try {
+    const { startDate, endDate } = req.body;
+    if (!startDate || !endDate) throw new ValidationError('起止日期不能为空');
+    const result = await summaryService.mySummary({ userId: req.user.userId, startDate, endDate });
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+module.exports = { list, exportExcel, mySummary };

@@ -60,6 +60,24 @@
       <view class="legend-item"><view class="dot dot-leave" /><text>请假</text></view>
       <view class="legend-item"><view class="dot dot-missing" /><text>未提交</text></view>
     </view>
+
+    <!-- 日期详情弹窗 -->
+    <view class="detail-overlay" v-if="selectedDay" @click="selectedDay = null">
+      <view class="detail-card" @click.stop>
+        <text class="detail-date">{{ selectedDay.date }}</text>
+        <view class="detail-row">
+          <text class="detail-label">状态</text>
+          <text class="detail-value" :style="{ color: statusColor(selectedDay.status) }">
+            {{ statusLabel(selectedDay.status) }}
+          </text>
+        </view>
+        <view class="detail-row" v-if="selectedDay.note">
+          <text class="detail-label">备注</text>
+          <text class="detail-value">{{ selectedDay.note }}</text>
+        </view>
+        <view class="detail-close" @click="selectedDay = null">关闭</view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -77,6 +95,15 @@ const displayMonth = computed(() => `${year.value}年${month.value}月`)
 const stats = ref({ workDays: 0, restDays: 0, bizTripDays: 0, leaveDays: 0, missingDays: 0 })
 const calendarCells = ref([])
 const loading = ref(false)
+const selectedDay = ref(null)
+const dailyMap = ref({})
+
+const statusMap = { work: '现场（陆）', rest: '休息', biz_trip: '在途', leave: '请假', missing: '未提交', none: '无排班' }
+const statusClassMap = { work: 'cal-work', rest: 'cal-rest', biz_trip: 'cal-biz', leave: 'cal-leave', missing: 'cal-missing', none: 'cal-none' }
+const statusColorMap = { work: '#2B6DE8', rest: '#22C55E', biz_trip: '#F59E0B', leave: '#EF4444', missing: '#EF4444', none: '#999999' }
+
+function statusLabel(s) { return statusMap[s] || '无排班' }
+function statusColor(s) { return statusColorMap[s] || '#999999' }
 
 function prevMonth() {
   if (month.value === 1) { year.value--; month.value = 12 }
@@ -96,35 +123,34 @@ function getMonthRange() {
   return { start, end }
 }
 
-function buildCalendar(scheduleMap) {
+function buildCalendar(dailyList) {
   const cells = []
   const firstDay = new Date(year.value, month.value - 1, 1)
   const lastDay = new Date(year.value, month.value, 0)
   const startDow = firstDay.getDay() || 7 // 周一=1..周日=7
 
+  // 构建每日数据索引
+  const map = {}
+  if (dailyList && dailyList.length) {
+    dailyList.forEach(item => { map[item.date] = item })
+  }
+  dailyMap.value = map
+
   // 上月填充
   for (let i = 1; i < startDow; i++) {
-    cells.push({ day: '', statusClass: '' })
+    cells.push({ day: '', statusClass: '', date: '', status: '', note: '' })
   }
-
-  let w = 0; let r = 0; let b = 0; let l = 0; let m = 0
 
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const ds = `${year.value}-${String(month.value).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    const status = scheduleMap[ds] || 'none'
-    let statusClass = ''
+    const item = map[ds]
+    const status = item ? item.status : 'none'
+    const statusClass = statusClassMap[status] || ''
+    const note = item ? (item.note || '') : ''
 
-    switch (status) {
-      case 'work': statusClass = 'cal-work'; w++; break
-      case 'rest': statusClass = 'cal-rest'; r++; break
-      case 'biz_trip': statusClass = 'cal-biz'; b++; break
-      case 'leave': statusClass = 'cal-leave'; l++; break
-      case 'none': statusClass = 'cal-missing'; m++; break
-    }
-    cells.push({ day: d, statusClass, date: ds })
+    cells.push({ day: d, statusClass, date: ds, status, note })
   }
 
-  stats.value = { workDays: w, restDays: r, bizTripDays: b, leaveDays: l, missingDays: m }
   calendarCells.value = cells
 }
 
@@ -132,12 +158,19 @@ async function loadData() {
   loading.value = true
   try {
     const { start, end } = getMonthRange()
-    const schedules = await attendanceApi.getMySchedule({ startDate: start, endDate: end })
-    const scheduleMap = {}
-    if (schedules && schedules.code === 0 && schedules.data) {
-      schedules.data.forEach(s => { scheduleMap[s.scheduleDate] = s.status })
+    const res = await attendanceApi.getMySummary({ startDate: start, endDate: end })
+
+    if (res && res.code === 0 && res.data) {
+      const data = res.data
+      stats.value = {
+        workDays: data.workDays || 0,
+        restDays: data.restDays || 0,
+        bizTripDays: data.bizTripDays || 0,
+        leaveDays: data.leaveDays || 0,
+        missingDays: data.missingDays || 0
+      }
+      buildCalendar(data.dailyList || [])
     }
-    buildCalendar(scheduleMap)
   } catch (e) {
     uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
@@ -147,14 +180,18 @@ async function loadData() {
 
 function handleBack() {
   uni.navigateBack({
-    fail: () => { uni.switchTab({ url: '/pages/features/index' }) }
+    fail: () => {
+      uni.switchTab({
+        url: '/pages/features/index',
+        fail: () => { uni.showToast({ title: '页面跳转失败', icon: 'none' }) }
+      })
+    }
   })
 }
 
 function handleCellClick(cell) {
-  if (!cell.date) return
-  const status = stats.value
-  // 占位交互
+  if (!cell.date || !cell.status || cell.status === 'none') return
+  selectedDay.value = { date: cell.date, status: cell.status, note: cell.note }
 }
 
 function handleMissingClick() {
@@ -210,8 +247,10 @@ loadData()
 .cal-rest .cal-day { color: #22C55E; }
 .cal-leave { background: #FEF2F2; }
 .cal-leave .cal-day { color: #EF4444; }
-.cal-missing { background: #F7F7F7; }
-.cal-missing .cal-day { color: #CCCCCC; }
+.cal-missing { background: #FFF1F0; }
+.cal-missing .cal-day { color: #EF4444; }
+.cal-none { background: #F7F7F7; }
+.cal-none .cal-day { color: #CCCCCC; }
 
 .legend { display: flex; justify-content: center; gap: 24rpx; margin: 24rpx; flex-wrap: wrap; }
 .legend-item { display: flex; align-items: center; gap: 8rpx; font-size: 22rpx; color: #666666; }
@@ -220,5 +259,26 @@ loadData()
 .dot-biz { background: #F59E0B; }
 .dot-rest { background: #22C55E; }
 .dot-leave { background: #EF4444; }
-.dot-missing { background: #CCCCCC; }
+.dot-missing { background: #EF4444; }
+
+/* 日期详情弹窗 */
+.detail-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center;
+  z-index: 1100;
+}
+.detail-card {
+  background: #FFFFFF; border-radius: 16rpx; padding: 40rpx; width: 560rpx;
+}
+.detail-date {
+  font-size: 32rpx; font-weight: 600; color: #333333; display: block; margin-bottom: 24rpx;
+}
+.detail-row {
+  display: flex; justify-content: space-between; padding: 12rpx 0; border-bottom: 1rpx solid #F0F0F0;
+}
+.detail-label { font-size: 28rpx; color: #999999; }
+.detail-value { font-size: 28rpx; }
+.detail-close {
+  margin-top: 32rpx; text-align: center; font-size: 28rpx; color: #2B6DE8; padding: 16rpx 0;
+}
 </style>
