@@ -8,17 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **OA 后端 API 服务** — Node.js 18 + Express 4 + MySQL 8.0 + Redis 6.x，为小程序和 Web 后台提供 RESTful API。
 
-### 分层约束（铁律）
-
-```
-routes/       → 仅 URL 分发 + 中间件绑定，禁止业务逻辑
-controllers/  → Joi 参数校验 + 调用 service + res.json() 封装
-services/     → 全部业务逻辑 + 事务编排，可跨控制器复用
-common/config/database.js → 仅 SQL 执行，不掺杂业务判断
-common/config/redis.js    → 会话/缓存
-```
-
-调用链：`app.js → routes → auth/validator 中间件 → controller → service → db/redis`
+> 分层架构、统一响应格式等全局约束见 `.AI/rules/core.md`（R14-R19）。
 
 ### 源码组织 — Agent 归属
 
@@ -35,19 +25,6 @@ common/config/redis.js    → 会话/缓存
 
 > ⚠️ `src/config/`、`src/controllers/`、`src/middleware/`、`src/utils/`（非 common 下的）为旧架构残留，新代码禁止写入。
 
-> ⚠️ `src/config/`、`src/controllers/`、`src/middleware/`、`src/utils/`（非 common 下的）为旧架构残留，新代码禁止写入。
-
-### 统一响应格式
-
-```js
-// 所有 API 通过 code 区分成功/失败，HTTP 状态码始终 200
-{ code: 0, message: "success", data: {...} }                              // success()
-{ code: 0, message: "success", data: { list, pagination: {...} } }       // paginated()
-{ code: -1, message: "业务错误" }                                         // fail()
-```
-
-响应工具函数位于 `src/common/utils/response.js`。
-
 ### API 模块速查
 
 全部 POST + JSON body，前缀 `/api/`：
@@ -58,7 +35,8 @@ common/config/redis.js    → 会话/缓存
 | Report | `/api/report/*` | Message | `/api/message/*` |
 | Stats | `/api/stats/*` | Review | `/api/review/*` |
 | Project | `/api/project/*` | Compliance | `/api/compliance/*` |
-| Admin | `/api/admin/*` | Health | `/api/health` |
+| Admin | `/api/admin/*` | WPS | `/api/wps/*` |
+| Health | `/api/health` | | |
 
 ---
 
@@ -104,8 +82,7 @@ async function list(userId, { page, pageSize }) {
 
 ### 关键约束
 
-- SQL 全部参数化查询，禁止字符串拼接
-- `pool.execute()` 不支持 LIMIT 占位符 → 改用 `pool.query()`
+> SQL 参数化查询、PM2 部署等全局约束见 `.AI/rules/core.md` 和 `.AI/rules/tech-stack.md`。
+
 - 所有导出的公共函数必须加 JSDoc（`@description` + `@param` + `@returns`）
 - 错误通过 `next(err)` 传递给 `errorHandler` 中间件统一处理
-- PM2 仅支持 fork 模式，配置变更后需 `pm2 delete` + `pm2 start`

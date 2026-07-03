@@ -47,17 +47,6 @@ npm run type-check       # vue-tsc --noEmit 类型检查
 
 ---
 
-## 后端分层架构（强制）
-
-```
-routes/       → 路由层：仅 URL 分发 + 中间件绑定，禁止业务逻辑
-controllers/  → 控制器层：Joi 参数校验 + 调用 service + 响应封装
-services/     → 服务层：全部业务逻辑 + 事务编排，可跨控制器复用
-common/config/database.js → 数据访问层：仅 SQL 执行
-```
-
-**统一响应格式**：`{ code: 0, message: "success", data: {...} }` — HTTP 状态码始终为 200，业务错误通过 `code` 区分。
-
 **源码目录**（`backend/src/`）— 每个目录归属一个独立的模块 Agent：
 
 | 目录 | 归属 Agent | 技能文件 |
@@ -82,16 +71,14 @@ common/config/database.js → 数据访问层：仅 SQL 执行
 | Stats | `/api/stats/*` | Review | `/api/review/*` |
 | Project | `/api/project/*` | Compliance | `/api/compliance/*` |
 | Admin | `/api/admin/*` | WPS | `/api/wps/*` |
+| Health | `/api/health` | | |
 
 ---
 
 ## 关键约束
 
-- **SQL 全部参数化查询**（`pool.execute()` 或 `pool.query()`），禁止字符串拼接。`pool.execute()` 不支持 LIMIT 占位符 → 改用 `pool.query()`
-- **PM2 只支持 fork 模式**，不支持 cluster；更新 `ecosystem.config.js` 后必须 `pm2 delete` + `pm2 start` 重新注册
-- **前端禁止硬编码假数据**，小程序统一通过 `services/modules/` 调用 API，Web 后台通过 `src/api/` 调用
-- **小程序使用 rpx 单位**，设计主题色 `#2B6DE8`（高效蓝）
-- **Web 后台 TypeScript 严格模式**，提交前必须 `npm run type-check`
+> 详细规则见 `.AI/rules/core.md`（全局铁律 R1-R46）及各专项规则文件。
+
 - **提交前清理**：禁止残留 `console.log`、`debugger`、注释掉的代码、硬编码密钥
 - **Git 规范**：详见 `.AI/rules/git-workflow.md`（提交格式、分支策略、自动推送 test）
 
@@ -103,11 +90,13 @@ common/config/database.js → 数据访问层：仅 SQL 执行
 
 | 任务类型 | 额外加载的规则文件 |
 |---------|-------------------|
+| 全部任务 | `.AI/rules/core.md`（始终加载）+ `.AI/rules/coding-standards.md` |
 | 后端开发 | `.AI/rules/backend-rules.md` + 对应模块 Agent 的 `SKILL.md` |
 | 小程序开发 | `.AI/rules/miniapp-rules.md` |
 | Web 后台开发 | `.AI/rules/webapp-rules.md` |
 | Git 操作 | `.AI/rules/git-workflow.md` |
 | Code Review | `.AI/rules/review-checklist.md` |
+| 技术选型 | `.AI/rules/tech-stack.md` |
 | 跨模块协作 | `COLLABORATION-RULES.md`（含 R015-R017 Agent 协作规则） |
 
 子目录专属文档：`backend/CLAUDE.md`、`miniapp/CLAUDE.md`、`webapp/CLAUDE.md`（进入子目录时加载）。
