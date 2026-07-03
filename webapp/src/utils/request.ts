@@ -31,7 +31,7 @@ async function ensureFreshToken() {
   refreshPromise = (async () => {
     try {
       const res = await axios.post(
-        (import.meta.env.VITE_API_BASE_URL || '') + '/api/auth/refresh-token',
+        (import.meta.env.VITE_API_BASE_URL || '') + '/auth/refresh-token',
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       )
