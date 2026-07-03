@@ -245,4 +245,36 @@ async function updateRequest(requestId, applicantId, { leaveSubtype, startDate, 
   });
 }
 
-module.exports = { apply, cancel, myList, detail, calcMissingDates, updateRequest };
+/**
+ * 删除请假/出差记录（管理员）— 仅已撤销/已结束的可删，恢复排班
+ * @param {number} requestId
+ */
+async function deleteRequest(requestId) {
+  const rows = await db.query('SELECT * FROM attendance_leave_requests WHERE id = ?', [requestId]);
+  if (!rows.length) throw new BusinessError('申请单不存在', null, ErrorCode.ATTENDANCE_LEAVE_NOT_FOUND);
+
+  const req = rows[0];
+  if (req.status !== 'cancelled' && req.status !== 'ended') {
+    throw new BusinessError('仅已撤销/已结束的记录可删除');
+  }
+
+  return db.transaction(async (conn) => {
+    // 若是请假，恢复排班
+    if (req.request_type === 'leave' && req.start_date && req.end_date) {
+      const cur = new Date(req.start_date);
+      const end = new Date(req.end_date);
+      while (cur <= end) {
+        const dateStr = cur.toISOString().slice(0, 10);
+        await conn.execute(
+          'UPDATE attendance_schedules SET status = ?, updated_at = NOW() WHERE user_id = ? AND schedule_date = ?',
+          ['work', req.applicant_id, dateStr]
+        );
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+    await conn.execute('DELETE FROM attendance_leave_requests WHERE id = ?', [requestId]);
+    return { deleted: true };
+  });
+}
+
+module.exports = { apply, cancel, myList, detail, calcMissingDates, updateRequest, deleteRequest };

@@ -40,4 +40,13 @@ async function mySchedule(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, upsert, batch, mySchedule };
+async function deleteSchedule(req, res, next) {
+  try {
+    const { id } = req.body;
+    if (!id) throw new ValidationError('id 不能为空');
+    const result = await scheduleService.deleteSchedule(id);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+module.exports = { list, upsert, batch, mySchedule, deleteSchedule };

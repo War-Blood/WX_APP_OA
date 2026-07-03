@@ -70,4 +70,13 @@ async function updateRequest(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { apply, myList, detail, cancel, startTrip, endTrip, updateRequest };
+async function deleteRequest(req, res, next) {
+  try {
+    const { requestId } = req.body;
+    if (!requestId) throw new ValidationError('requestId 不能为空');
+    const result = await leaveService.deleteRequest(requestId);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+module.exports = { apply, myList, detail, cancel, startTrip, endTrip, updateRequest, deleteRequest };

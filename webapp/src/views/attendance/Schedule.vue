@@ -36,9 +36,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="note" label="备注" />
-        <el-table-column label="操作" width="100">
+        <el-table-column label="操作" width="160">
           <template #default="{ row }">
             <el-button size="small" @click="editDay(row)">编辑</el-button>
+            <el-button size="small" type="danger" @click="deleteDay(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -69,8 +70,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { getScheduleList, upsertSchedule, batchSchedule } from '@/api/attendance'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { getScheduleList, upsertSchedule, batchSchedule, deleteSchedule } from '@/api/attendance'
 import { getDepartmentList, getUserList } from '@/api/user'
 
 const statusOptions = [
@@ -143,6 +144,17 @@ async function doBatch() {
     ElMessage.success(`完成：新增${res.data.inserted}，更新${res.data.updated}`)
     batchVisible.value = false; loadData()
   } catch { ElMessage.error('操作失败') }
+}
+
+async function deleteDay(row: any) {
+  try {
+    await ElMessageBox.confirm(`确认删除 ${row.userName} 的排班记录？`, '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+    await deleteSchedule(row.id)
+    ElMessage.success('已删除')
+    // 刷新当日人员列表
+    dayWorkers.value = dayWorkers.value.filter((w: any) => w.id !== row.id)
+    loadData()
+  } catch { /* 取消或失败 */ }
 }
 
 onMounted(async () => {

@@ -69,3 +69,9 @@ export function exportSummary(params: {
 export function getLeaveList(params: {
   page?: number; pageSize?: number; requestType?: string; status?: string; departmentId?: number
 }) { return request.post('/api/attendance/leave/my-list', params) }
+
+// 删除排班
+export function deleteSchedule(id: number) { return request.post('/api/attendance/schedule/delete', { id }) }
+
+// 删除请假/出差记录
+export function deleteLeave(requestId: number) { return request.post('/api/attendance/leave/delete', { requestId }) }

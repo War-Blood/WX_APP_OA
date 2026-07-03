@@ -96,4 +96,15 @@ async function mySchedule({ userId, startDate, endDate }) {
   return rows;
 }
 
-module.exports = { list, upsert, batch, mySchedule };
+/**
+ * 删除排班记录（管理员）
+ * @param {number} id - 排班记录 ID
+ */
+async function deleteSchedule(id) {
+  const rows = await db.query('SELECT id FROM attendance_schedules WHERE id = ?', [id]);
+  if (!rows.length) throw new BusinessError('排班记录不存在', null, ErrorCode.ATTENDANCE_LEAVE_NOT_FOUND);
+  await db.execute('DELETE FROM attendance_schedules WHERE id = ?', [id]);
+  return { deleted: true };
+}
+
+module.exports = { list, upsert, batch, mySchedule, deleteSchedule };

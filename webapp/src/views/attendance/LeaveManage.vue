@@ -59,6 +59,11 @@
         <el-table-column label="提交时间" width="160">
           <template #default="{ row }">{{ fmt(row.createdAt) }}</template>
         </el-table-column>
+        <el-table-column label="操作" width="80" fixed="right">
+          <template #default="{ row }">
+            <el-button v-if="row.status === 'cancelled' || row.status === 'ended'" size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -76,8 +81,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { getLeaveList } from '@/api/attendance'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { getLeaveList, deleteLeave } from '@/api/attendance'
 import { getDepartmentList } from '@/api/user'
 
 const statusMap: Record<string, string> = {
@@ -114,6 +119,15 @@ async function loadData() {
     pagination.total = res.data?.total || 0
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }
+}
+
+async function handleDelete(row: any) {
+  try {
+    await ElMessageBox.confirm(`确认永久删除此记录？`, '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+    await deleteLeave(row.id)
+    ElMessage.success('已删除')
+    loadData()
+  } catch { /* 取消或失败 */ }
 }
 
 onMounted(() => {
