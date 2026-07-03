@@ -14,8 +14,8 @@
 
 | 远程名称 | GitHub 仓库 | 用途 |
 |---------|------------|------|
-| `origin` | `War-Blood/WX_APP_RB` | 默认远程（stable/main 所在） |
-| `WX_APP_OA` | `War-Blood/WX_APP_OA` | **test 分支所在，AI push 目标** |
+| `WX_APP_OA` | `War-Blood/WX_APP_OA` | 主远程，AI push 目标 |
+| `origin` | 同上 | 镜像别名 |
 
 ---
 
@@ -29,7 +29,7 @@ feature/fix/hotfix → test → stable → main（用户手动）
 |------|------|:---:|
 | `main` | 生产就绪代码 | ❌ **禁止**（红线） |
 | `stable` | 验证通过的稳定版本 | ❌ **禁止** |
-| `test` | 功能集成测试环境 | ✅ **允许**（WX_APP_OA） |
+| `test` | 功能集成测试环境 | ✅ **允许** |
 
 ### 短期分支
 
