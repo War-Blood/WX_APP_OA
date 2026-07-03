@@ -36,7 +36,7 @@
     <view class="bottom-bar">
       <view class="bb-btn" @tap="goPage('/pages/attendance/leave-apply/index')"><text>请假申请</text></view>
       <view class="bb-btn primary" @tap="goPage('/pages/attendance/trip-start/index')"><text>出差开始</text></view>
-      <view class="bb-btn" @tap="goPage('/pages/attendance/leave-list/index')"><text>我的申请</text></view>
+      <view class="bb-btn" @tap="goPage('/pages/attendance/leave-list/index')"><text>考勤中心</text></view>
     </view>
   </view>
 </template>

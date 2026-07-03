@@ -71,7 +71,10 @@ async function endTrip({ applicantId, requestId, reason }) {
   const tripStart = new Date(trip.trip_started_at);
   const tripEnd = new Date();
   const missingDates = await calcMissingDates(applicantId, tripStart, tripEnd);
-  const tripDays = Math.ceil((tripEnd - tripStart) / (1000 * 60 * 60 * 24)) + 1;
+  // 日期粒度计算：忽略时分秒，只比较日历日期
+  const startDay = new Date(tripStart.getFullYear(), tripStart.getMonth(), tripStart.getDate());
+  const endDay = new Date(tripEnd.getFullYear(), tripEnd.getMonth(), tripEnd.getDate());
+  const tripDays = Math.floor((endDay - startDay) / (1000 * 60 * 60 * 24)) + 1;
 
   await db.execute(
     `UPDATE attendance_leave_requests SET trip_ended_at = NOW(), status = 'ended', reason = COALESCE(NULLIF(?, ''), reason) WHERE id = ?`,

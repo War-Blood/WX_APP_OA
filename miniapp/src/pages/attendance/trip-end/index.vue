@@ -45,7 +45,10 @@ const missingDates = ref([])
 
 const tripDays = computed(() => {
   if (!trip.value?.tripStartedAt) return 0
-  return Math.ceil((Date.now() - new Date(trip.value.tripStartedAt)) / 86400000) + 1
+  // 日期粒度：忽略时分秒，按日历天数计算
+  const start = new Date(trip.value.tripStartedAt.slice(0, 10))
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  return Math.floor((today - start) / 86400000) + 1
 })
 
 function fmtTime(t) { if (!t) return ''; return t.slice(0, 16).replace('T', ' ') }
@@ -65,7 +68,7 @@ onMounted(async () => {
 async function handleEnd() {
   submitting.value = true
   try {
-    const res = await attendanceApi.endTrip({ reason: reason.value })
+    const res = await attendanceApi.endTrip({ requestId: trip.value.id, reason: reason.value })
     const d = res.data
     uni.showToast({ title: `已结束，${d.tripDays}天，未提交${d.missingDays}天`, icon: 'none', duration: 2500 })
     setTimeout(() => uni.navigateBack(), 2500)

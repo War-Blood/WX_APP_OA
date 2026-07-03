@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <nav-bar title="我的申请" :showBack="true" />
+    <nav-bar title="考勤中心" :showBack="true" />
     <view class="tabs">
       <view v-for="t in filterTabs" :key="t.key" class="tab" @tap="switchTab(t.key)">
         <text :class="{ active: activeTab === t.key }">{{ t.label }}</text>
@@ -43,12 +43,13 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
 
 const filterTabs = [{ key: '', label: '全部' }, { key: 'leave', label: '请假' }, { key: 'biz_trip', label: '出差' }]
 const statusMap = { active: '生效中', cancelled: '已撤销', in_progress: '进行中', ended: '已结束' }
-const leaveTypeMap = { annual: '年假', sick: '事假', personal: '病假', marriage: '婚假', funeral: '丧假', other: '其他' }
+const leaveTypeMap = { annual: '年假', sick: '病假', personal: '事假', marriage: '婚假', funeral: '丧假', other: '其他' }
 
 const activeTab = ref('')
 const list = ref([])
@@ -87,6 +88,7 @@ async function loadMore() { page.value++; loadData(false); }
 async function onRefresh() { refreshing.value = true; await loadData(true); refreshing.value = false; }
 
 onMounted(() => loadData())
+onShow(() => loadData())
 </script>
 
 <style lang="scss" scoped>
