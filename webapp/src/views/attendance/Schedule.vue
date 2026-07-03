@@ -19,12 +19,7 @@
             <template #reference>
               <div class="cell" :style="cellStyle(data.day)" @click="paintDate = data.day">
                 <div class="cell-date">{{ data.day.split('-').pop() }}</div>
-                <div v-if="daySummary[data.day]" class="cell-summary">
-                  <span v-if="daySummary[data.day].work" class="tag tag-work">{{ daySummary[data.day].work }}</span>
-                  <span v-if="daySummary[data.day].biz_trip" class="tag tag-trip">{{ daySummary[data.day].biz_trip }}</span>
-                  <span v-if="daySummary[data.day].rest" class="tag tag-rest">{{ daySummary[data.day].rest }}</span>
-                  <span v-if="daySummary[data.day].leave" class="tag tag-leave">{{ daySummary[data.day].leave }}</span>
-                </div>
+                <div v-if="daySummary[data.day]" class="cell-status">{{ statusLabel(daySummary[data.day]) }}</div>
               </div>
             </template>
             <div style="text-align:center">
@@ -33,41 +28,11 @@
                 <el-button v-for="o in statusOptions" :key="o.value" :type="o.value === paintStatus ? 'primary' : 'default'" size="small" @click="paintStatus = o.value">{{ o.label }}</el-button>
               </div>
               <el-button type="primary" size="small" @click="doPaint(data.day)">应用到全员</el-button>
-              <el-button size="small" style="margin-left:8px" @click="paintDate='';openDayDetail(data.day)">查看详情</el-button>
             </div>
           </el-popover>
         </template>
       </el-calendar>
     </el-card>
-
-    <!-- 单日详情 -->
-    <el-dialog v-model="dayVisible" :title="selectedDay + ' 人员排班'" width="600px">
-      <el-table :data="dayWorkers" stripe>
-        <el-table-column prop="userName" label="姓名" width="100" />
-        <el-table-column prop="departmentName" label="部门" width="120" />
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="note" label="备注" />
-        <el-table-column label="操作" width="160">
-          <template #default="{ row }">
-            <el-button size="small" @click="editDay(row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="deleteDay(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-dialog>
-
-    <!-- 编辑弹窗 -->
-    <el-dialog v-model="editVisible" title="编辑排班" width="400px">
-      <el-form :model="editForm" label-width="80px">
-        <el-form-item label="状态"><el-select v-model="editForm.status"><el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" /></el-select></el-form-item>
-        <el-form-item label="备注"><el-input v-model="editForm.note" /></el-form-item>
-      </el-form>
-      <template #footer><el-button @click="editVisible=false">取消</el-button><el-button type="primary" @click="saveEdit">保存</el-button></template>
-    </el-dialog>
 
     <!-- 批量排班 -->
     <el-dialog v-model="batchVisible" title="批量排班" width="500px">
@@ -155,8 +120,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { getScheduleList, upsertSchedule, batchSchedule, deleteSchedule, getScheduleRules, saveScheduleRule, applyScheduleRule, type ScheduleRule } from '@/api/attendance'
+import { ElMessage } from 'element-plus'
+import { getScheduleList, batchSchedule, getScheduleRules, saveScheduleRule, applyScheduleRule, type ScheduleRule } from '@/api/attendance'
 import { getDepartmentList, getUserList } from '@/api/user'
 
 const statusOptions = [
@@ -171,12 +136,7 @@ const calendarDate = ref(new Date())
 const filters = reactive({ departmentId: null as number | null })
 const deptOptions = ref<any[]>([])
 const userOptions = ref<any[]>([])
-const daySummary = ref<Record<string, any>>({})
-const dayVisible = ref(false)
-const selectedDay = ref('')
-const dayWorkers = ref<any[]>([])
-const editVisible = ref(false)
-const editForm = reactive({ userId: 0, scheduleDate: '', status: 'work', note: '' })
+const daySummary = ref<Record<string, string>>({})
 const batchVisible = ref(false)
 const batchForm = reactive({ userIds: [] as number[], dateRange: [] as string[], status: 'work', weekdaysOnly: true, note: '' })
 
@@ -194,16 +154,12 @@ const applyResult = ref<{ inserted: number; skipped: number } | null>(null)
 const paintDate = ref('')
 const paintStatus = ref('work')
 
-// 单元格背景色规则
+// 单元格背景色
 function cellStyle(day: string) {
   const s = daySummary.value[day]
   if (!s) return {}
-  const bg: Record<string, string> = {}
-  if (s.leave) bg.backgroundColor = '#F5F3FF'
-  else if (s.biz_trip) bg.backgroundColor = '#FFF8E1'
-  else if (s.work && !s.rest) bg.backgroundColor = '#EDF2FF'
-  else if (s.rest && !s.work) bg.backgroundColor = '#F5F5F5'
-  return bg
+  const colors: Record<string, string> = { work: '#EDF2FF', rest: '#F5F5F5', biz_trip: '#FFF8E1', leave: '#F5F3FF' }
+  return { backgroundColor: colors[s] || '' }
 }
 
 async function doPaint(date: string) {
@@ -228,29 +184,19 @@ async function loadData() {
       if (!map[s.scheduleDate]) map[s.scheduleDate] = { work: 0, biz_trip: 0, rest: 0, leave: 0 }
       map[s.scheduleDate][s.status]++
     })
-    daySummary.value = map
+    // 计算每日主导状态
+    const summary: Record<string, string> = {}
+    for (const date of Object.keys(map)) {
+      const c = map[date]
+      const max = Math.max(c.work || 0, c.biz_trip || 0, c.rest || 0, c.leave || 0)
+      if (max === 0) continue
+      if (c.biz_trip >= max) summary[date] = 'biz_trip'
+      else if (c.leave >= max) summary[date] = 'leave'
+      else if (c.work >= max) summary[date] = 'work'
+      else summary[date] = 'rest'
+    }
+    daySummary.value = summary
   } catch { /* */ }
-}
-
-async function openDayDetail(day: string) {
-  selectedDay.value = day; dayVisible.value = true
-  try {
-    const res = await getScheduleList({ startDate: day, endDate: day, pageSize: 200 })
-    dayWorkers.value = res.data?.list || []
-  } catch { dayWorkers.value = [] }
-}
-
-function editDay(row: any) {
-  editForm.userId = row.userId; editForm.scheduleDate = row.scheduleDate
-  editForm.status = row.status; editForm.note = row.note || ''
-  editVisible.value = true
-}
-
-async function saveEdit() {
-  try {
-    await upsertSchedule(editForm)
-    ElMessage.success('保存成功'); editVisible.value = false; loadData()
-  } catch { ElMessage.error('保存失败') }
 }
 
 function openBatchDialog() { batchVisible.value = true }
@@ -265,17 +211,6 @@ async function doBatch() {
     ElMessage.success(`完成：新增${res.data.inserted}，更新${res.data.updated}`)
     batchVisible.value = false; loadData()
   } catch { ElMessage.error('操作失败') }
-}
-
-async function deleteDay(row: any) {
-  try {
-    await ElMessageBox.confirm(`确认删除 ${row.userName} 的排班记录？`, '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
-    await deleteSchedule(row.id)
-    ElMessage.success('已删除')
-    // 刷新当日人员列表
-    dayWorkers.value = dayWorkers.value.filter((w: any) => w.id !== row.id)
-    loadData()
-  } catch { /* 取消或失败 */ }
 }
 
 // ===== 排班规则 =====
@@ -326,9 +261,7 @@ async function doApply() {
 
 onMounted(async () => {
   await loadData()
-  // 加载部门列表
   try { const res = await getDepartmentList(); deptOptions.value = (res as any).data || res || [] } catch { /* */ }
-  // 加载人员列表
   try { const res = await getUserList({ pageSize: 500 }); userOptions.value = ((res as any).list || (res as any).data?.list || []).map((u: any) => ({ id: u.id, name: u.nickName || u.nickname || u.userName || u.username })) } catch { /* */ }
 })
 </script>
@@ -338,10 +271,7 @@ onMounted(async () => {
 .toolbar { display: flex; justify-content: space-between; align-items: center; }
 .title { font-size: 18px; font-weight: 600; }
 .actions { display: flex; gap: 12px; }
-.cell { cursor: pointer; min-height: 40px; padding: 4px; }
+.cell { cursor: pointer; min-height: 40px; padding: 4px; border-radius: 4px; }
 .cell-date { font-size: 14px; color: #666; }
-.cell-summary { display: flex; gap: 2px; flex-wrap: wrap; }
-.tag { font-size: 10px; padding: 1px 4px; border-radius: 4px; }
-.tag-work { background: #EDF2FF; color: #2B6DE8; }
-.tag-trip { background: #FFF8E1; color: #F59E0B; }
+.cell-status { font-size: 12px; font-weight: 600; margin-top: 2px; }
 </style>
