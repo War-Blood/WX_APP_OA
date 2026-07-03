@@ -165,7 +165,7 @@ function cellStyle(day: string) {
 async function doPaint(date: string) {
   if (!userOptions.value.length) { ElMessage.warning('未加载人员列表'); return }
   try {
-    await batchSchedule({ userIds: userOptions.value.map((u: any) => u.id), startDate: date, endDate: date, status: paintStatus.value, weekdaysOnly: false })
+    await batchSchedule({ userIds: userOptions.value.map((u: any) => u.id).filter((id: any) => id != null), startDate: date, endDate: date, status: paintStatus.value, weekdaysOnly: false })
     ElMessage.success(`已为 ${date} 全员设置「${statusOptions.find(o=>o.value===paintStatus.value)?.label}」`)
     paintDate.value = ''
     loadData()
