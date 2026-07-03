@@ -93,7 +93,7 @@ common/config/database.js → 数据访问层：仅 SQL 执行
 - **小程序使用 rpx 单位**，设计主题色 `#2B6DE8`（高效蓝）
 - **Web 后台 TypeScript 严格模式**，提交前必须 `npm run type-check`
 - **提交前清理**：禁止残留 `console.log`、`debugger`、注释掉的代码、硬编码密钥
-- **自动 push test**：每次 `git commit` 后自动 `git push origin <current-branch>:test`，无需人工确认。禁止 push stable/main
+- **Git 规范**：详见 `.AI/rules/git-workflow.md`（提交格式、分支策略、自动推送 test）
 
 ---
 
@@ -151,19 +151,3 @@ Wiki 知识库入口：`.AI/Wiki/_index.md`。
 > - 跨层需求（如业务页需要新 API 方法）→ 公共 Agent 先扩展，业务 Agent 后使用
 
 Agent 记忆状态索引：`memory/agent-index.md`。
-
----
-
-## Git 提交格式
-
-```
-<type>(<scope>): <subject>    → 标题 ≤ 72 字符，中文描述
-```
-
-| Type | 用途 | Type | 用途 |
-|------|------|------|------|
-| `feat` | 新功能 | `fix` | Bug 修复 |
-| `refactor` | 重构 | `docs` | 文档 |
-| `chore` | 构建/依赖 | `perf` | 性能优化 |
-
-分支命名：`feature/xxx`、`fix/xxx`、`hotfix/xxx`、`release/vX.Y.Z`。

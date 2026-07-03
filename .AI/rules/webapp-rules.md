@@ -39,7 +39,7 @@
 
 1. **上下文加载**: 每次任务执行前必须在上下文中加载 `.AI/rules/webapp-rules.md`
 2. **意图确认**: 接受任务后需仔细分析用户意图，如有疑问应反问确认
-3. **Git 维护**: 每次修改都需要维护 Git 仓库，提交到本地仓库；推送远程需人工确认（详见 `.AI/rules/git-workflow.md`）
+3. **Git 维护**: 每次修改都需要维护 Git 仓库（Git 规范详见 `.AI/rules/git-workflow.md`）
 4. **PRD 对齐**: 开发前必须阅读 `.AI/Wiki/Web 管理后台/Web-PRD.md`，严格按照 PRD 定义的功能开发
 
 ---

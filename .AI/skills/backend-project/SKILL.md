@@ -34,8 +34,8 @@ replaced_by:
 
 1. **上下文加载**: 每次任务执行前必须在上下文中加载 `.AI/rules/backend-rules.md`
 2. **意图确认**: 接受任务后需仔细分析用户意图，如有疑问应反问确认
-3. **Git 维护**: 每次修改都需要维护 Git 仓库，提交到本地仓库；推送远程需人工确认（详见 `.AI/rules/git-workflow.md`）
-4. **远程仓库**: 用户未主动要求，不得擅自提交到远程仓库
+3. **Git 维护**: 每次修改都需要维护 Git 仓库（Git 规范详见 `.AI/rules/git-workflow.md`）
+4. **远程仓库**: Git 推送策略详见 `.AI/rules/git-workflow.md`
 
 ## 分层架构约束
 

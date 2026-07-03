@@ -93,7 +93,7 @@ common/config/database.js → 数据访问层：仅 SQL 执行
 - **小程序使用 rpx 单位**，设计主题色 `#2B6DE8`（高效蓝）
 - **Web 后台 TypeScript 严格模式**，提交前必须 `npm run type-check`
 - **提交前清理**：禁止残留 `console.log`、`debugger`、注释掉的代码、硬编码密钥
-- **禁止自动 push**：Git 提交仅限本地，推送需人工确认
+- **Git 规范**：详见 `.AI/rules/git-workflow.md`（提交格式、分支策略、自动推送 test）
 
 ---
 
@@ -167,3 +167,13 @@ Agent 记忆状态索引：`memory/agent-index.md`。
 | `chore` | 构建/依赖 | `perf` | 性能优化 |
 
 分支命名：`feature/xxx`、`fix/xxx`、`hotfix/xxx`、`release/vX.Y.Z`。
+
+
+<!-- >>> hermes-repo agents (do not edit this block manually) -->
+# 项目指令
+
+
+<!-- >>> hermes-repo agents (do not edit this block manually) -->
+__HERMES_AGENTS_BLOCK__
+<!-- <<< hermes-repo agents -->
+<!-- <<< hermes-repo agents -->
