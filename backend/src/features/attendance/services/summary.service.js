@@ -300,7 +300,7 @@ function mapExportSchedule(s) {
   }
 }
 
-function mapWorkType(wt) { switch(wt) { case '工作（陆）': case '工作（海）': return 'work'; case '在途': return 'biz_trip'; case '待工': return 'rest'; case '请假': return 'leave'; default: return 'rest'; } }
+function mapWorkType(wt) { switch(wt) { case '工作（陆）': case '工作（海）': return 'biz_trip'; case '在途': return 'biz_trip'; case '待工': return 'rest'; case '请假': return 'leave'; default: return 'rest'; } }
 function mapSchedule(s) { switch(s) { case 'work': return 'work'; case 'rest': return 'rest'; case 'biz_trip': return 'biz_trip'; case 'leave': return 'leave'; default: return 'rest'; } }
 
 /**
