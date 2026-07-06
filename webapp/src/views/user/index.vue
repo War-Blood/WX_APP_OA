@@ -52,7 +52,7 @@ const editLoading = ref(false)
 const editUser = ref<UserItem | null>(null)
 const editForm = ref({ userName: '', email: '', phone: '', departmentId: null as number | null, position: '员工', role: '' })
 
-const positionOptions = ['员工', '部长', '经理', '总经理', '管理']
+const positionOptions = ['员工', '部长', '经理', '总经理', '管理','非员工']
 
 // 角色选项（动态）
 const roleOptions = ref<{ label: string; value: string }[]>([])

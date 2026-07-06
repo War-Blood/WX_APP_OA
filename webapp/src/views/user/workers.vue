@@ -31,7 +31,7 @@ const form = ref({
   position: ''
 })
 
-const positionOptions = ['员工', '部长', '经理', '总经理', '管理']
+const positionOptions = ['员工', '部长', '经理', '总经理', '管理', '非员工']
 
 // 未入花名册用户选择
 const nonRosterUsers = ref<NonRosterUser[]>([])
