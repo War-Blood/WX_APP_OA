@@ -50,7 +50,7 @@ const genCodeList = ref<string[]>([])
 const editVisible = ref(false)
 const editLoading = ref(false)
 const editUser = ref<UserItem | null>(null)
-const editForm = ref({ userName: '', email: '', phone: '', departmentId: null as number | null, position: '', role: '' })
+const editForm = ref({ userName: '', email: '', phone: '', departmentId: null as number | null, position: '员工', role: '' })
 
 const positionOptions = ['员工', '部长', '经理', '总经理', '管理']
 
