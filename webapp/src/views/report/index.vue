@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
-import { getReportList, getReportDetail, getWorkerStats, deleteReport, reviewAction, reviewSupplement, updateReport, exportToWecomSheet } from '@/api/report'
+import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreReport, getDeletedReports, reviewAction, reviewSupplement, updateReport, exportToWecomSheet } from '@/api/report'
 import type { ReportUpdateResult } from '@/api/report'
 import type { AllStatsResponse } from '@/api/report'
 
@@ -75,8 +75,15 @@ const workTypeOptions = [
 const tabItems = [
   { label: '统计看板', name: 'stats' },
   { label: '日报查询', name: 'query' },
-  { label: '人员看板', name: 'workers' }
+  { label: '人员看板', name: 'workers' },
+  { label: '回收站', name: 'trash' }
 ]
+
+// 回收站
+const trashList = ref<any[]>([])
+const trashLoading = ref(false)
+const trashPage = ref(1)
+const trashTotal = ref(0)
 
 // 日志类型 tag 映射
 function getReportTypeTag(reportType: string): { text: string; type: string } {
@@ -192,11 +199,44 @@ async function handleExportWecom() {
 
 async function handleDelete(row: Record<string, unknown>) {
   try {
-    await ElMessageBox.confirm('确定删除该条记录？', '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm('确定删除该条记录？删除后可在回收站恢复。', '删除确认', { type: 'warning' })
     await deleteReport(row.id as string)
-    ElMessage.success('已删除')
+    // 显示可撤销的提示（10秒内可点撤销恢复）
+    ElMessage({
+      message: '已删除，10 秒内可撤销',
+      type: 'success',
+      duration: 10000,
+      showClose: true,
+      customClass: 'undo-toast',
+      onClick: () => {
+        restoreReport(row.id as string).then(() => {
+          ElMessage.success('已恢复')
+          loadReports()
+        }).catch(() => ElMessage.error('恢复失败'))
+      }
+    } as any)
     loadReports()
   } catch { /* cancelled */ }
+}
+
+async function loadTrash() {
+  trashLoading.value = true
+  try {
+    const res = await getDeletedReports({ page: trashPage.value, pageSize: 20 })
+    trashList.value = res.list || []
+    trashTotal.value = res.total || 0
+  } catch {
+    ElMessage.error('加载回收站失败')
+  } finally { trashLoading.value = false }
+}
+
+async function handleRestore(id: string) {
+  try {
+    await restoreReport(id)
+    ElMessage.success('已恢复')
+    loadTrash()
+    loadReports()
+  } catch { ElMessage.error('恢复失败') }
 }
 
 async function handleReview(row: Record<string, unknown>, action: 'approve' | 'reject') {
@@ -362,6 +402,7 @@ function handleTabChange(tab: string) {
   if (tab === 'stats') loadStats()
   else if (tab === 'query') loadReports()
   else if (tab === 'workers') loadWorkers()
+  else if (tab === 'trash') loadTrash()
 }
 
 onMounted(() => { loadStats(); loadReports() })
@@ -491,6 +532,32 @@ onMounted(() => { loadStats(); loadReports() })
       </el-table>
       <div class="pagination-wrap">
         <span class="total-text">共 {{ workerTotal }} 人</span>
+      </div>
+    </template>
+
+    <!-- ====== Tab 4: 回收站 ====== -->
+    <template v-if="activeTab === 'trash'">
+      <div class="toolbar">
+        <el-button :icon="Refresh" @click="loadTrash">刷新</el-button>
+      </div>
+      <el-table :data="trashList" v-loading="trashLoading" stripe border>
+        <el-table-column prop="report_date" label="日期" width="110" />
+        <el-table-column prop="userName" label="填写人" width="100" />
+        <el-table-column prop="project" label="项目" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="today_work_type" label="工作类型" width="100" />
+        <el-table-column prop="work_content" label="工作内容" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="deleted_at" label="删除时间" width="160">
+          <template #default="{ row }">{{ row.deleted_at?.slice(0, 16).replace('T', ' ') }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" align="center">
+          <template #default="{ row }">
+            <el-button size="small" type="primary" @click="handleRestore(row.id)">恢复</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pagination-wrap" v-if="trashTotal > 20">
+        <span class="total-text">共 {{ trashTotal }} 条</span>
+        <el-pagination v-model:current-page="trashPage" :page-size="20" :total="trashTotal" layout="prev, pager, next" background @current-change="(p: number) => { trashPage = p; loadTrash() }" />
       </div>
     </template>
 

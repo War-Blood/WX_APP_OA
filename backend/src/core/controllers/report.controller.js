@@ -565,6 +565,37 @@ async function exportToWecomSheet(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/**
+ * 恢复已删除的日报
+ * POST /api/report/restore
+ */
+async function restoreReport(req, res, next) {
+  try {
+    const { id } = req.body;
+    const role = req.user.role;
+    const userId = (role === 'admin' || role === 'superadmin') ? 0 : req.user.userId;
+
+    await reportService.restoreReport(id, userId);
+    res.json(success(null, '已恢复'));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * 回收站列表（仅管理员）
+ * POST /api/report/deleted-list
+ */
+async function listDeleted(req, res, next) {
+  try {
+    const { page = 1, pageSize = 20 } = req.body;
+    const result = await reportService.listDeleted({ page, pageSize });
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   list,
   detail,
@@ -572,6 +603,8 @@ module.exports = {
   saveDraft,
   getDraft,
   deleteReport,
+  restoreReport,
+  listDeleted,
   update,
   checkDuplicate,
   todayStatus,

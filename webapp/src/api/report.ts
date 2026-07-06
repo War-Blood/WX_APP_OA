@@ -92,6 +92,18 @@ export function deleteReport(id: string): Promise<void> {
   return request.post('/report/delete', { id })
 }
 
+/** 恢复已删除的日报 */
+export function restoreReport(id: string): Promise<void> {
+  return request.post('/report/restore', { id })
+}
+
+/** 回收站列表 */
+export function getDeletedReports(params: {
+  page?: number; pageSize?: number
+}): Promise<{ total: number; list: any[] }> {
+  return request.post('/report/deleted-list', params)
+}
+
 /** 编辑报告参数 */
 export interface ReportUpdateParams {
   reportId: number

@@ -200,16 +200,19 @@ async function getDraft(userId, reportDate) {
 }
 
 /**
- * 删除日报（仅允许删除草稿或已驳回的日报）
+ * 删除日报（软删除：设置 deleted_at，可恢复）
+ * 管理员 userId=0 可删除任意人的日报，普通用户仅可删除自己的
  * @param {number} id - 日报 ID
- * @param {number} userId - 用户 ID
+ * @param {number} userId - 用户 ID (0=管理员)
  * @returns {Promise<void>}
  */
 async function deleteReport(id, userId) {
-  const rows = await db.query('SELECT id, user_id, status FROM daily_reports WHERE id = ?', [id]);
+  const rows = await db.query(
+    'SELECT id, user_id, status FROM daily_reports WHERE id = ? AND deleted_at IS NULL', [id]
+  );
 
   if (rows.length === 0) {
-    throw new NotFoundError('日报不存在');
+    throw new NotFoundError('日报不存在或已被删除');
   }
 
   // 普通用户只能删除自己的日报（管理员 userId=0 可删除任意）
@@ -217,7 +220,56 @@ async function deleteReport(id, userId) {
     throw new BusinessError('无权删除他人日报', null, ErrorCode.REPORT_DELETE_FORBIDDEN);
   }
 
-  await db.execute('DELETE FROM daily_reports WHERE id = ?', [id]);
+  await db.execute('UPDATE daily_reports SET deleted_at = NOW() WHERE id = ?', [id]);
+}
+
+/**
+ * 恢复已删除的日报（回收站恢复）
+ * 管理员可恢复任意，普通用户只能恢复自己的
+ * @param {number} id - 日报 ID
+ * @param {number} userId - 用户 ID (0=管理员)
+ * @returns {Promise<void>}
+ */
+async function restoreReport(id, userId) {
+  const rows = await db.query(
+    'SELECT id, user_id, status FROM daily_reports WHERE id = ? AND deleted_at IS NOT NULL', [id]
+  );
+
+  if (rows.length === 0) {
+    throw new NotFoundError('未找到该已删除记录');
+  }
+
+  // 权限：管理员可恢复任意，普通用户仅可恢复自己的
+  if (userId && userId !== 0 && rows[0].user_id !== userId) {
+    throw new BusinessError('无权恢复他人日报', null, ErrorCode.REPORT_DELETE_FORBIDDEN);
+  }
+
+  await db.execute('UPDATE daily_reports SET deleted_at = NULL WHERE id = ?', [id]);
+}
+
+/**
+ * 回收站列表（仅管理员）
+ * @param {object} params
+ * @param {number} params.page - 页码
+ * @param {number} params.pageSize - 每页条数
+ * @returns {Promise<{list: Array, total: number}>}
+ */
+async function listDeleted({ page = 1, pageSize = 20 }) {
+  const offset = (page - 1) * pageSize;
+  const [{ total }] = await db.query(
+    'SELECT COUNT(*) AS total FROM daily_reports WHERE deleted_at IS NOT NULL'
+  );
+  const rows = await db.query(
+    `SELECT dr.id, dr.user_id, dr.report_date, dr.project, dr.area, dr.today_work_type,
+            dr.work_content, dr.status, dr.deleted_at, u.nickname AS userName
+     FROM daily_reports dr
+     LEFT JOIN users u ON dr.user_id = u.id
+     WHERE dr.deleted_at IS NOT NULL
+     ORDER BY dr.deleted_at DESC
+     LIMIT ? OFFSET ?`,
+    [pageSize, offset]
+  );
+  return { list: rows, total };
 }
 
 // ==============================
@@ -1237,6 +1289,8 @@ module.exports = {
   submit,
   getDraft,
   deleteReport,
+  restoreReport,
+  listDeleted,
   updateReport,
   getWorkerList,
   getWorkerStats,
