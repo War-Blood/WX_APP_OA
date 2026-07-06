@@ -3,7 +3,7 @@ import { useUserStore } from '@/stores/user'
 const BASE_URL = 'https://warblood.online'
 
 function showToast(title) {
-  uni.showToast({ title, icon: 'none', duration: 2000 })
+  uni.showToast({ title, icon: 'none', duration: 1500 })
 }
 
 function redirectToLogin() {
