@@ -22,6 +22,8 @@ import { toast } from '@/utils/toast'
           <el-option label="已结束" value="ended" />
           <el-option label="已撤销" value="cancelled" />
         </el-select>
+        <el-input v-model="filters.keyword" placeholder="搜索申请人" clearable style="width:160px;margin-right:12px" @clear="loadData" @keyup.enter="loadData" />
+        <el-button @click="loadData">搜索</el-button>
         <el-select v-model="filters.departmentId" placeholder="部门" clearable style="width:160px;margin-left:12px" @change="loadData">
           <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
         </el-select>
@@ -30,6 +32,7 @@ import { toast } from '@/utils/toast'
       <!-- 表格 -->
       <el-table :data="tableData" v-loading="loading" stripe style="margin-top:16px">
         <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="applicantName" label="申请人" width="100" />
         <el-table-column label="类型" width="80">
           <template #default="{ row }">
             <el-tag :type="row.requestType === 'biz_trip' ? 'warning' : 'primary'" size="small">
@@ -100,7 +103,7 @@ const statusType = (s: string) => {
 const loading = ref(false)
 const deptOptions = ref<any[]>([])
 const tableData = ref<any[]>([])
-const filters = reactive({ requestType: '', status: '', departmentId: null as number | null })
+const filters = reactive({ requestType: '', status: '', keyword: '', departmentId: null as number | null })
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 
 function fmt(t: string | null) {
@@ -115,6 +118,7 @@ async function loadData() {
     if (filters.requestType) params.requestType = filters.requestType
     if (filters.status) params.status = filters.status
     if (filters.departmentId) params.departmentId = filters.departmentId
+    if (filters.keyword) params.keyword = filters.keyword
     const res: any = await getLeaveList(params)
     tableData.value = res.list || []
     pagination.total = res.total || 0

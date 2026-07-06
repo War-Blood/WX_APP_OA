@@ -119,6 +119,38 @@ async function myList({ applicantId, requestType, status, page = 1, pageSize = 1
   };
 }
 
+/**
+ * 管理员查询全员请假/出差记录
+ */
+async function adminList({ requestType, status, keyword, page = 1, pageSize = 20 }) {
+  const conditions = [];
+  const params = [];
+  if (requestType) { conditions.push('lr.request_type = ?'); params.push(requestType); }
+  if (status) { conditions.push('lr.status = ?'); params.push(status); }
+  if (keyword) {
+    conditions.push('(u.nickname LIKE ? OR u.user_name LIKE ?)');
+    const kw = `%${keyword}%`; params.push(kw, kw);
+  }
+
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+  const offset = (page - 1) * pageSize;
+
+  const countRows = await db.query(
+    `SELECT COUNT(*) AS total FROM attendance_leave_requests lr JOIN users u ON lr.applicant_id = u.id ${where}`, params
+  );
+  const list = await db.query(
+    `SELECT lr.*, u.nickname AS applicantName FROM attendance_leave_requests lr
+     JOIN users u ON lr.applicant_id = u.id
+     ${where} ORDER BY lr.created_at DESC LIMIT ? OFFSET ?`,
+    [...params, pageSize, offset]
+  );
+
+  return {
+    list: list.map(r => ({ ...formatRequest(r), applicantName: r.applicantName })),
+    total: countRows[0].total, page, pageSize, totalPages: Math.ceil(countRows[0].total / pageSize),
+  };
+}
+
 async function detail(requestId) {
   const rows = await db.query(
     `SELECT lr.*, u.nickname AS applicantName, d.name AS departmentName
@@ -293,4 +325,4 @@ async function deleteRequest(requestId) {
   });
 }
 
-module.exports = { apply, cancel, myList, detail, calcMissingDates, updateRequest, deleteRequest };
+module.exports = { apply, cancel, myList, adminList, detail, calcMissingDates, updateRequest, deleteRequest };

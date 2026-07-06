@@ -23,6 +23,7 @@ router.post('/schedule/my-schedule', authenticate, scheduleController.mySchedule
 // ===== 请假申请（登录用户） =====
 router.post('/leave/apply', authenticate, leaveController.apply);
 router.post('/leave/my-list', authenticate, leaveController.myList);
+router.post('/leave/all-list', authenticate, requireRole('admin', 'superadmin'), leaveController.adminList);
 router.post('/leave/detail', authenticate, leaveController.detail);
 router.post('/leave/cancel', authenticate, leaveController.cancel);
 router.post('/leave/update', authenticate, leaveController.updateRequest);

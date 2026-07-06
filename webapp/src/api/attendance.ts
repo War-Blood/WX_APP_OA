@@ -67,8 +67,8 @@ export function exportSummary(params: {
 
 // 请假/出差管理（管理员）
 export function getLeaveList(params: {
-  page?: number; pageSize?: number; requestType?: string; status?: string; departmentId?: number
-}) { return request.post('/attendance/leave/my-list', params) }
+  page?: number; pageSize?: number; requestType?: string; status?: string; departmentId?: number; keyword?: string
+}) { return request.post('/attendance/leave/all-list', params) }
 
 // 删除排班
 export function deleteSchedule(id: number) { return request.post('/attendance/schedule/delete', { id }) }

@@ -79,4 +79,12 @@ async function deleteRequest(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { apply, myList, detail, cancel, startTrip, endTrip, updateRequest, deleteRequest };
+async function adminList(req, res, next) {
+  try {
+    const { requestType, status, keyword, page = 1, pageSize = 20 } = req.body;
+    const result = await leaveService.adminList({ requestType, status, keyword, page, pageSize });
+    res.json(paginated(result.list, result.total, Number(page), Number(pageSize)));
+  } catch (err) { next(err); }
+}
+
+module.exports = { apply, myList, adminList, detail, cancel, startTrip, endTrip, updateRequest, deleteRequest };
