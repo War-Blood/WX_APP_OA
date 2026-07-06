@@ -116,7 +116,7 @@ async function create({ userName, workerCode }) {
  * @param {string} [params.userName] - 姓名
  * @returns {Promise<Object>}
  */
-async function update({ userId, userName, isFieldWorker }) {
+async function update({ userId, userName, isFieldWorker, position }) {
   if (!userId) {
     throw new ValidationError('userId 不能为空');
   }
@@ -139,6 +139,10 @@ async function update({ userId, userName, isFieldWorker }) {
   if (isFieldWorker !== undefined) {
     updates.push('is_field_worker = ?');
     params.push(isFieldWorker ? 1 : 0);
+  }
+  if (position !== undefined) {
+    updates.push('position = ?');
+    params.push(position);
   }
 
   if (updates.length === 0) {

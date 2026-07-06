@@ -27,8 +27,11 @@ const isEdit = ref(false)
 const editUserId = ref<number | null>(null)
 const form = ref({
   userName: '',
-  workerCode: ''
+  workerCode: '',
+  position: ''
 })
+
+const positionOptions = ['员工', '部长', '经理', '总经理', '管理']
 
 // 未入花名册用户选择
 const nonRosterUsers = ref<NonRosterUser[]>([])
@@ -86,7 +89,7 @@ function openCreateDialog() {
   isEdit.value = false
   editUserId.value = null
   dialogTitle.value = '新增外场人员'
-  form.value = { userName: '', workerCode: '' }
+  form.value = { userName: '', workerCode: '', position: '' }
   dialogVisible.value = true
   loadNonRosterUsers()
 }
@@ -97,7 +100,8 @@ function openEditDialog(row: WorkerItem) {
   dialogTitle.value = '编辑外场人员'
   form.value = {
     userName: row.userName,
-    workerCode: row.workerCode
+    workerCode: row.workerCode,
+    position: row.position || ''
   }
   dialogVisible.value = true
 }
@@ -116,7 +120,8 @@ async function handleSave() {
     if (isEdit.value && editUserId.value) {
       await updateWorker({
         userId: editUserId.value,
-        userName: form.value.userName
+        userName: form.value.userName,
+        position: form.value.position
       })
       toast.success('更新成功')
     } else {
@@ -240,6 +245,12 @@ onMounted(() => {
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="职务" width="100" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="row.position" type="primary" size="small">{{ row.position }}</el-tag>
+          <span v-else style="color:#CCC">-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="primary" link :icon="Edit" @click="openEditDialog(row)">
@@ -313,6 +324,11 @@ onMounted(() => {
         </el-form-item>
         <el-form-item v-else label="工号">
           <el-input :model-value="form.workerCode" disabled />
+        </el-form-item>
+        <el-form-item label="职务">
+          <el-select v-model="form.position" placeholder="选择职务" clearable style="width:100%">
+            <el-option v-for="p in positionOptions" :key="p" :label="p" :value="p" />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>

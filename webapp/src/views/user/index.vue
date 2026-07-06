@@ -52,6 +52,8 @@ const editLoading = ref(false)
 const editUser = ref<UserItem | null>(null)
 const editForm = ref({ userName: '', email: '', phone: '', departmentId: null as number | null, position: '', role: '' })
 
+const positionOptions = ['员工', '部长', '经理', '总经理', '管理']
+
 // 角色选项（动态）
 const roleOptions = ref<{ label: string; value: string }[]>([])
 
@@ -284,6 +286,12 @@ onMounted(() => {
           <el-tag :type="getRoleTagType(row.role)" size="small">{{ getRoleLabel(row.role) }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="职务" width="90" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="row.position" type="primary" size="small">{{ row.position }}</el-tag>
+          <span v-else style="color:#CCC">-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" width="90" align="center">
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusLabel(row.status) }}</el-tag>
@@ -340,8 +348,10 @@ onMounted(() => {
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="职位">
-          <el-input v-model="editForm.position" placeholder="职位" />
+        <el-form-item label="职务">
+          <el-select v-model="editForm.position" placeholder="选择职务" clearable style="width:100%">
+            <el-option v-for="p in positionOptions" :key="p" :label="p" :value="p" />
+          </el-select>
         </el-form-item>
         <el-form-item label="角色">
           <el-select v-model="editForm.role" placeholder="选择角色" style="width: 100%">
