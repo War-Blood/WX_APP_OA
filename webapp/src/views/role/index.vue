@@ -108,6 +108,7 @@ async function handleSavePermissions() {
     await setRolePermissions(currentRole.value.id, checkedPermIds.value)
     toast.success('权限已更新')
     permVisible.value = false
+    loadRoles()
   } catch { /* handled by interceptor */ }
   finally { permLoading.value = false }
 }

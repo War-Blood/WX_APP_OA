@@ -26,6 +26,7 @@ async function saveModules() {
   try {
     await request.post('/admin/modules', { action: 'saveModules', modules: modules.value })
     toast.success('保存成功')
+    loadModules()
   } catch { toast.error('保存失败') }
   finally { saving.value = false }
 }

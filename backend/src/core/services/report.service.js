@@ -1123,17 +1123,34 @@ async function exportStatusBoardCSV(month, restDaysInput) {
   ]);
   rows1.forEach(r => setInfo(r.uid, r));
   rows2.forEach(r => setInfo(r.uid, r));
+  // Path3: match ALL names, unmatched ones get synthetic entries
+  const externalWorkers = {}; // name -> { day -> { ... } }
+  let extIdCounter = -1;
   for (const r of rows3) {
     const names = r.workers.split(/[、,，\s]+/).filter(n => n);
     for (const n of names) {
       const uid = nameToId[n];
-      if (uid) setInfo(uid, r);
+      if (uid) { setInfo(uid, r); continue; }
+      // External worker: track by name
+      const key = n;
+      if (!externalWorkers[key]) externalWorkers[key] = {};
+      const day = r.report_date instanceof Date ? r.report_date.getDate() : new Date(r.report_date).getDate();
+      if (!externalWorkers[key][day]) {
+        externalWorkers[key][day] = {
+          date: r.report_date,
+          project: r.project || r.area || '',
+          status: r.today_work_type || '',
+        };
+      }
     }
   }
 
-  // 3. Filter empty workers
+  // 3. Filter: keep workers with data + external workers
   const activeWorkers = workerList.filter(w => workerMap[w.id] && Object.keys(workerMap[w.id]).length > 0);
-  if (activeWorkers.length === 0) throw new BusinessError('No worker data for this month');
+  const extEntries = Object.entries(externalWorkers).filter(([,v]) => Object.keys(v).length > 0)
+    .map(([name, data]) => ({ id: extIdCounter--, user_name: name, _ext: true, _data: data }));
+  const allWorkers = [...activeWorkers, ...extEntries];
+  if (allWorkers.length === 0) throw new BusinessError('No worker data for this month');
 
   // 4. Query attendance schedules (only needed if no user-adjusted restDays)
   const schedMap = {};
@@ -1160,7 +1177,7 @@ async function exportStatusBoardCSV(month, restDaysInput) {
   // 5. Build Workbook
   const wb = new ExcelJS.Workbook();
   wb.creator = '\u6280\u672f\u5de5\u7a0b\u4e2d\u5fc3';
-  const pers = activeWorkers.length;
+  const pers = allWorkers.length;
   const totalCols = pers * 3;
   const ws1 = wb.addWorksheet('\u516c\u51fa\u539f\u59cb\u8bb0\u5f55');
   [12, 25, 10].forEach((w, i) => { for (let j = 0; j < pers; j++) ws1.getColumn(j * 3 + i + 1).width = w; });
@@ -1176,7 +1193,7 @@ async function exportStatusBoardCSV(month, restDaysInput) {
 
   // R2: Name row
   ws1.addRow([]);
-  activeWorkers.forEach((w, i) => {
+  allWorkers.forEach((w, i) => {
     ws1.mergeCells(2, i * 3 + 1, 2, i * 3 + 3);
     const cell = ws1.getCell(2, i * 3 + 1);
     cell.value = w.user_name;
@@ -1187,7 +1204,7 @@ async function exportStatusBoardCSV(month, restDaysInput) {
 
   // R3: Header
   const hdrData = [];
-  activeWorkers.forEach(() => hdrData.push('\u51fa\u5dee\u65f6\u95f4', '\u51fa\u5dee\u9879\u76ee', '\u72b6\u6001'));
+  allWorkers.forEach(() => hdrData.push('\u51fa\u5dee\u65f6\u95f4', '\u51fa\u5dee\u9879\u76ee', '\u72b6\u6001'));
   const hdrRow = ws1.addRow(hdrData);
   hdrRow.eachCell(c => {
     c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -1202,8 +1219,8 @@ async function exportStatusBoardCSV(month, restDaysInput) {
 
   days.forEach(dateStr => {
     const rowData = [];
-    activeWorkers.forEach(w => {
-      const info = workerMap[w.id]?.[parseInt(dateStr.slice(-2))];
+    allWorkers.forEach(w => {
+      const info = w._ext ? w._data[parseInt(dateStr.slice(-2))] : workerMap[w.id]?.[parseInt(dateStr.slice(-2))];
       const rest = isRestDay(w.id, dateStr);
 
       let displayDate = '', displayProject = '', displayStatus = '';
@@ -1217,12 +1234,12 @@ async function exportStatusBoardCSV(month, restDaysInput) {
       rowData.push(displayDate, displayProject, displayStatus);
 
       // Overtime: rest day + has report = overtime
-      if (rest && info) overtime[w.id] = (overtime[w.id] || 0) + 1;
+      if (rest && info) { const kid = w._ext ? w.user_name : w.id; overtime[kid] = (overtime[kid] || 0) + 1; }
     });
 
     const dataRow = ws1.addRow(rowData);
-    activeWorkers.forEach((w, i) => {
-      const rest = isRestDay(w.id, dateStr);
+    allWorkers.forEach((w, i) => {
+      const rest = w._ext ? false : isRestDay(w.id, dateStr);
       // Only rest day cells get formatting
       if (rest) {
         const projectCell = dataRow.getCell(i * 3 + 2);
@@ -1257,8 +1274,8 @@ async function exportStatusBoardCSV(month, restDaysInput) {
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
     c.alignment = { horizontal: 'center' };
   });
-  const overtimeList = activeWorkers
-    .map((w, i) => ({ idx: i + 1, name: w.user_name, days: overtime[w.id] || 0 }))
+  const overtimeList = allWorkers
+    .map((w, i) => ({ idx: i + 1, name: w.user_name, days: overtime[w._ext ? w.user_name : w.id] || 0 }))
     .filter(x => x.days > 0)
     .sort((a, b) => b.days - a.days);
   overtimeList.forEach(x => {

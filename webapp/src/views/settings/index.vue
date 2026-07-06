@@ -35,6 +35,7 @@ async function saveConfig() {
   try {
     await updateSystemConfig(configs.value.map(c => ({ key: c.key, value: c.value, group: c.group, description: c.description })))
     toast.success('配置已保存')
+    loadConfig()
   } catch { }
   finally { saving.value = false }
 }
