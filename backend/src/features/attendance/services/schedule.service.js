@@ -3,6 +3,7 @@
 const db = require('../../../common/config/database');
 const { BusinessError } = require('../../../common/utils/errors');
 const { ErrorCode } = require('../../../common/utils/constants');
+const { beijingDate } = require('../../../common/utils/date');
 
 /**
  * 排班服务
@@ -53,8 +54,8 @@ async function upsert({ userId, scheduleDate, status, note, createdBy }) {
 
 async function batch({ userIds, startDate, endDate, status, note, weekdaysOnly, createdBy }) {
   let inserted = 0, updated = 0;
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = beijingDate(startDate);
+  const end = beijingDate(endDate);
 
   for (const userId of userIds) {
     const cur = new Date(start);
@@ -160,11 +161,11 @@ async function applyRule({ ruleId, startDate, endDate }) {
 
   // 逐日逐人生成
   let inserted = 0, skipped = 0;
-  const cur = new Date(startDate);
-  const end = new Date(endDate);
+  const cur = beijingDate(startDate);
+  const end = beijingDate(endDate);
 
   for (const user of users) {
-    cur.setTime(new Date(startDate).getTime());
+    cur.setTime(beijingDate(startDate).getTime());
     while (cur <= end) {
       // 星期几 → ISO (周一=1..周日=7)
       const dow = cur.getDay() === 0 ? 7 : cur.getDay();
@@ -199,8 +200,8 @@ async function applyRule({ ruleId, startDate, endDate }) {
  * ISO 8601 周数（周一~周日为一周）
  */
 function getISOWeek(d) {
-  const date = new Date(d);
-  date.setHours(0, 0, 0, 0);
+  const date = beijingDate(d);
+  // setHours 保持 00:00:00
   date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
   const week1 = new Date(date.getFullYear(), 0, 4);
   return 1 + Math.round(((date - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);

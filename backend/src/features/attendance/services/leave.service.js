@@ -3,6 +3,7 @@
 const db = require('../../../common/config/database');
 const { BusinessError } = require('../../../common/utils/errors');
 const { ErrorCode } = require('../../../common/utils/constants');
+const { beijingToday } = require('../../../common/utils/date');
 
 /**
  * 请假服务 — apply / cancel / list / detail
@@ -70,6 +71,12 @@ async function cancel(requestId, applicantId) {
   if (req.request_type === 'biz_trip') throw new BusinessError('出差不可撤销，请使用结束打卡', null, ErrorCode.ATTENDANCE_TRIP_CANNOT_CANCEL);
   if (req.applicant_id !== applicantId) throw new BusinessError('无权操作', null, 1001);
   if (req.status !== 'active') throw new BusinessError('申请已撤销不可重复撤销', null, ErrorCode.ATTENDANCE_CANNOT_CANCEL);
+
+  // 请假已结束（end_date 已过）不可撤销
+  if (req.request_type === 'leave' && req.end_date) {
+    const endStr = req.end_date.toISOString ? req.end_date.toISOString().slice(0, 10) : String(req.end_date).slice(0, 10);
+    if (endStr < beijingToday()) throw new BusinessError('请假已结束，不可撤销', null, ErrorCode.ATTENDANCE_CANNOT_CANCEL);
+  }
 
   return db.transaction(async (conn) => {
     await conn.execute(
@@ -145,6 +152,13 @@ function calcDays(start, end) {
 }
 
 function formatRequest(r) {
+  // 请假已过期（end_date 已过且 status 仍为 active）→ 视为已结束
+  let status = r.status;
+  if (r.request_type === 'leave' && r.status === 'active' && r.end_date) {
+    const todayStr = beijingToday();
+    const endStr = r.end_date.toISOString ? r.end_date.toISOString().slice(0, 10) : String(r.end_date).slice(0, 10);
+    if (endStr < todayStr) status = 'ended';
+  }
   return {
     id: r.id,
     applicantId: r.applicant_id,
@@ -156,7 +170,7 @@ function formatRequest(r) {
     tripStartedAt: r.trip_started_at,
     tripEndedAt: r.trip_ended_at,
     reason: r.reason,
-    status: r.status,
+    status,
     source: r.source,
     createdAt: r.created_at,
   };

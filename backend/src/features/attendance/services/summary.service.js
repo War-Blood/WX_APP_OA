@@ -2,6 +2,7 @@
 
 const db = require('../../../common/config/database');
 const { BusinessError } = require('../../../common/utils/errors');
+const { beijingDate } = require('../../../common/utils/date');
 
 /**
  * 考勤汇总服务
@@ -51,8 +52,8 @@ async function list({ startDate, endDate, departmentId, userId, page = 1, pageSi
   // 5. 逐人逐日汇总
   const result = users.map(u => {
     let workDays = 0, restDays = 0, bizTripDays = 0, leaveDays = 0, missingDays = 0;
-    const cur = new Date(startDate);
-    const end = new Date(endDate);
+    const cur = beijingDate(startDate);
+    const end = beijingDate(endDate);
 
     while (cur <= end) {
       const ds = cur.toISOString().slice(0, 10);
