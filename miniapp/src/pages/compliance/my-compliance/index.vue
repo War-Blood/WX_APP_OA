@@ -58,6 +58,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { complianceApi } from '@/services/modules/compliance'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const stats = ref({
   month: '',
@@ -88,7 +89,7 @@ async function loadData() {
     noMoreData.value = true // 当前只加载一次,不分页
   } catch (err) {
     console.error('加载合规记录失败', err)
-    uni.showToast({ title: '加载失败', icon: 'none' })
+    showError('加载失败')
   } finally {
     isLoading.value = false
   }

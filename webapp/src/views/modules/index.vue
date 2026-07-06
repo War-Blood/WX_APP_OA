@@ -1,6 +1,6 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
 const loading = ref(false)
@@ -17,7 +17,7 @@ async function loadModules() {
   try {
     const res: any = await request.post('/admin/modules', { action: 'getModules' })
     modules.value = res || []
-  } catch { ElMessage.error('加载失败') }
+  } catch { toast.error('加载失败') }
   finally { loading.value = false }
 }
 
@@ -25,8 +25,8 @@ async function saveModules() {
   saving.value = true
   try {
     await request.post('/admin/modules', { action: 'saveModules', modules: modules.value })
-    ElMessage.success('保存成功')
-  } catch { ElMessage.error('保存失败') }
+    toast.success('保存成功')
+  } catch { toast.error('保存失败') }
   finally { saving.value = false }
 }
 

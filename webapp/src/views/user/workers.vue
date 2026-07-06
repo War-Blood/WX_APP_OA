@@ -1,6 +1,7 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, Edit } from '@element-plus/icons-vue'
 import {
   getWorkerList, createWorker, updateWorker, toggleWorker, deleteWorker,
@@ -103,11 +104,11 @@ function openEditDialog(row: WorkerItem) {
 
 async function handleSave() {
   if (!form.value.userName.trim()) {
-    ElMessage.warning('请输入姓名')
+    toast.warning('请输入姓名')
     return
   }
   if (!form.value.workerCode.trim()) {
-    ElMessage.warning('请输入工号')
+    toast.warning('请输入工号')
     return
   }
   dialogLoading.value = true
@@ -117,13 +118,13 @@ async function handleSave() {
         userId: editUserId.value,
         userName: form.value.userName
       })
-      ElMessage.success('更新成功')
+      toast.success('更新成功')
     } else {
       await createWorker({
         userName: form.value.userName,
         workerCode: form.value.workerCode
       })
-      ElMessage.success('创建成功')
+      toast.success('创建成功')
     }
     dialogVisible.value = false
     loadData()
@@ -144,7 +145,7 @@ async function handleToggleStatus(row: WorkerItem) {
       { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
     )
     await toggleWorker(row.userId, targetStatus)
-    ElMessage.success(`${action}成功`)
+    toast.success(`${action}成功`)
     loadData()
   } catch {
     // 取消操作
@@ -164,7 +165,7 @@ async function handleToggleField(row: WorkerItem) {
       userId: row.userId,
       isFieldWorker: newValue
     })
-    ElMessage.success(`${action}成功`)
+    toast.success(`${action}成功`)
     loadData()
   } catch {
     // 取消操作
@@ -179,7 +180,7 @@ async function handleDelete(row: WorkerItem) {
       { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'error' }
     )
     await deleteWorker(row.userId)
-    ElMessage.success('已删除')
+    toast.success('已删除')
     loadData()
   } catch {
     // 取消操作

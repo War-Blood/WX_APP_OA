@@ -68,12 +68,13 @@ import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { useUserStore } from '@/stores/user'
 import { reviewApi } from '@/services/modules/review'
 import { reportApi } from '@/services/modules/report'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const userStore = useUserStore()
 
 onMounted(() => {
   if (!userStore.isAdmin) {
-    uni.showToast({ title: '无权限访问', icon: 'none' })
+    showError('无权限访问')
     setTimeout(() => { uni.navigateBack() }, 500)
     return
   }

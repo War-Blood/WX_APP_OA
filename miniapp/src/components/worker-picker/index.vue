@@ -59,6 +59,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { adminApi } from '@/services/modules/admin'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -118,7 +119,7 @@ function toggleWorker(worker) {
     selectedIds.value.splice(idx, 1)
   } else {
     if (selectedIds.value.length >= props.max) {
-      uni.showToast({ title: `最多选择${props.max}人`, icon: 'none' })
+      showError(`最多选择${props.max}人`)
       return
     }
     selectedIds.value.push(worker.userId)

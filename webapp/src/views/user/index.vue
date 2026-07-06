@@ -1,6 +1,7 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, Edit } from '@element-plus/icons-vue'
 import {
   getUserList, updateUser, setAdminRole, toggleUserStatus,
@@ -114,7 +115,7 @@ async function handleEditUser() {
   editLoading.value = true
   try {
     await updateUser(editUser.value.userId, editForm.value)
-    ElMessage.success('用户信息已更新')
+    toast.success('用户信息已更新')
     editVisible.value = false
     loadUsers()
   } catch { /* error handled by interceptor */ }
@@ -128,7 +129,7 @@ async function handleRoleSwitch(row: UserItem) {
   try {
     await ElMessageBox.confirm(`确定要${action}「${row.nickName}」吗？`, '角色变更', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
     await setAdminRole(row.userId, targetRole)
-    ElMessage.success(`${action}成功`)
+    toast.success(`${action}成功`)
     loadUsers()
   } catch { /* cancel */ }
 }
@@ -140,7 +141,7 @@ async function handleToggleStatus(row: UserItem) {
   try {
     await ElMessageBox.confirm(`确定要${action}「${row.nickName}」吗？`, '账号状态变更', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
     await toggleUserStatus(row.userId, targetStatus)
-    ElMessage.success(`${action}成功`)
+    toast.success(`${action}成功`)
     loadUsers()
   } catch { /* cancel */ }
 }
@@ -154,7 +155,7 @@ async function handleDelete(row: UserItem) {
       { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'error' }
     )
     await deleteUser(row.userId)
-    ElMessage.success('已删除')
+    toast.success('已删除')
     loadUsers()
   } catch { /* cancel */ }
 }
@@ -164,7 +165,7 @@ async function handleApprove(row: UserItem) {
   try {
     await ElMessageBox.confirm(`确定审核通过「${row.nickName}」吗？`, '审核用户', { confirmButtonText: '确定通过', cancelButtonText: '取消', type: 'success' })
     await approveUser(row.userId)
-    ElMessage.success('审核通过')
+    toast.success('审核通过')
     loadUsers()
   } catch { /* cancel */ }
 }
@@ -172,13 +173,13 @@ async function handleApprove(row: UserItem) {
 // 创建用户
 async function handleCreateUser() {
   if (!createForm.value.userName.trim()) {
-    ElMessage.warning('请填写用户姓名')
+    toast.warning('请填写用户姓名')
     return
   }
   createLoading.value = true
   try {
     await createUser(createForm.value)
-    ElMessage.success('用户已注册，状态为"待审核"')
+    toast.success('用户已注册，状态为"待审核"')
     createVisible.value = false
     createForm.value = { openid: '', userName: '', department: '', role: 'employee' }
     loadUsers()
@@ -188,11 +189,11 @@ async function handleCreateUser() {
 
 // 邀请用户
 async function handleInviteUser() {
-  if (!inviteForm.value.openid.trim()) { ElMessage.warning('请填写微信 OpenID'); return }
+  if (!inviteForm.value.openid.trim()) { toast.warning('请填写微信 OpenID'); return }
   inviteLoading.value = true
   try {
     await request.post('/admin/inviteUser', inviteForm.value)
-    ElMessage.success('用户已邀请成功')
+    toast.success('用户已邀请成功')
     inviteVisible.value = false
     inviteForm.value = { openid: '', userName: '', department: '' }
     loadUsers()
@@ -203,7 +204,7 @@ async function handleInviteUser() {
 // 生成邀请码
 async function handleGenerateCodes() {
   if (genCodeCount.value < 1 || genCodeCount.value > 100) {
-    ElMessage.warning('生成数量须在 1-100 之间')
+    toast.warning('生成数量须在 1-100 之间')
     return
   }
   genCodeLoading.value = true
@@ -219,9 +220,9 @@ async function handleGenerateCodes() {
 function copyAllCodes() {
   const text = genCodeList.value.join('\n')
   navigator.clipboard.writeText(text).then(() => {
-    ElMessage.success('已复制全部邀请码')
+    toast.success('已复制全部邀请码')
   }).catch(() => {
-    ElMessage.warning('复制失败，请手动复制')
+    toast.warning('复制失败，请手动复制')
   })
 }
 

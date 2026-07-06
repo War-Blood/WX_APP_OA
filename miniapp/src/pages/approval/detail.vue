@@ -92,6 +92,7 @@ import { useUserStore } from '@/stores/user'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import LoadingOverlay from '@/components/loading-overlay/index.vue'
 import { approvalApi } from '@/services/modules/approval'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const userStore = useUserStore()
 
@@ -156,7 +157,7 @@ async function loadDetail() {
     }
   } catch (err) {
     console.error('加载审批详情失败', err)
-    uni.showToast({ title: '加载失败', icon: 'none' })
+    showError('加载失败')
   } finally {
     isLoading.value = false
   }
@@ -283,14 +284,14 @@ async function handleApprove() {
         time: new Date().toISOString().slice(0, 16).replace('T', ' '),
         status: 'completed'
       })
-      uni.showToast({ title: '已通过', icon: 'success' })
+      showSuccess('已通过')
       setTimeout(() => uni.navigateBack(), 1000)
     } else {
-      uni.showToast({ title: res.message || '操作失败', icon: 'none' })
+      showError(res.message || '操作失败')
     }
   } catch (err) {
     console.error('审批操作失败', err)
-    uni.showToast({ title: '操作失败', icon: 'none' })
+    showError('操作失败')
   } finally {
     isSubmitting.value = false
   }
@@ -321,19 +322,19 @@ function handleReject() {
               status: 'completed',
               remark: res.content
             })
-            uni.showToast({ title: '已驳回', icon: 'none' })
+            showError('已驳回')
             setTimeout(() => uni.navigateBack(), 1000)
           } else {
-            uni.showToast({ title: result.message || '操作失败', icon: 'none' })
+            showError(result.message || '操作失败')
           }
         } catch (err) {
           console.error('审批驳回失败', err)
-          uni.showToast({ title: '操作失败', icon: 'none' })
+          showError('操作失败')
         } finally {
           isSubmitting.value = false
         }
       } else if (res.confirm && !res.content) {
-        uni.showToast({ title: '请填写驳回原因', icon: 'none' })
+        showError('请填写驳回原因')
       }
     }
   })

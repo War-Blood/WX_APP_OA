@@ -41,6 +41,7 @@
 import { ref, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const statusMap = { active: '生效中', cancelled: '已撤销', in_progress: '进行中', ended: '已结束' }
 const leaveMap = { annual: '年假', sick: '病假', personal: '事假', marriage: '婚假', funeral: '丧假', other: '其他' }
@@ -69,9 +70,9 @@ async function handleCancel() {
   if (!r.confirm) return
   try {
     await attendanceApi.cancelLeave(id.value)
-    uni.showToast({ title: '已撤销', icon: 'success' })
+    showSuccess('已撤销')
     setTimeout(() => uni.navigateBack(), 1500)
-  } catch (e) { uni.showToast({ title: e.message, icon: 'none' }) }
+  } catch (e) { showError(e.message) }
 }
 
 function handleEdit() {

@@ -44,6 +44,7 @@
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const leaveTypes = ['年假', '事假', '病假', '婚假', '丧假', '其他']
 const leaveTypeMap = { '年假': 'annual', '事假': 'personal', '病假': 'sick', '婚假': 'marriage', '丧假': 'funeral', '其他': 'other' }
@@ -84,10 +85,10 @@ function onStartDate(e) { form.value.startDate = e.detail.value }
 function onEndDate(e) { form.value.endDate = e.detail.value }
 
 async function handleSubmit() {
-  if (!form.value.leaveSubtype) return uni.showToast({ title: '请选择请假类型', icon: 'none' })
-  if (!form.value.startDate || !form.value.endDate) return uni.showToast({ title: '请选择日期', icon: 'none' })
-  if (!form.value.reason) return uni.showToast({ title: '请输入请假原因', icon: 'none' })
-  if (computedDays.value <= 0) return uni.showToast({ title: '结束日期不能早于开始日期', icon: 'none' })
+  if (!form.value.leaveSubtype) return showError('请选择请假类型')
+  if (!form.value.startDate || !form.value.endDate) return showError('请选择日期')
+  if (!form.value.reason) return showError('请输入请假原因')
+  if (computedDays.value <= 0) return showError('结束日期不能早于开始日期')
   submitting.value = true
   try {
     if (editId.value) {
@@ -95,10 +96,10 @@ async function handleSubmit() {
     } else {
       await attendanceApi.applyLeave(form.value)
     }
-    uni.showToast({ title: editId.value ? '修改成功' : '提交成功', icon: 'success' })
+    showSuccess(editId.value ? '修改成功' : '提交成功')
     setTimeout(() => uni.navigateBack(), 1500)
   } catch (e) {
-    uni.showToast({ title: e.message || '提交失败', icon: 'none' })
+    showError(e.message || '提交失败')
   } finally { submitting.value = false }
 }
 </script>

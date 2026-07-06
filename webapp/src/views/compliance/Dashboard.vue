@@ -1,3 +1,4 @@
+import { toast } from '@/utils/toast'
 <template>
   <div class="compliance-dashboard">
     <el-row :gutter="20">
@@ -100,7 +101,6 @@
 import { ref, onMounted } from 'vue'
 import * as echarts from 'echarts'
 import { complianceApi } from '@/api/compliance'
-import { ElMessage } from 'element-plus'
 
 const dashboard = ref({
   overallRate: 0,
@@ -140,7 +140,7 @@ async function loadDashboard() {
     
     renderTrendChart()
   } catch (err: any) {
-    ElMessage.error(err.message || '加载合规统计失败')
+    toast.error(err.message || '加载合规统计失败')
   }
 }
 

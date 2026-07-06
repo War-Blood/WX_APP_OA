@@ -24,6 +24,7 @@
 import { ref } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const reason = ref('')
 const submitting = ref(false)
@@ -32,10 +33,10 @@ async function handleStart() {
   submitting.value = true
   try {
     await attendanceApi.startTrip({ reason: reason.value })
-    uni.showToast({ title: '出差已开始', icon: 'success' })
+    showSuccess('出差已开始')
     setTimeout(() => uni.navigateBack(), 1500)
   } catch (e) {
-    uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+    showError(e.message || '操作失败')
   } finally { submitting.value = false }
 }
 </script>

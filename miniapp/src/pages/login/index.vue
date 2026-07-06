@@ -60,6 +60,7 @@
 import { ref, onMounted } from 'vue'
 import { authApi } from '@/services/modules/auth'
 import { useUserStore } from '@/stores/user'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const statusBarHeight = ref(0)
 const agreed = ref(false)
@@ -117,7 +118,7 @@ function showDevRolePicker() {
 }
 
 async function handleLogin() {
-  if (!agreed.value) { uni.showToast({ title: '请先阅读并同意协议', icon: 'none' }); return }
+  if (!agreed.value) { showError('请先阅读并同意协议'); return }
   isLogging.value = true
   try {
     let res
@@ -153,7 +154,7 @@ async function handleLogin() {
     }
   } catch (err) {
     if (err?.message) {
-      uni.showToast({ title: err.message, icon: 'none' })
+      showError(err.message)
     }
   } finally { isLogging.value = false }
 }
@@ -172,8 +173,8 @@ async function askNickname() {
           info.nickName = modalRes.content.trim()
           uni.setStorageSync('userInfo', info)
           userStore.setUserInfo(info)
-          uni.showToast({ title: '昵称设置成功', icon: 'success' })
-        } catch { uni.showToast({ title: '设置失败，稍后在个人中心修改', icon: 'none' }) }
+          showSuccess('昵称设置成功')
+        } catch { showError('设置失败，稍后在个人中心修改') }
       }
     }
   })
@@ -254,7 +255,7 @@ function showPrivacyPolicy() {
 
 async function handleAccountLogin() {
   if (!agreed.value) {
-    uni.showToast({ title: '请先同意用户协议和隐私政策', icon: 'none' })
+    showError('请先同意用户协议和隐私政策')
     return
   }
   // 第一步：输入账号
@@ -292,10 +293,10 @@ async function handleAccountLogin() {
               }
               uni.reLaunch({ url: '/pages/home/index' })
             } else {
-              uni.showToast({ title: res.message || '登录失败', icon: 'none' })
+              showError(res.message || '登录失败')
             }
           } catch (err) {
-            uni.showToast({ title: err?.message || '登录失败', icon: 'none' })
+            showError(err?.message || '登录失败')
           } finally {
             uni.hideLoading()
           }
@@ -338,11 +339,11 @@ async function handleInviteRedeem() {
                 setTimeout(() => askNickname(), 500)
               }
             } else {
-              uni.showToast({ title: '邀请码验证失败，请检查输入', icon: 'none' })
+              showError('邀请码验证失败，请检查输入')
             }
           } catch (err) {
             uni.hideLoading()
-            uni.showToast({ title: err?.message || '验证失败，请检查邀请码', icon: 'none' })
+            showError(err?.message || '验证失败，请检查邀请码')
           }
         }
       })

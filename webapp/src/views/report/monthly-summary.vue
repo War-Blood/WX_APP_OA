@@ -1,6 +1,6 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { getMonthlySummary, type MonthlySummaryResponse } from '@/api/report'
 import { getWorkerList, type WorkerItem } from '@/api/admin'
@@ -52,7 +52,7 @@ async function loadSummary() {
     })
   } catch {
     data.value = null
-    ElMessage.warning('数据加载失败')
+    toast.warning('数据加载失败')
   } finally {
     loading.value = false
   }

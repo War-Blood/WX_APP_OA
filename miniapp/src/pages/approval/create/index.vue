@@ -133,6 +133,7 @@
 import { ref, computed, watch } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { approvalApi } from '@/services/modules/approval'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const selectedType = ref('leave')
 const isSubmitting = ref(false)
@@ -268,7 +269,7 @@ async function handlePersonPicker(field) {
     const res = await approvalApi.getApprovers()
     const users = res.data?.list || []
     if (!users.length) {
-      uni.showToast({ title: '暂无可选审批人', icon: 'none' })
+      showError('暂无可选审批人')
       return
     }
     const names = users.map(u => u.nickName || u.userName || '未知')
@@ -281,7 +282,7 @@ async function handlePersonPicker(field) {
       }
     })
   } catch {
-    uni.showToast({ title: '获取审批人列表失败', icon: 'none' })
+    showError('获取审批人列表失败')
   }
 }
 
@@ -292,19 +293,19 @@ async function handleSubmit() {
   for (const f of fields) {
     if (f.type === 'picker' || f.type === 'date' || f.type === 'input') {
       if (!formData.value[f.key]) {
-        uni.showToast({ title: `请填写${f.label}`, icon: 'none' })
+        showError(`请填写${f.label}`)
         return
       }
     }
     if (f.type === 'textarea') {
       if (!formData.value[f.key]) {
-        uni.showToast({ title: `请填写${f.label}`, icon: 'none' })
+        showError(`请填写${f.label}`)
         return
       }
     }
     if (f.type === 'daterow') {
       if (!formData.value[f.start.key] || !formData.value[f.end.key]) {
-        uni.showToast({ title: '请选择时间范围', icon: 'none' })
+        showError('请选择时间范围')
         return
       }
     }
@@ -323,16 +324,16 @@ async function handleSubmit() {
     const res = await approvalApi.create(payload)
     uni.hideLoading()
     if (res.data && res.data.id) {
-      uni.showToast({ title: '提交成功', icon: 'success' })
+      showSuccess('提交成功')
       setTimeout(() => uni.navigateBack(), 1500)
     } else {
-      uni.showToast({ title: '提交成功', icon: 'success' })
+      showSuccess('提交成功')
       setTimeout(() => uni.navigateBack(), 1500)
     }
   } catch (err) {
     uni.hideLoading()
     console.error('提交失败', err)
-    uni.showToast({ title: '提交失败，请重试', icon: 'none' })
+    showError('提交失败，请重试')
   } finally {
     isSubmitting.value = false
   }

@@ -1,10 +1,7 @@
 import { useUserStore } from '@/stores/user'
+import { showError } from '@/utils/toast'
 
 const BASE_URL = 'https://warblood.online'
-
-function showToast(title) {
-  uni.showToast({ title, icon: 'none', duration: 1500 })
-}
 
 function redirectToLogin() {
   uni.reLaunch({ url: '/pages/login/index' })
@@ -20,7 +17,7 @@ function handleAuthError() {
   uni.removeStorageSync('token')
   uni.removeStorageSync('userInfo')
   uni.removeStorageSync('token_refreshed_at')
-  showToast('登录已过期，请重新登录')
+  showError('登录已过期，请重新登录')
   redirectToLogin()
 }
 
@@ -53,7 +50,7 @@ async function realRequest(config) {
       success: (res) => {
         const { statusCode, data: responseData } = res
         if (statusCode === 401) {
-          showToast('登录已过期，请重新登录')
+          showError('登录已过期，请重新登录')
           redirectToLogin()
           reject(new Error('Unauthorized'))
           return
@@ -69,16 +66,16 @@ async function realRequest(config) {
           if (responseData.code === 0 || responseData.code === 2001) {
             resolve(responseData)
           } else {
-            showToast(responseData.message || '请求失败')
+            showError(responseData.message || '请求失败')
             reject(new Error(responseData.message || '请求失败'))
           }
         } else {
-          showToast(`服务器错误: ${statusCode}`)
+          showError(`服务器错误: ${statusCode}`)
           reject(new Error(`HTTP ${statusCode}`))
         }
       },
       fail: (err) => {
-        showToast('网络异常，请检查网络连接')
+        showError('网络异常，请检查网络连接')
         reject(err)
       }
     })

@@ -84,12 +84,13 @@ import NavBar from '@/components/nav-bar/nav-bar.vue'
 import LoadingOverlay from '@/components/loading-overlay/index.vue'
 import { useUserStore } from '@/stores/user'
 import { reviewApi } from '@/services/modules/review'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const userStore = useUserStore()
 
 onMounted(async () => {
   if (!userStore.isAdmin) {
-    uni.showToast({ title: '无权限访问', icon: 'none' })
+    showError('无权限访问')
     setTimeout(() => {
       uni.navigateBack()
     }, 500)
@@ -114,7 +115,7 @@ async function loadReportDetail(id) {
     report.value = res.data
   } catch (err) {
     console.error('加载审核详情失败', err)
-    uni.showToast({ title: '加载失败', icon: 'none' })
+    showError('加载失败')
   }
 }
 
@@ -136,12 +137,12 @@ async function handleApprove() {
     const res = await reviewApi.doAction(report.value.id, 'approve', opinion.value || '同意')
     if (res.data) {
       uni.hideLoading()
-      uni.showToast({ title: '已通过', icon: 'success' })
+      showSuccess('已通过')
       setTimeout(() => uni.navigateBack(), 1500)
     }
   } catch (err) {
     uni.hideLoading()
-    uni.showToast({ title: '操作失败', icon: 'none' })
+    showError('操作失败')
     console.error('审核操作失败', err)
   } finally {
     approving.value = false

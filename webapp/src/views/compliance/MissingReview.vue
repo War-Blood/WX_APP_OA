@@ -1,3 +1,4 @@
+import { toast } from '@/utils/toast'
 <template>
   <div class="missing-review">
     <el-card>
@@ -83,7 +84,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { complianceApi } from '@/api/compliance'
-import { ElMessage } from 'element-plus'
 
 const missingList = ref<any[]>([])
 const loading = ref(false)
@@ -119,7 +119,7 @@ async function loadMissingList() {
     missingList.value = res.data.list || []
     total.value = res.data.total || 0
   } catch (err: any) {
-    ElMessage.error(err.message || '加载缺失报告列表失败')
+    toast.error(err.message || '加载缺失报告列表失败')
   } finally {
     loading.value = false
   }
@@ -150,11 +150,11 @@ async function submitReview() {
       comment: reviewForm.value.comment
     })
     
-    ElMessage.success(reviewAction.value === 'approve' ? '审核通过' : '审核驳回')
+    toast.success(reviewAction.value === 'approve' ? '审核通过' : '审核驳回')
     showReviewDialog.value = false
     loadMissingList()
   } catch (err: any) {
-    ElMessage.error(err.message || '审核失败')
+    toast.error(err.message || '审核失败')
   } finally {
     submitting.value = false
   }

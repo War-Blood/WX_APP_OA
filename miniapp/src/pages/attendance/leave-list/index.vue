@@ -46,6 +46,7 @@ import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const filterTabs = [{ key: '', label: '全部' }, { key: 'leave', label: '请假' }, { key: 'biz_trip', label: '出差' }]
 const statusMap = { active: '生效中', cancelled: '已撤销', in_progress: '进行中', ended: '已结束' }
@@ -61,14 +62,14 @@ function fmt(t) { if (!t) return ''; return t.slice(0, 16).replace('T', ' ') }
 const hasInProgressTrip = ref(false)
 
 function goPage(url) {
-  uni.navigateTo({ url, fail: () => uni.showToast({ title: '页面跳转失败', icon: 'none' }) })
+  uni.navigateTo({ url, fail: () => showError('页面跳转失败') })
 }
 function switchTab(k) { activeTab.value = k; page.value = 1; loadData(true) }
 function goDetail(item) {
-  uni.navigateTo({ url: `/pages/attendance/leave-detail/index?${new URLSearchParams({ id: String(item.id) }).toString()}`, fail: () => uni.showToast({ title: '页面跳转失败', icon: 'none' }) })
+  uni.navigateTo({ url: `/pages/attendance/leave-detail/index?${new URLSearchParams({ id: String(item.id) }).toString()}`, fail: () => showError('页面跳转失败') })
 }
 function goEndTrip() {
-  uni.navigateTo({ url: '/pages/attendance/trip-end/index', fail: () => uni.showToast({ title: '页面跳转失败', icon: 'none' }) })
+  uni.navigateTo({ url: '/pages/attendance/trip-end/index', fail: () => showError('页面跳转失败') })
 }
 
 async function loadData(reset = true) {
@@ -81,7 +82,7 @@ async function loadData(reset = true) {
     else list.value = [...list.value, ...(res.data.list || [])]
     // 检测是否有进行中的出差
     hasInProgressTrip.value = list.value.some(item => item.requestType === 'biz_trip' && item.status === 'in_progress')
-  } catch { uni.showToast({ title: '加载失败', icon: 'none' }) }
+  } catch { showError('加载失败') }
 }
 
 async function loadMore() { page.value++; try { await loadData(false) } catch { page.value-- } }

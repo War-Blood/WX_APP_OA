@@ -228,6 +228,7 @@
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { reportApi } from '@/services/modules/report'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const isSubmitting = ref(false)
 const loading = ref(true)
@@ -242,7 +243,7 @@ onMounted(() => {
     loadReportDetail()
   } else {
     loading.value = false
-    uni.showToast({ title: '缺少参数', icon: 'none' })
+    showError('缺少参数')
   }
 })
 
@@ -252,7 +253,7 @@ async function loadReportDetail() {
     const res = await reportApi.getDetail(reportId.value)
     report.value = res.data
   } catch {
-    uni.showToast({ title: '加载失败', icon: 'none' })
+    showError('加载失败')
   } finally {
     loading.value = false
   }
@@ -342,10 +343,10 @@ async function handleSupplementApprove() {
       if (!modalRes.confirm) return
       try {
         await reportApi.reviewSupplement({ reportId: report.value.id, decision: 'special' })
-        uni.showToast({ title: '已通过', icon: 'success' })
+        showSuccess('已通过')
         report.value.status = 'special'
       } catch (e) {
-        uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+        showError(e.message || '操作失败')
       }
     }
   })
@@ -359,10 +360,10 @@ async function handleSupplementReject() {
       if (!modalRes.confirm) return
       try {
         await reportApi.reviewSupplement({ reportId: report.value.id, decision: 'forget' })
-        uni.showToast({ title: '已驳回', icon: 'success' })
+        showSuccess('已驳回')
         report.value.status = 'delayed'
       } catch (e) {
-        uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+        showError(e.message || '操作失败')
       }
     }
   })

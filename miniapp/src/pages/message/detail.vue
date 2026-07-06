@@ -22,6 +22,7 @@ import { ref, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { messageApi } from '@/services/modules/message'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const messageData = ref(null)
 const isLoading = ref(true)
@@ -48,7 +49,7 @@ async function loadDetail() {
     }
   } catch (err) {
     console.error('加载消息详情失败', err)
-    uni.showToast({ title: '加载失败', icon: 'none' })
+    showError('加载失败')
   } finally {
     isLoading.value = false
   }

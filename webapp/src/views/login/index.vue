@@ -1,7 +1,7 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { User, Lock, CircleCheck } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { adminLogin, getCaptcha, verifyCaptcha } from '@/api/auth'
@@ -26,7 +26,7 @@ onMounted(async () => {
     userStore.setToken(q.token as string)
     userStore.refreshProfile().then(() => router.replace('/'))
   } else if (q.error) {
-    ElMessage.error(decodeURIComponent(q.error as string))
+    toast.error(decodeURIComponent(q.error as string))
     router.replace({ query: {} })
   }
   await refreshCaptcha()
@@ -137,7 +137,7 @@ const formRef = ref()
 
 const handleLogin = async () => {
   if (!sliderVerified.value) {
-    ElMessage.warning('请先完成滑动验证')
+    toast.warning('请先完成滑动验证')
     return
   }
   await formRef.value.validate()
@@ -161,7 +161,7 @@ const handleLogin = async () => {
       permissions: res.user.role === 'superadmin' ? ['*'] : []
     })
 
-    ElMessage.success(`欢迎回来，${res.user.nickname || res.user.userName}`)
+    toast.success(`欢迎回来，${res.user.nickname || res.user.userName}`)
     router.push('/')
   } catch {
     // 登录失败时刷新验证码
@@ -180,7 +180,7 @@ const handleQywxLogin = () => {
       const url = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${corpId}&redirect_uri=${redirect}&response_type=code&scope=snsapi_base&state=web#wechat_redirect`
       window.location.href = url
     }).catch(() => {
-      ElMessage.warning('企业微信登录暂未配置')
+      toast.warning('企业微信登录暂未配置')
     })
   })
 }

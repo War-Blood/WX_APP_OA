@@ -1,3 +1,4 @@
+import { toast } from '@/utils/toast'
 <template>
   <div class="leave-manage-page">
     <el-card>
@@ -81,7 +82,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { getLeaveList, deleteLeave } from '@/api/attendance'
 import { getDepartmentList } from '@/api/user'
 
@@ -117,7 +118,7 @@ async function loadData() {
     const res: any = await getLeaveList(params)
     tableData.value = res.list || []
     pagination.total = res.total || 0
-  } catch { ElMessage.error('加载失败') }
+  } catch { toast.error('加载失败') }
   finally { loading.value = false }
 }
 
@@ -125,7 +126,7 @@ async function handleDelete(row: any) {
   try {
     await ElMessageBox.confirm(`确认永久删除此记录？`, '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
     await deleteLeave(row.id)
-    ElMessage.success('已删除')
+    toast.success('已删除')
     loadData()
   } catch { /* 取消或失败 */ }
 }

@@ -1,6 +1,6 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
 import { getSystemConfig, updateSystemConfig, type ConfigItem } from '@/api/settings'
 
 const loading = ref(false)
@@ -34,7 +34,7 @@ async function saveConfig() {
   saving.value = true
   try {
     await updateSystemConfig(configs.value.map(c => ({ key: c.key, value: c.value, group: c.group, description: c.description })))
-    ElMessage.success('配置已保存')
+    toast.success('配置已保存')
   } catch { }
   finally { saving.value = false }
 }

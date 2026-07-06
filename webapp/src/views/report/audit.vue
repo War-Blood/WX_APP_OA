@@ -1,6 +1,6 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { getPendingReviews, reviewSupplement, type PendingReviewItem } from '@/api/report'
 
@@ -63,7 +63,7 @@ async function handleSubmitReview() {
       decision: reviewDecision.value,
       comment: reviewComment.value || undefined
     })
-    ElMessage.success('审核完成')
+    toast.success('审核完成')
     reviewVisible.value = false
     loadData()
   } catch {

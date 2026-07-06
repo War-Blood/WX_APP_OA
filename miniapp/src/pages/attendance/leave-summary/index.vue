@@ -84,6 +84,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { attendanceApi } from '@/services/modules/attendance'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const weekDays = ['一', '二', '三', '四', '五', '六', '日']
 const currentDate = new Date()
@@ -172,7 +173,7 @@ async function loadData() {
       buildCalendar(data.dailyList || [])
     }
   } catch (e) {
-    uni.showToast({ title: '加载失败', icon: 'none' })
+    showError('加载失败')
   } finally {
     loading.value = false
   }
@@ -185,7 +186,7 @@ function handleCellClick(cell) {
 }
 
 function handleMissingClick() {
-  uni.showToast({ title: '请及时提交公出日志', icon: 'none' })
+  showError('请及时提交公出日志')
 }
 
 loadData()

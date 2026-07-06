@@ -20,5 +20,9 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "codebuddy-chat-web@cb_teams_marketplace": true,
+    "agent-sdk-dev@cb_teams_marketplace": true
   }
 }

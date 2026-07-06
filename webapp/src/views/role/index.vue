@@ -1,6 +1,7 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete, Refresh } from '@element-plus/icons-vue'
 import {
   getRoleList, createRole, updateRole, deleteRole,
@@ -58,17 +59,17 @@ function openEdit(row: RoleItem) {
 
 // 保存角色
 async function handleSave() {
-  if (!form.value.name.trim()) { ElMessage.warning('请输入角色名称'); return }
-  if (!isEdit.value && !form.value.code.trim()) { ElMessage.warning('请输入角色标识'); return }
+  if (!form.value.name.trim()) { toast.warning('请输入角色名称'); return }
+  if (!isEdit.value && !form.value.code.trim()) { toast.warning('请输入角色标识'); return }
 
   dialogLoading.value = true
   try {
     if (isEdit.value && editId.value) {
       await updateRole(editId.value, { name: form.value.name, description: form.value.description })
-      ElMessage.success('角色已更新')
+      toast.success('角色已更新')
     } else {
       await createRole({ code: form.value.code, name: form.value.name, description: form.value.description })
-      ElMessage.success('角色已创建')
+      toast.success('角色已创建')
     }
     dialogVisible.value = false
     loadRoles()
@@ -78,11 +79,11 @@ async function handleSave() {
 
 // 删除角色
 async function handleDelete(row: RoleItem) {
-  if (row.isSystem) { ElMessage.warning('系统角色不可删除'); return }
+  if (row.isSystem) { toast.warning('系统角色不可删除'); return }
   try {
     await ElMessageBox.confirm(`确定要删除角色「${row.name}」吗？`, '删除角色', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'error' })
     await deleteRole(row.id)
-    ElMessage.success('角色已删除')
+    toast.success('角色已删除')
     loadRoles()
   } catch { /* cancel */ }
 }
@@ -105,7 +106,7 @@ async function handleSavePermissions() {
   permLoading.value = true
   try {
     await setRolePermissions(currentRole.value.id, checkedPermIds.value)
-    ElMessage.success('权限已更新')
+    toast.success('权限已更新')
     permVisible.value = false
   } catch { /* handled by interceptor */ }
   finally { permLoading.value = false }

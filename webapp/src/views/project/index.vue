@@ -1,6 +1,6 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { getReviewList } from '@/api/report'
 
@@ -45,7 +45,7 @@ async function loadData() {
     allData.value = [...(res.list || []), ...(res2.list || [])]
   } catch {
     allData.value = []
-    ElMessage.error('加载项目数据失败')
+    toast.error('加载项目数据失败')
   } finally {
     loading.value = false
   }

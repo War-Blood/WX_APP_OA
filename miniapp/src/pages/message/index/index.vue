@@ -47,6 +47,7 @@
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { messageApi } from '@/services/modules/message'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const activeTab = ref('notification')
 
@@ -98,7 +99,7 @@ async function handleDelete(item, index) {
     const realIdx = list.findIndex((m) => m.id === item.id)
     if (realIdx > -1) list.splice(realIdx, 1)
   } catch (err) {
-    uni.showToast({ title: '删除失败', icon: 'none' })
+    showError('删除失败')
   }
 }
 

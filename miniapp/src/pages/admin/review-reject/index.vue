@@ -51,6 +51,7 @@
 import { ref, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { reviewApi } from '@/services/modules/review'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const id = ref('')
 const targetName = ref('')
@@ -76,13 +77,13 @@ async function handleConfirm() {
   submitting.value = true
   try {
     await reviewApi.reject(id.value, reason.value.trim())
-    uni.showToast({ title: '驳回成功', icon: 'success' })
+    showSuccess('驳回成功')
     setTimeout(() => {
       // 返回审核详情并刷新
       uni.navigateBack()
     }, 1200)
   } catch (err) {
-    uni.showToast({ title: err.message || '操作失败', icon: 'none' })
+    showError(err.message || '操作失败')
   } finally {
     submitting.value = false
   }

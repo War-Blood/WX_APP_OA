@@ -36,6 +36,7 @@
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const loading = ref(true)
 const trip = ref(null)
@@ -63,7 +64,7 @@ onMounted(async () => {
       const detail = await attendanceApi.getLeaveDetail(trip.value.id)
       missingDates.value = detail.data?.missingDates || []
     }
-  } catch { uni.showToast({ title: '加载失败', icon: 'none' }) }
+  } catch { showError('加载失败') }
   finally { loading.value = false }
 })
 
@@ -72,10 +73,10 @@ async function handleEnd() {
   try {
     const res = await attendanceApi.endTrip({ requestId: trip.value.id, reason: reason.value })
     const d = res.data
-    uni.showToast({ title: `已结束，${d.tripDays}天，未提交${d.missingDays}天`, icon: 'none', duration: 1500 })
+    showToast(`已结束，${d.tripDays}天，未提交${d.missingDays}天`)
     setTimeout(() => uni.navigateBack(), 1500)
   } catch (e) {
-    uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+    showError(e.message || '操作失败')
   } finally { submitting.value = false }
 }
 </script>

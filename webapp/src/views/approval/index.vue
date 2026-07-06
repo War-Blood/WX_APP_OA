@@ -1,7 +1,7 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { Refresh, Setting } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
 import { getApprovalTypes, updateApprovalType, type ApprovalTypeItem } from '@/api/approval-type'
 
 interface ApprovalItem {
@@ -76,7 +76,7 @@ function cancelEdit() {
 async function saveEdit(row: ApprovalTypeItem) {
   try {
     await updateApprovalType(row.id, editForm.value)
-    ElMessage.success('配置已保存')
+    toast.success('配置已保存')
     cancelEdit()
     loadTypes()
   } catch { /* handled by interceptor */ }
@@ -86,7 +86,7 @@ async function toggleStatus(row: ApprovalTypeItem) {
   const newStatus = row.status === 'active' ? 'disabled' : 'active'
   try {
     await updateApprovalType(row.id, { status: newStatus })
-    ElMessage.success(newStatus === 'active' ? '已启用' : '已禁用')
+    toast.success(newStatus === 'active' ? '已启用' : '已禁用')
     loadTypes()
   } catch { /* handled by interceptor */ }
 }

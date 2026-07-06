@@ -140,8 +140,8 @@ function editNickname() {
           info.nickName = modalRes.content.trim()
           uni.setStorageSync('userInfo', info)
           userStore.setUserInfo(info)
-          uni.showToast({ title: '昵称修改成功', icon: 'success' })
-        } catch { uni.showToast({ title: '修改失败', icon: 'none' }) }
+          showSuccess('昵称修改成功')
+        } catch { showError('修改失败') }
       }
     }
   })
@@ -183,7 +183,7 @@ function goToStat(stat) {
   if (stat.route) {
     uni.navigateTo({ url: stat.route })
   } else {
-    uni.showToast({ title: '功能待开发', icon: 'none' })
+    showError('功能待开发')
   }
 }
 
@@ -205,6 +205,7 @@ function handleLogout() {
 
 // 微信分享 — 邀请同事
 import { onShareAppMessage } from '@dcloudio/uni-app'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 onShareAppMessage(() => {
   return {

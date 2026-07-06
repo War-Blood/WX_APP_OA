@@ -1,6 +1,6 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
@@ -66,7 +66,7 @@ async function loadSummary() {
   try {
     summary.value = await getStats('all')
   } catch {
-    ElMessage.warning('汇总统计加载失败')
+    toast.warning('汇总统计加载失败')
   } finally {
     statsLoading.value = false
   }

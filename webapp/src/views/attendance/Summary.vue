@@ -1,3 +1,4 @@
+import { toast } from '@/utils/toast'
 <template>
   <div class="summary-page">
     <el-card>
@@ -52,7 +53,6 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
 import { getSummaryList, exportSummary } from '@/api/attendance'
 import { getDepartmentList } from '@/api/user'
 
@@ -84,7 +84,7 @@ async function loadData() {
     }) as any
     tableData.value = res.list || []
     pagination.total = res.total || 0
-  } catch { ElMessage.error('加载失败') }
+  } catch { toast.error('加载失败') }
   finally { loading.value = false }
 }
 
@@ -100,8 +100,8 @@ async function handleExport() {
     const m = dateRange.value[0].split('-')
     a.download = `${m[0]}年${parseInt(m[1])}月技术工程中心公出加班统计表.xlsx`
     a.click(); URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
-  } catch { ElMessage.error('导出失败') }
+    toast.success('导出成功')
+  } catch { toast.error('导出失败') }
 }
 </script>
 

@@ -1,9 +1,9 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getStatsHome } from '@/api/stats'
 import { getUserList } from '@/api/user'
 import { getReviewList } from '@/api/report'
-import { ElMessage } from 'element-plus'
 
 // 全部从 API 加载
 const loading = ref(true)
@@ -47,7 +47,7 @@ onMounted(async () => {
       statistics.value[2].value = reviewRes.value.total ?? 0
     }
   } catch {
-    ElMessage.warning('部分统计数据加载失败')
+    toast.warning('部分统计数据加载失败')
   } finally {
     loading.value = false
   }

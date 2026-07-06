@@ -1,3 +1,4 @@
+import { toast } from '@/utils/toast'
 <template>
   <div class="schedule-page">
     <el-card>
@@ -120,7 +121,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { getScheduleList, batchSchedule, getScheduleRules, saveScheduleRule, applyScheduleRule, type ScheduleRule } from '@/api/attendance'
 import { getDepartmentList, getUserList } from '@/api/user'
 
@@ -164,14 +165,14 @@ function cellStyle(day: string) {
 }
 
 async function doPaint(date: string) {
-  if (!userOptions.value.length) { ElMessage.warning('未加载人员列表'); return }
+  if (!userOptions.value.length) { toast.warning('未加载人员列表'); return }
   try {
     await ElMessageBox.confirm(`确认将 ${date} 全员设为「${statusOptions.find(o=>o.value===paintStatus.value)?.label}」？`, '确认操作', { type: 'warning' })
     await batchSchedule({ userIds: userOptions.value.map((u: any) => u.id).filter((id: any) => id != null), startDate: date, endDate: date, status: paintStatus.value, weekdaysOnly: false })
-    ElMessage.success(`已为 ${date} 全员设置「${statusOptions.find(o=>o.value===paintStatus.value)?.label}」`)
+    toast.success(`已为 ${date} 全员设置「${statusOptions.find(o=>o.value===paintStatus.value)?.label}」`)
     paintDate.value = ''
     loadData()
-  } catch { ElMessage.error('操作失败') }
+  } catch { toast.error('操作失败') }
 }
 
 async function loadData() {
@@ -199,26 +200,26 @@ async function loadData() {
       else summary[date] = 'rest'
     }
     daySummary.value = summary
-  } catch { ElMessage.error('加载失败') }
+  } catch { toast.error('加载失败') }
 }
 
 function openBatchDialog() { batchVisible.value = true }
 async function doBatch() {
-  if (!batchForm.userIds.length || !batchForm.dateRange.length) { ElMessage.warning('请完善参数'); return }
+  if (!batchForm.userIds.length || !batchForm.dateRange.length) { toast.warning('请完善参数'); return }
   try {
     const res = await batchSchedule({
       userIds: batchForm.userIds,
       startDate: batchForm.dateRange[0], endDate: batchForm.dateRange[1],
       status: batchForm.status, note: batchForm.note, weekdaysOnly: batchForm.weekdaysOnly
     }) as any
-    ElMessage.success(`完成：新增${res.inserted}，更新${res.updated}`)
+    toast.success(`完成：新增${res.inserted}，更新${res.updated}`)
     batchVisible.value = false; loadData()
-  } catch { ElMessage.error('操作失败') }
+  } catch { toast.error('操作失败') }
 }
 
 // ===== 排班规则 =====
 async function loadRules() {
-  try { const res: any = await getScheduleRules(); rules.value = res.data || res || [] } catch { ElMessage.error('加载失败') }
+  try { const res: any = await getScheduleRules(); rules.value = res.data || res || [] } catch { toast.error('加载失败') }
 }
 function openRuleDialog() { loadRules(); ruleVisible.value = true }
 function openNewRule() {
@@ -242,8 +243,8 @@ async function saveRule() {
       alternating: editingRule.alternating,
       isDefault: editingRule.isDefault
     })
-    ElMessage.success('保存成功'); ruleEditVisible.value = false; loadRules()
-  } catch { ElMessage.error('保存失败') }
+    toast.success('保存成功'); ruleEditVisible.value = false; loadRules()
+  } catch { toast.error('保存失败') }
 }
 function openApplyDialog(row: ScheduleRule) {
   applyingRule.value = row
@@ -253,19 +254,19 @@ function openApplyDialog(row: ScheduleRule) {
   applyVisible.value = true
 }
 async function doApply() {
-  if (!applyingRule.value?.id || !applyDateRange.value?.length) { ElMessage.warning('请完善参数'); return }
+  if (!applyingRule.value?.id || !applyDateRange.value?.length) { toast.warning('请完善参数'); return }
   try {
     const res: any = await applyScheduleRule({ ruleId: applyingRule.value.id, startDate: applyDateRange.value[0], endDate: applyDateRange.value[1] })
     applyResult.value = res.data || res
-    ElMessage.success(`排班已生成！新增 ${applyResult.value?.inserted}，跳过 ${applyResult.value?.skipped}`)
+    toast.success(`排班已生成！新增 ${applyResult.value?.inserted}，跳过 ${applyResult.value?.skipped}`)
     loadData()
-  } catch { ElMessage.error('生成失败') }
+  } catch { toast.error('生成失败') }
 }
 
 onMounted(async () => {
   await loadData()
-  try { const res = await getDepartmentList(); deptOptions.value = (res as any).data || res || [] } catch { ElMessage.error('加载失败') }
-  try { const res = await getUserList({ pageSize: 500 }); userOptions.value = ((res as any).list || (res as any).data?.list || []).map((u: any) => ({ id: u.id, name: u.nickName || u.nickname || u.userName || u.username })) } catch { ElMessage.error('加载失败') }
+  try { const res = await getDepartmentList(); deptOptions.value = (res as any).data || res || [] } catch { toast.error('加载失败') }
+  try { const res = await getUserList({ pageSize: 500 }); userOptions.value = ((res as any).list || (res as any).data?.list || []).map((u: any) => ({ id: u.id, name: u.nickName || u.nickname || u.userName || u.username })) } catch { toast.error('加载失败') }
 })
 </script>
 

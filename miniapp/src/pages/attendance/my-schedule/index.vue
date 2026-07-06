@@ -45,6 +45,7 @@
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const dayHeaders = ['一', '二', '三', '四', '五', '六', '日']
 const legendItems = [
@@ -113,7 +114,7 @@ async function loadData() {
     const map = {}
     ;(res.data || []).forEach(s => { map[s.scheduleDate.slice(0, 10)] = s })
     scheduleMap.value = map
-  } catch { uni.showToast({ title: '加载失败', icon: 'none' }); scheduleMap.value = {} }
+  } catch { showError('加载失败'); scheduleMap.value = {} }
 }
 
 function goPage(url) { uni.navigateTo({ url }) }

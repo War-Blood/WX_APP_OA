@@ -38,6 +38,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -69,7 +70,7 @@ function onConfirm() {
     opinionText.value = ''
     selectedTag.value = ''
   } else {
-    uni.showToast({ title: '请填写意见', icon: 'none' })
+    showError('请填写意见')
   }
 }
 

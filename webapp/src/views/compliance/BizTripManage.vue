@@ -1,3 +1,4 @@
+import { toast } from '@/utils/toast'
 <template>
   <div class="biz-trip-manage">
     <el-card>
@@ -79,7 +80,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { complianceApi } from '@/api/compliance'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 
 const tripList = ref<any[]>([])
 const users = ref<any[]>([])
@@ -112,7 +113,7 @@ async function loadTripList() {
     tripList.value = res.data.list || []
     total.value = res.data.total || 0
   } catch (err: any) {
-    ElMessage.error(err.message || '加载出差列表失败')
+    toast.error(err.message || '加载出差列表失败')
   } finally {
     loading.value = false
   }
@@ -147,18 +148,18 @@ async function handleEndTrip(row: any) {
     const endDate = new Date().toISOString().split('T')[0]
     await complianceApi.endBizTrip(row.id, endDate)
     
-    ElMessage.success('出差已结束')
+    toast.success('出差已结束')
     loadTripList()
   } catch (err: any) {
     if (err !== 'cancel') {
-      ElMessage.error(err.message || '结束出差失败')
+      toast.error(err.message || '结束出差失败')
     }
   }
 }
 
 async function handleSubmit() {
   if (!form.value.userId || !form.value.startDate) {
-    ElMessage.warning('请填写必填项')
+    toast.warning('请填写必填项')
     return
   }
   
@@ -170,14 +171,14 @@ async function handleSubmit() {
       startDate: form.value.startDate
     })
     
-    ElMessage.success('出差状态设置成功')
+    toast.success('出差状态设置成功')
     showSetDialog.value = false
     loadTripList()
     
     // 重置表单
     form.value = { userId: null, projectName: '', startDate: '' }
   } catch (err: any) {
-    ElMessage.error(err.message || '设置出差状态失败')
+    toast.error(err.message || '设置出差状态失败')
   } finally {
     submitting.value = false
   }

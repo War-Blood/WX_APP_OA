@@ -218,6 +218,7 @@ import { ref, computed, onMounted } from 'vue'
 import { onUnload, onHide } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { reportApi } from '@/services/modules/report'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const reportId = ref('')
 const loading = ref(true)
@@ -319,7 +320,7 @@ function loadLastSubmission() {
     Object.assign(formData.value, data)
     todayWorkLength.value = data.todayWork ? data.todayWork.length : 0
     hasLastSubmission.value = false
-    uni.showToast({ title: '已加载上次内容', icon: 'success' })
+    showSuccess('已加载上次内容')
   }
 }
 
@@ -334,7 +335,7 @@ function onTodayWorkInput(e) {
 
 function saveDraft() {
   uni.setStorageSync('report_draft', JSON.stringify(formData.value))
-  uni.showToast({ title: '草稿已保存', icon: 'success' })
+  showSuccess('草稿已保存')
 }
 
 function addImage() {
@@ -358,19 +359,19 @@ function previewImage(index) {
 
 async function handleSubmit() {
   if (!formData.value.date) {
-    uni.showToast({ title: '请选择日报时间', icon: 'none' })
+    showError('请选择日报时间')
     return
   }
   if (!formData.value.project) {
-    uni.showToast({ title: '请输入项目名称', icon: 'none' })
+    showError('请输入项目名称')
     return
   }
   if (!formData.value.workers) {
-    uni.showToast({ title: '请填写作业人员', icon: 'none' })
+    showError('请填写作业人员')
     return
   }
   if (!formData.value.todayWork) {
-    uni.showToast({ title: '请填写当日工作小结', icon: 'none' })
+    showError('请填写当日工作小结')
     return
   }
   uni.showLoading({ title: '提交中...' })
@@ -382,12 +383,12 @@ async function handleSubmit() {
     const res = await reportApi.submit(payload)
     if (res.data?.id) {
       uni.hideLoading()
-      uni.showToast({ title: '重新提交成功', icon: 'success' })
+      showSuccess('重新提交成功')
       setTimeout(() => uni.navigateBack(), 1500)
     }
   } catch (err) {
     uni.hideLoading()
-    uni.showToast({ title: '提交失败', icon: 'none' })
+    showError('提交失败')
     console.error('重新提交失败', err)
   }
 }

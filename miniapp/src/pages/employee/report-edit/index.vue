@@ -477,6 +477,7 @@ import workerPicker from '@/components/worker-picker/index.vue'
 import { reportApi } from '@/services/modules/report'
 import { adminApi } from '@/services/modules/admin'
 import { useUserStore } from '@/stores/user'
+import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const userStore = useUserStore()
 
@@ -570,7 +571,7 @@ async function locateArea() {
       formData.value.area = areaRegion.value.join('-') || res.address
     }
     uni.hideLoading()
-    uni.showToast({ title: '定位成功', icon: 'success' })
+    showSuccess('定位成功')
   } catch (err) {
     uni.hideLoading()
     if (err?.errMsg?.includes('auth deny')) {
@@ -580,7 +581,7 @@ async function locateArea() {
         showCancel: false
       })
     } else {
-      uni.showToast({ title: '定位失败，请手动选择', icon: 'none' })
+      showError('定位失败，请手动选择')
     }
   }
 }
@@ -924,7 +925,7 @@ function addMachineTag() {
   const name = (machineInputText.value || '').trim()
   if (!name) return
   if (machineModels.value.includes(name)) {
-    uni.showToast({ title: '该机型已添加', icon: 'none' })
+    showError('该机型已添加')
     machineInputText.value = ''
     return
   }
@@ -935,7 +936,7 @@ function addMachineTag() {
 }
 function addMachineTagFromSuggestion(name) {
   if (machineModels.value.includes(name)) {
-    uni.showToast({ title: '该机型已添加', icon: 'none' })
+    showError('该机型已添加')
     return
   }
   machineModels.value.push(name)
@@ -991,10 +992,10 @@ async function saveDraft() {
   try {
     await reportApi.saveDraft(payload)
     uni.hideLoading()
-    uni.showToast({ title: '草稿已保存', icon: 'success' })
+    showSuccess('草稿已保存')
   } catch {
     uni.hideLoading()
-    uni.showToast({ title: '保存失败，已存本地', icon: 'none' })
+    showError('保存失败，已存本地')
     uni.setStorageSync('report_auto_draft', payload)
   }
 }
@@ -1003,18 +1004,18 @@ async function saveDraft() {
 async function handleSubmit() {
   // 基础校验
   if (!reportDate.value) {
-    uni.showToast({ title: '请选择日期', icon: 'none' })
+    showError('请选择日期')
     return
   }
   if (!selectedWorkType.value && currentTab.value !== 'office') {
-    uni.showToast({ title: '请选择工作类型', icon: 'none' })
+    showError('请选择工作类型')
     return
   }
 
   // 请假/调休：校验作业人员
   if (isLeave.value) {
     if (selectedWorkerIds.value.length === 0) {
-      uni.showToast({ title: '请选择作业人员', icon: 'none' })
+      showError('请选择作业人员')
       return
     }
   }
@@ -1022,31 +1023,31 @@ async function handleSubmit() {
   // 公出日志/补公出：内容区可见时校验
   if (currentTab.value !== 'office' && showContentFields.value) {
     if (!formData.value.project) {
-      uni.showToast({ title: '请输入项目名称', icon: 'none' })
+      showError('请输入项目名称')
       return
     }
     if (!formData.value.area) {
-      uni.showToast({ title: '请输入项目区域', icon: 'none' })
+      showError('请输入项目区域')
       return
     }
     if (!formData.value.initialBizTripDate) {
-      uni.showToast({ title: '请选择初始出差时间', icon: 'none' })
+      showError('请选择初始出差时间')
       return
     }
     if (!formData.value.workContent) {
-      uni.showToast({ title: '请输入工作内容', icon: 'none' })
+      showError('请输入工作内容')
       return
     }
     if (formData.value.requiredQty == null || formData.value.requiredQty === '') {
-      uni.showToast({ title: '请输入需求数量', icon: 'none' })
+      showError('请输入需求数量')
       return
     }
     if (formData.value.completedQty == null || formData.value.completedQty === '') {
-      uni.showToast({ title: '请输入完成数量', icon: 'none' })
+      showError('请输入完成数量')
       return
     }
     if (selectedWorkerIds.value.length === 0) {
-      uni.showToast({ title: '请选择作业人员', icon: 'none' })
+      showError('请选择作业人员')
       return
     }
   }
@@ -1054,7 +1055,7 @@ async function handleSubmit() {
   // 今日工作小结校验（公出/补公出时始终校验，公司日报时校验）
   if (currentTab.value === 'office') {
     if (!formData.value.todayWork) {
-      uni.showToast({ title: '请输入今日工作内容', icon: 'none' })
+      showError('请输入今日工作内容')
       return
     }
   }
@@ -1062,15 +1063,15 @@ async function handleSubmit() {
   // 补公出额外校验
   if (currentTab.value === 'biz_trip_supplement') {
     if (!formData.value.supplementDate) {
-      uni.showToast({ title: '请选择补录日期', icon: 'none' })
+      showError('请选择补录日期')
       return
     }
     if (!formData.value.supplementReason) {
-      uni.showToast({ title: '请填写补录原因', icon: 'none' })
+      showError('请填写补录原因')
       return
     }
     if (!formData.value.todayWork) {
-      uni.showToast({ title: '请填写今日工作小结', icon: 'none' })
+      showError('请填写今日工作小结')
       return
     }
   }
@@ -1118,7 +1119,7 @@ async function handleSubmit() {
         showSubstituteMsg.value = true
         substituteInfo.value = res.data || {}
       }
-      uni.showToast({ title: msg || '操作失败', icon: 'none' })
+      showError(msg || '操作失败')
       return
     }
 
@@ -1145,7 +1146,7 @@ async function handleSubmit() {
     }))
 
     const msg = currentTab.value === 'biz_trip_supplement' ? '已提交，等待管理员审核' : '提交成功'
-    uni.showToast({ title: msg, icon: 'success' })
+    showSuccess(msg)
     setTimeout(() => uni.navigateBack(), 1500)
   } catch {
     uni.hideLoading()

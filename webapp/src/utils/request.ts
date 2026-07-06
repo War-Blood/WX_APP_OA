@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import { toast } from '@/utils/toast'
 import { useUserStore } from '@/stores/user'
 import router from '@/router'
 
@@ -88,14 +88,14 @@ request.interceptors.response.use(
 
     // Auth 错误：清除 token 并跳转登录
     if (isAuthError(code, message)) {
-      ElMessage.error(message || '登录已过期，请重新登录')
+      toast.error(message || '登录已过期，请重新登录')
       useUserStore().logout()
       router.push('/login')
       return Promise.reject(new Error(message))
     }
 
     // 业务错误
-    ElMessage.error(message || '请求失败')
+    toast.error(message || '请求失败')
     return Promise.reject(new Error(message))
   },
   (error) => {
@@ -104,24 +104,24 @@ request.interceptors.response.use(
     if (response) {
       switch (response.status) {
         case 401:
-          ElMessage.error('登录已过期，请重新登录')
+          toast.error('登录已过期，请重新登录')
           useUserStore().logout()
           router.push('/login')
           break
         case 403:
-          ElMessage.error('没有权限访问')
+          toast.error('没有权限访问')
           break
         case 404:
-          ElMessage.error('请求的资源不存在')
+          toast.error('请求的资源不存在')
           break
         case 500:
-          ElMessage.error('服务器错误')
+          toast.error('服务器错误')
           break
         default:
-          ElMessage.error(response.data?.message || '网络错误')
+          toast.error(response.data?.message || '网络错误')
       }
     } else {
-      ElMessage.error('网络连接失败')
+      toast.error('网络连接失败')
     }
 
     return Promise.reject(error)

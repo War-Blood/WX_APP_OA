@@ -1,6 +1,7 @@
+import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
 import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreReport, getDeletedReports, reviewAction, reviewSupplement, updateReport, exportToWecomSheet } from '@/api/report'
@@ -100,7 +101,7 @@ async function loadStats() {
   try {
     stats.value = await getStats('all')
   } catch {
-    ElMessage.warning('统计加载失败')
+    toast.warning('统计加载失败')
   } finally {
     statsLoading.value = false
   }
@@ -154,14 +155,14 @@ async function handleExport() {
     const a = document.createElement('a')
     a.href = url; a.download = 'report.csv'
     a.click(); URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
+    toast.success('导出成功')
   } catch {
-    ElMessage.error('导出失败')
+    toast.error('导出失败')
   }
 }
 
 async function handleExportAttendance() {
-  if (!attendanceMonth.value) { ElMessage.warning('请选择月份'); return }
+  if (!attendanceMonth.value) { toast.warning('请选择月份'); return }
   try {
     const token = localStorage.getItem('token') || ''
     const res = await fetch('/api/report/export-attendance', {
@@ -175,23 +176,23 @@ async function handleExportAttendance() {
     const a = document.createElement('a')
     a.href = url; a.download = 'attendance-' + attendanceMonth.value + '.csv'
     a.click(); URL.revokeObjectURL(url)
-    ElMessage.success('考勤导出成功')
+    toast.success('考勤导出成功')
   } catch {
-    ElMessage.error('导出失败')
+    toast.error('导出失败')
   }
 }
 
 async function handleExportWecom() {
   if (!startDate.value || !endDate.value) {
-    ElMessage.warning('请选择开始和结束日期')
+    toast.warning('请选择开始和结束日期')
     return
   }
   wecomExporting.value = true
   try {
     const res = await exportToWecomSheet({ startDate: startDate.value, endDate: endDate.value })
-    ElMessage.success(`成功导出 ${res.totalRecords} 条记录到企业微信智能表格`)
+    toast.success(`成功导出 ${res.totalRecords} 条记录到企业微信智能表格`)
   } catch (err: any) {
-    ElMessage.error(err?.message || '导出到企业微信表格失败')
+    toast.error(err?.message || '导出到企业微信表格失败')
   } finally {
     wecomExporting.value = false
   }
@@ -210,9 +211,9 @@ async function handleDelete(row: Record<string, unknown>) {
       customClass: 'undo-toast',
       onClick: () => {
         restoreReport(row.id as string).then(() => {
-          ElMessage.success('已恢复')
+          toast.success('已恢复')
           loadReports()
-        }).catch(() => ElMessage.error('恢复失败'))
+        }).catch(() => toast.error('恢复失败'))
       }
     } as any)
     loadReports()
@@ -226,17 +227,17 @@ async function loadTrash() {
     trashList.value = res.list || []
     trashTotal.value = res.total || 0
   } catch {
-    ElMessage.error('加载回收站失败')
+    toast.error('加载回收站失败')
   } finally { trashLoading.value = false }
 }
 
 async function handleRestore(id: string) {
   try {
     await restoreReport(id)
-    ElMessage.success('已恢复')
+    toast.success('已恢复')
     loadTrash()
     loadReports()
-  } catch { ElMessage.error('恢复失败') }
+  } catch { toast.error('恢复失败') }
 }
 
 async function handleReview(row: Record<string, unknown>, action: 'approve' | 'reject') {
@@ -244,7 +245,7 @@ async function handleReview(row: Record<string, unknown>, action: 'approve' | 'r
     try {
       await ElMessageBox.confirm('确定通过该条日报？', '审核确认', { type: 'warning' })
       await reviewAction(row.id as string, action)
-      ElMessage.success('已通过')
+      toast.success('已通过')
       loadReports()
     } catch { /* cancelled */ }
   } else {
@@ -259,7 +260,7 @@ async function handleReview(row: Record<string, unknown>, action: 'approve' | 'r
         distinguishCancelAndClose: true
       })
       await reviewAction(row.id as string, action, opinion)
-      ElMessage.success('已驳回')
+      toast.success('已驳回')
       loadReports()
     } catch { /* cancelled or closed */ }
   }
@@ -290,7 +291,7 @@ async function handleSupplementReview() {
       decision: reviewDecision.value,
       comment: reviewComment.value || undefined
     })
-    ElMessage.success('审核完成')
+    toast.success('审核完成')
     reviewVisible.value = false
     loadReports()
   } catch {
@@ -361,9 +362,9 @@ async function handleEditSubmit() {
     })
     editVisible.value = false
     if (res.changes && res.changes.length > 0) {
-      ElMessage.success(`已修改 ${res.changes.length} 个字段`)
+      toast.success(`已修改 ${res.changes.length} 个字段`)
     } else {
-      ElMessage.info('未检测到变更')
+      toast.info('未检测到变更')
     }
     loadReports()
   } catch {
