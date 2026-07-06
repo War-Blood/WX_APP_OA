@@ -198,6 +198,108 @@ async function handleExportWecom() {
   }
 }
 
+// Shared restDay set (used by onclick handlers)
+let _restDays = new Set()
+
+async function handleExportStatusBoard() {
+  try {
+    // Step 1: pick month
+    const { value: month } = await ElMessageBox.prompt('选择要导出的月份', '导出加班表', {
+      confirmButtonText: '下一步',
+      cancelButtonText: '取消',
+      inputType: 'month',
+      inputPlaceholder: '选择月份',
+      inputValue: new Date().toISOString().slice(0, 7),
+    })
+    if (!month) return
+
+    // Step 2: fetch schedule preview
+    const token = localStorage.getItem('token') || ''
+    const previewRes = await fetch('/api/report/schedule-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ month })
+    })
+    if (!previewRes.ok) throw new Error('获取排班失败')
+    const { data } = await previewRes.json()
+    if (!data || !data.days) throw new Error('无效的排班数据')
+
+    // Step 3: initialize restDays from schedule, build interactive calendar
+    _restDays = new Set()
+    data.days.forEach(d => {
+      if (d.status === 'rest') _restDays.add(d.date)
+    })
+
+    // Expose toggle function globally for onclick handlers
+    ;(window as any).__toggleRestDay = function(dateStr: string, el: HTMLElement) {
+      if (_restDays.has(dateStr)) {
+        _restDays.delete(dateStr)
+        el.style.background = '#C6EFCE'
+        el.style.fontWeight = 'normal'
+        el.title = '工作日'
+      } else {
+        _restDays.add(dateStr)
+        el.style.background = '#D9D9D9'
+        el.style.fontWeight = 'bold'
+        el.title = '休息日'
+      }
+      // Update summary
+      const cnt = document.getElementById('_restCnt')
+      if (cnt) cnt.textContent = String(_restDays.size)
+    }
+
+    const weekHeaders = ['日', '一', '二', '三', '四', '五', '六']
+    let calHtml = `<div style="text-align:center;margin-bottom:8px;font-size:14px">
+      <b>${month}</b> &nbsp; 休息日:<b id="_restCnt" style="color:#666">${_restDays.size}</b>天
+      &nbsp; <span style="font-size:11px;color:#888">点击日期切换工作/休息</span></div>`
+    calHtml += '<table style="width:100%;border-collapse:collapse;text-align:center;font-size:12px;cursor:pointer">'
+    calHtml += '<tr>' + weekHeaders.map(h => `<th style="padding:4px;background:#4472C4;color:#fff">${h}</th>`).join('') + '</tr>'
+
+    const firstDay = new Date(data.days[0].date).getDay()
+    let cells: string[] = []
+    for (let i = 0; i < firstDay; i++) cells.push('<td></td>')
+
+    data.days.forEach(d => {
+      const isRest = _restDays.has(d.date)
+      const bg = isRest ? '#D9D9D9' : '#C6EFCE'
+      const fw = isRest ? 'bold' : 'normal'
+      const dow = new Date(d.date).getDay()
+      const textColor = dow === 0 || dow === 6 ? '#C00000' : '#333'
+      cells.push(`<td onclick="window.__toggleRestDay('${d.date}',this)" style="padding:4px;background:${bg};border:1px solid #ddd;color:${textColor};font-weight:${fw}" title="${isRest ? '休息日' : '工作日'}">${d.date.slice(-2)}</td>`)
+      if (cells.length === 7) {
+        calHtml += '<tr>' + cells.join('') + '</tr>'
+        cells = []
+      }
+    })
+    if (cells.length > 0) calHtml += '<tr>' + cells.join('') + '</tr>'
+    calHtml += '</table>'
+    calHtml += '<div style="margin-top:8px;font-size:11px;text-align:center">🟢工作日 ⬜休息日（点击切换）&nbsp; 红色=周末</div>'
+
+    await ElMessageBox.confirm(calHtml, '排班预览 — 点击日期可切换', {
+      confirmButtonText: '确认导出',
+      cancelButtonText: '取消',
+      dangerouslyUseHTMLString: true,
+    })
+
+    // Step 4: export with adjusted restDays
+    const restDaysArr = Array.from(_restDays)
+    const res = await fetch('/api/report/export-status-board', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ month, restDays: restDaysArr })
+    })
+    if (!res.ok) throw new Error('导出失败')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = month + '技术工程中心公出加班统计表.xlsx'
+    a.click(); URL.revokeObjectURL(url)
+    toast.success('导出成功')
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') toast.error('导出失败')
+  }
+}
+
 async function handleDelete(row: Record<string, unknown>) {
   try {
     await ElMessageBox.confirm('确定删除该条记录？删除后可在回收站恢复。', '删除确认', { type: 'warning' })
@@ -467,6 +569,7 @@ onMounted(() => { loadStats(); loadReports() })
           <el-button type="success" :icon="Download" @click="handleExport">导出CSV</el-button>
           <el-date-picker v-model="attendanceMonth" type="month" placeholder="选择月份" style="width:140px" format="YYYY-MM" value-format="YYYY-MM" />
           <el-button type="primary" :icon="Download" @click="handleExportAttendance">导出考勤</el-button>
+          <el-button type="danger" :icon="Download" @click="handleExportStatusBoard">导出加班表</el-button>
           <el-button type="warning" :icon="Download" :loading="wecomExporting" @click="handleExportWecom">导出到企微表格</el-button>
         </div>
       </div>

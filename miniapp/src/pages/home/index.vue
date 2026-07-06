@@ -205,7 +205,7 @@ function goToActivity(item) {
 
 /* Stats header: Ardot 120px = 240rpx, row at y:20 h:76, bottom 24px */
 .stats-header {
-  height: 240rpx;
+  height: 160rpx;
   background: linear-gradient(180deg, #2E6BE5 0%, #337BEA 50%, #5284EE 100%);
   padding: 40rpx 40rpx 48rpx 40rpx;
   flex-shrink: 0;

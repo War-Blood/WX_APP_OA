@@ -566,6 +566,21 @@ async function exportToWecomSheet(req, res, next) {
 }
 
 /**
+ * 导出员工月度状态看板（横排交叉表）
+ * POST /api/report/export-status-board
+ */
+async function exportStatusBoard(req, res, next) {
+  try {
+    const { month, restDays } = req.body;
+    if (!month) { res.status(400).json({ code: 1, message: '请选择月份' }); return; }
+    const { buffer, filename } = await reportService.exportStatusBoardCSV(month, restDays);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + encodeURIComponent(filename) + '"');
+    res.send(buffer);
+  } catch (err) { next(err); }
+}
+
+/**
  * 恢复已删除的日报
  * POST /api/report/restore
  */
@@ -596,6 +611,15 @@ async function listDeleted(req, res, next) {
   }
 }
 
+async function schedulePreview(req, res, next) {
+  try {
+    const { month } = req.body;
+    if (!month) { res.status(400).json({ code: 1, message: '请选择月份' }); return; }
+    const result = await reportService.schedulePreview(month);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   list,
   detail,
@@ -619,4 +643,6 @@ module.exports = {
   exportCSV,
   exportAttendance,
   exportToWecomSheet,
+  exportStatusBoard,
+  schedulePreview,
 };

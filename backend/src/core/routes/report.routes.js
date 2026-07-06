@@ -106,4 +106,10 @@ router.post('/export-attendance', authenticate, reportController.exportAttendanc
 // POST /api/report/export-wecom-sheet — 导出到企业微信智能表格（仅 admin+）
 router.post('/export-wecom-sheet', ...adminAuth, reportController.exportToWecomSheet);
 
+// POST /api/report/export-status-board — 导出员工月度状态看板
+router.post('/export-status-board', authenticate, reportController.exportStatusBoard);
+
+// POST /api/report/schedule-preview — 获取月度排班预览（用于导出前审核）
+router.post('/schedule-preview', authenticate, reportController.schedulePreview);
+
 module.exports = router;

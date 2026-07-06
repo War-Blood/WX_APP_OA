@@ -6,9 +6,6 @@ import { toast } from '@/utils/toast'
         <div class="toolbar">
           <span class="title">排班日历</span>
           <div class="actions">
-            <el-select v-model="filters.departmentId" placeholder="部门筛选" clearable style="width:160px" @change="loadData">
-              <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
-            </el-select>
             <el-button @click="openRuleDialog">排班规则</el-button>
             <el-button type="primary" @click="openBatchDialog">批量排班</el-button>
             <el-button type="danger" @click="handleClear">清除排班</el-button>
@@ -22,14 +19,14 @@ import { toast } from '@/utils/toast'
               <div class="cell" :style="cellStyle(data.day)" @click="openPaint(data.day)">
                 <div class="cell-date">{{ data.day.split('-').pop() }}</div>
                 <div v-if="daySummary[data.day]" class="cell-status">{{ statusLabel(daySummary[data.day]) }}</div>
+                <div v-if="dayDetail[data.day]" class="cell-detail">{{ dayDetail[data.day] }}</div>
               </div>
             </template>
             <div style="text-align:center">
-              <div style="font-weight:600;margin-bottom:12px">{{ data.day }}</div>
-              <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px">
-                <el-button v-for="o in statusOptions" :key="o.value" :type="o.value === paintStatus ? 'primary' : 'default'" size="small" @click="paintStatus = o.value">{{ o.label }}</el-button>
+              <div style="font-weight:600;margin-bottom:8px">{{ data.day }}</div>
+              <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+                <el-button v-for="o in statusOptions" :key="o.value" :type="getPaintBtnType(o.value)" size="small" @click="doPaintDirect(data.day, o.value)">{{ o.label }}</el-button>
               </div>
-              <el-button type="primary" size="small" @click="doPaint(data.day)">应用到全员</el-button>
             </div>
           </el-popover>
         </template>
@@ -139,6 +136,7 @@ const filters = reactive({ departmentId: null as number | null })
 const deptOptions = ref<any[]>([])
 const userOptions = ref<any[]>([])
 const daySummary = ref<Record<string, string>>({})
+const dayDetail = ref<Record<string, string>>({})
 const batchVisible = ref(false)
 const batchForm = reactive({ userIds: [] as number[], dateRange: [] as string[], status: 'work', weekdaysOnly: true, note: '' })
 
@@ -189,8 +187,9 @@ async function loadData() {
       if (!map[date]) map[date] = { work: 0, biz_trip: 0, rest: 0, leave: 0 }
       map[date][s.status]++
     })
-    // 计算每日主导状态
+    // 计算每日主导状态 + 详细计数
     const summary: Record<string, string> = {}
+    const detail: Record<string, string> = {}
     for (const date of Object.keys(map)) {
       const c = map[date]
       const max = Math.max(c.work || 0, c.biz_trip || 0, c.rest || 0, c.leave || 0)
@@ -199,9 +198,32 @@ async function loadData() {
       else if (c.leave >= max) summary[date] = 'leave'
       else if (c.work >= max) summary[date] = 'work'
       else summary[date] = 'rest'
+      // 构建详细计数文本
+      const parts: string[] = []
+      if (c.work) parts.push(`上班${c.work}`)
+      if (c.biz_trip) parts.push(`出差${c.biz_trip}`)
+      if (c.rest) parts.push(`休息${c.rest}`)
+      if (c.leave) parts.push(`请假${c.leave}`)
+      detail[date] = parts.join(' ')
     }
     daySummary.value = summary
+    dayDetail.value = detail
   } catch { toast.error('加载失败') }
+}
+
+// 粉刷直接应用（无需二次确认）
+async function doPaintDirect(date: string, status: string) {
+  if (!userOptions.value.length) { toast.warning('未加载人员列表'); return }
+  try {
+    await batchSchedule({ userIds: userOptions.value.map((u: any) => u.id).filter((id: any) => id != null), startDate: date, endDate: date, status, weekdaysOnly: false })
+    paintDate.value = ''
+    loadData()
+  } catch { toast.error('操作失败') }
+}
+
+function getPaintBtnType(val: string) {
+  const m: Record<string, string> = { work: 'primary', rest: 'info', biz_trip: 'warning', leave: 'danger' }
+  return (m[val] || 'default') as any
 }
 
 function openBatchDialog() { batchVisible.value = true }
