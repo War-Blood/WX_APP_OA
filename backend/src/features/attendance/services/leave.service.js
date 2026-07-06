@@ -26,6 +26,8 @@ async function sendMessage(receiverId, title, description, content) {
 
 async function apply({ applicantId, leaveSubtype, startDate, endDate, reason }) {
   if (!leaveSubtype) throw new BusinessError('请假必须指定子类型', null, ErrorCode.ATTENDANCE_LEAVE_SUBTYPE_REQUIRED);
+  const VALID_TYPES = ['annual', 'sick', 'personal', 'marriage', 'funeral', 'other'];
+  if (!VALID_TYPES.includes(leaveSubtype)) throw new BusinessError('无效的请假类型', null, ErrorCode.ATTENDANCE_LEAVE_SUBTYPE_REQUIRED);
   if (endDate < startDate) throw new BusinessError('结束日期不能早于起始日期', null, ErrorCode.ATTENDANCE_DATE_INVALID);
 
   const days = calcDays(startDate, endDate);
@@ -111,7 +113,7 @@ async function myList({ applicantId, requestType, status, page = 1, pageSize = 1
 }
 
 async function detail(requestId) {
-  const [rows] = await db.query(
+  const rows = await db.query(
     `SELECT lr.*, u.nickname AS applicantName, d.name AS departmentName
      FROM attendance_leave_requests lr
      JOIN users u ON lr.applicant_id = u.id

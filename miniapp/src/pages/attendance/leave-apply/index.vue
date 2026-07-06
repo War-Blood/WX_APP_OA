@@ -46,8 +46,8 @@ import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
 
 const leaveTypes = ['年假', '事假', '病假', '婚假', '丧假', '其他']
-const leaveTypeMap = { '年假': 'annual', '事假': 'sick', '病假': 'personal', '婚假': 'marriage', '丧假': 'funeral', '其他': 'other' }
-const leaveTypeReverse = { annual: 0, sick: 1, personal: 2, marriage: 3, funeral: 4, other: 5 }
+const leaveTypeMap = { '年假': 'annual', '事假': 'personal', '病假': 'sick', '婚假': 'marriage', '丧假': 'funeral', '其他': 'other' }
+const leaveTypeReverse = { annual: 0, personal: 1, sick: 2, marriage: 3, funeral: 4, other: 5 }
 const leaveTypeIdx = ref(-1)
 const today = new Date().toISOString().slice(0, 10)
 const submitting = ref(false)

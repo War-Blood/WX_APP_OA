@@ -43,7 +43,7 @@ import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { attendanceApi } from '@/services/modules/attendance'
 
 const statusMap = { active: '生效中', cancelled: '已撤销', in_progress: '进行中', ended: '已结束' }
-const leaveMap = { annual: '年假', sick: '事假', personal: '病假', marriage: '婚假', funeral: '丧假', other: '其他' }
+const leaveMap = { annual: '年假', sick: '病假', personal: '事假', marriage: '婚假', funeral: '丧假', other: '其他' }
 
 const data = ref(null)
 const id = ref('')

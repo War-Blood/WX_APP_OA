@@ -183,8 +183,9 @@ async function loadData() {
     const res = await getScheduleList({ startDate: first, endDate: last, departmentId: filters.departmentId || undefined, pageSize: 500 }) as any
     const map: Record<string, any> = {}
     ;(res.list || []).forEach((s: any) => {
-      if (!map[s.scheduleDate]) map[s.scheduleDate] = { work: 0, biz_trip: 0, rest: 0, leave: 0 }
-      map[s.scheduleDate][s.status]++
+      const date = s.scheduleDate.slice(0, 10)
+      if (!map[date]) map[date] = { work: 0, biz_trip: 0, rest: 0, leave: 0 }
+      map[date][s.status]++
     })
     // 计算每日主导状态
     const summary: Record<string, string> = {}

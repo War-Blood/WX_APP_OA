@@ -109,9 +109,9 @@ async function loadData() {
     const [y, m] = calMonth.value.split('-').map(Number)
     const firstDay = `${calMonth.value}-01`
     const lastDay = new Date(y, m, 0).toISOString().slice(0, 10)
-    const res = await attendanceApi.getScheduleList({ startDate: firstDay, endDate: lastDay, pageSize: 31 })
+    const res = await attendanceApi.getMySchedule({ startDate: firstDay, endDate: lastDay })
     const map = {}
-    ;(res.data?.list || []).forEach(s => { map[s.scheduleDate] = s })
+    ;(res.data || []).forEach(s => { map[s.scheduleDate.slice(0, 10)] = s })
     scheduleMap.value = map
   } catch { uni.showToast({ title: '加载失败', icon: 'none' }); scheduleMap.value = {} }
 }
