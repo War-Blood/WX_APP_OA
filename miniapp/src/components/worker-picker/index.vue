@@ -95,7 +95,7 @@ watch(() => props.visible, (val) => {
 
 function fetchWorkers(keyword) {
   loading.value = true
-  adminApi.getWorkerList({ keyword: keyword || '', pageSize: 100, fieldWorkerOnly: true }).then((res) => {
+  adminApi.getWorkerList({ keyword: keyword || '', pageSize: 200 }).then((res) => {
     if (res.code === 0) {
       workerList.value = res.data.list || []
     }

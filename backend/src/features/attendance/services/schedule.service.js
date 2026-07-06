@@ -156,8 +156,8 @@ async function applyRule({ ruleId, startDate, endDate }) {
   const altWeekConfig = rule.alt_week_config ? (typeof rule.alt_week_config === 'string' ? JSON.parse(rule.alt_week_config) : rule.alt_week_config) : null;
   const alternating = !!rule.alternating;
 
-  // 获取所有在职用户
-  const users = await db.query("SELECT id FROM users WHERE status = 'active' AND deleted_at IS NULL");
+  // 获取所有在职用户（含 is_field_worker 标记）
+  const users = await db.query("SELECT id, is_field_worker FROM users WHERE status = 'active' AND deleted_at IS NULL");
 
   // 逐日逐人生成
   let inserted = 0, skipped = 0;
@@ -175,7 +175,9 @@ async function applyRule({ ruleId, startDate, endDate }) {
         const weekNum = getISOWeek(cur);
         if (weekNum % 2 === 0) config = altWeekConfig;
       }
-      const status = config[String(dow)] || 'work';
+      let status = config[String(dow)] || 'work';
+      // 外场人员（作业人员）：工作日默认出差状态
+      if (user.is_field_worker && status === 'work') status = 'biz_trip';
       const dateStr = cur.toISOString().slice(0, 10);
 
       try {

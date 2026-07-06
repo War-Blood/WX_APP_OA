@@ -799,7 +799,7 @@ onMounted(async () => {
 
   // 加载花名册缓存
   try {
-    const res = await adminApi.getWorkerList({ pageSize: 100, fieldWorkerOnly: true })
+    const res = await adminApi.getWorkerList({ pageSize: 200 })
     if (res.code === 0) {
       workerListCache.value = res.data.list || []
     }
