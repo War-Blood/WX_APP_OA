@@ -11,6 +11,7 @@ import { toast } from '@/utils/toast'
             </el-select>
             <el-button @click="openRuleDialog">排班规则</el-button>
             <el-button type="primary" @click="openBatchDialog">批量排班</el-button>
+            <el-button type="danger" @click="handleClear">清除排班</el-button>
           </div>
         </div>
       </template>
@@ -122,7 +123,7 @@ import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { getScheduleList, batchSchedule, getScheduleRules, saveScheduleRule, applyScheduleRule, type ScheduleRule } from '@/api/attendance'
+import { getScheduleList, batchSchedule, getScheduleRules, saveScheduleRule, applyScheduleRule, clearSchedule, type ScheduleRule } from '@/api/attendance'
 import { getDepartmentList, getUserList } from '@/api/user'
 
 const statusOptions = [
@@ -219,9 +220,21 @@ async function doBatch() {
 
 // ===== 排班规则 =====
 async function loadRules() {
-  try { const res: any = await getScheduleRules(); rules.value = res.data || res || [] } catch { toast.error('加载失败') }
+  try { const res: any = await getScheduleRules(); rules.value = res || [] } catch { toast.error('加载失败') }
 }
 function openRuleDialog() { loadRules(); ruleVisible.value = true }
+
+async function handleClear() {
+  const month = calendarDate.value
+  const first = `${month.getFullYear()}-${String(month.getMonth()+1).padStart(2,'0')}-01`
+  const last = new Date(month.getFullYear(), month.getMonth()+1, 0).toISOString().slice(0,10)
+  try {
+    await ElMessageBox.confirm(`确认清除 ${first} ~ ${last} 全部排班数据？`, '清除排班', { type: 'error', confirmButtonText: '确认清除' })
+    await clearSchedule({ startDate: first, endDate: last })
+    toast.success('已清除，请应用排班规则重新生成')
+    loadData()
+  } catch { /* cancelled */ }
+}
 function openNewRule() {
   Object.assign(editingRule, { id: undefined, name: '', weekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'rest', '7': 'rest' }, altWeekConfig: { '1': 'work', '2': 'work', '3': 'work', '4': 'work', '5': 'work', '6': 'work', '7': 'rest' }, alternating: false, isDefault: false })
   ruleEditVisible.value = true

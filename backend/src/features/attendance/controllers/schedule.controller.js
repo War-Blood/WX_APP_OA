@@ -74,4 +74,13 @@ async function applyRule(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, upsert, batch, mySchedule, deleteSchedule, getRules, saveRule, applyRule };
+async function clearSchedules(req, res, next) {
+  try {
+    const { startDate, endDate } = req.body;
+    if (!startDate || !endDate) throw new ValidationError('起止日期不能为空');
+    const result = await scheduleService.clearSchedules(startDate, endDate);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+module.exports = { list, upsert, batch, mySchedule, deleteSchedule, getRules, saveRule, applyRule, clearSchedules };

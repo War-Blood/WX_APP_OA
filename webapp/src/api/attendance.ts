@@ -81,3 +81,4 @@ export interface ScheduleRule { id?: number; name: string; weekConfig: Record<st
 export function getScheduleRules() { return request.post('/attendance/schedule/rules') }
 export function saveScheduleRule(data: ScheduleRule) { return request.post('/attendance/schedule/rules/save', data) }
 export function applyScheduleRule(data: { ruleId: number; startDate: string; endDate: string }) { return request.post('/attendance/schedule/rules/apply', data) }
+export function clearSchedule(data: { startDate: string; endDate: string }) { return request.post('/attendance/schedule/clear', data) }

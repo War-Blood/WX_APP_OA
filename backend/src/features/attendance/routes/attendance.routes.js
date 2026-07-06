@@ -16,6 +16,7 @@ router.post('/schedule/delete', authenticate, requireRole('admin', 'superadmin')
 router.post('/schedule/rules', authenticate, requireRole('admin', 'superadmin'), scheduleController.getRules);
 router.post('/schedule/rules/save', authenticate, requireRole('admin', 'superadmin'), scheduleController.saveRule);
 router.post('/schedule/rules/apply', authenticate, requireRole('admin', 'superadmin'), scheduleController.applyRule);
+router.post('/schedule/clear', authenticate, requireRole('admin', 'superadmin'), scheduleController.clearSchedules);
 // ===== 个人排班（登录用户） =====
 router.post('/schedule/my-schedule', authenticate, scheduleController.mySchedule);
 

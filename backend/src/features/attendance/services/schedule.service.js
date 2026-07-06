@@ -209,4 +209,17 @@ function getISOWeek(d) {
   return 1 + Math.round(((date - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
 }
 
-module.exports = { list, upsert, batch, mySchedule, deleteSchedule, getRules, saveRule, applyRule };
+/**
+ * 清除排班数据
+ * @param {string} startDate - 起始日期
+ * @param {string} endDate - 结束日期
+ */
+async function clearSchedules(startDate, endDate) {
+  const result = await db.execute(
+    'DELETE FROM attendance_schedules WHERE schedule_date BETWEEN ? AND ?',
+    [startDate, endDate]
+  );
+  return { deleted: result[0].affectedRows };
+}
+
+module.exports = { list, upsert, batch, mySchedule, deleteSchedule, getRules, saveRule, applyRule, clearSchedules };
