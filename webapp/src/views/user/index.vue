@@ -6,6 +6,7 @@ import { Search, Refresh, Plus, Edit } from '@element-plus/icons-vue'
 import {
   getUserList, updateUser, setAdminRole, toggleUserStatus,
   createUser, approveUser, deleteUser, getDepartmentList, getRoleList,
+  setBizTripStatus,
   type UserItem, type DepartmentItem, type RoleItem
 } from '@/api/user'
 import { generateInviteCode } from '@/api/admin'
@@ -144,6 +145,18 @@ async function handleToggleStatus(row: UserItem) {
     await ElMessageBox.confirm(`确定要${action}「${row.nickName}」吗？`, '账号状态变更', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
     await toggleUserStatus(row.userId, targetStatus)
     toast.success(`${action}成功`)
+    loadUsers()
+  } catch { /* cancel */ }
+}
+
+// 设置出差状态
+async function handleBizTripStatus(row: UserItem) {
+  const targetStatus = row.bizTripStatus === 'field' ? 'office' : 'field'
+  const label = targetStatus === 'field' ? '出差' : '回公司'
+  try {
+    await ElMessageBox.confirm(`确定将「${row.nickName}」设为「${label}」？`, '出差状态变更', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    await setBizTripStatus(row.userId, targetStatus)
+    toast.success(`已设为${label}`)
     loadUsers()
   } catch { /* cancel */ }
 }
@@ -297,6 +310,13 @@ onMounted(() => {
           <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="出差" width="80" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="row.bizTripStatus === 'field'" type="warning" size="small">出差</el-tag>
+          <el-tag v-else-if="row.bizTripStatus === 'office'" type="info" size="small">公司</el-tag>
+          <span v-else style="color:#999">-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="phone" label="手机号" width="130"><template #default="{ row }">{{ row.phone || '-' }}</template></el-table-column>
       <el-table-column prop="email" label="邮箱" min-width="150"><template #default="{ row }">{{ row.email || '-' }}</template></el-table-column>
       <el-table-column prop="lastLoginTime" label="最后登录" width="160"><template #default="{ row }">{{ row.lastLoginTime || '-' }}</template></el-table-column>
@@ -312,6 +332,9 @@ onMounted(() => {
             </el-button>
             <el-button size="small" :type="row.status === 'active' ? 'danger' : 'success'" link @click="handleToggleStatus(row)">
               {{ row.status === 'active' ? '禁用' : '启用' }}
+            </el-button>
+            <el-button size="small" :type="row.bizTripStatus === 'field' ? 'success' : 'warning'" link @click="handleBizTripStatus(row)">
+              {{ row.bizTripStatus === 'field' ? '回公司' : '设为出差' }}
             </el-button>
             <el-button size="small" type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>

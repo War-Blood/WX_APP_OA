@@ -495,7 +495,7 @@ async function submit(data, userId) {
     // 4a. 检查当日是否已有自己的日报
     // 🔍 临时调试 — 确认后删除
     const [existing] = await conn.query(
-      'SELECT id, status FROM daily_reports WHERE user_id = ? AND report_date = ? AND deleted_at IS NULL',
+      'SELECT id, status, today_work_type FROM daily_reports WHERE user_id = ? AND report_date = ? AND deleted_at IS NULL',
       [userId, effectiveReportDate]
     );
 
@@ -536,6 +536,7 @@ async function submit(data, userId) {
 
     if (existing.length > 0) {
       const existingStatus = existing[0].status;
+      const existingWorkType = existing[0].today_work_type;
 
       if (isDraft) {
         // 草稿模式：总是更新已有记录
@@ -546,8 +547,8 @@ async function submit(data, userId) {
           [...values, existing[0].id]
         );
         resultReportId = existing[0].id;
-      } else if (existingStatus === 'draft') {
-        // 已有草稿，正式提交覆盖
+      } else if (existingStatus === 'draft' || existingWorkType === '请假') {
+        // 已有草稿或自动生成的请假记录，覆盖
         const columns = Object.keys(fields).map(key => `${key} = ?`).join(', ');
         const values = Object.values(fields);
         await conn.execute(
@@ -982,16 +983,20 @@ function csvEscape(v) { if (!v) return ''; return '"' + String(v).replace(/"/g, 
  * @returns {Promise<string>} CSV 字符串
  */
 async function exportAttendanceCSV(month) {
-  // 1. 获取所有在职人员
+  // 1. 获取所有在职人员（排除管理/系统/测试账号）
   const workers = await db.query(
     `SELECT id, user_name, worker_code FROM users
      WHERE worker_status = 'active' AND deleted_at IS NULL AND status = 'active'
+       AND role NOT IN ('admin', 'superadmin')
+       AND openid IS NOT NULL AND openid != ''
      ORDER BY worker_code ASC`
   );
 
   // 2. 获取该月所有非草稿日报
   const [y, m] = month.split('-').map(Number);
-  const daysInMonth = new Date(y, m, 0).getDate();
+  // UTC-safe: Date.UTC(y, m, 0) = last millisecond of previous month = last day of target month
+  const lastDay = new Date(Date.UTC(y, m, 0));
+  const daysInMonth = lastDay.getUTCDate();
 
   const reports = await db.query(
     `SELECT dr.user_id, dr.report_date, dr.today_work_type
@@ -1074,7 +1079,9 @@ async function exportAttendanceCSV(month) {
 async function exportStatusBoardCSV(month, restDaysInput) {
   const ExcelJS = require('exceljs');
   const [y, mStr] = month.split('-').map(Number);
-  const daysInMonth = new Date(y, mStr, 0).getDate();
+  // UTC-safe: Date.UTC(y, m, 0) = last millisecond of previous month = last day of target month
+  const lastDay = new Date(Date.UTC(y, mStr, 0));
+  const daysInMonth = lastDay.getUTCDate();
   const startDate = month + '-01';
   const endDate = month + '-' + String(daysInMonth).padStart(2, '0');
 
@@ -1083,10 +1090,12 @@ async function exportStatusBoardCSV(month, restDaysInput) {
     ? new Set(restDaysInput)
     : null;
 
-  // 1. Get all active workers
+  // 1. Get all active workers (exclude admin/test accounts)
   const workerList = await db.query(
     `SELECT id, user_name FROM users
      WHERE worker_status = 'active' AND deleted_at IS NULL AND status = 'active'
+       AND role NOT IN ('admin', 'superadmin')
+       AND openid IS NOT NULL AND openid != ''
      ORDER BY id`
   );
   const nameToId = {};
@@ -1152,23 +1161,24 @@ async function exportStatusBoardCSV(month, restDaysInput) {
   const allWorkers = [...activeWorkers, ...extEntries];
   if (allWorkers.length === 0) throw new BusinessError('No worker data for this month');
 
-  // 4. Query attendance schedules (only needed if no user-adjusted restDays)
+  // 4. Query company schedules (only needed if no user-adjusted restDays)
   const schedMap = {};
   if (!restDaySet) {
     const schedules = await db.query(
-      `SELECT user_id, schedule_date, status FROM attendance_schedules
+      `SELECT schedule_date, status FROM company_schedules
        WHERE schedule_date BETWEEN ? AND ?`,
       [startDate, endDate]
     );
     schedules.forEach(s => {
-      const d = s.schedule_date instanceof Date ? s.schedule_date.toISOString().slice(0, 10) : String(s.schedule_date).slice(0, 10);
-      schedMap[s.user_id + '_' + d] = s.status;
+      const sd = new Date(s.schedule_date);
+      const d = `${sd.getFullYear()}-${String(sd.getMonth()+1).padStart(2,'0')}-${String(sd.getDate()).padStart(2,'0')}`;
+      schedMap[d] = s.status;
     });
   }
 
-  function isRestDay(uid, dateStr) {
+  function isRestDay(dateStr) {
     if (restDaySet) return restDaySet.has(dateStr); // user-adjusted
-    const s = schedMap[uid + '_' + dateStr];
+    const s = schedMap[dateStr];
     if (s) return s === 'rest';
     // No schedule: Saturday/Sunday = rest
     return [0, 6].includes(new Date(dateStr).getDay());
@@ -1221,12 +1231,12 @@ async function exportStatusBoardCSV(month, restDaysInput) {
     const rowData = [];
     allWorkers.forEach(w => {
       const info = w._ext ? w._data[parseInt(dateStr.slice(-2))] : workerMap[w.id]?.[parseInt(dateStr.slice(-2))];
-      const rest = isRestDay(w.id, dateStr);
+      const rest = isRestDay(dateStr);
 
       let displayDate = '', displayProject = '', displayStatus = '';
 
       if (info) {
-        displayDate = info.date instanceof Date ? info.date.toISOString().slice(0, 10) : String(info.date).slice(0, 10);
+        displayDate = dateStr;  // 直接用日报对应的日期，避免 Date 对象格式化错误
         displayProject = info.project;
         displayStatus = info.status;
       }
@@ -1239,7 +1249,7 @@ async function exportStatusBoardCSV(month, restDaysInput) {
 
     const dataRow = ws1.addRow(rowData);
     allWorkers.forEach((w, i) => {
-      const rest = w._ext ? false : isRestDay(w.id, dateStr);
+      const rest = w._ext ? false : isRestDay(dateStr);
       // Only rest day cells get formatting
       if (rest) {
         const projectCell = dataRow.getCell(i * 3 + 2);
@@ -1513,17 +1523,20 @@ async function exportToWecomSheet(startDate, endDate) {
  */
 async function schedulePreview(month) {
   const [y, m] = month.split('-').map(Number);
-  const daysInMonth = new Date(y, m, 0).getDate();
+  // UTC-safe: Date.UTC(y, m, 0) = last millisecond of previous month = last day of target month
+  const lastDay = new Date(Date.UTC(y, m, 0));
+  const daysInMonth = lastDay.getUTCDate();
 
   // 查询该月排班记录
   const rows = await db.query(
-    `SELECT schedule_date, status FROM attendance_schedules
+    `SELECT schedule_date, status FROM company_schedules
      WHERE schedule_date BETWEEN ? AND ?`,
     [`${month}-01`, `${month}-${String(daysInMonth).padStart(2, '0')}`]
   );
   const schedMap = {};
   rows.forEach(r => {
-    const d = r.schedule_date instanceof Date ? r.schedule_date.toISOString().slice(0, 10) : String(r.schedule_date).slice(0, 10);
+    const sd = new Date(r.schedule_date);
+    const d = `${sd.getFullYear()}-${String(sd.getMonth()+1).padStart(2,'0')}-${String(sd.getDate()).padStart(2,'0')}`;
     schedMap[d] = r.status;
   });
 

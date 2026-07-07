@@ -116,6 +116,38 @@ async function toggleUserStatus(userId, status) {
 }
 
 /**
+ * 设置用户出差状态 (field=出差 / office=公司)
+ */
+async function setBizTripStatus(userId, bizTripStatus) {
+  if (!['field', 'office'].includes(bizTripStatus)) {
+    throw new ValidationError('状态值无效，仅支持 field 或 office');
+  }
+  await db.execute(
+    'UPDATE users SET biz_trip_status = ?, worker_status = ?, updated_at = NOW() WHERE id = ?',
+    [bizTripStatus, 'active', userId]
+  );
+  return { userId, bizTripStatus };
+}
+
+/**
+ * 批量设置用户出差状态
+ */
+async function batchSetBizTripStatus(userIds, bizTripStatus) {
+  if (!['field', 'office'].includes(bizTripStatus)) {
+    throw new ValidationError('状态值无效');
+  }
+  if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+    throw new ValidationError('userIds 不能为空');
+  }
+  const placeholders = userIds.map(() => '?').join(',');
+  await db.execute(
+    `UPDATE users SET biz_trip_status = ?, worker_status = 'active', updated_at = NOW() WHERE id IN (${placeholders})`,
+    [bizTripStatus, ...userIds]
+  );
+  return { updated: userIds.length, bizTripStatus };
+}
+
+/**
  * 管理员预注册用户（通过 openid）
  * 创建 pending 状态用户，需管理员审核通过后才能登录
  */
@@ -813,7 +845,7 @@ async function updateSystemConfig(configs) {
 
 module.exports = {
   getUserList, getUserDetail, updateUser, batchImportUsers,
-  setAdminRole, toggleUserStatus, createUser, approveUser, inviteUser,
+  setAdminRole, toggleUserStatus, setBizTripStatus, batchSetBizTripStatus, createUser, approveUser, inviteUser,
   setUserPassword, deleteUser,
   getDepartmentTree, getDepartmentList, createDepartment, updateDepartment, deleteDepartment,
   getRoleList, getRoleDetail, createRole, updateRole, deleteRole,

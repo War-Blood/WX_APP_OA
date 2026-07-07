@@ -505,10 +505,36 @@ async function generateInviteCode(req, res, next) {
   }
 }
 
+/**
+ * POST /api/admin/set-biz-trip
+ * 设置单个用户出差状态
+ */
+async function setBizTripStatus(req, res, next) {
+  try {
+    const { userId, bizTripStatus } = req.body;
+    if (!userId) throw new ValidationError('userId 不能为空');
+    const result = await adminService.setBizTripStatus(userId, bizTripStatus);
+    res.json(success(result, bizTripStatus === 'field' ? '已设为出差' : '已设为回公司'));
+  } catch (err) { next(err); }
+}
+
+/**
+ * POST /api/admin/batch-set-biz-trip
+ * 批量设置用户出差状态
+ */
+async function batchSetBizTripStatus(req, res, next) {
+  try {
+    const { userIds, bizTripStatus } = req.body;
+    const result = await adminService.batchSetBizTripStatus(userIds, bizTripStatus);
+    res.json(success(result, `${result.updated} 人已设为${bizTripStatus === 'field' ? '出差' : '回公司'}`));
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   userList, getUserDetail, updateUser, batchImportUsers,
   setAdmin, toggleUser, createUser, approveUser, inviteUser,
   setPassword, deleteUser,
+  setBizTripStatus, batchSetBizTripStatus,
   getDepartments, createDepartment, updateDepartment, deleteDepartment,
   getRoles, getRoleDetail, createRole, updateRole, deleteRole,
   getPermissions, setRolePermissions,

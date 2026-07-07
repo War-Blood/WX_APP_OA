@@ -9,10 +9,8 @@ const leaveController = require('../controllers/leave.controller');
 const summaryController = require('../controllers/summary.controller');
 
 // ===== 排班管理（管理员） =====
-router.post('/schedule/list', authenticate, requireRole('admin', 'superadmin'), scheduleController.list);
-router.post('/schedule/upsert', authenticate, requireRole('admin', 'superadmin'), scheduleController.upsert);
-router.post('/schedule/batch', authenticate, requireRole('admin', 'superadmin'), scheduleController.batch);
-router.post('/schedule/delete', authenticate, requireRole('admin', 'superadmin'), scheduleController.deleteSchedule);
+router.post('/schedule/preview', authenticate, requireRole('admin', 'superadmin'), scheduleController.preview);
+router.post('/schedule/save-month', authenticate, requireRole('admin', 'superadmin'), scheduleController.saveMonth);
 router.post('/schedule/rules', authenticate, requireRole('admin', 'superadmin'), scheduleController.getRules);
 router.post('/schedule/rules/save', authenticate, requireRole('admin', 'superadmin'), scheduleController.saveRule);
 router.post('/schedule/rules/apply', authenticate, requireRole('admin', 'superadmin'), scheduleController.applyRule);

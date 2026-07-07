@@ -66,7 +66,7 @@ function goPage(url) {
 }
 function switchTab(k) { activeTab.value = k; page.value = 1; loadData(true) }
 function goDetail(item) {
-  uni.navigateTo({ url: `/pages/attendance/leave-detail/index?${new URLSearchParams({ id: String(item.id) }).toString()}`, fail: () => showError('页面跳转失败') })
+  uni.navigateTo({ url: `/pages/attendance/leave-detail/index?id=${item.id}`, fail: () => showError('页面跳转失败') })
 }
 function goEndTrip() {
   uni.navigateTo({ url: '/pages/attendance/trip-end/index', fail: () => showError('页面跳转失败') })

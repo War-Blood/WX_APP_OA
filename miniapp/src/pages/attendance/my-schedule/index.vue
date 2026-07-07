@@ -49,10 +49,9 @@ import { showSuccess, showError, showToast } from '@/utils/toast'
 
 const dayHeaders = ['一', '二', '三', '四', '五', '六', '日']
 const legendItems = [
-  { label: '现场', color: '#2B6DE8' }, { label: '在途', color: '#F59E0B' },
-  { label: '休息', color: '#CCC' }, { label: '请假', color: '#8B5CF6' }
+  { label: '工作日', color: '#2B6DE8' }, { label: '休息日', color: '#CCC' }
 ]
-const statusLabels = { work: '现场（陆）', biz_trip: '在途', rest: '休息', leave: '请假' }
+const statusLabels = { work: '工作日', rest: '休息日' }
 
 const calMonth = ref(new Date().toISOString().slice(0, 7))
 const scheduleMap = ref({})

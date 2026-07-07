@@ -12,6 +12,7 @@ export interface UserItem {
   phone?: string
   email?: string
   status: string
+  bizTripStatus?: string  // 'field' | 'office'
   lastLoginTime?: string
   createdAt?: string
 }
@@ -107,6 +108,16 @@ export function setAdminRole(userId: string, role: string): Promise<{ userId: st
 /** 禁用/启用用户 */
 export function toggleUserStatus(userId: string, status: string): Promise<{ userId: string; status: string }> {
   return request.post('/admin/toggleUser', { userId, status })
+}
+
+/** 设置用户出差状态 */
+export function setBizTripStatus(userId: string, bizTripStatus: 'field' | 'office'): Promise<{ userId: string; bizTripStatus: string }> {
+  return request.post('/admin/set-biz-trip', { userId, bizTripStatus })
+}
+
+/** 批量设置用户出差状态 */
+export function batchSetBizTripStatus(userIds: (string | number)[], bizTripStatus: 'field' | 'office'): Promise<{ updated: number }> {
+  return request.post('/admin/batch-set-biz-trip', { userIds, bizTripStatus })
 }
 
 /** 预注册用户（管理员添加 openid） */

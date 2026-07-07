@@ -77,13 +77,13 @@ async function handleCancel() {
 
 function handleEdit() {
   const d = data.value
-  const params = new URLSearchParams()
-  params.set('editId', id.value)
-  if (d.leaveSubtype) params.set('type', d.leaveSubtype)
-  if (d.startDate) params.set('start', d.startDate)
-  if (d.endDate) params.set('end', d.endDate)
-  if (d.reason) params.set('reason', d.reason)
-  uni.navigateTo({ url: '/pages/attendance/leave-apply/index?' + params.toString() })
+  const parts = []
+  parts.push('editId=' + id.value)
+  if (d.leaveSubtype) parts.push('type=' + d.leaveSubtype)
+  if (d.startDate) parts.push('start=' + d.startDate)
+  if (d.endDate) parts.push('end=' + d.endDate)
+  if (d.reason) parts.push('reason=' + encodeURIComponent(d.reason))
+  uni.navigateTo({ url: '/pages/attendance/leave-apply/index?' + parts.join('&') })
 }
 
 function handleEndTrip() {

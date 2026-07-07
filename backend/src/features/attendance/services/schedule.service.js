@@ -3,113 +3,77 @@
 const db = require('../../../common/config/database');
 const { BusinessError } = require('../../../common/utils/errors');
 const { ErrorCode } = require('../../../common/utils/constants');
-const { beijingDate } = require('../../../common/utils/date');
 
 /**
- * 排班服务
+ * 公司级统一排班服务 — company_schedules（工作日/休息日）
  */
 
-async function list({ startDate, endDate, departmentId, userId, page = 1, pageSize = 100 }) {
-  const conditions = [];
-  const params = [startDate, endDate];
-
-  if (departmentId) { conditions.push('u.department_id = ?'); params.push(departmentId); }
-  if (userId) { conditions.push('s.user_id = ?'); params.push(userId); }
-
-  const where = conditions.length ? 'AND ' + conditions.join(' AND ') : '';
-  const offset = (page - 1) * pageSize;
-
-  const countRows = await db.query(
-    `SELECT COUNT(*) AS total FROM attendance_schedules s
-     JOIN users u ON s.user_id = u.id
-     WHERE s.schedule_date BETWEEN ? AND ? ${where}`, params
-  );
-  const list = await db.query(
-    `SELECT s.id, s.user_id AS userId, u.nickname AS userName, d.name AS departmentName,
-            s.schedule_date AS scheduleDate, s.status, s.note, s.created_by AS createdBy, s.created_at AS createdAt
-     FROM attendance_schedules s
-     JOIN users u ON s.user_id = u.id
-     LEFT JOIN departments d ON u.department_id = d.id
-     WHERE s.schedule_date BETWEEN ? AND ? ${where}
-     ORDER BY s.schedule_date, u.worker_code
-     LIMIT ? OFFSET ?`, [...params, pageSize, offset]
-  );
-
-  return { list, total: countRows[0].total, page, pageSize, totalPages: Math.ceil(countRows[0].total / pageSize) };
-}
-
-async function upsert({ userId, scheduleDate, status, note, createdBy }) {
-  await db.execute(
-    `INSERT INTO attendance_schedules (user_id, schedule_date, status, note, created_by)
-     VALUES (?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE status = VALUES(status), note = VALUES(note), updated_at = NOW()`,
-    [userId, scheduleDate, status, note || null, createdBy]
-  );
+/**
+ * 获取月度排班预览（复用日报 schedulePreview 逻辑）
+ */
+async function preview(month) {
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0));
+  const daysInMonth = lastDay.getUTCDate();
 
   const rows = await db.query(
-    'SELECT id FROM attendance_schedules WHERE user_id = ? AND schedule_date = ?', [userId, scheduleDate]
+    'SELECT schedule_date, status FROM company_schedules WHERE schedule_date BETWEEN ? AND ?',
+    [`${month}-01`, `${month}-${String(daysInMonth).padStart(2, '0')}`]
   );
-  return { id: rows[0].id, updated: true };
-}
+  const map = {};
+  rows.forEach(r => {
+    const d = new Date(r.schedule_date);
+    map[`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`] = r.status;
+  });
 
-async function batch({ userIds, startDate, endDate, status, note, weekdaysOnly, createdBy }) {
-  let inserted = 0, updated = 0;
-  const start = beijingDate(startDate);
-  const end = beijingDate(endDate);
-
-  for (const userId of userIds) {
-    const cur = new Date(start);
-    while (cur <= end) {
-      if (weekdaysOnly && (cur.getDay() === 0 || cur.getDay() === 6)) { cur.setDate(cur.getDate() + 1); continue; }
-      const dateStr = cur.toISOString().slice(0, 10);
-      try {
-        await db.execute(
-          `INSERT INTO attendance_schedules (user_id, schedule_date, status, note, created_by) VALUES (?,?,?,?,?)`,
-          [userId, dateStr, status, note || null, createdBy]
-        );
-        inserted++;
-      } catch (e) {
-        if (e.code === 'ER_DUP_ENTRY') {
-          await db.execute(
-            'UPDATE attendance_schedules SET status=?, note=?, updated_at=NOW() WHERE user_id=? AND schedule_date=?',
-            [status, note || null, userId, dateStr]
-          );
-          updated++;
-        } else { throw e; }
-      }
-      cur.setDate(cur.getDate() + 1);
-    }
+  const days = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${month}-${String(d).padStart(2, '0')}`;
+    const date = new Date(y, m - 1, d);
+    const dayOfWeek = date.getDay();
+    const status = map[dateStr] || (dayOfWeek === 0 || dayOfWeek === 6 ? 'rest' : 'work');
+    days.push({ date: dateStr, dayOfWeek, status });
   }
-  return { inserted, updated, total: inserted + updated };
+
+  return { month, days, workDays: days.filter(d => d.status === 'work').length, restDays: days.filter(d => d.status === 'rest').length };
 }
 
 /**
- * 查询当前用户的个人排班（不限制角色）
+ * 保存月度排班（全量覆盖）
+ * @param {string} month - YYYY-MM
+ * @param {string[]} workDays - 工作日列表
  */
-async function mySchedule({ userId, startDate, endDate }) {
-  const rows = await db.query(
-    `SELECT id, user_id AS userId, schedule_date AS scheduleDate, status, note
-     FROM attendance_schedules
-     WHERE user_id = ? AND schedule_date BETWEEN ? AND ?
-     ORDER BY schedule_date`,
-    [userId, startDate, endDate]
-  );
-  return rows;
+async function saveMonth(month, workDays) {
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0));
+  const daysInMonth = lastDay.getUTCDate();
+
+  const workSet = new Set(workDays);
+
+  // DELETE + INSERT within the month range
+  await db.execute('DELETE FROM company_schedules WHERE schedule_date BETWEEN ? AND ?',
+    [`${month}-01`, `${month}-${String(daysInMonth).padStart(2, '0')}`]);
+
+  const inserts = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${month}-${String(d).padStart(2, '0')}`;
+    const status = workSet.has(dateStr) ? 'work' : 'rest';
+    inserts.push([dateStr, status]);
+  }
+
+  if (inserts.length > 0) {
+    const placeholders = inserts.map(() => '(?,?)').join(',');
+    await db.execute(
+      `INSERT INTO company_schedules (schedule_date, status) VALUES ${placeholders}`,
+      inserts.flat()
+    );
+  }
+
+  return { saved: inserts.length };
 }
 
 /**
- * 删除排班记录（管理员）
- * @param {number} id - 排班记录 ID
- */
-async function deleteSchedule(id) {
-  const rows = await db.query('SELECT id FROM attendance_schedules WHERE id = ?', [id]);
-  if (!rows.length) throw new BusinessError('排班记录不存在', null, ErrorCode.ATTENDANCE_LEAVE_NOT_FOUND);
-  await db.execute('DELETE FROM attendance_schedules WHERE id = ?', [id]);
-  return { deleted: true };
-}
-
-/**
- * 获取全部排班规则
+ * 获取排班规则列表
  */
 async function getRules() {
   return await db.query(
@@ -120,8 +84,7 @@ async function getRules() {
 }
 
 /**
- * 保存排班规则（新增/更新）
- * @param {object} param0
+ * 保存排班规则
  */
 async function saveRule({ id, name, weekConfig, altWeekConfig, alternating, isDefault, createdBy }) {
   if (isDefault) {
@@ -129,13 +92,13 @@ async function saveRule({ id, name, weekConfig, altWeekConfig, alternating, isDe
   }
   if (id) {
     await db.execute(
-      'UPDATE attendance_schedule_rules SET name = ?, week_config = ?, alt_week_config = ?, alternating = ?, is_default = ?, updated_at = NOW() WHERE id = ?',
+      'UPDATE attendance_schedule_rules SET name=?, week_config=?, alt_week_config=?, alternating=?, is_default=?, updated_at=NOW() WHERE id=?',
       [name, JSON.stringify(weekConfig), altWeekConfig ? JSON.stringify(altWeekConfig) : null, alternating ? 1 : 0, isDefault ? 1 : 0, id]
     );
     return { id, updated: true };
   } else {
     const result = await db.execute(
-      'INSERT INTO attendance_schedule_rules (name, week_config, alt_week_config, alternating, is_default, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO attendance_schedule_rules (name, week_config, alt_week_config, alternating, is_default, created_by) VALUES (?,?,?,?,?,?)',
       [name, JSON.stringify(weekConfig), altWeekConfig ? JSON.stringify(altWeekConfig) : null, alternating ? 1 : 0, isDefault ? 1 : 0, createdBy]
     );
     return { id: result[0].insertId, created: true };
@@ -143,83 +106,91 @@ async function saveRule({ id, name, weekConfig, altWeekConfig, alternating, isDe
 }
 
 /**
- * 应用规则到全员排班
- * @param {object} param0
- * @returns {{ inserted:number, skipped:number }}
+ * 应用规则 — 公司级（非按人）
  */
 async function applyRule({ ruleId, startDate, endDate }) {
-  // 获取规则
   const rules = await db.query('SELECT * FROM attendance_schedule_rules WHERE id = ?', [ruleId]);
   if (!rules.length) throw new BusinessError('规则不存在', null, ErrorCode.ATTENDANCE_LEAVE_NOT_FOUND);
   const rule = rules[0];
   const weekConfig = typeof rule.week_config === 'string' ? JSON.parse(rule.week_config) : rule.week_config;
-  const altWeekConfig = rule.alt_week_config ? (typeof rule.alt_week_config === 'string' ? JSON.parse(rule.alt_week_config) : rule.alt_week_config) : null;
+  const altWeekConfig = rule.alt_week_config
+    ? (typeof rule.alt_week_config === 'string' ? JSON.parse(rule.alt_week_config) : rule.alt_week_config)
+    : null;
   const alternating = !!rule.alternating;
 
-  // 获取所有在职用户（含 is_field_worker 标记）
-  const users = await db.query("SELECT id, is_field_worker FROM users WHERE status = 'active' AND deleted_at IS NULL");
+  const cur = new Date(startDate + 'T00:00:00+08:00');
+  const end = new Date(endDate + 'T00:00:00+08:00');
+  let inserted = 0;
 
-  // 逐日逐人生成
-  let inserted = 0, skipped = 0;
-  const cur = beijingDate(startDate);
-  const end = beijingDate(endDate);
-
-  for (const user of users) {
-    cur.setTime(beijingDate(startDate).getTime());
-    while (cur <= end) {
-      // 星期几 → ISO (周一=1..周日=7)
-      const dow = cur.getDay() === 0 ? 7 : cur.getDay();
-      // 大小周交替：偶数 ISO 周用 altWeekConfig
-      let config = weekConfig;
-      if (alternating && altWeekConfig) {
-        const weekNum = getISOWeek(cur);
-        if (weekNum % 2 === 0) config = altWeekConfig;
-      }
-      let status = config[String(dow)] || 'work';
-      // 外场人员（作业人员）：工作日默认出差状态
-      if (user.is_field_worker && status === 'work') status = 'biz_trip';
-      const dateStr = cur.toISOString().slice(0, 10);
-
-      try {
-        await db.execute(
-          `INSERT INTO attendance_schedules (user_id, schedule_date, status, created_by)
-           VALUES (?, ?, ?, ?)`,
-          [user.id, dateStr, status, 1]
-        );
-        inserted++;
-      } catch (e) {
-        if (e.code === 'ER_DUP_ENTRY') {
-          skipped++; // 已有手动排班，不覆盖
-        } else { throw e; }
-      }
-      cur.setDate(cur.getDate() + 1);
+  while (cur <= end) {
+    const dow = cur.getDay() === 0 ? 7 : cur.getDay();
+    let config = weekConfig;
+    if (alternating && altWeekConfig) {
+      const weekNum = getISOWeek(cur);
+      if (weekNum % 2 === 0) config = altWeekConfig;
     }
+    const status = config[String(dow)] || 'work';
+    // 公司级: status 只能是 work 或 rest
+    const finalStatus = status === 'biz_trip' || status === 'leave' ? 'work' : status;
+    const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+
+    await db.execute(
+      'INSERT INTO company_schedules (schedule_date, status) VALUES (?,?) ON DUPLICATE KEY UPDATE status=VALUES(status)',
+      [dateStr, finalStatus]
+    );
+    inserted++;
+    cur.setDate(cur.getDate() + 1);
   }
-  return { inserted, skipped, total: inserted + skipped };
+
+  return { inserted, skipped: 0, total: inserted };
 }
 
-/**
- * ISO 8601 周数（周一~周日为一周）
- */
 function getISOWeek(d) {
-  const date = beijingDate(d);
-  // setHours 保持 00:00:00
+  const date = new Date(d);
   date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
   const week1 = new Date(date.getFullYear(), 0, 4);
   return 1 + Math.round(((date - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
 }
 
 /**
+ * 个人排班查询（公司级数据，不区分用户）
+ */
+async function mySchedule({ startDate, endDate }) {
+  const rows = await db.query(
+    'SELECT schedule_date AS scheduleDate, status FROM company_schedules WHERE schedule_date BETWEEN ? AND ? ORDER BY schedule_date',
+    [startDate, endDate]
+  );
+  const dbMap = {};
+  rows.forEach(r => {
+    const d = new Date(r.scheduleDate);
+    dbMap[`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`] = r.status;
+  });
+
+  // 生成全量日期，无 DB 记录时用周末回退规则
+  const result = [];
+  const cur = new Date(startDate + 'T00:00:00+08:00');
+  const end = new Date(endDate + 'T00:00:00+08:00');
+  while (cur <= end) {
+    const ds = cur.toISOString().slice(0, 10);
+    const dow = cur.getDay();
+    result.push({
+      scheduleDate: ds,
+      status: dbMap[ds] || (dow === 0 || dow === 6 ? 'rest' : 'work')
+    });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
+/**
  * 清除排班数据
- * @param {string} startDate - 起始日期
- * @param {string} endDate - 结束日期
  */
 async function clearSchedules(startDate, endDate) {
   const result = await db.execute(
-    'DELETE FROM attendance_schedules WHERE schedule_date BETWEEN ? AND ?',
+    'DELETE FROM company_schedules WHERE schedule_date BETWEEN ? AND ?',
     [startDate, endDate]
   );
   return { deleted: result[0].affectedRows };
 }
 
-module.exports = { list, upsert, batch, mySchedule, deleteSchedule, getRules, saveRule, applyRule, clearSchedules };
+module.exports = { preview, saveMonth, mySchedule, getRules, saveRule, applyRule, clearSchedules };

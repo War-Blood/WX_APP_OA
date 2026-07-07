@@ -28,6 +28,9 @@ router.post('/admin/setPassword',  ...adminAuth, adminController.setPassword);
 router.post('/admin/setAdmin',     ...superAuth, adminController.setAdmin);
 // 启用/禁用用户 — admin+
 router.post('/admin/toggleUser',   ...adminAuth, adminController.toggleUser);
+// 出差状态设置 — admin+
+router.post('/admin/set-biz-trip',       ...adminAuth, adminController.setBizTripStatus);
+router.post('/admin/batch-set-biz-trip', ...adminAuth, adminController.batchSetBizTripStatus);
 // 删除用户 — admin+
 router.post('/admin/deleteUser',   ...adminAuth, adminController.deleteUser);
 

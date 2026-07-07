@@ -64,10 +64,11 @@ async function handleSubmitReview() {
       comment: reviewComment.value || undefined
     })
     toast.success('审核完成')
-    reviewVisible.value = false
-    loadData()
   } catch {
     // 错误由拦截器处理
+  } finally {
+    reviewVisible.value = false
+    loadData()
   }
 }
 

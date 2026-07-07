@@ -41,26 +41,40 @@ async function apply({ applicantId, leaveSubtype, startDate, endDate, reason }) 
     );
     const requestId = result[0].insertId;
 
-    // 逐日覆盖排班
-    const cur = new Date(startDate);
-    const end = new Date(endDate);
-    while (cur <= end) {
-      const dateStr = cur.toISOString().slice(0, 10);
-      await conn.execute(
-        `INSERT INTO attendance_schedules (user_id, schedule_date, status, created_by)
-         VALUES (?, ?, 'leave', ?)
-         ON DUPLICATE KEY UPDATE status = 'leave', updated_at = NOW()`,
-        [applicantId, dateStr, applicantId]
-      );
-      cur.setDate(cur.getDate() + 1);
-    }
-
     return { requestId, days, status: 'active' };
   }).then(async (result) => {
-    // 非事务：发送消息通知
+    // 非事务：自动生成请假公出日志，避免每日标记为"未提交"
+    try {
+      await generateLeaveReports(applicantId, startDate, endDate);
+    } catch (e) { /* 公出日志生成失败不影响主流程 */ }
+    // 发送消息通知
     await sendMessage(applicantId, '请假申请已生效', `${leaveSubtype} · ${startDate} → ${endDate}（${days}天）`, reason || '');
     return result;
   });
+}
+
+/**
+ * 自动生成请假期间的公出日志（today_work_type='请假', report_type='office'）
+ * 避免请假人员在公出统计中被标记为"未提交"
+ */
+async function generateLeaveReports(userId, startDate, endDate) {
+  const cur = new Date(startDate + 'T00:00:00+08:00');
+  const end = new Date(endDate + 'T00:00:00+08:00');
+  const inserts = [];
+  while (cur <= end) {
+    const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+    // 使用 ON DUPLICATE KEY 避免重复创建
+    inserts.push([userId, ds]);
+    cur.setDate(cur.getDate() + 1);
+  }
+  if (inserts.length === 0) return;
+  const placeholders = inserts.map(() => '(?,?)').join(',');
+  await db.execute(
+    `INSERT INTO daily_reports (user_id, report_date, report_type, today_work_type, project, status)
+     VALUES ${inserts.map(() => "(?,?,'office','请假','请假','approved')").join(',')}
+     ON DUPLICATE KEY UPDATE today_work_type='请假', report_type='office'`,
+    inserts.flatMap(([uid, ds]) => [uid, ds])
+  );
 }
 
 async function cancel(requestId, applicantId) {
@@ -74,7 +88,8 @@ async function cancel(requestId, applicantId) {
 
   // 请假已结束（end_date 已过）不可撤销
   if (req.request_type === 'leave' && req.end_date) {
-    const endStr = req.end_date.toISOString ? req.end_date.toISOString().slice(0, 10) : String(req.end_date).slice(0, 10);
+    const d = new Date(req.end_date);
+    const endStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (endStr < beijingToday()) throw new BusinessError('请假已结束，不可撤销', null, ErrorCode.ATTENDANCE_CANNOT_CANCEL);
   }
 
@@ -82,20 +97,26 @@ async function cancel(requestId, applicantId) {
     await conn.execute(
       `UPDATE attendance_leave_requests SET status = 'cancelled', cancelled_at = NOW() WHERE id = ?`, [requestId]
     );
-    // 恢复排班
-    const cur = new Date(req.start_date);
-    const end = new Date(req.end_date);
-    while (cur <= end) {
-      const dateStr = cur.toISOString().slice(0, 10);
-      await conn.execute(
-        `UPDATE attendance_schedules SET status = 'work', updated_at = NOW() WHERE user_id = ? AND schedule_date = ?`,
-        [applicantId, dateStr]
-      );
-      cur.setDate(cur.getDate() + 1);
-    }
     return { cancelledAt: new Date().toISOString() };
   }).then(async (result) => {
-    const dateRange = `${req.start_date.toISOString().slice(0, 10)} → ${req.end_date.toISOString().slice(0, 10)}`;
+    // 清除自动生成的请假公出日志
+    try {
+      if (req.start_date && req.end_date) {
+        const s = new Date(req.start_date);
+        const e = new Date(req.end_date);
+        const startStr = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`;
+        const endStr = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}`;
+        await db.execute(
+          `DELETE FROM daily_reports WHERE user_id = ? AND report_date BETWEEN ? AND ? AND today_work_type = '请假' AND report_type = 'office'`,
+          [applicantId, startStr, endStr]
+        );
+      }
+    } catch (e) { /* 清理失败不影响主流程 */ }
+    const ds = new Date(req.start_date);
+    const de = new Date(req.end_date);
+    const startDateStr = `${ds.getFullYear()}-${String(ds.getMonth() + 1).padStart(2, '0')}-${String(ds.getDate()).padStart(2, '0')}`;
+    const endDateStr = `${de.getFullYear()}-${String(de.getMonth() + 1).padStart(2, '0')}-${String(de.getDate()).padStart(2, '0')}`;
+    const dateRange = `${startDateStr} → ${endDateStr}`;
     await sendMessage(applicantId, '请假申请已撤销', dateRange, '');
     return result;
   });
@@ -183,21 +204,30 @@ function calcDays(start, end) {
   return Math.round((diff / (1000 * 60 * 60 * 24) + 1) * 10) / 10;
 }
 
+/**
+ * 将 MySQL Date 对象格式化为北京时间 YYYY-MM-DD 字符串
+ */
+function fmtDate(d) {
+  if (!d) return null;
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
 function formatRequest(r) {
   // 请假已过期（end_date 已过且 status 仍为 active）→ 视为已结束
   let status = r.status;
   if (r.request_type === 'leave' && r.status === 'active' && r.end_date) {
     const todayStr = beijingToday();
-    const endStr = r.end_date.toISOString ? r.end_date.toISOString().slice(0, 10) : String(r.end_date).slice(0, 10);
-    if (endStr < todayStr) status = 'ended';
+    const endStr = fmtDate(r.end_date);
+    if (endStr && endStr < todayStr) status = 'ended';
   }
   return {
     id: r.id,
     applicantId: r.applicant_id,
     requestType: r.request_type,
     leaveSubtype: r.leave_subtype,
-    startDate: r.start_date ? r.start_date.toISOString().slice(0, 10) : null,
-    endDate: r.end_date ? r.end_date.toISOString().slice(0, 10) : null,
+    startDate: fmtDate(r.start_date),
+    endDate: fmtDate(r.end_date),
     days: r.days,
     tripStartedAt: r.trip_started_at,
     tripEndedAt: r.trip_ended_at,
@@ -210,13 +240,15 @@ function formatRequest(r) {
 
 async function calcMissingDates(userId, start, end) {
   const dates = [];
+  const startStr = fmtDate(start);
+  const endStr = fmtDate(end);
   const reports = await db.query(
     `SELECT report_date FROM daily_reports
      WHERE user_id = ? AND report_date BETWEEN ? AND ?
        AND status = 'approved' AND report_type != 'office'`,
-    [userId, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)]
+    [userId, startStr, endStr]
   );
-  const reportDates = new Set(reports.map(r => r.report_date.toISOString().slice(0, 10)));
+  const reportDates = new Set(reports.map(r => fmtDate(r.report_date)));
 
   const leaves = await db.query(
     `SELECT start_date, end_date FROM attendance_leave_requests
@@ -225,10 +257,15 @@ async function calcMissingDates(userId, start, end) {
   );
 
   const cur = new Date(start);
-  while (cur <= end) {
-    const ds = cur.toISOString().slice(0, 10);
+  const finish = new Date(end);
+  while (cur <= finish) {
+    const ds = fmtDate(cur);
     const hasReport = reportDates.has(ds);
-    const hasLeave = leaves.some(l => ds >= l.start_date.toISOString().slice(0, 10) && ds <= l.end_date.toISOString().slice(0, 10));
+    const hasLeave = leaves.some(l => {
+      const ls = fmtDate(l.start_date);
+      const le = fmtDate(l.end_date);
+      return ds >= ls && ds <= le;
+    });
     if (!hasReport && !hasLeave) dates.push(ds);
     cur.setDate(cur.getDate() + 1);
   }
@@ -258,37 +295,13 @@ async function updateRequest(requestId, applicantId, { leaveSubtype, startDate, 
       'UPDATE attendance_leave_requests SET status = ?, cancelled_at = NOW() WHERE id = ?',
       ['cancelled', requestId]
     );
-    // 2. 恢复旧排班
-    const oldCur = new Date(req.start_date);
-    const oldEnd = new Date(req.end_date);
-    while (oldCur <= oldEnd) {
-      const ds = oldCur.toISOString().slice(0, 10);
-      await conn.execute(
-        'UPDATE attendance_schedules SET status = ?, updated_at = NOW() WHERE user_id = ? AND schedule_date = ?',
-        ['work', applicantId, ds]
-      );
-      oldCur.setDate(oldCur.getDate() + 1);
-    }
-    // 3. 创建新申请
+    // 创建新申请
     const result = await conn.execute(
       `INSERT INTO attendance_leave_requests (applicant_id, request_type, leave_subtype, start_date, end_date, days, reason, status, source)
        VALUES (?, 'leave', ?, ?, ?, ?, ?, 'active', 'self')`,
       [applicantId, leaveSubtype, startDate, endDate, days, reason]
     );
     const newRequestId = result[0].insertId;
-    // 4. 新排班覆盖
-    const newCur = new Date(startDate);
-    const newEnd = new Date(endDate);
-    while (newCur <= newEnd) {
-      const ds = newCur.toISOString().slice(0, 10);
-      await conn.execute(
-        `INSERT INTO attendance_schedules (user_id, schedule_date, status, created_by)
-         VALUES (?, ?, 'leave', ?)
-         ON DUPLICATE KEY UPDATE status = 'leave', updated_at = NOW()`,
-        [applicantId, ds, applicantId]
-      );
-      newCur.setDate(newCur.getDate() + 1);
-    }
     return { requestId: newRequestId, days, status: 'active' };
   });
 }
@@ -307,19 +320,6 @@ async function deleteRequest(requestId) {
   }
 
   return db.transaction(async (conn) => {
-    // 若是请假，恢复排班
-    if (req.request_type === 'leave' && req.start_date && req.end_date) {
-      const cur = new Date(req.start_date);
-      const end = new Date(req.end_date);
-      while (cur <= end) {
-        const dateStr = cur.toISOString().slice(0, 10);
-        await conn.execute(
-          'UPDATE attendance_schedules SET status = ?, updated_at = NOW() WHERE user_id = ? AND schedule_date = ?',
-          ['work', req.applicant_id, dateStr]
-        );
-        cur.setDate(cur.getDate() + 1);
-      }
-    }
     await conn.execute('DELETE FROM attendance_leave_requests WHERE id = ?', [requestId]);
     return { deleted: true };
   });

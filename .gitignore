@@ -54,3 +54,7 @@ design-backup/
 # Test coverage
 coverage/
 .nyc_output/
+
+# Deploy artifacts (build tarballs — never commit)
+*.tar.gz
+deploy.tar.gz

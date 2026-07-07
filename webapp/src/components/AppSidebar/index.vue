@@ -31,10 +31,9 @@ const allMenuItems = [
   },
   { path: '/project', title: '项目管理', icon: 'FolderOpened', roles: ['admin', 'superadmin'] },
   {
-    path: '/attendance', title: '考勤管理', icon: 'Calendar', roles: ['admin', 'superadmin'],
+    path: '/attendance', title: '出勤日历', icon: 'Calendar', roles: ['admin', 'superadmin'],
     children: [
-      { path: '/attendance/schedule', title: '排班管理' },
-      { path: '/attendance/summary', title: '考勤汇总' },
+      { path: '/attendance/schedule-rules', title: '排班规则' },
       { path: '/attendance/leave-manage', title: '请假出差管理' }
     ]
   },

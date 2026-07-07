@@ -359,13 +359,13 @@ async function getDailyStatus(dateStr) {
   );
   const workers = allUserRows;
 
-  // 仅用于"未提交"判定：当日应提交但在职未交的人员
+  // 仅用于"未提交"判定：当日出差中的在职人员（biz_trip_status='field'）
   const activeFieldWorkers = await db.query(
     `SELECT id, nickname, user_name, worker_code, worker_status
      FROM users
      WHERE worker_status = 'active' AND deleted_at IS NULL
        AND status = 'active'
-       AND is_field_worker = 1
+       AND biz_trip_status = 'field'
      ORDER BY id ASC`
   );
   const activeWorkerIds = new Set(activeFieldWorkers.map(w => w.id));

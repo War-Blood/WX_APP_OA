@@ -26,11 +26,15 @@ async function list({ startDate, endDate, departmentId, userId, page = 1, pageSi
 
   // 2. 查排班
   const schedules = await db.query(
-    `SELECT user_id, schedule_date, status FROM attendance_schedules WHERE schedule_date BETWEEN ? AND ?`,
+    `SELECT schedule_date, status FROM company_schedules WHERE schedule_date BETWEEN ? AND ?`,
     [startDate, endDate]
   );
   const schedMap = {};
-  schedules.forEach(s => { const k = `${s.user_id}_${s.schedule_date.toISOString().slice(0,10)}`; schedMap[k] = s.status; });
+  schedules.forEach(s => {
+    const sd = new Date(s.schedule_date);
+    const k = `${sd.getFullYear()}-${String(sd.getMonth()+1).padStart(2,'0')}-${String(sd.getDate()).padStart(2,'0')}`;
+    schedMap[k] = s.status;
+  });
 
   // 3. 查公出日志（只读引用）
   const userIds = users.map(u => u.id);
@@ -58,10 +62,7 @@ async function list({ startDate, endDate, departmentId, userId, page = 1, pageSi
     while (cur <= end) {
       const ds = cur.toISOString().slice(0, 10);
       const rKey = `${u.id}_${ds}`;
-      const sKey = `${u.id}_${ds}`;
-
-      const reportType = reportMap[rKey];
-      const schedStatus = schedMap[sKey];
+      const schedStatus = schedMap[ds];
 
       let displayStatus;
       if (reportType) {
@@ -124,13 +125,17 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
   const end = new Date(endDate);
   while (cur <= end) { days.push(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
 
-  // 3. 查询排班（全量）
+  // 3. 查询排班（公司级）
   const schedules = await db.query(
-    'SELECT user_id, schedule_date, status FROM attendance_schedules WHERE schedule_date BETWEEN ? AND ?',
+    'SELECT schedule_date, status FROM company_schedules WHERE schedule_date BETWEEN ? AND ?',
     [startDate, endDate]
   );
   const schedMap = {};
-  schedules.forEach(s => { schedMap[`${s.user_id}_${s.schedule_date.toISOString().slice(0, 10)}`] = s.status; });
+  schedules.forEach(s => {
+    const sd = new Date(s.schedule_date);
+    const k = `${sd.getFullYear()}-${String(sd.getMonth()+1).padStart(2,'0')}-${String(sd.getDate()).padStart(2,'0')}`;
+    schedMap[k] = s.status;
+  });
 
   // 4. 查询公出日志（只读引用 daily_reports — PRD 1.2 约束）
   const personIds = persons.map(p => p.id);
@@ -200,7 +205,7 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
     persons.forEach(p => {
       const rKey = `${p.id}_${date}`;
       const report = reportMap[rKey];
-      const schedStatus = schedMap[`${p.id}_${date}`];
+      const schedStatus = schedMap[date];
 
       // 出差地：取自 daily_reports.area（PRD 4.5 字段映射）
       const location = report ? report.area : '';
@@ -313,13 +318,17 @@ function mapSchedule(s) { switch(s) { case 'work': return 'work'; case 'rest': r
  * @returns {{ workDays:number, restDays:number, bizTripDays:number, leaveDays:number, missingDays:number, dailyList:Array }}
  */
 async function mySummary({ userId, startDate, endDate }) {
-  // 1. 查该用户的排班
+  // 1. 查公司排班
   const schedules = await db.query(
-    'SELECT schedule_date, status, note FROM attendance_schedules WHERE user_id = ? AND schedule_date BETWEEN ? AND ?',
-    [userId, startDate, endDate]
+    'SELECT schedule_date, status FROM company_schedules WHERE schedule_date BETWEEN ? AND ?',
+    [startDate, endDate]
   );
   const schedMap = {};
-  schedules.forEach(s => { schedMap[s.schedule_date.toISOString().slice(0, 10)] = s; });
+  schedules.forEach(s => {
+    const sd = new Date(s.schedule_date);
+    const k = `${sd.getFullYear()}-${String(sd.getMonth()+1).padStart(2,'0')}-${String(sd.getDate()).padStart(2,'0')}`;
+    schedMap[k] = { status: s.status, note: '' };
+  });
 
   // 2. 查公出日志（只读引用 daily_reports，公出日志 > 排班优先级）
   const reports = await db.query(

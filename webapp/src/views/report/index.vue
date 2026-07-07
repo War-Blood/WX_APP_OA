@@ -198,9 +198,6 @@ async function handleExportWecom() {
   }
 }
 
-// Shared restDay set (used by onclick handlers)
-let _restDays = new Set()
-
 async function handleExportStatusBoard() {
   try {
     // Step 1: pick month
@@ -213,9 +210,9 @@ async function handleExportStatusBoard() {
     })
     if (!month) return
 
-    // Step 2: fetch schedule preview
+    // Step 2: fetch schedule from 出勤日历
     const token = localStorage.getItem('token') || ''
-    const previewRes = await fetch('/api/report/schedule-preview', {
+    const previewRes = await fetch('/api/attendance/schedule/preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ month })
@@ -224,69 +221,30 @@ async function handleExportStatusBoard() {
     const { data } = await previewRes.json()
     if (!data || !data.days) throw new Error('无效的排班数据')
 
-    // Step 3: initialize restDays from schedule, build interactive calendar
-    _restDays = new Set()
-    data.days.forEach(d => {
-      if (d.status === 'rest') _restDays.add(d.date)
+    // Step 3: extract rest days from schedule
+    const allRestDays: string[] = []
+    data.days.forEach((d: any) => {
+      if (d.status === 'rest') allRestDays.push(d.date)
     })
 
-    // Expose toggle function globally for onclick handlers
-    ;(window as any).__toggleRestDay = function(dateStr: string, el: HTMLElement) {
-      if (_restDays.has(dateStr)) {
-        _restDays.delete(dateStr)
-        el.style.background = '#C6EFCE'
-        el.style.fontWeight = 'normal'
-        el.title = '工作日'
-      } else {
-        _restDays.add(dateStr)
-        el.style.background = '#D9D9D9'
-        el.style.fontWeight = 'bold'
-        el.title = '休息日'
-      }
-      // Update summary
-      const cnt = document.getElementById('_restCnt')
-      if (cnt) cnt.textContent = String(_restDays.size)
-    }
+    // Step 4: show summary & confirm
+    const weekendCount = data.days.filter((d: any) => d.dayOfWeek === 0 || d.dayOfWeek === 6).length
+    const holidayCount = allRestDays.length - weekendCount
+    const msg = `${month}\n\n工作日 ${data.workDays} 天 · 休息日 ${data.restDays} 天`
+      + (holidayCount > 0 ? `\n其中节假日 ${holidayCount} 天（非周末休息日）` : '')
+      + '\n\n休息日有公出日志即算加班，确认导出？'
 
-    const weekHeaders = ['日', '一', '二', '三', '四', '五', '六']
-    let calHtml = `<div style="text-align:center;margin-bottom:8px;font-size:14px">
-      <b>${month}</b> &nbsp; 休息日:<b id="_restCnt" style="color:#666">${_restDays.size}</b>天
-      &nbsp; <span style="font-size:11px;color:#888">点击日期切换工作/休息</span></div>`
-    calHtml += '<table style="width:100%;border-collapse:collapse;text-align:center;font-size:12px;cursor:pointer">'
-    calHtml += '<tr>' + weekHeaders.map(h => `<th style="padding:4px;background:#4472C4;color:#fff">${h}</th>`).join('') + '</tr>'
-
-    const firstDay = new Date(data.days[0].date).getDay()
-    let cells: string[] = []
-    for (let i = 0; i < firstDay; i++) cells.push('<td></td>')
-
-    data.days.forEach(d => {
-      const isRest = _restDays.has(d.date)
-      const bg = isRest ? '#D9D9D9' : '#C6EFCE'
-      const fw = isRest ? 'bold' : 'normal'
-      const dow = new Date(d.date).getDay()
-      const textColor = dow === 0 || dow === 6 ? '#C00000' : '#333'
-      cells.push(`<td onclick="window.__toggleRestDay('${d.date}',this)" style="padding:4px;background:${bg};border:1px solid #ddd;color:${textColor};font-weight:${fw}" title="${isRest ? '休息日' : '工作日'}">${d.date.slice(-2)}</td>`)
-      if (cells.length === 7) {
-        calHtml += '<tr>' + cells.join('') + '</tr>'
-        cells = []
-      }
-    })
-    if (cells.length > 0) calHtml += '<tr>' + cells.join('') + '</tr>'
-    calHtml += '</table>'
-    calHtml += '<div style="margin-top:8px;font-size:11px;text-align:center">🟢工作日 ⬜休息日（点击切换）&nbsp; 红色=周末</div>'
-
-    await ElMessageBox.confirm(calHtml, '排班预览 — 点击日期可切换', {
+    await ElMessageBox.confirm(msg, '加班表 — 出勤日历排班', {
       confirmButtonText: '确认导出',
       cancelButtonText: '取消',
-      dangerouslyUseHTMLString: true,
+      type: 'info',
     })
 
-    // Step 4: export with adjusted restDays
-    const restDaysArr = Array.from(_restDays)
+    // Step 5: export (后端自动查询 company_schedules 计算加班)
     const res = await fetch('/api/report/export-status-board', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ month, restDays: restDaysArr })
+      body: JSON.stringify({ month, restDays: allRestDays })
     })
     if (!res.ok) throw new Error('导出失败')
     const blob = await res.blob()
@@ -346,10 +304,12 @@ async function handleReview(row: Record<string, unknown>, action: 'approve' | 'r
   if (action === 'approve') {
     try {
       await ElMessageBox.confirm('确定通过该条日报？', '审核确认', { type: 'warning' })
+    } catch { return }
+    try {
       await reviewAction(row.id as string, action)
       toast.success('已通过')
-      loadReports()
-    } catch { /* cancelled */ }
+    } catch (e) { toast.error('操作失败'); return }
+    loadReports()
   } else {
     try {
       const { value: opinion } = await ElMessageBox.prompt('请输入驳回原因', '驳回确认', {
@@ -361,10 +321,11 @@ async function handleReview(row: Record<string, unknown>, action: 'approve' | 'r
         cancelButtonText: '取消',
         distinguishCancelAndClose: true
       })
+      if (!opinion) return
       await reviewAction(row.id as string, action, opinion)
       toast.success('已驳回')
       loadReports()
-    } catch { /* cancelled or closed */ }
+    } catch { /* cancelled or API error */ }
   }
 }
 
@@ -394,10 +355,11 @@ async function handleSupplementReview() {
       comment: reviewComment.value || undefined
     })
     toast.success('审核完成')
-    reviewVisible.value = false
-    loadReports()
   } catch {
     // 错误已由拦截器处理
+  } finally {
+    reviewVisible.value = false
+    loadReports()
   }
 }
 
