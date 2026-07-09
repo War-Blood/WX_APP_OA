@@ -8,14 +8,14 @@ const logger = require('../utils/logger');
 
 console.log('[Scheduler] 初始化定时任务...');
 
-// 每日22:00发送提醒
-cron.schedule('0 22 * * *', async () => {
-  logger.info('[Scheduler] Running 22:00 reminder task...');
+// 每日23:00发送提醒
+cron.schedule('0 23 * * *', async () => {
+  logger.info('[Scheduler] Running 23:00 reminder task...');
   try {
-    const result = await reminderTask.sendTripReminders('22:00');
-    logger.info('[Scheduler] 22:00 reminder completed', result);
+    const result = await reminderTask.sendTripReminders('23:00');
+    logger.info('[Scheduler] 23:00 reminder completed', result);
   } catch (err) {
-    logger.error('[Scheduler] 22:00 reminder failed:', err);
+    logger.error('[Scheduler] 23:00 reminder failed:', err);
   }
 }, {
   timezone: 'Asia/Shanghai'

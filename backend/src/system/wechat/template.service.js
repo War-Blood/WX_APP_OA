@@ -2,74 +2,119 @@
 
 const axios = require('axios');
 const config = require('../../common/config/env');
+const db = require('../../common/config/database');
 
 // 获取access_token(带缓存)
 let accessTokenCache = { token: null, expiresAt: 0 };
 
-/**
- * 获取微信 access_token（带缓存机制）
- * @returns {Promise<string>} access_token
- */
 async function getAccessToken() {
   if (accessTokenCache.token && Date.now() < accessTokenCache.expiresAt) {
     return accessTokenCache.token;
   }
-
   const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${config.wx.appId}&secret=${config.wx.secret}`;
   const res = await axios.get(url);
-
   if (res.data.access_token) {
     accessTokenCache = {
       token: res.data.access_token,
-      expiresAt: Date.now() + (res.data.expires_in - 300) * 1000 // 提前5分钟过期
+      expiresAt: Date.now() + (res.data.expires_in - 300) * 1000
     };
     return res.data.access_token;
   }
-
   throw new Error('获取access_token失败');
 }
 
 /**
- * 发送微信模板消息
- * @param {number} userId - 用户ID
- * @param {Object} templateData - 模板数据
- * @returns {Promise<boolean>} 是否发送成功
+ * 记录/更新用户订阅授权
  */
-async function sendWechatTemplate(userId, templateData) {
-  try {
-    // 1. 查询用户的openid
-    const db = require('../../common/config/database');
-    const rows = await db.query('SELECT openid FROM users WHERE id = ?', [userId]);
+async function recordSubscription(userId, templateId) {
+  await db.execute(
+    `INSERT INTO user_subscriptions (user_id, template_id, status, subscribed_at, updated_at)
+     VALUES (?, ?, 'active', NOW(), NOW())
+     ON DUPLICATE KEY UPDATE status = 'active', updated_at = NOW()`,
+    [userId, templateId || config.wx.subscribeTemplateId]
+  );
+}
 
-    if (!rows || rows.length === 0 || !rows[0].openid) {
-      console.warn(`用户${userId}没有绑定openid,无法发送微信消息`);
-      return false;
+/**
+ * 检查用户是否有有效订阅
+ */
+async function hasSubscription(userId) {
+  const rows = await db.query(
+    'SELECT id FROM user_subscriptions WHERE user_id = ? AND template_id = ? AND status = "active"',
+    [userId, config.wx.subscribeTemplateId]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * 发送微信订阅消息
+ * 模板关键词：时间(time1)、温馨提示(thing2)、填写状态(phrase3)
+ */
+async function sendSubscribeMessage(userId, { time, tip, status }) {
+  try {
+    // 1. 查 openid + 验证订阅授权
+    const rows = await db.query(
+      `SELECT u.openid FROM users u
+       INNER JOIN user_subscriptions us ON u.id = us.user_id
+       WHERE u.id = ? AND us.template_id = ? AND us.status = 'active'`,
+      [userId, config.wx.subscribeTemplateId]
+    );
+
+    if (!rows.length || !rows[0].openid) {
+      return { success: false, reason: 'no_openid_or_subscription' };
     }
 
-    const openid = rows[0].openid;
     const accessToken = await getAccessToken();
 
-    // 2. 调用微信API
-    const url = `https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=${accessToken}`;
+    // 2. 调用订阅消息发送接口
+    const url = `https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${accessToken}`;
     const payload = {
-      touser: openid,
-      template_id: process.env.WECHAT_TEMPLATE_ID_REMINDER || 'your_template_id',
-      data: templateData
+      touser: rows[0].openid,
+      template_id: config.wx.subscribeTemplateId,
+      page: 'pages/home/index',
+      data: {
+        time1: { value: time },
+        thing2: { value: tip },
+        phrase3: { value: status }
+      },
+      miniprogram_state: process.env.NODE_ENV === 'production' ? 'formal' : 'developer'
     };
 
     const res = await axios.post(url, payload);
 
     if (res.data.errcode === 0) {
-      console.log(`微信模板消息发送成功: userId=${userId}, msgid=${res.data.msgid}`);
-      return true;
-    } else {
-      console.error(`微信模板消息发送失败:`, res.data);
-      return false;
+      return { success: true };
     }
+
+    // 授权已用完或取消 → 标记失效
+    if (res.data.errcode === 43101) {
+      await db.execute(
+        'UPDATE user_subscriptions SET status = "cancelled", updated_at = NOW() WHERE user_id = ? AND template_id = ?',
+        [userId, config.wx.subscribeTemplateId]
+      );
+      return { success: false, reason: 'expired' };
+    }
+
+    return { success: false, reason: `errcode=${res.data.errcode} ${res.data.errmsg}` };
+
   } catch (err) {
-    console.error('sendWechatTemplate错误:', err.message);
-    return false;
+    return { success: false, reason: err.message };
   }
 }
 
-module.exports = { sendWechatTemplate, getAccessToken };
+// 保留旧接口兼容
+async function sendWechatTemplate(userId, templateData) {
+  return sendSubscribeMessage(userId, {
+    time: templateData.report_date?.value || '',
+    tip: templateData.first?.value || templateData.remark?.value || '',
+    status: '未提交'
+  });
+}
+
+module.exports = {
+  getAccessToken,
+  sendWechatTemplate,
+  sendSubscribeMessage,
+  recordSubscription,
+  hasSubscription
+};

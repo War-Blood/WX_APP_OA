@@ -258,6 +258,52 @@ async function testSendReminder(req, res, next) {
   }
 }
 
+/**
+ * 记录用户微信订阅消息授权
+ * POST /api/compliance/subscribe
+ */
+async function recordSubscribe(req, res, next) {
+  try {
+    const userId = req.user.userId;
+    const { templateIds } = req.body;
+    const templateService = require('../../../system/wechat/template.service');
+
+    if (templateIds && templateIds.length > 0) {
+      for (const tid of templateIds) {
+        await templateService.recordSubscription(userId, tid);
+      }
+    } else {
+      await templateService.recordSubscription(userId);
+    }
+
+    res.json({ code: 0, message: '订阅授权已记录', data: null });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * 查询当前用户的订阅状态
+ * GET /api/compliance/subscribe-status
+ */
+async function getSubscribeStatus(req, res, next) {
+  try {
+    const userId = req.user.userId;
+    const config = require('../../../common/config/env');
+    const db = require('../../../common/config/database');
+
+    const rows = await db.query(
+      'SELECT status FROM user_subscriptions WHERE user_id = ? AND template_id = ?',
+      [userId, config.wx.subscribeTemplateId]
+    );
+    const subscribed = rows.length > 0 && rows[0].status === 'active';
+
+    res.json({ code: 0, message: 'success', data: { subscribed } });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   setBizTripStatus,
   endBizTrip,
@@ -268,5 +314,7 @@ module.exports = {
   getDashboard,
   getMyCompliance,
   checkMyBizTripStatus,
-  testSendReminder
+  testSendReminder,
+  recordSubscribe,
+  getSubscribeStatus,
 };

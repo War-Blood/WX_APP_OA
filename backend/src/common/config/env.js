@@ -96,6 +96,7 @@ const config = {
   wx: {
     appId: process.env.WX_APPID,
     secret: process.env.WX_SECRET || '',
+    subscribeTemplateId: process.env.WECHAT_SUBSCRIBE_TEMPLATE_ID || 'VHg7c_RAaB1hu772YDtQllDOSDelBUR20h_PtDLxgKc',
   },
 
   // 企业微信

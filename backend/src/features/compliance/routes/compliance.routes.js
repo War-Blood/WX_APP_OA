@@ -21,6 +21,10 @@ router.get('/stats/dashboard', authenticate, requireRole('admin', 'superadmin'),
 router.get('/my-compliance', authenticate, complianceController.getMyCompliance);
 router.get('/biz-trip/check-status', authenticate, complianceController.checkMyBizTripStatus);
 
+// 微信订阅消息授权
+router.post('/subscribe', authenticate, complianceController.recordSubscribe);
+router.post('/subscribe-status', authenticate, complianceController.getSubscribeStatus);
+
 // 测试接口(仅开发环境)
 if (process.env.NODE_ENV === 'development') {
   router.get('/test/send-reminder', authenticate, requireRole('admin'), complianceController.testSendReminder);

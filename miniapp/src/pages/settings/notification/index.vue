@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <NavBar title="消息通知" />
+    <NavBar title="消息通知" :showBack="true" />
     <view class="content">
       <view class="section">
         <view class="setting-item">
