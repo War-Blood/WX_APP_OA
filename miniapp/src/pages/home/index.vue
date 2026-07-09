@@ -7,6 +7,7 @@
 
     <!-- Stats header: blue gradient, fixed height -->
     <view class="stats-header">
+      <text class="month-label">{{ monthLabel }}</text>
       <view class="stats-row">
         <view
           v-for="stat in stats"
@@ -90,10 +91,15 @@ const userStore = useUserStore()
 const appStore = useAppStore()
 
 const stats = ref([
-  { label: '待审批', value: 0, route: '/pages/approval/index/index?tab=pending' },
-  { label: '待提交日志', value: 0, route: '/pages/employee/report-edit/index' },
-  { label: '待阅读', value: 0, route: '/pages/message/index/index' },
+  { label: '已填写', value: 0, route: '' },
+  { label: '未填写', value: 0, route: '' },
+  { label: '待审核', value: 0, route: '/pages/admin/review-list/index' },
 ])
+
+const monthLabel = computed(() => {
+  const now = new Date()
+  return `${now.getFullYear()}年${now.getMonth() + 1}月`
+})
 
 // 快捷操作：从模块列表取 sort 前 4 的可见模块
 const quickIconMap = {
@@ -124,6 +130,49 @@ const quickActions = computed(() => {
     })
 })
 
+const SUBSCRIBE_TEMPLATE_ID = 'VHg7c_RAaB1hu772YDtQllDOSDelBUR20h_PtDLxgKc'
+let subscribePrompted = false
+
+// 首次加载弹窗询问订阅
+async function showSubscribePrompt() {
+  if (subscribePrompted) return
+  subscribePrompted = true
+  try {
+    const res = await statsApi.getSubscribeStatus()
+    if (res.data?.subscribed) return // 已订阅跳过
+  } catch { return }
+
+  uni.showModal({
+    title: '开启每日提醒',
+    content: '开启后，若当天未提交公出日志，每晚23:00将通过微信服务通知提醒您。',
+    confirmText: '立即开启',
+    cancelText: '暂不',
+    success: async (modalRes) => {
+      if (modalRes.confirm) {
+        await handleSubscribe()
+      }
+    }
+  })
+}
+
+// 请求订阅消息授权
+async function handleSubscribe() {
+  try {
+    const res = await uni.requestSubscribeMessage({
+      tmplIds: [SUBSCRIBE_TEMPLATE_ID]
+    })
+    // 无论用户同意还是拒绝，只要授权了就记录
+    if (res[SUBSCRIBE_TEMPLATE_ID] === 'accept') {
+      await statsApi.recordSubscribe([SUBSCRIBE_TEMPLATE_ID]).catch(() => {})
+      uni.showToast({ title: '已开启每日提醒', icon: 'success' })
+    }
+  } catch (err) {
+    // 用户可能频繁触发或版本不支持
+    if (err.errMsg && err.errMsg.includes('cancel')) return
+    uni.showToast({ title: '当前版本不支持', icon: 'none' })
+  }
+}
+
 const activities = ref([])
 const unreadCount = ref(0)
 const activityPage = ref(1)
@@ -131,7 +180,7 @@ const isLoadingMore = ref(false)
 const noMoreData = ref(false)
 const isRefreshing = ref(false)
 
-onMounted(() => { userStore.refreshProfile(); loadPageData() })
+onMounted(() => { userStore.refreshProfile(); loadPageData(); setTimeout(showSubscribePrompt, 2000) })
 
 async function loadPageData() {
   try {
@@ -142,16 +191,18 @@ async function loadPageData() {
       messageApi.getUnreadCount(),
     ])
     const d = statsRes.data
+    // 月度填写统计（admin 全员 / employee 个人）
+    stats.value[0].value = d.monthFilled || 0
+    stats.value[1].value = d.monthUnfilled || 0
+    // 待审核（角色区分）
     if (userStore.isAdmin) {
-      stats.value[0].value = d.pendingCount || 0
-      stats.value[1].value = d.reviewCount || 0
-      stats.value[1].label = '待审核'
-      stats.value[1].route = '/pages/admin/review-list/index'
-      stats.value[2].value = d.unreadCount || 0
+      stats.value[2].value = d.reviewCount || 0
+      stats.value[2].label = '待审核'
+      stats.value[2].route = '/pages/admin/review-list/index'
     } else {
-      stats.value[0].value = d.pendingCount || 0
-      stats.value[1].value = d.submitCount || 0
-      stats.value[2].value = d.unreadCount || 0
+      stats.value[2].value = d.pendingCount || 0
+      stats.value[2].label = '待审核'
+      stats.value[2].route = '/pages/approval/index/index?tab=pending'
     }
     const list = activitiesRes.data.list || []
     activities.value = list.map((item) => ({
@@ -203,22 +254,29 @@ function goToActivity(item) {
 /* Ardot exact: page bg #F5F5F5 */
 .home-page { display: flex; flex-direction: column; height: 100vh; background: #F5F5F5; }
 
-/* Stats header: Ardot 120px = 240rpx, row at y:20 h:76, bottom 24px */
+/* Stats header: blue gradient, month label + 3-col stats */
 .stats-header {
-  height: 160rpx;
+  height: 200rpx;
   background: linear-gradient(180deg, #2E6BE5 0%, #337BEA 50%, #5284EE 100%);
-  padding: 40rpx 40rpx 48rpx 40rpx;
+  padding: 24rpx 40rpx 48rpx 40rpx;
   flex-shrink: 0;
+}
+.month-label {
+  display: block;
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.7);
+  text-align: center;
+  margin-bottom: 12rpx;
 }
 .stats-row {
   display: flex;
   background: rgba(255,255,255,0.1);
   border-radius: 32rpx;
-  height: 152rpx;
+  height: 120rpx;
 }
 .stat-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4rpx; }
-.stat-number { font-size: 68rpx; font-weight: 700; color: #FFFFFF; line-height: 1; }
-.stat-text { font-size: 24rpx; color: #FFFFFF; }
+.stat-number { font-size: 56rpx; font-weight: 700; color: #FFFFFF; line-height: 1; }
+.stat-text { font-size: 22rpx; color: #FFFFFF; }
 
 /* Scrollable content */
 .content { flex: 1; overflow-y: auto; background: #F5F5F5; }

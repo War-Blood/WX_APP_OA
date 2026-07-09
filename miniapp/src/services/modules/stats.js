@@ -30,5 +30,20 @@ export const statsApi = {
    */
   getProfileStats() {
     return post('/api/stats/profile')
+  },
+
+  /**
+   * 记录微信订阅消息授权
+   * @param {string[]} templateIds - 模板ID列表
+   */
+  recordSubscribe(templateIds) {
+    return post('/api/compliance/subscribe', { templateIds })
+  },
+
+  /**
+   * 查询当前用户订阅状态
+   */
+  getSubscribeStatus() {
+    return post('/api/compliance/subscribe-status', {})
   }
 }

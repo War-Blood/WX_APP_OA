@@ -48,7 +48,7 @@ async function getUserList({ page = 1, pageSize = 20, keyword, role, department,
   // 分页数据
   const offset = (page - 1) * pageSize;
   const dataSql = `SELECT id, openid, nickname, user_name, email, phone,
-    avatar_url, role, department, department_id, position, status, last_login_at, created_at
+    avatar_url, role, department, department_id, position, status, biz_trip_status, last_login_at, created_at
     FROM users ${whereClause}
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?`;
@@ -69,6 +69,7 @@ async function getUserList({ page = 1, pageSize = 20, keyword, role, department,
     phone: row.phone || '',
     email: row.email || '',
     status: row.status,
+    bizTripStatus: row.biz_trip_status || '',
     lastLoginTime: row.last_login_at ? formatDate(row.last_login_at) : '',
     createdAt: row.created_at ? formatDate(row.created_at) : '',
   }));
