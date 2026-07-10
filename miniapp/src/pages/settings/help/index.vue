@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <NavBar title="帮助反馈" />
+    <NavBar title="帮助反馈" :showBack="true" />
     <view class="content">
       <view class="section">
         <text class="section-title">常见问题</text>

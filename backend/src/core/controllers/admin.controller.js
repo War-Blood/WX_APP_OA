@@ -13,8 +13,8 @@ const { ValidationError } = require('../../common/utils/errors');
  */
 async function userList(req, res, next) {
   try {
-    const { page = 1, pageSize = 20, keyword, role, department, status } = req.body;
-    const result = await adminService.getUserList({ page, pageSize, keyword, role, department, status });
+    const { page = 1, pageSize = 20, keyword, role, department, departmentId, status } = req.body;
+    const result = await adminService.getUserList({ page, pageSize, keyword, role, department, departmentId, status });
     res.json(success(result));
   } catch (err) {
     next(err);
@@ -530,6 +530,30 @@ async function batchSetBizTripStatus(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ============================================
+// 角色分组 (Role Groups) — V2.5
+// ============================================
+
+async function getRoleGroups(req, res, next) {
+  try { res.json(success(await adminService.getRoleGroups())); } catch (err) { next(err); }
+}
+
+async function getRoleGroupDetail(req, res, next) {
+  try { res.json(success(await adminService.getRoleGroupDetail(req.params.id))); } catch (err) { next(err); }
+}
+
+async function createRoleGroup(req, res, next) {
+  try { res.json(success(await adminService.createRoleGroup(req.body))); } catch (err) { next(err); }
+}
+
+async function updateRoleGroup(req, res, next) {
+  try { res.json(success(await adminService.updateRoleGroup(req.params.id, req.body))); } catch (err) { next(err); }
+}
+
+async function deleteRoleGroup(req, res, next) {
+  try { res.json(success(await adminService.deleteRoleGroup(req.params.id))); } catch (err) { next(err); }
+}
+
 module.exports = {
   userList, getUserDetail, updateUser, batchImportUsers,
   setAdmin, toggleUser, createUser, approveUser, inviteUser,
@@ -538,6 +562,7 @@ module.exports = {
   getDepartments, createDepartment, updateDepartment, deleteDepartment,
   getRoles, getRoleDetail, createRole, updateRole, deleteRole,
   getPermissions, setRolePermissions,
+  getRoleGroups, getRoleGroupDetail, createRoleGroup, updateRoleGroup, deleteRoleGroup,
   getApprovalTypes, updateApprovalType,
   getSettings, updateSettings,
   workers,

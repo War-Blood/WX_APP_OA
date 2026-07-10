@@ -1,53 +1,55 @@
-import { toast } from '@/utils/toast'
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getStatsHome } from '@/api/stats'
 import { getUserList } from '@/api/user'
-import { getReviewList } from '@/api/report'
 
-// 全部从 API 加载
+const router = useRouter()
 const loading = ref(true)
 
-// 统计卡片（从 stats/home 获取）
-const statistics = ref([
-  { title: '用户总数', value: 0, icon: 'User', color: '#409EFF' },
-  { title: '待审核', value: 0, icon: 'DocumentChecked', color: '#E6A23C' },
-  { title: '日报总数', value: 0, icon: 'Document', color: '#67C23A' },
-  { title: '活跃项目', value: 0, icon: 'FolderOpened', color: '#F56C6C' }
+interface MetricCard {
+  title: string
+  value: number
+  icon: string
+  color: string
+  bg: string
+}
+
+const metrics = ref<MetricCard[]>([
+  { title: '用户总数', value: 0, icon: 'User', color: '#2B6DE8', bg: '#E6F1FB' },
+  { title: '待审核', value: 0, icon: 'DocumentChecked', color: '#F59E0B', bg: '#FEF3E2' },
+  { title: '日报总数', value: 0, icon: 'Document', color: '#22C55E', bg: '#E6F9EE' },
+  { title: '活跃项目', value: 0, icon: 'FolderOpened', color: '#EF4444', bg: '#FEE2E2' },
 ])
 
-// 最近动态（从 stats/activities 获取）
-const activities = ref<Array<{ text: string; time: string; date: string; type: string }>>([])
-
-// 快捷入口
-const shortcuts = ref([
-  { title: '用户管理', path: '/user', icon: 'User' },
-  { title: '审批管理', path: '/approval', icon: 'DocumentChecked' },
-  { title: '日报管理', path: '/report', icon: 'Document' },
-  { title: '项目管理', path: '/project', icon: 'FolderOpened' }
-])
+const shortcuts = [
+  { title: '用户管理', path: '/user', icon: 'User', desc: '管理用户与权限' },
+  { title: '审批管理', path: '/approval', icon: 'DocumentChecked', desc: '处理审批流程' },
+  { title: '日报管理', path: '/report', icon: 'Document', desc: '查看日报统计' },
+  { title: '组织架构', path: '/org', icon: 'Share', desc: '管理部门层级' },
+  { title: '考勤日历', path: '/attendance', icon: 'Calendar', desc: '排班与出勤' },
+  { title: '合规管理', path: '/compliance', icon: 'Verified', desc: '合规数据看板' },
+]
 
 onMounted(async () => {
   loading.value = true
   try {
-    const [statsRes, userRes, reviewRes] = await Promise.allSettled([
+    const [statsRes, userRes] = await Promise.allSettled([
       getStatsHome(),
       getUserList({ pageSize: 1 }),
-      getReviewList({ pageSize: 1, status: 'pending' })
     ])
 
     if (statsRes.status === 'fulfilled' && statsRes.value) {
       const s = statsRes.value as any
-      statistics.value[1].value = s.pendingCount ?? s.reviewCount ?? 0
+      if (s.pendingCount !== undefined) metrics.value[1].value = s.pendingCount
+      if (s.reportCount !== undefined) metrics.value[2].value = s.reportCount
+      if (s.projectCount !== undefined) metrics.value[3].value = s.projectCount
     }
     if (userRes.status === 'fulfilled' && userRes.value) {
-      statistics.value[0].value = userRes.value.total ?? 0
-    }
-    if (reviewRes.status === 'fulfilled' && reviewRes.value) {
-      statistics.value[2].value = reviewRes.value.total ?? 0
+      metrics.value[0].value = userRes.value.total ?? 0
     }
   } catch {
-    toast.warning('部分统计数据加载失败')
+    // ignore
   } finally {
     loading.value = false
   }
@@ -56,91 +58,117 @@ onMounted(async () => {
 
 <template>
   <div class="dashboard">
-    <!-- 统计卡片 -->
-    <el-row :gutter="16" class="statistics">
-      <el-col :span="6" v-for="item in statistics" :key="item.title">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-content" v-loading="loading">
-            <div class="stat-icon" :style="{ backgroundColor: item.color + '20', color: item.color }">
-              <el-icon :size="32">
-                <component :is="item.icon" />
-              </el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ item.value }}</div>
-              <div class="stat-title">{{ item.title }}</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <!-- 度量卡片 -->
+    <div class="metrics-grid">
+      <div v-for="m in metrics" :key="m.title" class="metric-card" v-loading="loading">
+        <div class="metric-icon" :style="{ background: m.bg, color: m.color }">
+          <el-icon :size="24"><component :is="m.icon" /></el-icon>
+        </div>
+        <div class="metric-body">
+          <div class="metric-value">{{ m.value.toLocaleString() }}</div>
+          <div class="metric-title">{{ m.title }}</div>
+        </div>
+      </div>
+    </div>
 
-    <!-- 快捷入口 + 动态 -->
-    <el-row :gutter="16" class="main-content">
-      <el-col :span="16">
-        <el-card class="section-card" shadow="never">
-          <template #header>
-            <div class="card-header"><span>快捷入口</span></div>
-          </template>
-          <div class="shortcuts">
-            <div v-for="item in shortcuts" :key="item.title" class="shortcut-item" @click="$router.push(item.path)">
-              <el-icon :size="24"><component :is="item.icon" /></el-icon>
-              <span>{{ item.title }}</span>
-            </div>
+    <!-- 快捷入口 -->
+    <div class="section">
+      <div class="section-title">快捷入口</div>
+      <div class="shortcuts-grid">
+        <div v-for="s in shortcuts" :key="s.path" class="shortcut-card" @click="router.push(s.path)">
+          <div class="shortcut-icon">
+            <el-icon :size="22"><component :is="s.icon" /></el-icon>
           </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="8">
-        <el-card class="section-card" shadow="never">
-          <template #header>
-            <div class="card-header">
-              <span>最近动态</span>
-            </div>
-          </template>
-          <div class="todo-list">
-            <div v-for="item in activities" :key="item.text" class="todo-item">
-              <div class="todo-dot" :class="item.type"></div>
-              <div class="todo-content">
-                <div class="todo-title">{{ item.text }}</div>
-                <div class="todo-time">{{ item.date }} {{ item.time }}</div>
-              </div>
-            </div>
-            <el-empty v-if="!loading && activities.length === 0" description="暂无动态" />
+          <div class="shortcut-body">
+            <div class="shortcut-title">{{ s.title }}</div>
+            <div class="shortcut-desc">{{ s.desc }}</div>
           </div>
-        </el-card>
-      </el-col>
-    </el-row>
+          <el-icon class="shortcut-arrow" :size="14"><component :is="'ArrowRight'" /></el-icon>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped lang="scss">
 .dashboard {
-  .statistics { margin-bottom: 16px; }
-  .stat-card .stat-content { display: flex; align-items: center; }
-  .stat-icon {
-    width: 64px; height: 64px; border-radius: 8px;
-    display: flex; align-items: center; justify-content: center; margin-right: 16px;
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
   }
-  .stat-value { font-size: 28px; font-weight: 600; color: $text-primary; line-height: 1.2; }
-  .stat-title { font-size: 14px; color: $text-secondary; margin-top: 4px; }
-  .main-content .section-card { height: 100%; .card-header { display: flex; align-items: center; justify-content: space-between; font-weight: 500; } }
-  .shortcuts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
-    .shortcut-item {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 24px; border-radius: 8px; cursor: pointer; transition: all .3s; background-color: $bg-color;
-      &:hover { background-color: $primary-color; color: #fff; transform: translateY(-2px); }
-      span { margin-top: 8px; font-size: 14px; }
+
+  .metric-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border: 1px solid #E4E7ED;
+    transition: box-shadow 0.2s;
+    &:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+
+    .metric-icon {
+      width: 48px; height: 48px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .metric-body {
+      .metric-value { font-size: 28px; font-weight: 600; color: #303133; line-height: 1.1; }
+      .metric-title { font-size: 13px; color: #909399; margin-top: 4px; }
     }
   }
-  .todo-list .todo-item {
-    display: flex; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid $border-lighter;
-    &:last-child { border-bottom: none; }
-    .todo-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 12px; margin-top: 6px; flex-shrink: 0;
-      &.approval { background-color: $warning-color; } &.report { background-color: $success-color; } &.system { background-color: $primary-color; }
+
+  .section {
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #E4E7ED;
+    padding: 20px;
+
+    .section-title {
+      font-size: 15px; font-weight: 600; color: #303133;
+      margin-bottom: 16px;
     }
-    .todo-content .todo-title { font-size: 14px; color: $text-primary; }
-    .todo-content .todo-time { font-size: 12px; color: $text-secondary; margin-top: 4px; }
+  }
+
+  .shortcuts-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+
+    .shortcut-card {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      background: #F5F7FA;
+      cursor: pointer;
+      transition: all 0.15s;
+
+      &:hover {
+        background: #E6F1FB;
+        .shortcut-arrow { opacity: 1; transform: translateX(2px); }
+      }
+
+      .shortcut-icon {
+        width: 40px; height: 40px; border-radius: 8px;
+        background: #fff; color: #2B6DE8;
+        display: flex; align-items: center; justify-content: center;
+      }
+
+      .shortcut-body {
+        flex: 1;
+        .shortcut-title { font-size: 14px; font-weight: 500; color: #303133; }
+        .shortcut-desc { font-size: 12px; color: #909399; margin-top: 2px; }
+      }
+
+      .shortcut-arrow {
+        color: #C0C4CC; opacity: 0;
+        transition: all 0.15s;
+      }
+    }
   }
 }
 </style>

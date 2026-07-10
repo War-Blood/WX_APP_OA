@@ -1120,7 +1120,8 @@ async function exportStatusBoardCSV(month, restDaysInput) {
 
   // 2. Three-path data matching
   const [rows1, rows2, rows3] = await Promise.all([
-    db.query(`SELECT dr.report_date, dr.project, dr.area, dr.today_work_type, drw.worker_uid AS uid
+    db.query(`SELECT dr.report_date, dr.project, dr.area, dr.today_work_type, drw.worker_uid AS uid,
+       dr.user_id AS author_uid
      FROM daily_reports dr JOIN daily_report_workers drw ON drw.report_id = dr.id
      WHERE dr.status='approved' AND DATE_FORMAT(dr.report_date,'%Y-%m')=?`, [month]),
     db.query(`SELECT dr.report_date, dr.project, dr.area, dr.today_work_type, dr.user_id AS uid
@@ -1130,7 +1131,11 @@ async function exportStatusBoardCSV(month, restDaysInput) {
      FROM daily_reports dr LEFT JOIN daily_report_workers drw ON drw.report_id = dr.id
      WHERE dr.status='approved' AND DATE_FORMAT(dr.report_date,'%Y-%m')=? AND drw.id IS NULL AND dr.workers IS NOT NULL AND dr.workers!=''`, [month]),
   ]);
-  rows1.forEach(r => setInfo(r.uid, r));
+  rows1.forEach(r => {
+    setInfo(r.uid, r);
+    // 日报作者本人也写入（当 author != worker 时）
+    if (r.author_uid && r.author_uid !== r.uid) setInfo(r.author_uid, r);
+  });
   rows2.forEach(r => setInfo(r.uid, r));
   // Path3: match ALL names, unmatched ones get synthetic entries
   const externalWorkers = {}; // name -> { day -> { ... } }

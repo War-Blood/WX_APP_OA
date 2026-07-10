@@ -8,7 +8,7 @@
       <view class="logo-box" @tap="devKnock">
         <text class="logo-oa">OA</text>
       </view>
-      <text class="app-name">智慧办公助手</text>
+      <text class="app-name">{{ APP_NAME }}</text>
       <text class="slogan">轻量化办公 · 高效能协作</text>
     </view>
 
@@ -61,6 +61,7 @@ import { ref, onMounted } from 'vue'
 import { authApi } from '@/services/modules/auth'
 import { useUserStore } from '@/stores/user'
 import { showSuccess, showError, showToast } from '@/utils/toast'
+import { APP_NAME } from '@/config/version'
 
 const statusBarHeight = ref(0)
 const agreed = ref(false)
@@ -186,12 +187,12 @@ const policyTitle = ref('')
 const policyContent = ref('')
 
 const USER_AGREEMENT = [
-  '智慧办公助手用户协议',
+  `${APP_NAME}用户协议`,
   '更新日期：2026年6月',
   '',
   '一、总则',
-  '1.1 欢迎使用智慧办公助手（以下简称"本服务"）。',
-  '1.2 本协议是您与智慧办公助手运营方之间关于使用本服务所订立的协议。',
+  `1.1 欢迎使用${APP_NAME}（以下简称"本服务"）。`,
+  `1.2 本协议是您与${APP_NAME}运营方之间关于使用本服务所订立的协议。`,
   '',
   '二、账号管理',
   '2.1 您通过微信授权或邀请码加入后，即成为本服务的注册用户。',
@@ -212,7 +213,7 @@ const USER_AGREEMENT = [
 ].join('\n')
 
 const PRIVACY_POLICY = [
-  '智慧办公助手隐私政策',
+  `${APP_NAME}隐私政策`,
   '更新日期：2026年6月',
   '',
   '一、信息收集',

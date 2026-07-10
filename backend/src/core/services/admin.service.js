@@ -13,7 +13,7 @@ const { nextWorkerCode } = require('../../common/utils/worker-code');
 /**
  * 获取用户列表（带分页和筛选）
  */
-async function getUserList({ page = 1, pageSize = 20, keyword, role, department, status }) {
+async function getUserList({ page = 1, pageSize = 20, keyword, role, department, departmentId, status }) {
   const conditions = ['deleted_at IS NULL', "status = 'active'"];
   const params = [];
 
@@ -37,6 +37,14 @@ async function getUserList({ page = 1, pageSize = 20, keyword, role, department,
     conditions.push('department = ?');
     params.push(department);
   }
+  if (departmentId !== undefined) {
+    if (departmentId === null) {
+      conditions.push('department_id IS NULL');
+    } else {
+      conditions.push('department_id = ?');
+      params.push(departmentId);
+    }
+  }
 
   const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -48,7 +56,7 @@ async function getUserList({ page = 1, pageSize = 20, keyword, role, department,
   // 分页数据
   const offset = (page - 1) * pageSize;
   const dataSql = `SELECT id, openid, nickname, user_name, email, phone,
-    avatar_url, role, department, department_id, position, status, biz_trip_status, last_login_at, created_at
+    avatar_url, role, department, department_id, position, worker_code, status, biz_trip_status, last_login_at, created_at
     FROM users ${whereClause}
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?`;
@@ -68,6 +76,7 @@ async function getUserList({ page = 1, pageSize = 20, keyword, role, department,
     position: row.position || '',
     phone: row.phone || '',
     email: row.email || '',
+    workerCode: row.worker_code || '',
     status: row.status,
     bizTripStatus: row.biz_trip_status || '',
     lastLoginTime: row.last_login_at ? formatDate(row.last_login_at) : '',
@@ -534,22 +543,47 @@ async function updateDepartment(id, { name, parentId, managerId, sortOrder, desc
 /**
  * 软删除部门
  */
+/**
+ * 递归收集所有子部门 ID
+ * @param {number} parentId
+ * @returns {Promise<number[]>}
+ */
+async function getChildDepartmentIds(parentId) {
+  const ids = [];
+  const children = await db.query(
+    'SELECT id FROM departments WHERE parent_id = ? AND deleted_at IS NULL',
+    [parentId]
+  );
+  for (const child of children) {
+    ids.push(child.id);
+    const grandChildren = await getChildDepartmentIds(child.id);
+    ids.push(...grandChildren);
+  }
+  return ids;
+}
+
 async function deleteDepartment(id) {
   const depts = await db.query('SELECT id, name FROM departments WHERE id = ? AND deleted_at IS NULL', [id]);
   if (depts.length === 0) throw new BusinessError('部门不存在');
 
-  // 检查是否有子部门
-  const children = await db.query('SELECT COUNT(*) AS cnt FROM departments WHERE parent_id = ? AND deleted_at IS NULL', [id]);
-  if (children[0].cnt > 0) throw new BusinessError('该部门下还有子部门，请先删除子部门');
+  // 递归收集所有子部门ID
+  const childIds = await getChildDepartmentIds(id);
+  const allDeptIds = [id, ...childIds];
 
-  // 检查是否有用户属于此部门
-  const users = await db.query('SELECT COUNT(*) AS cnt FROM users WHERE department_id = ? AND deleted_at IS NULL', [id]);
-  if (users[0].cnt > 0) throw new BusinessError('该部门下还有用户，请先迁移用户');
+  // 级联软删除父部门及所有子部门
+  await db.execute(
+    `UPDATE departments SET deleted_at = NOW() WHERE id IN (${allDeptIds.map(() => '?').join(',')})`,
+    allDeptIds
+  );
 
-  await db.execute('UPDATE departments SET deleted_at = NOW() WHERE id = ?', [id]);
+  // 清空受影响部门下所有员工的部门关联
+  await db.execute(
+    `UPDATE users SET department_id = NULL, department = NULL WHERE department_id IN (${allDeptIds.map(() => '?').join(',')})`,
+    allDeptIds
+  );
 
-  logger.info('删除部门', { module: 'ADMIN', deptId: id, deptName: depts[0].name });
-  return { id };
+  logger.info('级联删除部门', { module: 'ADMIN', deptId: id, deptName: depts[0].name, childCount: childIds.length, totalDeleted: allDeptIds.length });
+  return { id, deletedDeptCount: allDeptIds.length };
 }
 
 /**
@@ -739,6 +773,61 @@ async function setRolePermissions(roleId, permissionIds) {
   return { roleId, permissionCount: permissionIds?.length || 0 };
 }
 
+// ============================================
+// 角色分组 (Role Groups) — V2.5
+// ============================================
+
+async function getRoleGroups() {
+  const rows = await db.query(
+    'SELECT id, code, name, description, sort_order, is_system, status FROM role_groups WHERE deleted_at IS NULL ORDER BY sort_order ASC'
+  );
+  return rows.map(r => ({
+    id: r.id, code: r.code, name: r.name, description: r.description,
+    sortOrder: r.sort_order, isSystem: !!r.is_system, status: r.status,
+  }));
+}
+
+async function getRoleGroupDetail(id) {
+  const rows = await db.query('SELECT * FROM role_groups WHERE id = ? AND deleted_at IS NULL', [id]);
+  if (rows.length === 0) throw new BusinessError('角色分组不存在');
+  const r = rows[0];
+  return { id: r.id, code: r.code, name: r.name, description: r.description, sortOrder: r.sort_order, isSystem: !!r.is_system, status: r.status };
+}
+
+async function createRoleGroup({ code, name, description, sortOrder }) {
+  if (!code || !/^[a-z_][a-z0-9_]*$/.test(code)) throw new BusinessError('标识格式错误（小写字母+数字+下划线）');
+  const exist = await db.query('SELECT id FROM role_groups WHERE code = ? AND deleted_at IS NULL', [code]);
+  if (exist.length) throw new BusinessError('分组标识已存在');
+  const result = await db.execute(
+    'INSERT INTO role_groups (code, name, description, sort_order) VALUES (?, ?, ?, ?)',
+    [code, name, description || null, sortOrder || 0]
+  );
+  return { id: result.insertId };
+}
+
+async function updateRoleGroup(id, { name, description, sortOrder }) {
+  const rows = await db.query('SELECT id FROM role_groups WHERE id = ? AND deleted_at IS NULL', [id]);
+  if (!rows.length) throw new BusinessError('角色分组不存在');
+  const updates = []; const params = [];
+  if (name !== undefined) { updates.push('name = ?'); params.push(name); }
+  if (description !== undefined) { updates.push('description = ?'); params.push(description); }
+  if (sortOrder !== undefined) { updates.push('sort_order = ?'); params.push(sortOrder); }
+  if (!updates.length) return { id };
+  await db.execute(`UPDATE role_groups SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`, [...params, id]);
+  return { id };
+}
+
+async function deleteRoleGroup(id) {
+  const rows = await db.query('SELECT id, is_system, name FROM role_groups WHERE id = ? AND deleted_at IS NULL', [id]);
+  if (!rows.length) throw new BusinessError('角色分组不存在');
+  if (rows[0].is_system) throw new BusinessError('系统分组不可删除');
+  const roleCount = await db.query('SELECT COUNT(*) AS cnt FROM roles WHERE group_id = ? AND deleted_at IS NULL', [id]);
+  if (roleCount[0].cnt > 0) throw new BusinessError('分组下还有角色，请先迁移角色');
+  await db.execute('UPDATE role_groups SET deleted_at = NOW(), status = ? WHERE id = ?', ['disabled', id]);
+  return { id };
+}
+
+// ============================================
 /**
  * 获取审批类型列表（管理员）
  */
@@ -851,6 +940,7 @@ module.exports = {
   getDepartmentTree, getDepartmentList, createDepartment, updateDepartment, deleteDepartment,
   getRoleList, getRoleDetail, createRole, updateRole, deleteRole,
   getPermissionList, setRolePermissions,
+  getRoleGroups, getRoleGroupDetail, createRoleGroup, updateRoleGroup, deleteRoleGroup,
   getApprovalTypes, updateApprovalType,
   getSystemConfig, updateSystemConfig,
 };

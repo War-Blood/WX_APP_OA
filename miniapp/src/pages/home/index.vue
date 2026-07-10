@@ -1,7 +1,7 @@
 <template>
   <view class="home-page">
     <nav-bar
-      title="智慧办公助手"
+      :title="APP_NAME"
       :leftCustom="true"
     />
 
@@ -86,6 +86,7 @@ import NavBar from '@/components/nav-bar/nav-bar.vue'
 import TabBar from '@/components/tab-bar/tab-bar.vue'
 import { statsApi } from '@/services/modules/stats'
 import { messageApi } from '@/services/modules/message'
+import { APP_NAME } from '@/config/version'
 
 const userStore = useUserStore()
 const appStore = useAppStore()

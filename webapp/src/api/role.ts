@@ -20,7 +20,18 @@ export interface RoleItem {
   description?: string
   isSystem: boolean
   status: string
+  groupId?: number | null
   permissions?: PermissionItem[]
+}
+
+export interface RoleGroupItem {
+  id: number
+  code: string
+  name: string
+  description?: string
+  sortOrder: number
+  isSystem: boolean
+  status: string
 }
 
 /** 获取角色列表 */
@@ -56,4 +67,28 @@ export function getPermissionList(): Promise<PermissionGroup[]> {
 /** 设置角色权限 */
 export function setRolePermissions(roleId: number, permissionIds: number[]): Promise<void> {
   return request.put(`/admin/roles/${roleId}/permissions`, { permissionIds })
+}
+
+// ============================================
+// 角色分组 — V2.5
+// ============================================
+
+export function getRoleGroupList(): Promise<RoleGroupItem[]> {
+  return request.get('/admin/role-groups')
+}
+
+export function getRoleGroupDetail(id: number): Promise<RoleGroupItem> {
+  return request.get(`/admin/role-groups/${id}`)
+}
+
+export function createRoleGroup(data: { code: string; name: string; description?: string; sortOrder?: number }): Promise<{ id: number }> {
+  return request.post('/admin/role-groups', data)
+}
+
+export function updateRoleGroup(id: number, data: { name?: string; description?: string; sortOrder?: number }): Promise<void> {
+  return request.put(`/admin/role-groups/${id}`, data)
+}
+
+export function deleteRoleGroup(id: number): Promise<void> {
+  return request.delete(`/admin/role-groups/${id}`)
 }

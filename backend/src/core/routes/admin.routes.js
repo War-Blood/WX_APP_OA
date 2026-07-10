@@ -35,12 +35,12 @@ router.post('/admin/batch-set-biz-trip', ...adminAuth, adminController.batchSetB
 router.post('/admin/deleteUser',   ...adminAuth, adminController.deleteUser);
 
 // ==============================
-// 部门管理 — admin+
+// 部门管理 — GET admin+, CUD superadmin
 // ==============================
 router.get('/admin/departments',        ...adminAuth, adminController.getDepartments);
-router.post('/admin/departments',       ...adminAuth, adminController.createDepartment);
-router.put('/admin/departments/:id',    ...adminAuth, adminController.updateDepartment);
-router.delete('/admin/departments/:id', ...adminAuth, adminController.deleteDepartment);
+router.post('/admin/departments',       ...superAuth, adminController.createDepartment);
+router.put('/admin/departments/:id',    ...superAuth, adminController.updateDepartment);
+router.delete('/admin/departments/:id', ...superAuth, adminController.deleteDepartment);
 
 // ==============================
 // 角色管理 — 仅 superadmin
@@ -56,6 +56,15 @@ router.put('/admin/roles/:id/permissions',    ...superAuth, adminController.setR
 // 权限管理 — 仅 superadmin
 // ==============================
 router.get('/admin/permissions', ...superAuth, adminController.getPermissions);
+
+// ==============================
+// 角色分组管理 — 仅 superadmin
+// ==============================
+router.get('/admin/role-groups',           ...superAuth, adminController.getRoleGroups);
+router.get('/admin/role-groups/:id',       ...superAuth, adminController.getRoleGroupDetail);
+router.post('/admin/role-groups',          ...superAuth, adminController.createRoleGroup);
+router.put('/admin/role-groups/:id',       ...superAuth, adminController.updateRoleGroup);
+router.delete('/admin/role-groups/:id',    ...superAuth, adminController.deleteRoleGroup);
 
 // ==============================
 // 审批类型管理 — admin+

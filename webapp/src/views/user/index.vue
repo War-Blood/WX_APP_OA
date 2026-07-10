@@ -273,27 +273,40 @@ onMounted(() => {
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <el-input v-model="keyword" placeholder="搜索用户名 / 部门" clearable :prefix-icon="Search" style="width: 240px" @clear="handleSearch" @keyup.enter="handleSearch" />
-        <el-select v-model="roleFilter" placeholder="角色" style="width: 130px" @change="handleSearch">
-          <el-option v-for="opt in roleOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-        </el-select>
-        <el-select v-model="statusFilter" placeholder="状态" style="width: 120px" @change="handleSearch">
-          <el-option v-for="opt in statusOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-        </el-select>
-        <el-button @click="handleSearch">搜索</el-button>
+        <h3>用户管理</h3>
+        <span class="total-hint">共 {{ total }} 人</span>
       </div>
       <div class="toolbar-right">
+        <el-input v-model="keyword" placeholder="搜索用户名 / 部门" clearable :prefix-icon="Search" style="width: 220px" size="default" @clear="handleSearch" @keyup.enter="handleSearch" />
+        <el-select v-model="roleFilter" placeholder="角色" style="width: 120px" size="default" @change="handleSearch">
+          <el-option v-for="opt in roleOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
+        <el-select v-model="statusFilter" placeholder="状态" style="width: 110px" size="default" @change="handleSearch">
+          <el-option v-for="opt in statusOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
         <el-button type="primary" :icon="Plus" @click="createVisible = true">注册新用户</el-button>
-        <el-button type="success" :icon="Plus" @click="inviteVisible = true">邀请用户</el-button>
-        <el-button type="warning" @click="genCodeVisible = true; genCodeCount = 1">生成邀请码</el-button>
+        <el-button @click="inviteVisible = true">邀请用户</el-button>
+        <el-button @click="genCodeVisible = true; genCodeCount = 1">生成邀请码</el-button>
         <el-button :icon="Refresh" @click="loadUsers">刷新</el-button>
       </div>
     </div>
 
     <!-- 表格 -->
-    <el-table :data="userList" v-loading="loading" stripe border>
-      <el-table-column prop="nickName" label="用户名" min-width="120" />
-      <el-table-column prop="department" label="部门" min-width="110" />
+    <el-table :data="userList" v-loading="loading" stripe>
+      <el-table-column label="用户" min-width="180">
+        <template #default="{ row }">
+          <div class="user-cell">
+            <el-avatar :size="32" :src="row.avatarUrl">{{ (row.nickName || row.userName || 'U').charAt(0) }}</el-avatar>
+            <div class="user-info">
+              <div class="user-name">{{ row.nickName || row.userName }}</div>
+              <div class="user-sub" v-if="row.email || row.phone">{{ row.email || row.phone }}</div>
+            </div>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column prop="department" label="部门" min-width="110">
+        <template #default="{ row }">{{ row.department || '-' }}</template>
+      </el-table-column>
       <el-table-column label="角色" width="100" align="center">
         <template #default="{ row }">
           <el-tag :type="getRoleTagType(row.role)" size="small">{{ getRoleLabel(row.role) }}</el-tag>
@@ -302,7 +315,7 @@ onMounted(() => {
       <el-table-column label="职务" width="90" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.position" type="primary" size="small">{{ row.position }}</el-tag>
-          <span v-else style="color:#CCC">-</span>
+          <span v-else class="text-muted">-</span>
         </template>
       </el-table-column>
       <el-table-column label="状态" width="90" align="center">
@@ -314,28 +327,21 @@ onMounted(() => {
         <template #default="{ row }">
           <el-tag v-if="row.bizTripStatus === 'field'" type="warning" size="small">出差</el-tag>
           <el-tag v-else-if="row.bizTripStatus === 'office'" type="info" size="small">公司</el-tag>
-          <span v-else style="color:#999">-</span>
+          <span v-else class="text-muted">-</span>
         </template>
       </el-table-column>
-      <el-table-column prop="phone" label="手机号" width="130"><template #default="{ row }">{{ row.phone || '-' }}</template></el-table-column>
-      <el-table-column prop="email" label="邮箱" min-width="150"><template #default="{ row }">{{ row.email || '-' }}</template></el-table-column>
-      <el-table-column prop="lastLoginTime" label="最后登录" width="160"><template #default="{ row }">{{ row.lastLoginTime || '-' }}</template></el-table-column>
-      <el-table-column label="操作" width="260" fixed="right">
+      <el-table-column label="最后登录" width="150">
+        <template #default="{ row }">{{ row.lastLoginTime || '-' }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
           <template v-if="row.status === 'pending'">
             <el-button size="small" type="success" link @click="handleApprove(row)">审核通过</el-button>
           </template>
           <template v-else>
             <el-button size="small" type="primary" link :icon="Edit" @click="openEditDialog(row)">编辑</el-button>
-            <el-button v-if="row.role !== 'superadmin'" size="small" :type="row.role === 'admin' ? 'warning' : 'primary'" link @click="handleRoleSwitch(row)">
-              {{ row.role === 'admin' ? '取消管理员' : '设为管理员' }}
-            </el-button>
-            <el-button size="small" :type="row.status === 'active' ? 'danger' : 'success'" link @click="handleToggleStatus(row)">
-              {{ row.status === 'active' ? '禁用' : '启用' }}
-            </el-button>
-            <el-button size="small" :type="row.bizTripStatus === 'field' ? 'success' : 'warning'" link @click="handleBizTripStatus(row)">
-              {{ row.bizTripStatus === 'field' ? '回公司' : '设为出差' }}
-            </el-button>
+            <el-button v-if="row.role !== 'superadmin'" size="small" :type="row.role === 'admin' ? 'warning' : 'primary'" link @click="handleRoleSwitch(row)">{{ row.role === 'admin' ? '取消管理员' : '设为管理员' }}</el-button>
+            <el-button size="small" :type="row.status === 'active' ? 'danger' : 'success'" link @click="handleToggleStatus(row)">{{ row.status === 'active' ? '禁用' : '启用' }}</el-button>
             <el-button size="small" type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </template>
@@ -344,8 +350,7 @@ onMounted(() => {
 
     <!-- 分页 -->
     <div class="pagination-wrap">
-      <span class="total-text">共 {{ total }} 条</span>
-      <el-pagination v-model:current-page="page" :page-size="pageSize" :total="total" layout="prev, pager, next" background @current-change="handlePageChange" />
+      <el-pagination v-model:current-page="page" :page-size="pageSize" :total="total" layout="total, prev, pager, next" background @current-change="handlePageChange" />
     </div>
 
     <!-- 编辑用户弹窗 -->
@@ -475,31 +480,36 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-.user-page { padding: 20px; }
-.toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
-  .toolbar-left { display: flex; align-items: center; gap: 12px; }
+.user-page { padding: 0; }
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+  .toolbar-left {
+    display: flex; align-items: center; gap: 12px;
+    h3 { margin: 0; font-size: 18px; font-weight: 600; color: #303133; }
+    .total-hint { font-size: 13px; color: #909399; }
+  }
   .toolbar-right { display: flex; align-items: center; gap: 8px; }
 }
-.pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px;
-  .total-text { font-size: 14px; color: #999; }
+
+.user-cell {
+  display: flex; align-items: center; gap: 10px;
+  .user-name { font-size: 14px; font-weight: 500; color: #303133; }
+  .user-sub { font-size: 12px; color: #909399; margin-top: 2px; }
 }
 
+.text-muted { color: #C0C4CC; font-size: 13px; }
+
+.pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; }
+
 .code-list-box {
-  max-height: 300px;
-  overflow-y: auto;
-  background: #f5f7fa;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
+  max-height: 300px; overflow-y: auto;
+  background: #f5f7fa; border: 1px solid #e4e7ed; border-radius: 4px;
   padding: 12px 16px;
-
   .code-item {
-    margin: 0;
-    padding: 4px 0;
-    font-family: monospace;
-    font-size: 16px;
-    color: #303133;
+    margin: 0; padding: 4px 0;
+    font-family: monospace; font-size: 16px; color: #303133;
     border-bottom: 1px dashed #e4e7ed;
-
     &:last-child { border-bottom: none; }
   }
 }

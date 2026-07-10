@@ -35,6 +35,12 @@ const router = createRouter({
           meta: { title: '角色管理', icon: 'Avatar' }
         },
         {
+          path: 'org',
+          name: 'Org',
+          component: () => import('@/views/org/index.vue'),
+          meta: { title: '组织架构', icon: 'Share' }
+        },
+        {
           path: 'approval',
           name: 'Approval',
           component: () => import('@/views/approval/index.vue'),

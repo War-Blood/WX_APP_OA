@@ -1,111 +1,88 @@
 ---
 name: arch-foundation-spec
-description: 功能块开发阶段2——主规生成器。当用户已有结构化需求笔记、要生成PRD文档套件、或说"生成PRD"、"写产品文档"、"输出规格文档"、"主规生成"时触发。将阶段1的笔记转化为5份标准化文档。
+description: 功能块开发阶段2——主规生成器。当用户已有结构化需求笔记、要生成PRD文档套件、或说"生成PRD"、"写产品文档"、"输出规格文档"、"主规生成"时触发。将阶段1的笔记转化为10份维度文档。
 ---
 
 # 主规生成器 — Stage 2
 
-将阶段 1 的结构化需求笔记转化为 5 份标准化 PRD 文档，输出到 `大纲/PRD/<功能名>/`。
+将阶段 1 的结构化需求笔记转化为 10 份维度文档，输出到 `大纲/PRD/<功能名>/`。
 
-## 前置
+## 前置条件
 
-读取以下参考模板（格式参照）：
-- `大纲/PRD/考勤模块/考勤管理-PRD-开发文档.md` — PRD 格式
-- `大纲/PRD/考勤模块/考勤管理-UI设计.md` — UI 设计格式
-- `大纲/PRD/考勤模块/考勤管理-技术设计.md` — 技术设计格式
+- `大纲/PRD/<功能名>/结构化需求笔记.md` 已存在（阶段 1 probe 产出）
+- 笔记中 7 个维度章节齐全，「待补充」占比 < 50%
 
-## 步骤 1：master-spec.md
+## 参考模板
 
-产品主规格——所有文档的总索引和唯一真相源。
+10 份维度文档的详细模板位于 `references/`：
 
-写入 `大纲/PRD/<功能名>/master-spec.md`：
+| 模板文件 | 用途 |
+|---------|------|
+| `references/00-index-template.md` | 主索引模板 |
+| `references/01-requirements-template.md` | 需求模板 |
+| `references/02-data-design-template.md` | 数据设计模板 |
+| `references/03-api-design-template.md` | API 设计模板 |
+| `references/04-business-logic-template.md` | 业务逻辑模板 |
+| `references/05-ui-ux-template.md` | UI/UX 模板 |
+| `references/06-tech-architecture-template.md` | 技术架构模板 |
+| `references/07-agent-matrix-template.md` | Agent 归属模板 |
+| `references/08-acceptance-template.md` | 验收模板 |
+| `references/09-milestones-template.md` | 里程碑模板 |
 
-```markdown
-# 产品主规格文档 (Master Spec)
-> 版本: v1.0 | 日期: YYYY-MM-DD | 状态: 设计中
+生成每份文档前，读取对应模板按格式填充。
 
-## 1. 产品愿景与目标
-- 产品一句话简介 / 核心问题 / 成功指标 / OA 系统定位
+## 5 步流程
 
-## 2. 目标用户与场景
-| 角色 | RBAC | 端 | 描述 |
-|------|------|-----|------|
-- 场景1：作为[角色]，我想[做什么]，以便[价值]。（端）
+### step 1：产品维度
 
-## 3. 功能需求清单（按优先级）
-- [P0] 功能名：一句话描述
-- [P1/P2] ...
+产出：
+- `大纲/PRD/<功能名>/00-index.md` — 主索引（唯一真相源：产品一句话概述 + 文档导航表 + 产品定位表）
+- `大纲/PRD/<功能名>/01-requirements.md` — 需求（产品愿景 + 目标用户与场景 + 功能清单 P0/P1/P2 + 复用机会）
 
-## 4. 核心业务规则与数据模型
-- 关键业务规则 / 核心实体及字段 / 数据库变更范围 / 实体关系 / 错误码分区
+### step 2：后端维度
 
-## 5. UI/UX 设计倾向
-- 风格关键词 / 涉及端 / 页面层级分布
+产出（三份互相独立，可并行生成）：
+- `大纲/PRD/<功能名>/02-data-design.md` — 数据设计（ER 图 + 完整建表 DDL + 索引设计 + 迁移脚本）
+- `大纲/PRD/<功能名>/03-api-design.md` — API 设计（通用约定 + 错误码表 + 端点清单 + 请求/响应示例）
+- `大纲/PRD/<功能名>/04-business-logic.md` — 业务逻辑（核心规则 + 状态机 + 伪代码 + 映射表）
 
-## 6. 技术偏好与约束
-- 技术栈 / API 前缀 / Agent 归属矩阵
+### step 3：设计维度
 
-## 7. API 接口需求
-- 端点清单 / 认证方式
-```
+**生成前调用 `frontend-design` skill** 确定视觉方向（配色/字体/布局/签名元素），再基于方向编写设计文档。
 
-## 步骤 2：prd.md
+产出：
+- `大纲/PRD/<功能名>/05-ui-ux.md` — UI/UX（设计令牌表 + 小程序端线框图 + Webapp 端组件布局 + 组件复用表）
 
-完整产品需求文档。
+### step 4：技术维度
 
-写入 `大纲/PRD/<功能名>/prd.md`，含以下章节：
-1. **产品概述**：功能定位表、数据来源（新增/复用表）、设计原则
-2. **数据库设计**：ER 图（Mermaid）、完整建表 DDL（`IF NOT EXISTS`）、索引设计
-3. **后端接口设计**：每接口含路径、请求/响应 JSON 示例、错误码
-4. **业务逻辑规则**：伪代码、状态机、映射表
-5. **代码归属与目录结构**：后端/小程序/Web 目录树、Agent 归属表
-6. **验收标准**：分类 checklist
-7. **实施里程碑**：阶段→内容→依赖→Agent
+产出：
+- `大纲/PRD/<功能名>/06-tech-architecture.md` — 技术架构（系统架构图 + 模块划分 + 服务层设计 + 前端 API 封装 + 中间件设计）
+- `大纲/PRD/<功能名>/07-agent-matrix.md` — Agent 归属（归属表 + 目录结构树 + 文件清单 + 依赖关系图）
 
-## 步骤 3：ui-ux.md
+### step 5：质量维度
 
-**生成前**：调用 `frontend-design` skill 确定视觉方向（配色/字体/布局/签名元素），再基于方向编写设计文档。
-
-UI/UX 设计文档。
-
-写入 `大纲/PRD/<功能名>/ui-ux.md`，含：
-- **设计令牌表**（主色/成功/警告/危险/背景/文字/圆角/阴影）
-- **小程序端**：每页面 ASCII 线框图 + 元素说明 + rpx 尺寸 + 组件复用标注
-- **Webapp 端**：Element Plus 组件布局 + 交互流程
-- **组件复用表**
-
-## 步骤 4：tech-overview.md
-
-技术设计概要。
-
-写入 `大纲/PRD/<功能名>/tech-overview.md`，含：
-- 系统架构 Mermaid 图 + 模块划分
-- 数据库迁移脚本（完整 DDL，幂等）
-- API 契约表（方法/路径/认证/说明）
-- 服务层设计（伪代码函数签名 + 依赖关系）
-- 前端 API 封装（小程序 js + Webapp ts 接口定义）
-- Agent 归属表
-
-## 步骤 5：api-spec.md
-
-API 规格文档。
-
-写入 `大纲/PRD/<功能名>/api-spec.md`，含：
-- 通用约定（HTTPS/POST/JSON/JWT/统一响应/分页）
-- 错误码表（code → 含义 → 前端处理）
-- 端点清单（每端点：路径/说明/请求示例/响应示例/角色要求）
+产出：
+- `大纲/PRD/<功能名>/08-acceptance.md` — 验收（分类 checklist + 质量门 9 项 + 测试要点）
+- `大纲/PRD/<功能名>/09-milestones.md` — 里程碑（实施阶段 + 依赖关系 + Agent 分工表 + 风险项）
 
 ## 完成
 
-全部 5 份文档生成后输出摘要：
+全部 10 份文档生成后输出摘要：
 
 ```
-✅ master-spec.md — 产品主规格
-✅ prd.md — 产品需求文档
-✅ ui-ux.md — UI/UX 设计
-✅ tech-overview.md — 技术设计概要
-✅ api-spec.md — API 规格
-📁 全部写入 大纲/PRD/<功能名>/
+✅ 阶段 2 完成
+  产出文件（10/10）：
+    ✅ 00-index.md — 主索引
+    ✅ 01-requirements.md — 需求
+    ✅ 02-data-design.md — 数据
+    ✅ 03-api-design.md — API
+    ✅ 04-business-logic.md — 业务
+    ✅ 05-ui-ux.md — UI/UX
+    ✅ 06-tech-architecture.md — 技术
+    ✅ 07-agent-matrix.md — 归属
+    ✅ 08-acceptance.md — 验收
+    ✅ 09-milestones.md — 里程碑
+  📁 全部写入 大纲/PRD/<功能名>/
 ```
 
 告知主 skill 阶段 2 已完成。

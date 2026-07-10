@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { useAppStore } from '@/stores/app'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import AppSidebar from '@/components/AppSidebar/index.vue'
-import AppHeader from '@/components/AppHeader/index.vue'
+import { getActiveModule, modules } from '@/config/modules'
+import TopBar from '@/components/TopBar/index.vue'
+import PrimaryNav from '@/components/PrimaryNav/index.vue'
+import ModuleSidebar from '@/components/ModuleSidebar/index.vue'
 
-const appStore = useAppStore()
+const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 
 onMounted(async () => {
@@ -14,48 +17,57 @@ onMounted(async () => {
   }
 })
 
-const sidebarWidth = computed(() => {
-  return appStore.sidebarCollapsed ? '64px' : '220px'
+const activeModuleKey = computed(() => {
+  return getActiveModule(route.path)?.key || 'dashboard'
 })
+
+function handleModuleSelect(key: string) {
+  const target = modules.find(m => m.key === key)
+  if (target) router.push(target.path)
+}
 </script>
 
 <template>
-  <div class="layout">
-    <!-- 侧边栏 -->
-    <AppSidebar class="sidebar" />
-    
+  <div class="layout-worktile">
+    <!-- 顶栏 -->
+    <TopBar />
+
+    <!-- 一级图标栏 -->
+    <PrimaryNav
+      :active-key="activeModuleKey"
+      @select="handleModuleSelect"
+    />
+
+    <!-- 二级侧栏 -->
+    <ModuleSidebar />
+
     <!-- 主内容区 -->
-    <div class="main" :style="{ marginLeft: sidebarWidth }">
-      <AppHeader />
-      <main class="content">
-        <router-view />
-      </main>
+    <div class="main-content" :key="route.fullPath">
+      <router-view />
     </div>
   </div>
 </template>
 
 <style scoped lang="scss">
-.layout {
+.layout-worktile {
   min-height: 100vh;
+  background: #F5F7FA;
 }
 
-.sidebar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  z-index: 100;
-  transition: width 0.3s;
+.main-content {
+  margin-top: 48px;      // TopBar height
+  margin-left: 236px;     // 56px PrimaryNav + 180px ModuleSidebar
+  min-height: calc(100vh - 48px);
+  padding: 20px;
+  transition: margin-left 0.2s ease-out;
 }
 
-.main {
-  min-height: 100vh;
-  transition: margin-left 0.3s;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease-out;
 }
-
-.content {
-  padding: 16px;
-  background-color: $bg-color;
-  min-height: calc(100vh - 60px);
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <NavBar title="账号安全" />
+    <NavBar title="账号安全" :showBack="true" />
     <view class="content">
       <view class="section">
         <view class="setting-item" @tap="changePassword">

@@ -5,13 +5,11 @@
     <view class="nav-content" :style="{ paddingRight: capsulePadding + 'px' }">
       <view class="nav-left">
         <view v-if="showBack" class="back-btn" @tap="goBack">
-          <image class="back-icon" src="/static/images/approval/back.png" mode="aspectFit" />
+          <view class="back-arrow"></view>
         </view>
         <slot name="left">
           <view v-if="leftCustom" class="nav-left-brand">
-            <view class="logo-badge">
-              <text class="logo-text">OA</text>
-            </view>
+            <image class="logo-img" src="/static/images/logo.jpg" mode="aspectFit" />
             <text v-if="title" class="nav-title">{{ title }}</text>
           </view>
           <text v-else-if="title && showBack" class="nav-title">{{ title }}</text>
@@ -128,15 +126,17 @@ function onRightClick() { emit('rightClick', rightIcon) }
   width: 48rpx; height: 48rpx;
   display: flex; align-items: center; justify-content: center;
 }
-.back-icon { width: 48rpx; height: 48rpx; }
-
-.logo-badge {
-  width: 56rpx; height: 56rpx;
-  background: #2B6DE8; border-radius: 12rpx;
-  display: flex; align-items: center; justify-content: center;
+.back-arrow {
+  width: 18rpx; height: 18rpx;
+  border-top: 4rpx solid #333333;
+  border-left: 4rpx solid #333333;
+  transform: rotate(-45deg);
+  margin-left: 8rpx;
 }
-.logo-text {
-  font-size: 28rpx; font-weight: 700; color: #FFFFFF; letter-spacing: 2rpx;
+
+.logo-img {
+  width: 72rpx; height: 72rpx;
+  border-radius: 8rpx;
 }
 
 .nav-title {

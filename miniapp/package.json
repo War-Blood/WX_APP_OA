@@ -1,12 +1,12 @@
 {
   "name": "wx-oa-miniapp",
   "version": "1.0.0",
-  "description": "智慧办公助手 - OA办公小程序",
+  "description": "贝良办公助手 - OA办公小程序",
   "scripts": {
-    "dev:mp-weixin": "uni -p mp-weixin",
-    "build:mp-weixin": "uni build -p mp-weixin",
-    "dev:h5": "uni",
-    "build:h5": "uni build"
+    "dev:mp-weixin": "node scripts/inject-version.js && uni -p mp-weixin",
+    "build:mp-weixin": "node scripts/inject-version.js --bump && uni build -p mp-weixin",
+    "dev:h5": "node scripts/inject-version.js && uni",
+    "build:h5": "node scripts/inject-version.js --bump && uni build"
   },
   "dependencies": {
     "pinia": "^2.1.0",

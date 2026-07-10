@@ -85,6 +85,7 @@ import { messageApi } from '@/services/modules/message'
 import { authApi } from '@/services/modules/auth'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import TabBar from '@/components/tab-bar/tab-bar.vue'
+import { APP_NAME, APP_VERSION } from '@/config/version'
 
 const userStore = useUserStore()
 
@@ -107,11 +108,11 @@ const settingsList = computed(() => {
     { label: '消息通知', iconSrc: `${SET}notification.svg`, iconBg: '#F0F0FF', route: '/pages/settings/notification/index' },
     { label: '账号安全', iconSrc: `${SET}shield.svg`, iconBg: '#FFF0F0', route: '/pages/settings/security/index' },
     { label: '帮助反馈', iconSrc: `${SET}help.svg`, iconBg: '#F0FDF4', route: '/pages/settings/help/index' },
-    { label: '关于我们', value: 'v1.0.0', iconSrc: `${SET}info.svg`, iconBg: '#F5F5F5', route: '/pages/settings/about/index' }
+    { label: '关于我们', value: APP_VERSION, iconSrc: `${SET}info.svg`, iconBg: '#F5F5F5', route: '/pages/settings/about/index' }
   ]
   if (userStore.isAdmin) {
     return [
-      { label: '用户管理', iconSrc: `${SET}person.svg`, iconBg: '#EDF2FF', route: '/pages/admin/review-list/index' },
+      { label: '用户管理', iconSrc: `${SET}person.svg`, iconBg: '#EDF2FF', comingSoon: true },
       ...common
     ]
   }
@@ -188,6 +189,10 @@ function goToStat(stat) {
 }
 
 function goToSetting(item) {
+  if (item.comingSoon) {
+    uni.showToast({ title: '功能暂未开发', icon: 'none' })
+    return
+  }
   if (item.route) uni.navigateTo({ url: item.route })
 }
 
@@ -209,7 +214,7 @@ import { showSuccess, showError, showToast } from '@/utils/toast'
 
 onShareAppMessage(() => {
   return {
-    title: '智慧办公助手 — 高效协同，一手掌握',
+    title: `${APP_NAME} — 高效协同，一手掌握`,
     path: '/pages/login/index',
     imageUrl: ''
   }

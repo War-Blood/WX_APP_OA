@@ -50,15 +50,20 @@ $border-radius-small: 2px;
 $box-shadow-base: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 $box-shadow-light: 0 2px 4px rgba(0, 0, 0, 0.05);
 
-// 侧边栏
-$sidebar-width: 220px;
-$sidebar-collapsed-width: 64px;
-$sidebar-bg: #304156;
-$sidebar-text: #BFCBD9;
-$sidebar-active-text: #409EFF;
+// Worktile 布局尺寸
+$topbar-height: 48px;
+$primary-nav-width: 56px;
+$module-sidebar-width: 180px;
 
-// 顶栏
-$header-height: 60px;
+// 侧边栏 (Worktile 风格：白色)
+$sidebar-width: 220px;            // 旧布局兼容
+$sidebar-collapsed-width: 64px;   // 旧布局兼容
+$sidebar-bg: #FFFFFF;
+$sidebar-text: #606266;
+$sidebar-active-text: #2B6DE8;
+
+// 顶栏 (Worktile 风格)
+$header-height: 48px;
 $header-bg: #FFFFFF;
 
 // CSS Variables

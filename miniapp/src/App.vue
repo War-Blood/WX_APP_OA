@@ -1,7 +1,7 @@
 <!--
  * @FilePath: \miniapp\src\App.vue
  * @Brief: 
- * @Version: 1.0
+ * @Version: 见 manifest.json versionName（由 scripts/inject-version.js 自动注入）
  * @Date: 2026-05-27 15:52:58
  * @Author: WarBlood
  * @Copyright: none
