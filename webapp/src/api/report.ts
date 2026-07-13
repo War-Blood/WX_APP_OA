@@ -455,6 +455,11 @@ export function getProvinceWorkers(province: string, month?: string): Promise<Pr
   return request.post('/stats/province-workers', { province, month })
 }
 
+/** 中国地图 GeoJSON（后端同源托管，替代外网 DataV CDN） */
+export function getChinaGeoJson(): Promise<any> {
+  return request.get('/geo/china')
+}
+
 // ===== 企业微信智能表格导出 =====
 
 /** 企业微信智能表格导出响应 */

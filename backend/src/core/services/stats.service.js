@@ -797,18 +797,67 @@ async function getWorkerWorkTypes(month) {
 }
 
 /**
- * 省份人员分布（中国地图数据源）
- * @param {string} [month] - 可选月份筛选 YYYY-MM
- * @returns {Promise<Object>} { provinces: [{ name, count, projects }] }
+ * 省名归一化：把简称/全称/脏数据统一为 GeoJSON properties.name 全称
+ * - 有 '-' 取第一段；无 '-' 用省份关键词子串匹配（长词优先）
+ * - 简称/全称 → 标准全称（如 新疆→新疆维吾尔自治区）
+ * - 无法识别返回 null（调用方跳过，不污染地图）
  */
-async function getAreaDistribution(month) {
-  // 仅统计昨日数据
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yyyy = yesterday.getFullYear();
-  const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
-  const dd = String(yesterday.getDate()).padStart(2, '0');
-  const yesterdayStr = `${yyyy}-${mm}-${dd}`;
+const PROVINCE_ALIAS = {
+  '北京': '北京市', '天津': '天津市', '上海': '上海市', '重庆': '重庆市',
+  '河北': '河北省', '山西': '山西省', '辽宁': '辽宁省', '吉林': '吉林省', '黑龙江': '黑龙江省',
+  '江苏': '江苏省', '浙江': '浙江省', '安徽': '安徽省', '福建': '福建省', '江西': '江西省', '山东': '山东省',
+  '河南': '河南省', '湖北': '湖北省', '湖南': '湖南省', '广东': '广东省', '海南': '海南省',
+  '四川': '四川省', '贵州': '贵州省', '云南': '云南省', '陕西': '陕西省', '甘肃': '甘肃省', '青海': '青海省',
+  '台湾': '台湾省',
+  '内蒙古': '内蒙古自治区', '广西': '广西壮族自治区', '西藏': '西藏自治区', '宁夏': '宁夏回族自治区', '新疆': '新疆维吾尔自治区',
+  '香港': '香港特别行政区', '澳门': '澳门特别行政区',
+  // 全称幂等
+  '北京市': '北京市', '天津市': '天津市', '上海市': '上海市', '重庆市': '重庆市',
+  '河北省': '河北省', '山西省': '山西省', '辽宁省': '辽宁省', '吉林省': '吉林省', '黑龙江省': '黑龙江省',
+  '江苏省': '江苏省', '浙江省': '浙江省', '安徽省': '安徽省', '福建省': '福建省', '江西省': '江西省', '山东省': '山东省',
+  '河南省': '河南省', '湖北省': '湖北省', '湖南省': '湖南省', '广东省': '广东省', '海南省': '海南省',
+  '四川省': '四川省', '贵州省': '贵州省', '云南省': '云南省', '陕西省': '陕西省', '甘肃省': '甘肃省', '青海省': '青海省',
+  '台湾省': '台湾省',
+  '内蒙古自治区': '内蒙古自治区', '广西壮族自治区': '广西壮族自治区', '西藏自治区': '西藏自治区', '宁夏回族自治区': '宁夏回族自治区', '新疆维吾尔自治区': '新疆维吾尔自治区',
+  '香港特别行政区': '香港特别行政区', '澳门特别行政区': '澳门特别行政区'
+};
+const PROVINCE_KEYWORDS = [
+  '内蒙古', '黑龙江', '新疆', '广西', '西藏', '宁夏', '香港', '澳门',
+  '河北', '山西', '辽宁', '吉林', '江苏', '浙江', '安徽', '福建', '江西', '山东',
+  '河南', '湖北', '湖南', '广东', '海南', '四川', '贵州', '云南', '陕西', '甘肃', '青海', '台湾',
+  '北京', '天津', '上海', '重庆'
+];
+
+function normalizeProvinceName(raw) {
+  if (!raw) return null;
+  let s = String(raw).trim();
+  if (s.includes('-')) s = s.split('-')[0].trim();
+  if (PROVINCE_ALIAS[s]) return PROVINCE_ALIAS[s];
+  for (const kw of PROVINCE_KEYWORDS) {
+    if (s.includes(kw)) return PROVINCE_ALIAS[kw];
+  }
+  return null;
+}
+
+/**
+ * 北京时间昨日（避免服务器时区非 UTC+8 导致跨日错位）
+ */
+function getYesterdayCST() {
+  const now = new Date();
+  const bj = new Date(now.getTime() + (480 + now.getTimezoneOffset()) * 60000);
+  bj.setDate(bj.getDate() - 1);
+  const p = n => String(n).padStart(2, '0');
+  return `${bj.getFullYear()}-${p(bj.getMonth() + 1)}-${p(bj.getDate())}`;
+}
+
+/**
+ * 省份人员分布（中国地图数据源）
+ * @param {string} [date] - 可选日期 YYYY-MM-DD，默认北京时间昨日
+ * @returns {Promise<Object>} { date, provinces: [{ name, count, projects, workers }] }
+ */
+async function getAreaDistribution(date) {
+  // 仅统计昨日数据（默认北京时间昨日，支持传 date 查看任意日）
+  const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getYesterdayCST();
 
   // 1. 查昨日所有报告（含区域和 workers 文本）
   const reports = await db.query(
@@ -817,7 +866,7 @@ async function getAreaDistribution(month) {
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
        AND dr.report_date = ?`,
-    [yesterdayStr]
+    [targetDate]
   );
 
   // 2. 查昨日关联表代填关系
@@ -828,7 +877,7 @@ async function getAreaDistribution(month) {
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
        AND dr.report_date = ?`,
-    [yesterdayStr]
+    [targetDate]
   );
 
   // 3. 收集所有涉及的 userId（提交人 + 代填人），构建 uid→info
@@ -886,8 +935,8 @@ async function getAreaDistribution(month) {
   const personMap = {};
   const addPerson = (uid, date, area, project, userName) => {
     if (!uid || !area) return;
-    if (!area.includes('-')) return;
-    const province = area.split('-')[0];
+    const province = normalizeProvinceName(area);
+    if (!province) return;
     const key = `${uid}_${province}`;
     const d = date instanceof Date ? date.toISOString().slice(0,10) : String(date).slice(0,10);
     if (!personMap[key] || d > personMap[key].dateStr) {
@@ -930,7 +979,7 @@ async function getAreaDistribution(month) {
     }))
     .sort((a, b) => b.count - a.count);
 
-  return { date: yesterdayStr, provinces };
+  return { date: targetDate, provinces };
 }
 
 /**
@@ -939,12 +988,17 @@ async function getAreaDistribution(month) {
  * @param {string} [month] - 可选月份筛选
  * @returns {Promise<Object>} { province, workers: [...] }
  */
-async function getProvinceWorkers(province, month) {
+async function getProvinceWorkers(province, date) {
   if (!province) throw new BusinessError('province 必填');
 
-  // 与 getAreaDistribution 保持一致，固定查昨日数据
-  const dateCondition = 'AND dr.report_date = CURDATE() - INTERVAL 1 DAY';
-  const params = [`${province}-%`];
+  // 归一化省份名（兼容简称/全称/脏数据）
+  const provinceFull = normalizeProvinceName(province);
+  if (!provinceFull) throw new BusinessError('无法识别的省份');
+
+  // 与 getAreaDistribution 保持一致，默认北京时间昨日，支持传 date
+  const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getYesterdayCST();
+  const dateCondition = 'AND dr.report_date = ?';
+  const params = [`${provinceFull}-%`, targetDate];
 
   // 1. 查该省昨日所有报告
   const reports = await db.query(
@@ -1047,7 +1101,7 @@ async function getProvinceWorkers(province, month) {
   });
 
   const workers = [...personSet.values()].sort((a, b) => (a.workerCode || '').localeCompare(b.workerCode || ''));
-  return { province, workers };
+  return { province: provinceFull, workers };
 }
 
 /**

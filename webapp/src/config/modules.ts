@@ -55,7 +55,12 @@ export const modules: ModuleConfig[] = [
     roles: ['employee', 'admin', 'superadmin'],
     children: [
       { title: '日报管理', path: '/report' },
-      { title: '公出统计', path: '/report/stats' },
+      { title: '统计概览', path: '/report/overview' },
+      { title: '人员分布图', path: '/report/distribution' },
+      { title: '提交日历', path: '/report/calendar' },
+      { title: '项目进展', path: '/report/project' },
+      { title: '人员工作类型', path: '/report/worktype' },
+      { title: '人员明细', path: '/report/workers' },
       { title: '补公出审核', path: '/report/audit', roles: ['admin', 'superadmin'] },
       { title: '当日状态', path: '/report/daily-status', roles: ['admin', 'superadmin'] },
       { title: '月度占比', path: '/report/monthly-summary' },

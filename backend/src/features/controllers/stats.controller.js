@@ -115,8 +115,8 @@ async function workerWorkTypes(req, res, next) {
  */
 async function areaDistribution(req, res, next) {
   try {
-    const { month } = req.body;
-    const result = await coreStatsService.getAreaDistribution(month);
+    const { date } = req.body;
+    const result = await coreStatsService.getAreaDistribution(date);
     res.json(success(result));
   } catch (err) { next(err); }
 }
@@ -127,8 +127,8 @@ async function areaDistribution(req, res, next) {
  */
 async function provinceWorkers(req, res, next) {
   try {
-    const { province, month } = req.body;
-    const result = await coreStatsService.getProvinceWorkers(province, month);
+    const { province, date } = req.body;
+    const result = await coreStatsService.getProvinceWorkers(province, date);
     res.json(success(result));
   } catch (err) { next(err); }
 }

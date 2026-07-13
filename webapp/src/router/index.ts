@@ -63,10 +63,40 @@ const router = createRouter({
               meta: { title: '补公出审核' }
             },
             {
-              path: 'stats',
-              name: 'ReportStats',
-              component: () => import('@/views/report/stats.vue'),
-              meta: { title: '公出统计' }
+              path: 'overview',
+              name: 'ReportOverview',
+              component: () => import('@/views/report/overview.vue'),
+              meta: { title: '统计概览' }
+            },
+            {
+              path: 'distribution',
+              name: 'ReportDistribution',
+              component: () => import('@/views/report/personnel-distribution.vue'),
+              meta: { title: '人员分布图' }
+            },
+            {
+              path: 'calendar',
+              name: 'ReportCalendar',
+              component: () => import('@/views/report/calendar.vue'),
+              meta: { title: '提交日历' }
+            },
+            {
+              path: 'project',
+              name: 'ReportProject',
+              component: () => import('@/views/report/project-progress.vue'),
+              meta: { title: '项目进展' }
+            },
+            {
+              path: 'worktype',
+              name: 'ReportWorkType',
+              component: () => import('@/views/report/work-type.vue'),
+              meta: { title: '人员工作类型' }
+            },
+            {
+              path: 'workers',
+              name: 'ReportWorkers',
+              component: () => import('@/views/report/worker-dimension.vue'),
+              meta: { title: '人员明细' }
             },
             {
               path: 'daily-status',
