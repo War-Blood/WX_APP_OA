@@ -7,7 +7,7 @@ import {
   type ProvinceItem, type ProvinceWorkerItem
 } from '@/api/report'
 
-// 省份中心点经纬度（GeoJSON 全称 → [经度, 纬度]），用于涟漪散点/标签定位
+// 省份中心点经纬度（GeoJSON 全称 → [经度, 纬度]），用于 3D 立柱定位
 const PROVINCE_CENTER: Record<string, [number, number]> = {
   北京市: [116.4, 39.9],
   天津市: [117.2, 39.1],
@@ -43,58 +43,6 @@ const PROVINCE_CENTER: Record<string, [number, number]> = {
   台湾省: [121.0, 23.6],
   香港特别行政区: [114.2, 22.3],
   澳门特别行政区: [113.5, 22.2]
-}
-
-// 多层 geo 浮起：5 个阴影厚块层（纬度逐层偏移）+ 1 个主层，模拟文章"悬浮立体"效果
-const SHADE_OFFSETS = [0.5, 0.4, 0.3, 0.2, 0.1]
-const GEO_BASE_CENTER: [number, number] = [102, 36]
-const GEO_ZOOM = 3
-function buildChinaGeoLayers(): any[] {
-  const shadeColors = ['#050d1f', '#071427', '#091a30', '#0b2138', '#0d2840']
-  const shades: any[] = SHADE_OFFSETS.map((off, i) => ({
-    map: 'china',
-    zlevel: -5 + i,
-    roam: false,
-    zoom: GEO_ZOOM,
-    center: [GEO_BASE_CENTER[0], GEO_BASE_CENTER[1] + off] as [number, number],
-    silent: true,
-    itemStyle: {
-      areaColor: shadeColors[i],
-      borderColor: shadeColors[i],
-      borderWidth: 0,
-      shadowColor: 'rgba(28,111,185,0.5)',
-      shadowBlur: 40 - i * 6,
-      shadowOffsetY: 5
-    },
-    emphasis: { disabled: true }
-  }))
-  shades.push({
-    map: 'china',
-    zlevel: 0,
-    roam: true,
-    zoom: GEO_ZOOM,
-    center: GEO_BASE_CENTER,
-    scaleLimit: { min: 1, max: 8 },
-    itemStyle: {
-      areaColor: {
-        type: 'linear', x: 0, y: 0, x2: 1, y2: 1,
-        colorStops: [
-          { offset: 0, color: 'rgba(8,24,54,0.92)' },
-          { offset: 1, color: 'rgba(20,70,140,0.92)' }
-        ]
-      },
-      borderColor: '#c0f3fb',
-      borderWidth: 1,
-      shadowColor: '#8cd3ef',
-      shadowBlur: 20,
-      shadowOffsetY: 10
-    },
-    emphasis: {
-      itemStyle: { areaColor: 'rgba(0,230,233,0.45)' },
-      label: { show: false }
-    }
-  })
-  return shades
 }
 
 // 日期（默认北京时间昨日，可切换查看任意日）
@@ -155,7 +103,8 @@ async function loadMap() {
   }
 }
 
-function buildScatterData() {
+// 构造 3D 立柱数据：每个有人的省份一根柱 [经度, 纬度, 人数]
+function buildBarData() {
   return mapData.value
     .filter(d => d.count > 0 && PROVINCE_CENTER[d.name])
     .map(d => ({
@@ -184,24 +133,10 @@ function renderMap() {
     mapChart.on('mouseout', () => {
       activeProvince.value = ''
     })
-    // 多层浮起阴影层跟随主层 roam（中心/缩放同步），保持立体厚度不脱节
-    mapChart.on('georoam', () => {
-      const opt: any = mapChart!.getOption()
-      const lastIdx = opt.geo.length - 1
-      const main = opt.geo[lastIdx]
-      const cz = main.zoom
-      const cc: [number, number] = main.center
-      const newGeo = opt.geo.map((g: any, i: number) => {
-        if (i === lastIdx) return g
-        return { ...g, zoom: cz, center: [cc[0], cc[1] + SHADE_OFFSETS[i]] }
-      })
-      mapChart!.setOption({ geo: newGeo })
-    })
     eventsBound = true
   }
 
-  const maxCount = Math.max(1, ...mapData.value.map(d => d.count))
-  const scatterData = buildScatterData()
+  const barData = buildBarData()
 
   mapChart.setOption({
     backgroundColor: '#040a18',
@@ -212,11 +147,10 @@ function renderMap() {
       borderColor: '#409eff',
       borderWidth: 1,
       textStyle: { color: '#fff' },
-      formatter: (p: { name: string; value: number | number[] | undefined }) => {
-        const name = p.name
+      formatter: (p: any) => {
+        const name = p.name || (p.value && p.value[3]) || ''
         let count = 0
         if (Array.isArray(p.value)) count = Number(p.value[2]) || 0
-        else count = Number.isNaN(Number(p.value)) ? 0 : (Number(p.value) || 0)
         const workers = provinceWorkersMap.value[name] || []
         let html = `<div style="font-weight:bold;margin-bottom:4px">${name}</div>`
         html += `<div style="color:#00e6ff">人员: ${count}人</div>`
@@ -227,82 +161,72 @@ function renderMap() {
         return html
       }
     },
-    visualMap: {
-      min: 0,
-      max: maxCount,
-      left: 20,
-      bottom: 20,
-      text: ['高', '低'],
-      textStyle: { color: '#fff' },
-      inRange: { color: ['#0a1a3a', '#1c6fb9', '#00e6ff'] },
-      calculable: false
+    // 3D 底图：固定展示完整中国，关闭所有交互
+    geo3D: {
+      map: 'china',
+      roam: false,
+      boxWidth: 100,
+      boxDepth: 75,
+      regionHeight: 2,
+      shading: 'lambert',
+      itemStyle: {
+        color: '#0a1a3a',
+        borderWidth: 1,
+        borderColor: '#1c6fb9',
+        opacity: 1
+      },
+      emphasis: {
+        itemStyle: { color: '#14304a' },
+        label: { show: false }
+      },
+      viewControl: {
+        autoRotate: false,
+        distance: 180,
+        alpha: 45,
+        beta: 0,
+        minDistance: 120,
+        maxDistance: 300,
+        rotateSensitivity: 0,
+        zoomSensitivity: 0,
+        panSensitivity: 0
+      },
+      light: {
+        main: { intensity: 1.2, shadow: true, alpha: 40, beta: 30 },
+        ambient: { intensity: 0.35 }
+      },
+      label: { show: false }
     },
-    // 5 层阴影厚块 + 1 主层（索引 5），浮起立体感
-    geo: buildChinaGeoLayers(),
-    series: [
-      // 主地图层（按人数着色，绑定主 geo 层索引 5）
-      {
-        name: '人员分布',
-        type: 'map',
-        geoIndex: 5,
-        zlevel: 5,
-        itemStyle: {
-          borderColor: 'rgba(192,243,251,0.55)',
-          borderWidth: 0.5
-        },
-        emphasis: {
-          itemStyle: { areaColor: 'rgba(0,230,233,0.6)' },
-          label: { show: false }
-        },
-        data: mapData.value.map(d => ({ name: d.name, value: d.count }))
+    // 3D 立柱：每省一根真实立体柱，柱高 = 人数，柱顶显示「省份：N人」
+    series: [{
+      type: 'bar3D',
+      name: '人员分布',
+      coordinateSystem: 'geo3D',
+      barSize: 1.4,
+      minHeight: 0.6,
+      bevelSize: 0.2,
+      shading: 'lambert',
+      data: barData,
+      itemStyle: {
+        color: '#00e6ff'
       },
-      // 涟漪点（文章 scale:5）
-      {
-        name: '人员点',
-        type: 'effectScatter',
-        coordinateSystem: 'geo',
-        geoIndex: 5,
-        zlevel: 6,
-        symbolSize: (val: number[]) => 12 + Math.min(val[2], 30) * 1.6,
-        showEffectOn: 'render',
-        rippleEffect: { brushType: 'stroke', scale: 5, period: 3 },
-        itemStyle: {
-          color: '#00e6ff',
-          shadowBlur: 12,
-          shadowColor: 'rgba(0,230,255,0.6)'
-        },
-        data: scatterData
+      emphasis: {
+        itemStyle: { color: '#ffd24a' }
       },
-      // 漂浮标签：省份：N人
-      {
-        name: '省份标签',
-        type: 'scatter',
-        coordinateSystem: 'geo',
-        geoIndex: 5,
-        zlevel: 7,
-        symbol: 'none',
-        label: {
-          show: true,
-          formatter: (p: { name: string; value: number[] }) => `{title|${p.name}}\n{count|${p.value[2]}人}`,
-          position: 'top',
-          distance: 8,
-          backgroundColor: 'rgba(6,13,26,0.9)',
+      label: {
+        show: true,
+        distance: 2,
+        formatter: (params: any) => `${params.name}\n${params.value[2]}人`,
+        textStyle: {
+          color: '#fff',
+          fontSize: 12,
+          backgroundColor: 'rgba(6,13,26,0.85)',
           borderColor: '#409eff',
           borderWidth: 1,
-          borderRadius: 4,
-          padding: [6, 10],
-          color: '#fff',
-          shadowBlur: 10,
-          shadowColor: 'rgba(64,158,255,0.5)',
-          rich: {
-            title: { color: '#fff', fontSize: 12, fontWeight: 'bold', align: 'center' },
-            count: { color: '#00e6ff', fontSize: 14, fontWeight: 'bold', align: 'center', padding: [2, 0, 0, 0] }
-          }
-        },
-        labelLayout: { hideOverlap: true },
-        data: scatterData
+          padding: [4, 6],
+          borderRadius: 3
+        }
       }
-    ]
+    }]
   }, true)
 }
 
@@ -376,7 +300,7 @@ onUnmounted(() => {
     </div>
 
     <div class="map-body">
-      <!-- 地图直接置于内容区，无嵌套边框 -->
+      <!-- 3D 地图直接置于内容区，无嵌套边框 -->
       <div ref="mapChartRef" v-loading="mapLoading" class="map-canvas"></div>
 
       <!-- 右侧面板：人员名单 -->
@@ -451,7 +375,7 @@ onUnmounted(() => {
   height: 100%;
   border-radius: 8px;
   overflow: hidden;
-  background: #060d1a;
+  background: #040a18;
 }
 
 .side-panel {
