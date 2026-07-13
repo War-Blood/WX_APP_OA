@@ -82,7 +82,9 @@ function renderMap() {
     },
     series: [{
       type: 'map', map: 'china',
-      roam: false,
+      zoom: 3,
+      roam: true,
+      scaleLimit: { min: 1, max: 8 },
       label: { show: true, fontSize: 10, color: '#333' },
       emphasis: {
         label: { show: true, fontSize: 14, fontWeight: 'bold' },
