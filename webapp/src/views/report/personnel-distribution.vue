@@ -188,7 +188,7 @@ function renderMap() {
     geo: {
       map: 'china',
       roam: false,
-      zoom: 2,
+      zoom: 1.8,
       center: [102, 36],
       scaleLimit: { min: 1, max: 6 },
       label: {
