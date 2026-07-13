@@ -6,6 +6,8 @@ export interface MenuItem {
   title: string
   path: string
   roles?: string[]
+  /** 三级分组标签，同 group 的项归入一组，组间显示分隔标签 */
+  group?: string
 }
 
 export interface ModuleConfig {
@@ -55,13 +57,13 @@ export const modules: ModuleConfig[] = [
     roles: ['employee', 'admin', 'superadmin'],
     children: [
       { title: '日报管理', path: '/report' },
-      { title: '统计概览', path: '/report/overview' },
-      { title: '人员分布图', path: '/report/distribution' },
-      { title: '提交日历', path: '/report/calendar' },
-      { title: '项目进展', path: '/report/project' },
-      { title: '人员工作类型', path: '/report/worktype' },
-      { title: '人员明细', path: '/report/workers' },
       { title: '补公出审核', path: '/report/audit', roles: ['admin', 'superadmin'] },
+      { title: '统计概览', path: '/report/overview', group: '公出统计' },
+      { title: '人员分布图', path: '/report/distribution', group: '公出统计' },
+      { title: '提交日历', path: '/report/calendar', group: '公出统计' },
+      { title: '项目进展', path: '/report/project', group: '公出统计' },
+      { title: '人员工作类型', path: '/report/worktype', group: '公出统计' },
+      { title: '人员明细', path: '/report/workers', group: '公出统计' },
       { title: '当日状态', path: '/report/daily-status', roles: ['admin', 'superadmin'] },
       { title: '月度占比', path: '/report/monthly-summary' },
     ],

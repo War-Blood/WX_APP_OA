@@ -433,8 +433,8 @@ export interface AreaDistributionResponse {
 }
 
 /** 省份人员分布 */
-export function getAreaDistribution(month?: string): Promise<AreaDistributionResponse> {
-  return request.post('/stats/area-distribution', { month })
+export function getAreaDistribution(date?: string): Promise<AreaDistributionResponse> {
+  return request.post('/stats/area-distribution', { date })
 }
 
 export interface ProvinceWorkerItem {
@@ -451,8 +451,8 @@ export interface ProvinceWorkersResponse {
 }
 
 /** 省份下钻人员列表 */
-export function getProvinceWorkers(province: string, month?: string): Promise<ProvinceWorkersResponse> {
-  return request.post('/stats/province-workers', { province, month })
+export function getProvinceWorkers(province: string, date?: string): Promise<ProvinceWorkersResponse> {
+  return request.post('/stats/province-workers', { province, date })
 }
 
 /** 中国地图 GeoJSON（后端同源托管，替代外网 DataV CDN） */
