@@ -6,11 +6,21 @@ const router = express.Router();
 const statsController = require('../controllers/stats.controller');
 const { authenticate } = require('../../common/middleware/auth');
 
+const fs = require('fs');
+
 // 中国地图 GeoJSON（后端同源托管，避免依赖外网 CDN）
 const chinaGeoPath = path.join(__dirname, '../../../data/geo/china.json');
 router.get('/geo/china', authenticate, (req, res) => {
-  res.sendFile(chinaGeoPath, (err) => {
-    if (err) res.status(404).json({ code: 1002, message: '地图资源缺失', data: null });
+  fs.readFile(chinaGeoPath, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(404).json({ code: 1002, message: '地图资源缺失', data: null });
+    }
+    try {
+      const geoJson = JSON.parse(data);
+      res.json({ code: 0, message: 'success', data: geoJson });
+    } catch (parseErr) {
+      res.status(500).json({ code: 1003, message: '地图资源解析失败', data: null });
+    }
   });
 });
 
