@@ -963,7 +963,7 @@ async function getAreaDistribution(date) {
     const key = `${uid}_${province}`;
     const d = date instanceof Date ? date.toISOString().slice(0,10) : String(date).slice(0,10);
     if (!personMap[key] || d > personMap[key].dateStr) {
-      personMap[key] = { uid, province, dateStr: d, projects: new Set([project]), userName: userName || uidToInfo[uid]?.userName || '' };
+      personMap[key] = { uid, province, dateStr: d, projects: new Set([project]), userName: userName || uidToInfo[uid]?.userName || '', area };
     } else if (d === personMap[key].dateStr) {
       personMap[key].projects.add(project);
     }
@@ -990,6 +990,8 @@ async function getAreaDistribution(date) {
       userId: p.uid,
       userName: p.userName || uidToInfo[p.uid]?.userName || '',
       workerCode: uidToInfo[p.uid]?.workerCode || '',
+      area: p.area || '',
+      project: [...p.projects][0] || '',
     });
   });
 

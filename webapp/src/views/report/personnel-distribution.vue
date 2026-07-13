@@ -164,7 +164,8 @@ function buildScatterData() {
     }))
 }
 
-function shortArea(area: string) {
+function shortArea(area?: string | null) {
+  if (!area || typeof area !== 'string') return ''
   const parts = area.split('-')
   return parts[1] || parts[0] || ''
 }
