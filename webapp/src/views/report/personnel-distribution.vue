@@ -137,6 +137,7 @@ function renderMap() {
   }
 
   const barData = buildBarData()
+  const maxCount = Math.max(1, ...mapData.value.map(d => d.count))
 
   mapChart.setOption({
     backgroundColor: '#040a18',
@@ -148,9 +149,10 @@ function renderMap() {
       borderWidth: 1,
       textStyle: { color: '#fff' },
       formatter: (p: any) => {
-        const name = p.name || (p.value && p.value[3]) || ''
+        const name = p.name
         let count = 0
         if (Array.isArray(p.value)) count = Number(p.value[2]) || 0
+        else count = Number.isNaN(Number(p.value)) ? 0 : (Number(p.value) || 0)
         const workers = provinceWorkersMap.value[name] || []
         let html = `<div style="font-weight:bold;margin-bottom:4px">${name}</div>`
         html += `<div style="color:#00e6ff">人员: ${count}人</div>`
@@ -161,72 +163,80 @@ function renderMap() {
         return html
       }
     },
-    // 3D 底图：固定展示完整中国，关闭所有交互
-    geo3D: {
+    visualMap: {
+      min: 0,
+      max: maxCount,
+      left: 20,
+      bottom: 20,
+      text: ['多', '少'],
+      textStyle: { color: '#fff' },
+      inRange: { color: ['#0a1a3a', '#1c6fb9', '#00e6ff'] },
+      calculable: false
+    },
+    // 2D 底图：固定展示完整中国，zoom 控制比例
+    geo: {
       map: 'china',
       roam: false,
-      boxWidth: 100,
-      boxDepth: 75,
-      regionHeight: 2,
-      shading: 'lambert',
+      zoom: 1.15,
+      center: [102, 36],
+      scaleLimit: { min: 1, max: 6 },
       itemStyle: {
-        color: '#0a1a3a',
-        borderWidth: 1,
+        areaColor: '#0a1a3a',
         borderColor: '#1c6fb9',
-        opacity: 1
+        borderWidth: 1
       },
       emphasis: {
-        itemStyle: { color: '#14304a' },
+        itemStyle: { areaColor: '#14304a' },
         label: { show: false }
-      },
-      viewControl: {
-        autoRotate: false,
-        distance: 180,
-        alpha: 45,
-        beta: 0,
-        minDistance: 120,
-        maxDistance: 300,
-        rotateSensitivity: 0,
-        zoomSensitivity: 0,
-        panSensitivity: 0
-      },
-      light: {
-        main: { intensity: 1.2, shadow: true, alpha: 40, beta: 30 },
-        ambient: { intensity: 0.35 }
-      },
-      label: { show: false }
+      }
     },
-    // 3D 立柱：每省一根真实立体柱，柱高 = 人数，柱顶显示「省份：N人」
-    series: [{
-      type: 'bar3D',
-      name: '人员分布',
-      coordinateSystem: 'geo3D',
-      barSize: 1.4,
-      minHeight: 0.6,
-      bevelSize: 0.2,
-      shading: 'lambert',
-      data: barData,
-      itemStyle: {
-        color: '#00e6ff'
+    series: [
+      // 分色层：按人数给省份着色
+      {
+        name: '人员分布',
+        type: 'map',
+        geoIndex: 0,
+        itemStyle: {
+          borderColor: '#2b91e2',
+          borderWidth: 1
+        },
+        emphasis: {
+          itemStyle: { areaColor: '#1a4a8a' }
+        },
+        data: mapData.value.map(d => ({ name: d.name, value: d.count }))
       },
-      emphasis: {
-        itemStyle: { color: '#ffd24a' }
-      },
-      label: {
-        show: true,
-        distance: 2,
-        formatter: (params: any) => `${params.name}\n${params.value[2]}人`,
-        textStyle: {
-          color: '#fff',
-          fontSize: 12,
+      // 发光气泡 + 省份标签（2D，支持自动避让 hideOverlap）
+      {
+        name: '人员点',
+        type: 'effectScatter',
+        coordinateSystem: 'geo',
+        geoIndex: 0,
+        symbolSize: (val: number[]) => 10 + Math.min(val[2], 30) * 1.2,
+        showEffectOn: 'render',
+        rippleEffect: { brushType: 'stroke', scale: 4, period: 3 },
+        itemStyle: {
+          color: '#00e6ff',
+          shadowBlur: 10,
+          shadowColor: 'rgba(0,230,255,0.6)'
+        },
+        label: {
+          show: true,
+          formatter: (p: any) => `${p.name}\n${p.value[2]}人`,
+          position: 'top',
+          distance: 6,
           backgroundColor: 'rgba(6,13,26,0.85)',
           borderColor: '#409eff',
           borderWidth: 1,
           padding: [4, 6],
-          borderRadius: 3
-        }
+          borderRadius: 3,
+          color: '#fff',
+          fontSize: 12
+        },
+        labelLayout: { hideOverlap: true },
+        emphasis: { scale: true },
+        data: barData
       }
-    }]
+    ]
   }, true)
 }
 
@@ -237,13 +247,13 @@ function onWorkerHover(_worker: ProvinceWorkerItem, provinceName: string) {
   }
   activeProvince.value = provinceName
   previousProvince = provinceName
-  mapChart?.dispatchAction({ type: 'highlight', seriesName: '人员分布', name: provinceName })
-  mapChart?.dispatchAction({ type: 'showTip', seriesName: '人员分布', name: provinceName })
+  mapChart?.dispatchAction({ type: 'highlight', seriesName: '人员点', name: provinceName })
+  mapChart?.dispatchAction({ type: 'showTip', seriesName: '人员点', name: provinceName })
 }
 
 function onWorkerLeave() {
   if (previousProvince) {
-    mapChart?.dispatchAction({ type: 'downplay', seriesName: '人员分布', name: previousProvince })
+    mapChart?.dispatchAction({ type: 'downplay', seriesName: '人员点', name: previousProvince })
   }
   activeProvince.value = ''
   previousProvince = ''

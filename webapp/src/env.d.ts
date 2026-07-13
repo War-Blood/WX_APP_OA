@@ -1,8 +1,5 @@
 /// <reference types="vite/client" />
 
-// ECharts GL 扩展（geo3D / bar3D 真实3D立柱）无官方类型声明
-declare module 'echarts-gl'
-
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
   const component: DefineComponent<{}, {}, any>
