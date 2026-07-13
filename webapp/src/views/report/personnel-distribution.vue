@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
@@ -23,19 +23,12 @@ const mapChartRef = ref<HTMLDivElement>()
 let mapChart: echarts.ECharts | null = null
 let chinaGeoLoaded = false
 
-const mapDialogVisible = ref(false)
-const mapDialogProvince = ref('')
-const mapDialogWorkers = ref<ProvinceWorkerItem[]>([])
-const mapDialogLoading = ref(false)
-
 async function loadMap() {
   mapLoading.value = true
   try {
-    // 加载区域分布数据（含省名归一化，后端已处理）
     const res = await getAreaDistribution(mapDate.value)
     mapData.value = res.provinces
 
-    // 加载 GeoJSON（后端同源托管，仅一次）
     if (!chinaGeoLoaded) {
       const geoJson = await getChinaGeoJson()
       echarts.registerMap('china', geoJson)
@@ -51,12 +44,23 @@ async function loadMap() {
   }
 }
 
+function shortName(fullName: string) {
+  return fullName
+    .replace('维吾尔自治区', '')
+    .replace('回族自治区', '')
+    .replace('壮族自治区', '')
+    .replace('自治区', '')
+    .replace('特别行政区', '')
+    .replace('省', '')
+    .replace('市', '')
+}
+
 function renderMap() {
   if (!mapChartRef.value) return
   if (!mapChart) {
     mapChart = echarts.init(mapChartRef.value)
     mapChart.on('click', (params: { name: string }) => {
-      if (params.name) showProvinceDialog(params.name)
+      if (params.name) expandProvince(params.name)
     })
   }
 
@@ -65,8 +69,8 @@ function renderMap() {
   mapChart.setOption({
     tooltip: {
       trigger: 'item',
-      formatter: (p: { name: string; value: number }) =>
-        `<b>${p.name}</b><br/>人员: ${p.value}人`
+      formatter: (p: { name: string; value: number | undefined }) =>
+        `<b>${p.name}</b><br/>人员: ${p.value ?? 0}人`
     },
     visualMap: {
       min: 0, max: maxCount,
@@ -85,34 +89,66 @@ function renderMap() {
       zoom: 3,
       roam: true,
       scaleLimit: { min: 1, max: 8 },
-      label: { show: true, fontSize: 10, color: '#333' },
+      label: {
+        show: true,
+        fontSize: 10,
+        color: '#333',
+        formatter: (p: { name: string }) => shortName(p.name)
+      },
       emphasis: {
         label: { show: true, fontSize: 14, fontWeight: 'bold' },
         itemStyle: { areaColor: '#FFD54F' }
       },
-      // 后端返回省名为 GeoJSON 全称，nameMap 仅用于显示简称
-      data: mapData.value.map(d => ({ name: d.name, value: d.count })),
-      nameMap: {
-        '澳门特别行政区': '澳门', '香港特别行政区': '香港',
-        '西藏自治区': '西藏', '内蒙古自治区': '内蒙古',
-        '新疆维吾尔自治区': '新疆', '广西壮族自治区': '广西',
-        '宁夏回族自治区': '宁夏'
-      }
+      data: mapData.value.map(d => ({ name: d.name, value: d.count }))
     }]
   }, true)
 }
 
-async function showProvinceDialog(province: string) {
-  mapDialogProvince.value = province
-  mapDialogVisible.value = true
-  mapDialogLoading.value = true
+// 省份人员明细（展开名单）
+const expandedProvinces = ref<Set<string>>(new Set())
+const provinceWorkers = ref<Record<string, ProvinceWorkerItem[]>>({})
+const provinceWorkersLoading = ref<Set<string>>(new Set())
+
+const sortedMapData = computed(() => {
+  return [...mapData.value].sort((a, b) => b.count - a.count)
+})
+
+function peopleCountText(n: number | undefined) {
+  const c = Number(n)
+  return `${Number.isNaN(c) ? 0 : c}人`
+}
+
+function isExpanded(province: string) {
+  return expandedProvinces.value.has(province)
+}
+
+async function toggleProvince(province: string) {
+  if (expandedProvinces.value.has(province)) {
+    expandedProvinces.value.delete(province)
+  } else {
+    expandedProvinces.value.add(province)
+    if (!provinceWorkers.value[province]) {
+      await loadProvinceWorkers(province)
+    }
+  }
+}
+
+async function expandProvince(province: string) {
+  expandedProvinces.value.add(province)
+  if (!provinceWorkers.value[province]) {
+    await loadProvinceWorkers(province)
+  }
+}
+
+async function loadProvinceWorkers(province: string) {
+  provinceWorkersLoading.value.add(province)
   try {
     const res = await getProvinceWorkers(province, mapDate.value)
-    mapDialogWorkers.value = res.workers
+    provinceWorkers.value[province] = res.workers
   } catch {
-    mapDialogWorkers.value = []
+    provinceWorkers.value[province] = []
   } finally {
-    mapDialogLoading.value = false
+    provinceWorkersLoading.value.delete(province)
   }
 }
 
@@ -156,17 +192,50 @@ onUnmounted(() => {
       <div ref="mapChartRef" v-loading="mapLoading" style="height:520px"></div>
     </el-card>
 
-    <!-- 省份人员弹窗 -->
-    <el-dialog v-model="mapDialogVisible" :title="mapDialogProvince + ' — 人员列表'" width="600px" destroy-on-close>
-      <el-table v-loading="mapDialogLoading" :data="mapDialogWorkers" stripe border max-height="400">
-        <el-table-column prop="userName" label="姓名" width="100" />
-        <el-table-column prop="workerCode" label="工号" width="80" />
-        <el-table-column prop="project" label="项目" min-width="140" show-overflow-tooltip />
-        <el-table-column label="区域" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.area || '—' }}</template>
+    <el-card class="section-card" shadow="never">
+      <template #header>
+        <span>省份人员明细</span>
+      </template>
+      <el-table :data="sortedMapData" stripe border style="width: 100%">
+        <el-table-column type="expand" width="60">
+          <template #default="{ row }">
+            <div class="expand-content">
+              <el-table
+                v-loading="provinceWorkersLoading.has(row.name)"
+                :data="provinceWorkers[row.name] || []"
+                stripe
+                border
+                size="small"
+                style="width: 100%"
+              >
+                <el-table-column prop="userName" label="姓名" width="100" />
+                <el-table-column prop="workerCode" label="工号" width="100" />
+                <el-table-column prop="project" label="项目" min-width="160" show-overflow-tooltip />
+                <el-table-column prop="area" label="区域" min-width="180" show-overflow-tooltip />
+              </el-table>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="name" label="省份" min-width="160" />
+        <el-table-column label="人员数" width="100">
+          <template #default="{ row }">
+            {{ peopleCountText(row.count) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button
+              link
+              type="primary"
+              size="small"
+              @click="toggleProvince(row.name)"
+            >
+              {{ isExpanded(row.name) ? '收起名单' : '展开名单' }}
+            </el-button>
+          </template>
         </el-table-column>
       </el-table>
-    </el-dialog>
+    </el-card>
   </div>
 </template>
 
@@ -174,6 +243,8 @@ onUnmounted(() => {
 .distribution-page { padding: 20px; }
 
 .section-card {
+  margin-bottom: 20px;
+
   .card-header {
     display: flex;
     align-items: center;
@@ -186,5 +257,10 @@ onUnmounted(() => {
       gap: 8px;
     }
   }
+}
+
+.expand-content {
+  padding: 12px 24px;
+  background: #f9fafb;
 }
 </style>
