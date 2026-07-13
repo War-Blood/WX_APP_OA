@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
@@ -71,11 +71,6 @@ let mapChart: echarts.ECharts | null = null
 let chinaGeoLoaded = false
 let eventsBound = false
 
-// 右侧抽屉
-const drawerVisible = ref(false)
-const drawerProvince = ref<ProvinceItem | null>(null)
-const drawerWorkers = computed<ProvinceWorkerItem[]>(() => drawerProvince.value?.workers ?? [])
-
 async function loadMap() {
   mapLoading.value = true
   try {
@@ -120,24 +115,26 @@ function shortArea(area?: string | null) {
   return parts[1] || parts[0] || ''
 }
 
-// 点击省份 → 打开右侧抽屉展示该省人员名单
-function openDrawer(name: string) {
-  const item = mapData.value.find(d => d.name === name)
-  drawerProvince.value = item
-    ? item
-    : { name, count: 0, projects: [], workers: [] }
-  drawerVisible.value = true
-}
-
 function renderMap() {
   if (!mapChartRef.value) return
   if (!mapChart) {
     mapChart = echarts.init(mapChartRef.value)
   }
   if (!eventsBound) {
+    // 点击省份：高亮并触发一次 tooltip（可选交互，不改变核心展示）
     mapChart.on('click', (params: any) => {
       const name = params?.name
-      if (name) openDrawer(name)
+      if (!name) return
+      mapChart?.dispatchAction({
+        type: 'highlight',
+        seriesName: '人员分布',
+        name
+      })
+      mapChart?.dispatchAction({
+        type: 'showTip',
+        seriesName: '人员分布',
+        name
+      })
     })
     eventsBound = true
   }
@@ -150,102 +147,111 @@ function renderMap() {
     tooltip: {
       trigger: 'item',
       confine: true,
-      backgroundColor: '#ffffff',
-      borderColor: '#d0d7de',
+      backgroundColor: 'rgba(8, 22, 40, 0.92)',
+      borderColor: '#3a7bd5',
       borderWidth: 1,
-      textStyle: { color: '#1f2d3d' },
-      extraCssText: 'box-shadow:0 6px 20px rgba(31,45,61,0.12);border-radius:8px;padding:10px 12px;',
+      textStyle: { color: '#e8f4ff' },
+      extraCssText: 'box-shadow:0 8px 24px rgba(0,0,0,0.35);border-radius:8px;padding:10px 12px;',
       formatter: (p: any) => {
         const name = p.name
         let count = 0
         if (Array.isArray(p.value)) count = Number(p.value[2]) || 0
         else count = Number.isNaN(Number(p.value)) ? 0 : (Number(p.value) || 0)
         const workers = provinceWorkersMap.value[name] || []
-        let html = `<div style="font-weight:600;font-size:13px;margin-bottom:4px;color:#1f2d3d">${name}</div>`
-        html += `<div style="color:#2f80ed;font-weight:600">人员: ${count}人</div>`
+        let html = `<div style="font-weight:600;font-size:13px;margin-bottom:6px;color:#7dd3fc">${name}</div>`
+        html += `<div style="color:#ff6b8a;font-weight:600">人员: ${count}人</div>`
         if (workers.length) {
-          html += '<div style="margin-top:6px;border-top:1px solid #eef0f2;padding-top:6px;max-height:160px;overflow:auto">'
-          html += workers.map(w => `<div style="padding:2px 0;color:#475569">· ${w.userName}</div>`).join('')
-          html += '</div><div style="margin-top:5px;color:#9aa5b1;font-size:11px">点击省份查看完整名单</div>'
+          html += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.12);padding-top:6px;max-height:160px;overflow:auto">'
+          html += workers.map(w => `<div style="padding:2px 0;color:#cbe4ff">· ${w.userName} <span style="color:#8fb8df;margin-left:4px">${shortArea(w.area)}</span></div>`).join('')
+          html += '</div>'
         } else {
-          html += '<div style="margin-top:5px;color:#9aa5b1;font-size:11px">点击省份查看详情</div>'
+          html += '<div style="margin-top:5px;color:#7d9bb8;font-size:11px">暂无人员数据</div>'
         }
         return html
       }
     },
+    // 左侧 visualMap：蓝绿渐变，与深色地图形成对比
     visualMap: {
       min: 0,
       max: maxCount,
       left: 16,
       bottom: 16,
       itemWidth: 12,
-      itemHeight: 90,
-      text: ['多', '少'],
-      textStyle: { color: '#5a6b7b' },
-      inRange: { color: ['#e3f0fb', '#a9d4ec', '#4cb3a8', '#2e9e6b'] },
+      itemHeight: 120,
+      text: ['高', '低'],
+      textStyle: { color: '#ffffff' },
+      inRange: { color: ['#00467F', '#36A3A0', '#A5CC82'] },
       calculable: false,
       seriesIndex: 0
     },
-    // 2D 底图：固定展示完整中国，zoom 控制比例
+    // 深色科技风底图
     geo: {
       map: 'china',
       roam: false,
       zoom: 1.15,
       center: [102, 36],
       scaleLimit: { min: 1, max: 6 },
+      label: {
+        show: true,
+        color: '#ffffff',
+        fontSize: 11,
+        textShadowColor: 'rgba(0,0,0,0.6)',
+        textShadowBlur: 4
+      },
       itemStyle: {
-        areaColor: '#eef3f8',
-        borderColor: '#cdd9e5',
-        borderWidth: 1
+        areaColor: {
+          type: 'radial',
+          x: 0.5,
+          y: 0.5,
+          r: 0.8,
+          colorStops: [
+            { offset: 0, color: 'rgba(11, 52, 90, 0.85)' },
+            { offset: 1, color: 'rgba(4, 30, 56, 0.95)' }
+          ]
+        },
+        borderColor: '#3a7bd5',
+        borderWidth: 1,
+        shadowColor: 'rgba(58, 123, 213, 0.45)',
+        shadowBlur: 12,
+        shadowOffsetY: 6
       },
       emphasis: {
-        itemStyle: { areaColor: '#d6e6f5' },
-        label: { show: false }
+        itemStyle: {
+          areaColor: '#2B91B7',
+          borderColor: '#00eeff',
+          borderWidth: 1
+        },
+        label: { color: '#ffffff' }
       }
     },
     series: [
-      // 分色层：按人数给省份着色（浅蓝→蓝→青→绿）
+      // 分色层：按人数给省份着色（深蓝 → 青 → 绿）
       {
         name: '人员分布',
         type: 'map',
         geoIndex: 0,
         cursor: 'pointer',
         label: {
-          show: false,
+          show: true,
+          position: 'bottom',
           formatter: (p: any) => shortProvince(p.name),
-          color: '#334155',
+          color: '#ffffff',
           fontSize: 11,
-          fontWeight: 'bold'
+          textShadowColor: 'rgba(0,0,0,0.6)',
+          textShadowBlur: 4
         },
         labelLayout: { hideOverlap: true },
         itemStyle: {
-          borderColor: '#b7c7d6',
+          borderColor: '#5089EC',
           borderWidth: 1
         },
         emphasis: {
           label: { show: true },
-          itemStyle: { areaColor: '#9ec9ec' }
+          itemStyle: { areaColor: '#2B91B7' }
         },
         data: mapData.value.map(d => ({ name: d.name, value: d.count }))
       },
-      // 涟漪气泡（柔和青色，提供动效生命感）
-      {
-        name: '涟漪',
-        type: 'effectScatter',
-        coordinateSystem: 'geo',
-        geoIndex: 0,
-        symbolSize: (val: number[]) => 10 + Math.min(val[2], 30),
-        showEffectOn: 'render',
-        rippleEffect: { brushType: 'stroke', scale: 3, period: 4 },
-        itemStyle: {
-          color: '#36a3a0',
-          shadowBlur: 6,
-          shadowColor: 'rgba(54,163,160,0.45)'
-        },
-        zlevel: 1,
-        data: barData
-      },
-      // 人数气泡（珊瑚色 pin，气泡内显示人数）
+      // 红色人数气泡（pin 图钉，内显人数）
       {
         name: '人数气泡',
         type: 'scatter',
@@ -253,11 +259,11 @@ function renderMap() {
         geoIndex: 0,
         symbol: 'pin',
         cursor: 'pointer',
-        symbolSize: (val: number[]) => Math.max(26, Math.min(52, 16 + val[2] * 1.6)),
+        symbolSize: (val: number[]) => Math.max(28, Math.min(52, 22 + val[2] * 1.4)),
         itemStyle: {
-          color: '#ff7a45',
-          shadowBlur: 8,
-          shadowColor: 'rgba(255,122,69,0.4)'
+          color: '#F62157',
+          shadowBlur: 12,
+          shadowColor: 'rgba(246, 33, 87, 0.55)'
         },
         label: {
           show: true,
@@ -265,7 +271,7 @@ function renderMap() {
           position: 'inside',
           offset: [0, -4],
           color: '#fff',
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: 'bold'
         },
         emphasis: { scale: 1.15 },
@@ -313,40 +319,8 @@ onUnmounted(() => {
     </div>
 
     <div class="map-body">
-      <!-- 地图直接置于内容区，无嵌套边框 -->
+      <!-- 地图直接置于内容区，无嵌套边框；内部深色科技风 -->
       <div ref="mapChartRef" v-loading="mapLoading" class="map-canvas"></div>
-
-      <!-- 点击省份后右侧抽屉展示该省人员 -->
-      <el-drawer
-        v-model="drawerVisible"
-        :title="drawerProvince ? `${drawerProvince.name} · ${drawerProvince.count} 人` : ''"
-        direction="rtl"
-        size="320px"
-        class="worker-drawer"
-      >
-        <div v-if="drawerProvince" class="drawer-body">
-          <div class="drawer-summary">
-            <span class="summary-num">{{ drawerProvince.count }}</span>
-            <span class="summary-label">人在外</span>
-          </div>
-          <div class="drawer-list">
-            <div
-              v-for="worker in drawerWorkers"
-              :key="worker.userId"
-              class="worker-row"
-            >
-              <span class="w-avatar">{{ worker.userName.charAt(0) }}</span>
-              <span class="w-name">{{ worker.userName }}</span>
-              <span class="w-area">{{ shortArea(worker.area) }}</span>
-            </div>
-          </div>
-          <el-empty
-            v-if="!drawerWorkers.length"
-            description="该省暂无人员数据"
-            :image-size="80"
-          />
-        </div>
-      </el-drawer>
     </div>
   </div>
 </template>
@@ -399,106 +373,8 @@ onUnmounted(() => {
   border-radius: 12px;
   overflow: hidden;
   background:
-    radial-gradient(120% 120% at 50% 0%, #f7fbff 0%, #eef3f8 60%, #e7eef5 100%);
-  border: 1px solid #e3e9f0;
-  box-shadow: 0 4px 18px rgba(31, 45, 61, 0.06);
-}
-
-// 抽屉内容（浅色清爽风）
-.worker-drawer {
-  :deep(.el-drawer__header) {
-    margin-bottom: 0;
-    padding: 18px 20px;
-    border-bottom: 1px solid #eef0f2;
-    color: #1f2d3d;
-    font-weight: 600;
-  }
-
-  :deep(.el-drawer__body) {
-    padding: 0;
-  }
-}
-
-.drawer-body {
-  padding: 16px 20px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.drawer-summary {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 12px 14px;
-  background: linear-gradient(135deg, #eaf4ff, #e8faf4);
-  border: 1px solid #d8e8f5;
-  border-radius: 10px;
-  margin-bottom: 14px;
-
-  .summary-num {
-    font-size: 28px;
-    font-weight: 700;
-    color: #2f80ed;
-    line-height: 1;
-  }
-
-  .summary-label {
-    font-size: 13px;
-    color: #5a6b7b;
-  }
-}
-
-.drawer-list {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.worker-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #f7f9fc;
-  border: 1px solid #eef1f5;
-  transition: background 0.2s, border-color 0.2s;
-
-  &:hover {
-    background: #eef5ff;
-    border-color: #cfe0f5;
-  }
-
-  .w-avatar {
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    border-radius: 50%;
-    background: #2f80ed;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .w-name {
-    flex: 1;
-    font-size: 14px;
-    color: #1f2d3d;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .w-area {
-    font-size: 12px;
-    color: #8a96a3;
-    flex-shrink: 0;
-  }
+    radial-gradient(120% 120% at 50% 0%, #0c2a4a 0%, #07182a 60%, #030d18 100%);
+  border: 1px solid #1a4a6e;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 40px rgba(58, 123, 213, 0.08);
 }
 </style>
