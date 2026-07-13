@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
@@ -7,7 +7,7 @@ import {
   type ProvinceItem, type ProvinceWorkerItem
 } from '@/api/report'
 
-// 省份中心点经纬度（GeoJSON 全称 → [经度, 纬度]），用于 3D 立柱定位
+// 省份中心点经纬度（GeoJSON 全称 → [经度, 纬度]），用于气泡定位
 const PROVINCE_CENTER: Record<string, [number, number]> = {
   北京市: [116.4, 39.9],
   天津市: [117.2, 39.1],
@@ -45,6 +45,13 @@ const PROVINCE_CENTER: Record<string, [number, number]> = {
   澳门特别行政区: [113.5, 22.2]
 }
 
+// 省名归一化为短名（用于标签显示，避免"内蒙古自治区"过长遮挡）
+function shortProvince(name: string): string {
+  return name
+    .replace(/(省|市|特别行政区)$/, '')
+    .replace(/(壮族|回族|维吾尔)?自治区$/, '')
+}
+
 // 日期（默认北京时间昨日，可切换查看任意日）
 function yesterdayStr() {
   const d = new Date()
@@ -57,23 +64,17 @@ const mapDate = ref(yesterdayStr())
 // 中国地图
 const mapLoading = ref(false)
 const mapData = ref<ProvinceItem[]>([])
-// 省份 -> 人员名单（悬停 tooltip 使用，直接取自 area-distribution，与人数同源）
+// 省份 -> 人员名单（tooltip 使用，直接取自 area-distribution，与人数同源）
 const provinceWorkersMap = ref<Record<string, ProvinceWorkerItem[]>>({})
 const mapChartRef = ref<HTMLDivElement>()
 let mapChart: echarts.ECharts | null = null
 let chinaGeoLoaded = false
 let eventsBound = false
 
-// 右侧面板高亮省份
-const activeProvince = ref<string>('')
-const provinceGroupRefs: Record<string, HTMLElement | null> = {}
-let previousProvince = ''
-
-const provincesWithPeople = computed(() => {
-  return mapData.value
-    .filter(p => p.count > 0)
-    .sort((a, b) => b.count - a.count)
-})
+// 右侧抽屉
+const drawerVisible = ref(false)
+const drawerProvince = ref<ProvinceItem | null>(null)
+const drawerWorkers = computed<ProvinceWorkerItem[]>(() => drawerProvince.value?.workers ?? [])
 
 async function loadMap() {
   mapLoading.value = true
@@ -103,7 +104,7 @@ async function loadMap() {
   }
 }
 
-// 构造 3D 立柱数据：每个有人的省份一根柱 [经度, 纬度, 人数]
+// 构造气泡数据：每个有人的省份一个点 [经度, 纬度, 人数]
 function buildBarData() {
   return mapData.value
     .filter(d => d.count > 0 && PROVINCE_CENTER[d.name])
@@ -119,19 +120,24 @@ function shortArea(area?: string | null) {
   return parts[1] || parts[0] || ''
 }
 
+// 点击省份 → 打开右侧抽屉展示该省人员名单
+function openDrawer(name: string) {
+  const item = mapData.value.find(d => d.name === name)
+  drawerProvince.value = item
+    ? item
+    : { name, count: 0, projects: [], workers: [] }
+  drawerVisible.value = true
+}
+
 function renderMap() {
   if (!mapChartRef.value) return
   if (!mapChart) {
     mapChart = echarts.init(mapChartRef.value)
   }
   if (!eventsBound) {
-    mapChart.on('mouseover', (params: any) => {
-      if (params.name && provinceWorkersMap.value[params.name]) {
-        activeProvince.value = params.name
-      }
-    })
-    mapChart.on('mouseout', () => {
-      activeProvince.value = ''
+    mapChart.on('click', (params: any) => {
+      const name = params?.name
+      if (name) openDrawer(name)
     })
     eventsBound = true
   }
@@ -140,25 +146,29 @@ function renderMap() {
   const maxCount = Math.max(1, ...mapData.value.map(d => d.count))
 
   mapChart.setOption({
-    backgroundColor: '#040a18',
+    backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
       confine: true,
-      backgroundColor: 'rgba(6,13,26,0.95)',
-      borderColor: '#409eff',
+      backgroundColor: '#ffffff',
+      borderColor: '#d0d7de',
       borderWidth: 1,
-      textStyle: { color: '#fff' },
+      textStyle: { color: '#1f2d3d' },
+      extraCssText: 'box-shadow:0 6px 20px rgba(31,45,61,0.12);border-radius:8px;padding:10px 12px;',
       formatter: (p: any) => {
         const name = p.name
         let count = 0
         if (Array.isArray(p.value)) count = Number(p.value[2]) || 0
         else count = Number.isNaN(Number(p.value)) ? 0 : (Number(p.value) || 0)
         const workers = provinceWorkersMap.value[name] || []
-        let html = `<div style="font-weight:bold;margin-bottom:4px">${name}</div>`
-        html += `<div style="color:#00e6ff">人员: ${count}人</div>`
+        let html = `<div style="font-weight:600;font-size:13px;margin-bottom:4px;color:#1f2d3d">${name}</div>`
+        html += `<div style="color:#2f80ed;font-weight:600">人员: ${count}人</div>`
         if (workers.length) {
-          html += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.2);padding-top:6px">名单:</div>'
-          html += workers.map(w => `<div style="padding:1px 0">· ${w.userName}</div>`).join('')
+          html += '<div style="margin-top:6px;border-top:1px solid #eef0f2;padding-top:6px;max-height:160px;overflow:auto">'
+          html += workers.map(w => `<div style="padding:2px 0;color:#475569">· ${w.userName}</div>`).join('')
+          html += '</div><div style="margin-top:5px;color:#9aa5b1;font-size:11px">点击省份查看完整名单</div>'
+        } else {
+          html += '<div style="margin-top:5px;color:#9aa5b1;font-size:11px">点击省份查看详情</div>'
         }
         return html
       }
@@ -166,12 +176,15 @@ function renderMap() {
     visualMap: {
       min: 0,
       max: maxCount,
-      left: 20,
-      bottom: 20,
+      left: 16,
+      bottom: 16,
+      itemWidth: 12,
+      itemHeight: 90,
       text: ['多', '少'],
-      textStyle: { color: '#fff' },
-      inRange: { color: ['#0a1a3a', '#1c6fb9', '#00e6ff'] },
-      calculable: false
+      textStyle: { color: '#5a6b7b' },
+      inRange: { color: ['#e3f0fb', '#a9d4ec', '#4cb3a8', '#2e9e6b'] },
+      calculable: false,
+      seriesIndex: 0
     },
     // 2D 底图：固定展示完整中国，zoom 控制比例
     geo: {
@@ -181,97 +194,87 @@ function renderMap() {
       center: [102, 36],
       scaleLimit: { min: 1, max: 6 },
       itemStyle: {
-        areaColor: '#0a1a3a',
-        borderColor: '#1c6fb9',
+        areaColor: '#eef3f8',
+        borderColor: '#cdd9e5',
         borderWidth: 1
       },
       emphasis: {
-        itemStyle: { areaColor: '#14304a' },
+        itemStyle: { areaColor: '#d6e6f5' },
         label: { show: false }
       }
     },
     series: [
-      // 分色层：按人数给省份着色
+      // 分色层：按人数给省份着色（浅蓝→蓝→青→绿）
       {
         name: '人员分布',
         type: 'map',
         geoIndex: 0,
+        cursor: 'pointer',
+        label: {
+          show: false,
+          formatter: (p: any) => shortProvince(p.name),
+          color: '#334155',
+          fontSize: 11,
+          fontWeight: 'bold'
+        },
+        labelLayout: { hideOverlap: true },
         itemStyle: {
-          borderColor: '#2b91e2',
+          borderColor: '#b7c7d6',
           borderWidth: 1
         },
         emphasis: {
-          itemStyle: { areaColor: '#1a4a8a' }
+          label: { show: true },
+          itemStyle: { areaColor: '#9ec9ec' }
         },
         data: mapData.value.map(d => ({ name: d.name, value: d.count }))
       },
-      // 发光气泡 + 省份标签（2D，支持自动避让 hideOverlap）
+      // 涟漪气泡（柔和青色，提供动效生命感）
       {
-        name: '人员点',
+        name: '涟漪',
         type: 'effectScatter',
         coordinateSystem: 'geo',
         geoIndex: 0,
-        symbolSize: (val: number[]) => 10 + Math.min(val[2], 30) * 1.2,
+        symbolSize: (val: number[]) => 10 + Math.min(val[2], 30),
         showEffectOn: 'render',
-        rippleEffect: { brushType: 'stroke', scale: 4, period: 3 },
+        rippleEffect: { brushType: 'stroke', scale: 3, period: 4 },
         itemStyle: {
-          color: '#00e6ff',
-          shadowBlur: 10,
-          shadowColor: 'rgba(0,230,255,0.6)'
+          color: '#36a3a0',
+          shadowBlur: 6,
+          shadowColor: 'rgba(54,163,160,0.45)'
+        },
+        zlevel: 1,
+        data: barData
+      },
+      // 人数气泡（珊瑚色 pin，气泡内显示人数）
+      {
+        name: '人数气泡',
+        type: 'scatter',
+        coordinateSystem: 'geo',
+        geoIndex: 0,
+        symbol: 'pin',
+        cursor: 'pointer',
+        symbolSize: (val: number[]) => Math.max(26, Math.min(52, 16 + val[2] * 1.6)),
+        itemStyle: {
+          color: '#ff7a45',
+          shadowBlur: 8,
+          shadowColor: 'rgba(255,122,69,0.4)'
         },
         label: {
           show: true,
-          formatter: (p: any) => `${p.name}\n${p.value[2]}人`,
-          position: 'top',
-          distance: 6,
-          backgroundColor: 'rgba(6,13,26,0.85)',
-          borderColor: '#409eff',
-          borderWidth: 1,
-          padding: [4, 6],
-          borderRadius: 3,
+          formatter: (p: any) => `${p.value[2]}`,
+          position: 'inside',
+          offset: [0, -4],
           color: '#fff',
-          fontSize: 12
+          fontSize: 11,
+          fontWeight: 'bold'
         },
-        labelLayout: { hideOverlap: true },
-        emphasis: { scale: true },
+        emphasis: { scale: 1.15 },
+        zlevel: 6,
         data: barData
       }
     ]
   }, true)
 }
-
-// 右侧面板 → 地图高亮
-function onWorkerHover(_worker: ProvinceWorkerItem, provinceName: string) {
-  if (previousProvince && previousProvince !== provinceName) {
-    mapChart?.dispatchAction({ type: 'downplay', seriesName: '人员分布', name: previousProvince })
-  }
-  activeProvince.value = provinceName
-  previousProvince = provinceName
-  mapChart?.dispatchAction({ type: 'highlight', seriesName: '人员点', name: provinceName })
-  mapChart?.dispatchAction({ type: 'showTip', seriesName: '人员点', name: provinceName })
-}
-
-function onWorkerLeave() {
-  if (previousProvince) {
-    mapChart?.dispatchAction({ type: 'downplay', seriesName: '人员点', name: previousProvince })
-  }
-  activeProvince.value = ''
-  previousProvince = ''
-  mapChart?.dispatchAction({ type: 'hideTip' })
-}
-
-function setProvinceRef(el: any, name: string) {
-  if (el) provinceGroupRefs[name] = el
-}
-
-// 地图 → 右侧面板滚动
-watch(activeProvince, (name) => {
-  if (!name) return
-  const el = provinceGroupRefs[name]
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }
-})
 
 let resizeTimer: ReturnType<typeof setTimeout>
 function onResize() {
@@ -294,7 +297,7 @@ onUnmounted(() => {
   <div class="distribution-page">
     <!-- 设置信息置顶 -->
     <div class="map-toolbar">
-      <span class="toolbar-title">人员分布图（按区域统计每日在外人员）</span>
+      <span class="toolbar-title">人员分布图<small>按区域统计每日在外人员</small></span>
       <div class="toolbar-actions">
         <el-date-picker
           v-model="mapDate"
@@ -310,39 +313,40 @@ onUnmounted(() => {
     </div>
 
     <div class="map-body">
-      <!-- 3D 地图直接置于内容区，无嵌套边框 -->
+      <!-- 地图直接置于内容区，无嵌套边框 -->
       <div ref="mapChartRef" v-loading="mapLoading" class="map-canvas"></div>
 
-      <!-- 右侧面板：人员名单 -->
-      <div class="side-panel">
-        <div class="panel-title">人员名单</div>
-        <div class="panel-content">
-          <div
-            v-for="province in provincesWithPeople"
-            :key="province.name"
-            :ref="(el) => setProvinceRef(el, province.name)"
-            class="province-group"
-            :class="{ active: activeProvince === province.name }"
-          >
-            <div class="province-header">
-              {{ province.name }}（{{ province.count }}人）
-            </div>
-            <div class="worker-list">
-              <div
-                v-for="worker in province.workers"
-                :key="worker.userId"
-                class="worker-item"
-                @mouseenter="onWorkerHover(worker, province.name)"
-                @mouseleave="onWorkerLeave"
-              >
-                <span class="worker-name">{{ worker.userName }}</span>
-                <span class="worker-area">{{ shortArea(worker.area) }}</span>
-              </div>
+      <!-- 点击省份后右侧抽屉展示该省人员 -->
+      <el-drawer
+        v-model="drawerVisible"
+        :title="drawerProvince ? `${drawerProvince.name} · ${drawerProvince.count} 人` : ''"
+        direction="rtl"
+        size="320px"
+        class="worker-drawer"
+      >
+        <div v-if="drawerProvince" class="drawer-body">
+          <div class="drawer-summary">
+            <span class="summary-num">{{ drawerProvince.count }}</span>
+            <span class="summary-label">人在外</span>
+          </div>
+          <div class="drawer-list">
+            <div
+              v-for="worker in drawerWorkers"
+              :key="worker.userId"
+              class="worker-row"
+            >
+              <span class="w-avatar">{{ worker.userName.charAt(0) }}</span>
+              <span class="w-name">{{ worker.userName }}</span>
+              <span class="w-area">{{ shortArea(worker.area) }}</span>
             </div>
           </div>
-          <div v-if="!provincesWithPeople.length" class="empty-tip">暂无人员分布数据</div>
+          <el-empty
+            v-if="!drawerWorkers.length"
+            description="该省暂无人员数据"
+            :image-size="80"
+          />
         </div>
-      </div>
+      </el-drawer>
     </div>
   </div>
 </template>
@@ -362,9 +366,18 @@ onUnmounted(() => {
   margin-bottom: 12px;
 
   .toolbar-title {
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 600;
     color: #1f2d3d;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+
+    small {
+      font-size: 12px;
+      font-weight: 400;
+      color: #8a96a3;
+    }
   }
 
   .toolbar-actions {
@@ -383,102 +396,109 @@ onUnmounted(() => {
 .map-canvas {
   width: 100%;
   height: 100%;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  background: #040a18;
+  background:
+    radial-gradient(120% 120% at 50% 0%, #f7fbff 0%, #eef3f8 60%, #e7eef5 100%);
+  border: 1px solid #e3e9f0;
+  box-shadow: 0 4px 18px rgba(31, 45, 61, 0.06);
 }
 
-.side-panel {
-  position: absolute;
-  right: 16px;
-  top: 16px;
-  width: 240px;
-  max-height: calc(100% - 32px);
-  background: rgba(6, 13, 26, 0.9);
-  border: 1px solid rgba(64, 158, 255, 0.3);
-  border-radius: 8px;
-  overflow-y: auto;
-  padding: 12px;
-  color: #fff;
-  backdrop-filter: blur(4px);
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-
-  &::-webkit-scrollbar {
-    width: 4px;
+// 抽屉内容（浅色清爽风）
+.worker-drawer {
+  :deep(.el-drawer__header) {
+    margin-bottom: 0;
+    padding: 18px 20px;
+    border-bottom: 1px solid #eef0f2;
+    color: #1f2d3d;
+    font-weight: 600;
   }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(64, 158, 255, 0.4);
-    border-radius: 2px;
+
+  :deep(.el-drawer__body) {
+    padding: 0;
   }
 }
 
-.panel-title {
-  font-size: 15px;
-  font-weight: bold;
-  color: #00e6ff;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(64, 158, 255, 0.3);
-}
-
-.province-group {
-  margin-bottom: 12px;
-  padding: 8px;
-  border-radius: 6px;
-  transition: background 0.2s;
-
-  &.active {
-    background: rgba(64, 158, 255, 0.15);
-    border: 1px solid rgba(64, 158, 255, 0.4);
-  }
-}
-
-.province-header {
-  font-weight: bold;
-  color: #79bbff;
-  font-size: 13px;
-  margin-bottom: 6px;
-}
-
-.worker-list {
+.drawer-body {
+  padding: 16px 20px;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
-.worker-item {
+.drawer-summary {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 6px;
-  font-size: 13px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  align-items: baseline;
+  gap: 8px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #eaf4ff, #e8faf4);
+  border: 1px solid #d8e8f5;
+  border-radius: 10px;
+  margin-bottom: 14px;
 
-  &:hover {
-    background: rgba(64, 158, 255, 0.2);
-    color: #00e6ff;
+  .summary-num {
+    font-size: 28px;
+    font-weight: 700;
+    color: #2f80ed;
+    line-height: 1;
+  }
+
+  .summary-label {
+    font-size: 13px;
+    color: #5a6b7b;
   }
 }
 
-.worker-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.drawer-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.worker-area {
-  color: #909399;
-  font-size: 11px;
-  flex-shrink: 0;
-  margin-left: 8px;
-}
+.worker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f7f9fc;
+  border: 1px solid #eef1f5;
+  transition: background 0.2s, border-color 0.2s;
 
-.empty-tip {
-  text-align: center;
-  color: #909399;
-  font-size: 13px;
-  padding: 20px 0;
+  &:hover {
+    background: #eef5ff;
+    border-color: #cfe0f5;
+  }
+
+  .w-avatar {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: #2f80ed;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .w-name {
+    flex: 1;
+    font-size: 14px;
+    color: #1f2d3d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .w-area {
+    font-size: 12px;
+    color: #8a96a3;
+    flex-shrink: 0;
+  }
 }
 </style>
