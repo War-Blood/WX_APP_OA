@@ -7,6 +7,44 @@ import {
   type ProvinceItem, type ProvinceWorkerItem
 } from '@/api/report'
 
+// 省份中心点经纬度（GeoJSON 全称 → [经度, 纬度]），用于涟漪散点定位
+const PROVINCE_CENTER: Record<string, [number, number]> = {
+  北京市: [116.4, 39.9],
+  天津市: [117.2, 39.1],
+  河北省: [114.5, 38.0],
+  山西省: [112.5, 37.6],
+  内蒙古自治区: [111.7, 40.8],
+  辽宁省: [123.4, 41.8],
+  吉林省: [125.3, 43.9],
+  黑龙江省: [126.6, 45.7],
+  上海市: [121.5, 31.2],
+  江苏省: [118.8, 32.9],
+  浙江省: [120.2, 30.3],
+  安徽省: [117.3, 31.8],
+  福建省: [119.3, 26.1],
+  江西省: [115.9, 27.6],
+  山东省: [118.0, 36.4],
+  河南省: [113.6, 34.0],
+  湖北省: [114.3, 30.6],
+  湖南省: [112.9, 28.2],
+  广东省: [113.3, 23.1],
+  广西壮族自治区: [108.3, 22.8],
+  海南省: [110.3, 20.0],
+  重庆市: [106.5, 29.6],
+  四川省: [104.1, 30.6],
+  贵州省: [106.7, 26.6],
+  云南省: [102.7, 25.0],
+  西藏自治区: [91.1, 29.6],
+  陕西省: [108.9, 34.3],
+  甘肃省: [103.8, 36.1],
+  青海省: [101.8, 36.6],
+  宁夏回族自治区: [106.3, 38.5],
+  新疆维吾尔自治区: [87.6, 43.8],
+  台湾省: [121.0, 23.6],
+  香港特别行政区: [114.2, 22.3],
+  澳门特别行政区: [113.5, 22.2]
+}
+
 // 日期（默认北京时间昨日，可切换查看任意日）
 function yesterdayStr() {
   const d = new Date()
@@ -70,6 +108,15 @@ function shortName(fullName: string) {
     .replace('市', '')
 }
 
+function buildScatterData() {
+  return mapData.value
+    .filter(d => d.count > 0 && PROVINCE_CENTER[d.name])
+    .map(d => ({
+      name: d.name,
+      value: [...PROVINCE_CENTER[d.name], d.count] as [number, number, number]
+    }))
+}
+
 function renderMap() {
   if (!mapChartRef.value) return
   if (!mapChart) {
@@ -77,15 +124,23 @@ function renderMap() {
   }
 
   const maxCount = Math.max(1, ...mapData.value.map(d => d.count))
+  const scatterData = buildScatterData()
 
   mapChart.setOption({
+    backgroundColor: '#0b1a2b',
     tooltip: {
       trigger: 'item',
       confine: true,
-      formatter: (p: { name: string; value: number | undefined }) => {
-        const count = Number.isNaN(Number(p.value)) ? 0 : (p.value ?? 0)
-        const workers = provinceWorkersMap.value[p.name] || []
-        let html = `<b>${p.name}</b><br/>人员: ${count}人`
+      backgroundColor: 'rgba(11,26,43,0.92)',
+      borderColor: '#1c6fb9',
+      textStyle: { color: '#cfe8ff' },
+      formatter: (p: { name: string; value: number | number[] | undefined }) => {
+        const name = p.name
+        let count = 0
+        if (Array.isArray(p.value)) count = Number(p.value[2]) || 0
+        else count = Number.isNaN(Number(p.value)) ? 0 : (Number(p.value) || 0)
+        const workers = provinceWorkersMap.value[name] || []
+        let html = `<b>${name}</b><br/>人员: ${count}人`
         if (workers.length) {
           html += '<br/>名单:<br/>' + workers.map(w => `· ${w.userName}`).join('<br/>')
         }
@@ -96,31 +151,69 @@ function renderMap() {
       min: 0, max: maxCount,
       left: 'left', bottom: 10,
       text: ['高', '低'], calculable: false,
+      textStyle: { color: '#cfe8ff' },
       pieces: [
-        { min: 0, max: 0, color: '#F5F5F5', label: '0' },
-        { min: 1, max: 2, color: '#C5DFFF', label: '1-2' },
-        { min: 3, max: 5, color: '#7BB5F0', label: '3-5' },
-        { min: 6, max: 10, color: '#3D8DE0', label: '6-10' },
-        { min: 11, max: 999, color: '#1A5FB4', label: '10+' }
+        { min: 0, max: 0, color: '#1b2a3d', label: '0' },
+        { min: 1, max: 2, color: '#2a5d8f', label: '1-2' },
+        { min: 3, max: 5, color: '#3d8de0', label: '3-5' },
+        { min: 6, max: 10, color: '#5aa9f0', label: '6-10' },
+        { min: 11, max: 999, color: '#00e6ff', label: '10+' }
       ]
     },
-    series: [{
-      type: 'map', map: 'china',
-      zoom: 3,
+    geo: {
+      map: 'china',
       roam: true,
+      zoom: 3,
       scaleLimit: { min: 1, max: 8 },
+      itemStyle: {
+        areaColor: '#0b1a2b',
+        borderColor: '#1c6fb9',
+        borderWidth: 1
+      },
       label: {
         show: true,
+        color: '#cfe8ff',
         fontSize: 10,
-        color: '#333',
         formatter: (p: { name: string }) => shortName(p.name)
       },
       emphasis: {
-        label: { show: true, fontSize: 14, fontWeight: 'bold' },
-        itemStyle: { areaColor: '#FFD54F' }
+        label: { show: true, color: '#ffffff', fontSize: 14, fontWeight: 'bold' },
+        itemStyle: { areaColor: '#14304a' }
+      }
+    },
+    series: [
+      // 分色底图（绑定 geo，由 visualMap 着色）
+      {
+        name: '人员分布',
+        type: 'map',
+        geoIndex: 0,
+        data: mapData.value.map(d => ({ name: d.name, value: d.count }))
       },
-      data: mapData.value.map(d => ({ name: d.name, value: d.count }))
-    }]
+      // 发光涟漪散点（点大小=人数）
+      {
+        name: '人员点',
+        type: 'effectScatter',
+        coordinateSystem: 'geo',
+        geoIndex: 0,
+        zlevel: 2,
+        symbolSize: (val: number[]) => 8 + Math.min(val[2], 30) * 1.2,
+        showEffectOn: 'render',
+        rippleEffect: { brushType: 'stroke', scale: 3, period: 3 },
+        itemStyle: {
+          color: '#00e6ff',
+          shadowBlur: 12,
+          shadowColor: '#00e6ff'
+        },
+        label: {
+          show: true,
+          color: '#ffffff',
+          fontSize: 11,
+          fontWeight: 'bold',
+          formatter: (p: { value: number[] }) => `${p.value[2]}人`
+        },
+        data: scatterData
+      }
+    ]
   }, true)
 }
 
@@ -193,5 +286,8 @@ onUnmounted(() => {
   width: 100%;
   height: calc(100vh - 160px);
   min-height: 520px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0b1a2b;
 }
 </style>
