@@ -45,6 +45,58 @@ const PROVINCE_CENTER: Record<string, [number, number]> = {
   澳门特别行政区: [113.5, 22.2]
 }
 
+// 多层 geo 浮起：5 个阴影厚块层（纬度逐层偏移）+ 1 个主层，模拟文章"悬浮立体"效果
+const SHADE_OFFSETS = [0.5, 0.4, 0.3, 0.2, 0.1]
+const GEO_BASE_CENTER: [number, number] = [102, 36]
+const GEO_ZOOM = 3
+function buildChinaGeoLayers(): any[] {
+  const shadeColors = ['#050d1f', '#071427', '#091a30', '#0b2138', '#0d2840']
+  const shades: any[] = SHADE_OFFSETS.map((off, i) => ({
+    map: 'china',
+    zlevel: -5 + i,
+    roam: false,
+    zoom: GEO_ZOOM,
+    center: [GEO_BASE_CENTER[0], GEO_BASE_CENTER[1] + off] as [number, number],
+    silent: true,
+    itemStyle: {
+      areaColor: shadeColors[i],
+      borderColor: shadeColors[i],
+      borderWidth: 0,
+      shadowColor: 'rgba(28,111,185,0.5)',
+      shadowBlur: 40 - i * 6,
+      shadowOffsetY: 5
+    },
+    emphasis: { disabled: true }
+  }))
+  shades.push({
+    map: 'china',
+    zlevel: 0,
+    roam: true,
+    zoom: GEO_ZOOM,
+    center: GEO_BASE_CENTER,
+    scaleLimit: { min: 1, max: 8 },
+    itemStyle: {
+      areaColor: {
+        type: 'linear', x: 0, y: 0, x2: 1, y2: 1,
+        colorStops: [
+          { offset: 0, color: 'rgba(8,24,54,0.92)' },
+          { offset: 1, color: 'rgba(20,70,140,0.92)' }
+        ]
+      },
+      borderColor: '#c0f3fb',
+      borderWidth: 1,
+      shadowColor: '#8cd3ef',
+      shadowBlur: 20,
+      shadowOffsetY: 10
+    },
+    emphasis: {
+      itemStyle: { areaColor: 'rgba(0,230,233,0.45)' },
+      label: { show: false }
+    }
+  })
+  return shades
+}
+
 // 日期（默认北京时间昨日，可切换查看任意日）
 function yesterdayStr() {
   const d = new Date()
@@ -131,6 +183,19 @@ function renderMap() {
     mapChart.on('mouseout', () => {
       activeProvince.value = ''
     })
+    // 多层浮起阴影层跟随主层 roam（中心/缩放同步），保持立体厚度不脱节
+    mapChart.on('georoam', () => {
+      const opt: any = mapChart!.getOption()
+      const lastIdx = opt.geo.length - 1
+      const main = opt.geo[lastIdx]
+      const cz = main.zoom
+      const cc: [number, number] = main.center
+      const newGeo = opt.geo.map((g: any, i: number) => {
+        if (i === lastIdx) return g
+        return { ...g, zoom: cz, center: [cc[0], cc[1] + SHADE_OFFSETS[i]] }
+      })
+      mapChart!.setOption({ geo: newGeo })
+    })
     eventsBound = true
   }
 
@@ -138,7 +203,7 @@ function renderMap() {
   const scatterData = buildScatterData()
 
   mapChart.setOption({
-    backgroundColor: '#060d1a',
+    backgroundColor: '#040a18',
     tooltip: {
       trigger: 'item',
       confine: true,
@@ -168,74 +233,42 @@ function renderMap() {
       bottom: 20,
       text: ['高', '低'],
       textStyle: { color: '#fff' },
-      inRange: { color: ['#0f2447', '#1c6fb9', '#00e6ff'] },
+      inRange: { color: ['#0a1a3a', '#1c6fb9', '#00e6ff'] },
       calculable: false
     },
-    geo: {
-      map: 'china',
-      roam: true,
-      zoom: 3,
-      center: [102, 36],
-      scaleLimit: { min: 1, max: 8 },
-      itemStyle: {
-        areaColor: '#0f2447',
-        borderColor: '#1c6fb9',
-        borderWidth: 1
-      },
-      emphasis: {
-        itemStyle: { areaColor: '#1a4a8a' },
-        label: { show: false }
-      }
-    },
+    // 5 层阴影厚块 + 1 主层（索引 5），浮起立体感
+    geo: buildChinaGeoLayers(),
     series: [
-      // 底层阴影/发光层：制造立体浮起感
-      {
-        name: '阴影',
-        type: 'map',
-        geoIndex: 0,
-        zlevel: 1,
-        itemStyle: {
-          areaColor: '#060d1a',
-          borderColor: '#060d1a',
-          borderWidth: 1,
-          shadowColor: 'rgba(28,111,185,0.4)',
-          shadowBlur: 30,
-          shadowOffsetY: 15
-        },
-        data: []
-      },
-      // 主地图层（按人数着色）
+      // 主地图层（按人数着色，绑定主 geo 层索引 5）
       {
         name: '人员分布',
         type: 'map',
-        geoIndex: 0,
-        zlevel: 2,
+        geoIndex: 5,
+        zlevel: 5,
         itemStyle: {
-          borderColor: '#2b91e2',
-          borderWidth: 1,
-          shadowColor: 'rgba(0,0,0,0.5)',
-          shadowBlur: 10,
-          shadowOffsetY: 6
+          borderColor: 'rgba(192,243,251,0.55)',
+          borderWidth: 0.5
         },
         emphasis: {
-          itemStyle: { areaColor: '#1a4a8a' }
+          itemStyle: { areaColor: 'rgba(0,230,233,0.6)' },
+          label: { show: false }
         },
         data: mapData.value.map(d => ({ name: d.name, value: d.count }))
       },
-      // 涟漪点
+      // 涟漪点（文章 scale:5）
       {
         name: '人员点',
         type: 'effectScatter',
         coordinateSystem: 'geo',
-        geoIndex: 0,
-        zlevel: 3,
-        symbolSize: (val: number[]) => 10 + Math.min(val[2], 30) * 1.5,
+        geoIndex: 5,
+        zlevel: 6,
+        symbolSize: (val: number[]) => 12 + Math.min(val[2], 30) * 1.6,
         showEffectOn: 'render',
-        rippleEffect: { brushType: 'stroke', scale: 3, period: 3 },
+        rippleEffect: { brushType: 'stroke', scale: 5, period: 3 },
         itemStyle: {
           color: '#00e6ff',
-          shadowBlur: 10,
-          shadowColor: 'rgba(0,230,255,0.5)'
+          shadowBlur: 12,
+          shadowColor: 'rgba(0,230,255,0.6)'
         },
         data: scatterData
       },
@@ -244,8 +277,8 @@ function renderMap() {
         name: '省份标签',
         type: 'scatter',
         coordinateSystem: 'geo',
-        geoIndex: 0,
-        zlevel: 4,
+        geoIndex: 5,
+        zlevel: 7,
         symbol: 'none',
         label: {
           show: true,
