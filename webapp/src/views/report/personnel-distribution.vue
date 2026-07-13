@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
-  getAreaDistribution, getProvinceWorkers, getChinaGeoJson,
+  getAreaDistribution, getChinaGeoJson,
   type ProvinceItem, type ProvinceWorkerItem
 } from '@/api/report'
 
@@ -57,7 +57,7 @@ const mapDate = ref(yesterdayStr())
 // 中国地图
 const mapLoading = ref(false)
 const mapData = ref<ProvinceItem[]>([])
-// 省份 -> 人员名单（悬停 tooltip 使用）
+// 省份 -> 人员名单（悬停 tooltip 使用，直接取自 area-distribution，与人数同源）
 const provinceWorkersMap = ref<Record<string, ProvinceWorkerItem[]>>({})
 const mapChartRef = ref<HTMLDivElement>()
 let mapChart: echarts.ECharts | null = null
@@ -69,18 +69,12 @@ async function loadMap() {
     const res = await getAreaDistribution(mapDate.value)
     mapData.value = res.provinces
 
-    // 预拉取有人员的省份名单，供 tooltip 悬停展示
-    const provincesWithPeople = res.provinces.filter(p => p.count > 0)
-    await Promise.all(
-      provincesWithPeople.map(async (p) => {
-        try {
-          const w = await getProvinceWorkers(p.name, mapDate.value)
-          provinceWorkersMap.value[p.name] = w.workers
-        } catch {
-          provinceWorkersMap.value[p.name] = []
-        }
-      })
-    )
+    // 名单与人数同源：直接用接口返回的 workers，不再逐省二次请求
+    const workerMap: Record<string, ProvinceWorkerItem[]> = {}
+    res.provinces.forEach(p => {
+      workerMap[p.name] = p.workers || []
+    })
+    provinceWorkersMap.value = workerMap
 
     if (!chinaGeoLoaded) {
       const geoJson = await getChinaGeoJson()
@@ -127,13 +121,13 @@ function renderMap() {
   const scatterData = buildScatterData()
 
   mapChart.setOption({
-    backgroundColor: '#0b1a2b',
+    backgroundColor: '#ffffff',
     tooltip: {
       trigger: 'item',
       confine: true,
-      backgroundColor: 'rgba(11,26,43,0.92)',
-      borderColor: '#1c6fb9',
-      textStyle: { color: '#cfe8ff' },
+      backgroundColor: 'rgba(255,255,255,0.96)',
+      borderColor: '#dcdfe6',
+      textStyle: { color: '#303133' },
       formatter: (p: { name: string; value: number | number[] | undefined }) => {
         const name = p.name
         let count = 0
@@ -151,13 +145,13 @@ function renderMap() {
       min: 0, max: maxCount,
       left: 'left', bottom: 10,
       text: ['高', '低'], calculable: false,
-      textStyle: { color: '#cfe8ff' },
+      textStyle: { color: '#606266' },
       pieces: [
-        { min: 0, max: 0, color: '#1b2a3d', label: '0' },
-        { min: 1, max: 2, color: '#2a5d8f', label: '1-2' },
-        { min: 3, max: 5, color: '#3d8de0', label: '3-5' },
-        { min: 6, max: 10, color: '#5aa9f0', label: '6-10' },
-        { min: 11, max: 999, color: '#00e6ff', label: '10+' }
+        { min: 0, max: 0, color: '#f2f6fc', label: '0' },
+        { min: 1, max: 2, color: '#c6e2ff', label: '1-2' },
+        { min: 3, max: 5, color: '#79bbff', label: '3-5' },
+        { min: 6, max: 10, color: '#409eff', label: '6-10' },
+        { min: 11, max: 999, color: '#337ecc', label: '10+' }
       ]
     },
     geo: {
@@ -166,19 +160,19 @@ function renderMap() {
       zoom: 3,
       scaleLimit: { min: 1, max: 8 },
       itemStyle: {
-        areaColor: '#0b1a2b',
-        borderColor: '#1c6fb9',
+        areaColor: '#f5f7fa',
+        borderColor: '#c0c4cc',
         borderWidth: 1
       },
       label: {
         show: true,
-        color: '#cfe8ff',
+        color: '#5a6a7a',
         fontSize: 10,
         formatter: (p: { name: string }) => shortName(p.name)
       },
       emphasis: {
-        label: { show: true, color: '#ffffff', fontSize: 14, fontWeight: 'bold' },
-        itemStyle: { areaColor: '#14304a' }
+        label: { show: true, color: '#1f2d3d', fontSize: 14, fontWeight: 'bold' },
+        itemStyle: { areaColor: '#ecf5ff' }
       }
     },
     series: [
@@ -189,7 +183,7 @@ function renderMap() {
         geoIndex: 0,
         data: mapData.value.map(d => ({ name: d.name, value: d.count }))
       },
-      // 发光涟漪散点（点大小=人数）
+      // 涟漪散点（点大小=人数）
       {
         name: '人员点',
         type: 'effectScatter',
@@ -200,9 +194,9 @@ function renderMap() {
         showEffectOn: 'render',
         rippleEffect: { brushType: 'stroke', scale: 3, period: 3 },
         itemStyle: {
-          color: '#00e6ff',
-          shadowBlur: 12,
-          shadowColor: '#00e6ff'
+          color: '#1677ff',
+          shadowBlur: 8,
+          shadowColor: 'rgba(22,119,255,0.5)'
         },
         label: {
           show: true,
@@ -288,6 +282,6 @@ onUnmounted(() => {
   min-height: 520px;
   border-radius: 8px;
   overflow: hidden;
-  background: #0b1a2b;
+  background: #ffffff;
 }
 </style>

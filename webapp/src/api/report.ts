@@ -425,6 +425,7 @@ export interface ProvinceItem {
   name: string
   count: number
   projects: string[]
+  workers?: ProvinceWorkerItem[]
 }
 
 export interface AreaDistributionResponse {
