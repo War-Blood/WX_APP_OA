@@ -67,13 +67,13 @@
         class="context-menu"
         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
       >
-        <div class="menu-item" @click="openCreate(contextMenu.node)">
+        <div class="menu-item" @click="openCreate(contextMenu.node!)">
           新增子部门
         </div>
-        <div class="menu-item" @click="openEdit(contextMenu.node)">
+        <div class="menu-item" @click="openEdit(contextMenu.node!)">
           编辑部门
         </div>
-        <div class="menu-item danger" @click="handleDelete(contextMenu.node)">
+        <div class="menu-item danger" @click="handleDelete(contextMenu.node!)">
           删除部门
         </div>
       </div>
@@ -313,7 +313,6 @@ async function handleUnassigned() {
   await loadUnassignedUsers()
 }
 
-let unassignedLoaded = false
 async function loadUnassignedUsers() {
   usersLoading.value = true
   try {
@@ -321,7 +320,6 @@ async function loadUnassignedUsers() {
     departmentUsers.value = res.list || []
     usersTotal.value = res.total || 0
     unassignedCount.value = res.total || 0
-    unassignedLoaded = true
   } catch {
     departmentUsers.value = []
     usersTotal.value = 0
@@ -361,14 +359,13 @@ function closeContextMenu() {
 
 // ---- 拖拽排序 ----
 import type Node from 'element-plus/es/components/tree/src/model/node'
-import type { DropType } from 'element-plus/es/components/tree/src/tree.type'
 
-function allowDrop(draggingNode: Node, dropNode: Node, type: DropType): boolean {
+function allowDrop(draggingNode: Node, dropNode: Node): boolean {
   // 禁止拖到自己里面（循环引用）
   if (draggingNode.data.id === dropNode.data.id) return false
   // 禁止拖到自己的后代节点下
   if (dropNode.parent) {
-    let parent = dropNode.parent
+    let parent: Node | null = dropNode.parent
     while (parent) {
       if (parent.data.id === draggingNode.data.id) return false
       parent = parent.parent
@@ -380,7 +377,7 @@ function allowDrop(draggingNode: Node, dropNode: Node, type: DropType): boolean 
 async function handleDrop(
   draggingNode: Node,
   dropNode: Node,
-  dropType: DropType,
+  dropType: string,
 ) {
   if (!isSuperAdmin.value) return
   const dragId = draggingNode.data.id as number

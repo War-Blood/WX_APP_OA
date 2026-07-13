@@ -18,7 +18,7 @@ import { computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { getVisibleModules } from '@/config/modules'
 
-const props = defineProps<{ activeKey: string }>()
+defineProps<{ activeKey: string }>()
 defineEmits<{ select: [key: string] }>()
 
 const userStore = useUserStore()

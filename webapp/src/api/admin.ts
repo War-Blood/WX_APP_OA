@@ -4,6 +4,7 @@ export interface WorkerItem {
   userId: number
   userName: string
   workerCode: string
+  position?: string
   workerStatus: 'active' | 'inactive'
   isFieldWorker: boolean
   totalLogs: number
@@ -35,6 +36,7 @@ export function createWorker(data: {
 export function updateWorker(data: {
   userId: number
   userName?: string
+  position?: string
   isFieldWorker?: boolean
 }): Promise<void> {
   return request.post('/admin/workers', { action: 'update', ...data })

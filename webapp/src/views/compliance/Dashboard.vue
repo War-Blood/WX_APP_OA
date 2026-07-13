@@ -1,4 +1,3 @@
-import { toast } from '@/utils/toast'
 <template>
   <div class="compliance-dashboard">
     <el-row :gutter="20">
@@ -98,6 +97,7 @@ import { toast } from '@/utils/toast'
 </template>
 
 <script setup lang="ts">
+import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
 import * as echarts from 'echarts'
 import { complianceApi } from '@/api/compliance'

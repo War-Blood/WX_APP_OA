@@ -1,5 +1,5 @@
-import { toast } from '@/utils/toast'
 <script setup lang="ts">
+import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, Edit } from '@element-plus/icons-vue'
@@ -325,9 +325,9 @@ onMounted(() => {
       </el-table-column>
       <el-table-column label="出差" width="80" align="center">
         <template #default="{ row }">
-          <el-tag v-if="row.bizTripStatus === 'field'" type="warning" size="small">出差</el-tag>
-          <el-tag v-else-if="row.bizTripStatus === 'office'" type="info" size="small">公司</el-tag>
-          <span v-else class="text-muted">-</span>
+          <el-tag v-if="row.bizTripStatus === 'field'" type="warning" size="small" style="cursor:pointer" @click="handleBizTripStatus(row)">出差</el-tag>
+          <el-tag v-else-if="row.bizTripStatus === 'office'" type="info" size="small" style="cursor:pointer" @click="handleBizTripStatus(row)">公司</el-tag>
+          <span v-else class="text-muted" style="cursor:pointer" @click="handleBizTripStatus(row)">-</span>
         </template>
       </el-table-column>
       <el-table-column label="最后登录" width="150">

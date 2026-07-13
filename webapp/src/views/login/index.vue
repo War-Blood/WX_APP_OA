@@ -1,5 +1,5 @@
-import { toast } from '@/utils/toast'
 <script setup lang="ts">
+import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { User, Lock, CircleCheck } from '@element-plus/icons-vue'

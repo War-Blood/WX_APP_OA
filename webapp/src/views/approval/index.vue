@@ -1,5 +1,5 @@
-import { toast } from '@/utils/toast'
 <script setup lang="ts">
+import { toast } from '@/utils/toast'
 import { ref, onMounted, watch } from 'vue'
 import { Refresh, Setting } from '@element-plus/icons-vue'
 import { getApprovalTypes, updateApprovalType, type ApprovalTypeItem } from '@/api/approval-type'

@@ -1,4 +1,3 @@
-import { toast } from '@/utils/toast'
 <template>
   <div class="biz-trip-manage">
     <el-card>
@@ -78,6 +77,7 @@ import { toast } from '@/utils/toast'
 </template>
 
 <script setup lang="ts">
+import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
 import { complianceApi } from '@/api/compliance'
 import { ElMessageBox } from 'element-plus'

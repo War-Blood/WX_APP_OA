@@ -1,5 +1,5 @@
-import { toast } from '@/utils/toast'
 <script setup lang="ts">
+import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
 import { getSystemConfig, updateSystemConfig, type ConfigItem } from '@/api/settings'
 

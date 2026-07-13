@@ -21,7 +21,7 @@
           <el-avatar :size="32" :src="userStore.userInfo?.avatarUrl">
             {{ initial }}
           </el-avatar>
-          <span class="user-name">{{ userStore.userInfo?.nickname || userStore.userInfo?.userName }}</span>
+          <span class="user-name">{{ userStore.userInfo?.nickName }}</span>
           <el-icon class="arrow"><ArrowDown /></el-icon>
         </div>
         <template #dropdown>
@@ -50,7 +50,7 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const initial = computed(() => {
-  const name = userStore.userInfo?.nickname || userStore.userInfo?.userName || 'U'
+  const name = userStore.userInfo?.nickName || 'U'
   return name.charAt(0).toUpperCase()
 })
 

@@ -1,4 +1,3 @@
-import { toast } from '@/utils/toast'
 <template>
   <div class="leave-manage-page">
     <el-card>
@@ -84,6 +83,7 @@ import { toast } from '@/utils/toast'
 </template>
 
 <script setup lang="ts">
+import { toast } from '@/utils/toast'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { getLeaveList, deleteLeave } from '@/api/attendance'
