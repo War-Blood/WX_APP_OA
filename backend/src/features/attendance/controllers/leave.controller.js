@@ -54,8 +54,8 @@ async function startTrip(req, res, next) {
 
 async function endTrip(req, res, next) {
   try {
-    const { requestId, reason } = req.body;
-    const result = await tripService.endTrip({ applicantId: req.user.userId, requestId, reason });
+    const { requestId, reason, endDate } = req.body;
+    const result = await tripService.endTrip({ applicantId: req.user.userId, requestId, reason, endDate });
     res.json(success(result));
   } catch (err) { next(err); }
 }

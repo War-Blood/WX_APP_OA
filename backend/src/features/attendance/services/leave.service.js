@@ -3,7 +3,7 @@
 const db = require('../../../common/config/database');
 const { BusinessError } = require('../../../common/utils/errors');
 const { ErrorCode } = require('../../../common/utils/constants');
-const { beijingToday } = require('../../../common/utils/date');
+const { beijingToday, beijingDate, beijingNow } = require('../../../common/utils/date');
 
 /**
  * 请假服务 — apply / cancel / list / detail
@@ -189,9 +189,9 @@ async function detail(requestId) {
 
   // 出差进行中 → 计算未提交日期
   if (req.request_type === 'biz_trip' && req.status === 'in_progress') {
-    result.missingDates = await calcMissingDates(req.applicant_id, new Date(req.trip_started_at), new Date());
+    result.missingDates = await calcMissingDates(req.applicant_id, req.trip_started_at, beijingNow());
   } else if (req.request_type === 'biz_trip' && req.status === 'ended') {
-    result.missingDates = await calcMissingDates(req.applicant_id, new Date(req.trip_started_at), new Date(req.trip_ended_at));
+    result.missingDates = await calcMissingDates(req.applicant_id, req.trip_started_at, req.trip_ended_at);
   }
 
   return result;
@@ -209,8 +209,10 @@ function calcDays(start, end) {
  */
 function fmtDate(d) {
   if (!d) return null;
-  const dt = new Date(d);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  // 统一用北京时间避免服务器 UTC 偏移
+  const offset = new Date(d).getTimezoneOffset() + 480;
+  const bj = new Date(new Date(d).getTime() + offset * 60000);
+  return `${bj.getFullYear()}-${String(bj.getMonth() + 1).padStart(2, '0')}-${String(bj.getDate()).padStart(2, '0')}`;
 }
 
 function formatRequest(r) {
@@ -245,7 +247,7 @@ async function calcMissingDates(userId, start, end) {
   const reports = await db.query(
     `SELECT report_date FROM daily_reports
      WHERE user_id = ? AND report_date BETWEEN ? AND ?
-       AND status = 'approved' AND report_type != 'office'`,
+       AND status != 'draft' AND deleted_at IS NULL AND report_type != 'office'`,
     [userId, startStr, endStr]
   );
   const reportDates = new Set(reports.map(r => fmtDate(r.report_date)));
@@ -256,8 +258,9 @@ async function calcMissingDates(userId, start, end) {
     [userId]
   );
 
-  const cur = new Date(start);
-  const finish = new Date(end);
+  // 统一用北京时间的日期边界
+  const cur = beijingDate(startStr);
+  const finish = beijingDate(endStr);
   while (cur <= finish) {
     const ds = fmtDate(cur);
     const hasReport = reportDates.has(ds);

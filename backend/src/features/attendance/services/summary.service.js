@@ -4,6 +4,14 @@ const db = require('../../../common/config/database');
 const { BusinessError } = require('../../../common/utils/errors');
 const { beijingDate } = require('../../../common/utils/date');
 
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  const offset = dt.getTimezoneOffset() + 480;
+  const bj = new Date(dt.getTime() + offset * 60000);
+  return `${bj.getFullYear()}-${String(bj.getMonth() + 1).padStart(2, '0')}-${String(bj.getDate()).padStart(2, '0')}`;
+}
+
 /**
  * 考勤汇总服务
  */
@@ -376,24 +384,34 @@ async function mySummary({ userId, startDate, endDate }) {
       case 'work': workDays++; break;
       case 'rest': restDays++; break;
       case 'biz_trip': bizTripDays++; break;
-      case 'leave': leaveDays++; break;
     }
 
-    // 出差未提交检测
+    // 出差未提交检测 + 请假覆盖
     const inTrip = tripLeaves.some(t =>
-      t.request_type === 'biz_trip' && t.status === 'in_progress' &&
+      t.request_type === 'biz_trip' &&
       t.applicant_id === userId &&
-      new Date(t.trip_started_at) <= cur
+      new Date(t.trip_started_at) <= cur &&
+      (!t.trip_ended_at || new Date(t.trip_ended_at) >= cur)
     );
     const inLeave = tripLeaves.some(t =>
       t.request_type === 'leave' && t.status === 'active' &&
       t.applicant_id === userId &&
-      ds >= t.start_date.toISOString().slice(0, 10) &&
-      ds <= t.end_date.toISOString().slice(0, 10)
+      ds >= fmtDate(t.start_date) &&
+      ds <= fmtDate(t.end_date)
     );
-    if (inTrip && !report && !inLeave) {
+    if (inLeave) {
+      // 请假优先：无论是否有报告/排班，当日显示为请假
+      if (displayStatus !== 'leave') leaveDays++;
+      displayStatus = 'leave';
+    } else if (inTrip && !report) {
       missingDays++;
       displayStatus = 'missing';
+    }
+
+    // 如果报告明确为请假但不在 leave request 范围内（边界情况）
+    if (report && !inLeave && displayStatus === 'leave') {
+      leaveDays++;
+      displayStatus = 'leave';
     }
 
     dailyList.push({ date: ds, status: displayStatus, note });

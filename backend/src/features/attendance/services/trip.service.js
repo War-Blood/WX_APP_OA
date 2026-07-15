@@ -4,6 +4,7 @@ const db = require('../../../common/config/database');
 const { BusinessError } = require('../../../common/utils/errors');
 const { ErrorCode } = require('../../../common/utils/constants');
 const { calcMissingDates } = require('./leave.service');
+const { beijingDate, beijingNow } = require('../../../common/utils/date');
 
 /**
  * 出差打卡服务 — start / end
@@ -51,7 +52,7 @@ async function startTrip({ applicantId, reason }) {
   return { requestId: result[0].insertId, tripStartedAt: startTime, status: 'in_progress' };
 }
 
-async function endTrip({ applicantId, requestId, reason }) {
+async function endTrip({ applicantId, requestId, reason, endDate }) {
   let trip;
   if (requestId) {
     const rows = await db.query('SELECT * FROM attendance_leave_requests WHERE id = ? AND applicant_id = ?', [requestId, applicantId]);
@@ -68,16 +69,25 @@ async function endTrip({ applicantId, requestId, reason }) {
 
   if (trip.status !== 'in_progress') throw new BusinessError('没有进行中的出差', null, ErrorCode.ATTENDANCE_TRIP_NOT_ACTIVE);
 
-  const tripStart = new Date(trip.trip_started_at);
-  const tripEnd = new Date();
+  // 统一将 Date 或字符串转 YYYY-MM-DD
+  const toDateStr = (d) => {
+    if (!d) return '';
+    if (d instanceof Date) return d.toISOString().slice(0, 10);
+    return String(d).slice(0, 10);
+  };
+  // 优先用前端传来的 endDate，否则用北京当前时间
+  const tripEnd = endDate ? beijingDate(endDate) : beijingNow();
+  const tripStart = beijingDate(toDateStr(trip.trip_started_at));
   const missingDates = await calcMissingDates(applicantId, tripStart, tripEnd);
-  // 日期粒度计算：忽略时分秒，只比较日历日期
-  const startDay = new Date(tripStart.getFullYear(), tripStart.getMonth(), tripStart.getDate());
-  const endDay = new Date(tripEnd.getFullYear(), tripEnd.getMonth(), tripEnd.getDate());
+  // 日期粒度计算：忽略时分秒，只用北京时间的日历日期
+  const startDay = beijingDate(toDateStr(tripStart));
+  const endDay = beijingDate(toDateStr(tripEnd));
   const tripDays = Math.floor((endDay - startDay) / (1000 * 60 * 60 * 24)) + 1;
 
+  // 写入 trip_ended_at：传了 endDate 则用当天 23:59:59，否则 NOW()
+  const tripEndedAtSql = endDate ? `'${endDate} 23:59:59'` : 'NOW()';
   await db.execute(
-    `UPDATE attendance_leave_requests SET trip_ended_at = NOW(), status = 'ended', reason = COALESCE(NULLIF(?, ''), reason) WHERE id = ?`,
+    `UPDATE attendance_leave_requests SET trip_ended_at = ${tripEndedAtSql}, status = 'ended', reason = COALESCE(NULLIF(?, ''), reason) WHERE id = ?`,
     [reason || null, trip.id]
   );
 
@@ -88,7 +98,7 @@ async function endTrip({ applicantId, requestId, reason }) {
   return {
     requestId: trip.id,
     tripStartedAt: trip.trip_started_at,
-    tripEndedAt: new Date().toISOString(),
+    tripEndedAt: endDate ? `${endDate} 23:59:59` : new Date().toISOString(),
     tripDays,
     missingDays: missingDates.length,
     missingDates,

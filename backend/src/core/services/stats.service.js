@@ -359,16 +359,35 @@ async function getDailyStatus(dateStr) {
   );
   const workers = allUserRows;
 
-  // 仅用于"未提交"判定：当日出差中的在职人员（biz_trip_status='field'）
+  // "未提交"判定：当日有进行中出差且出差已开始的在职人员
+  // 同时查请假记录用于覆盖
+  const ds = String(date).slice(0, 10);
   const activeFieldWorkers = await db.query(
-    `SELECT id, nickname, user_name, worker_code, worker_status
-     FROM users
-     WHERE worker_status = 'active' AND deleted_at IS NULL
-       AND status = 'active'
-       AND biz_trip_status = 'field'
-     ORDER BY id ASC`
+    `SELECT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
+     FROM users u
+     INNER JOIN attendance_leave_requests alr ON alr.applicant_id = u.id
+       AND alr.request_type = 'biz_trip'
+       AND DATE(alr.trip_started_at) <= ?
+       AND (alr.trip_ended_at IS NULL OR alr.trip_ended_at >= ?) 
+     WHERE u.worker_status = 'active' AND u.deleted_at IS NULL
+       AND u.status = 'active'
+     ORDER BY u.id ASC`,
+    [ds, ds]
   );
   const activeWorkerIds = new Set(activeFieldWorkers.map(w => w.id));
+
+  // 当日有请假记录的在职人员
+  const leaveWorkers = await db.query(
+    `SELECT u.id
+     FROM users u
+     INNER JOIN attendance_leave_requests alr ON alr.applicant_id = u.id
+       AND alr.request_type = 'leave' AND alr.status = 'active'
+       AND alr.start_date <= ? AND alr.end_date >= ?
+     WHERE u.worker_status = 'active' AND u.deleted_at IS NULL
+     ORDER BY u.id ASC`,
+    [ds, ds]
+  );
+  const leaveWorkerIds = new Set(leaveWorkers.map(w => w.id));
 
   // 合并：有报告的人 + 在职未交的人（完整的人员列表）
   const reportUserIds = new Set(workers.map(w => w.id));
@@ -505,6 +524,9 @@ async function getDailyStatus(dateStr) {
       const submitterId = subReport.submitterId;
       const submitterUser = mergedWorkers.find(u => u.id === submitterId);
       substituteBy = submitterUser ? (submitterUser.nickname || submitterUser.user_name) : '';
+    } else if (leaveWorkerIds.has(w.id)) {
+      // 当日请假
+      status = 'leave';
     } else if (activeWorkerIds.has(w.id)) {
       // 仅在职外场人员标记为"未提交"，已离职或非作业人员无报告则跳过
       status = 'missing';

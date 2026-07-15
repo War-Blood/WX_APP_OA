@@ -188,7 +188,7 @@ async function loadPageData() {
     const role = userStore.isAdmin ? 'admin' : 'employee'
     const [statsRes, activitiesRes, unreadRes] = await Promise.all([
       statsApi.getHomeStats(role),
-      statsApi.getActivities({ page: 1 }),
+      statsApi.getActivities({ page: 1, pageSize: 5 }),
       messageApi.getUnreadCount(),
     ])
     const d = statsRes.data
@@ -227,7 +227,7 @@ async function onLoadMore() {
   isLoadingMore.value = true
   try {
     activityPage.value++
-    const res = await statsApi.getActivities({ page: activityPage.value })
+    const res = await statsApi.getActivities({ page: activityPage.value, pageSize: 5 })
     const list = res.data.list || []
     if (!list.length) { noMoreData.value = true; return }
     const mapped = list.map((item) => ({

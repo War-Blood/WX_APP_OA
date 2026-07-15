@@ -116,7 +116,7 @@ function tryParseJSON(str) {
  * @returns {Promise<{list: Array, total: number}>}
  */
 async function list(userId, { page, pageSize, status, startDate, endDate, keyword }) {
-  const conditions = [];
+  const conditions = ['dr.deleted_at IS NULL'];
   const params = [];
 
   // userId：传 0 或不传 = 管理员看全部

@@ -55,10 +55,14 @@ async function getUserList({ page = 1, pageSize = 20, keyword, role, department,
 
   // 分页数据
   const offset = (page - 1) * pageSize;
-  const dataSql = `SELECT id, openid, nickname, user_name, email, phone,
-    avatar_url, role, department, department_id, position, worker_code, status, biz_trip_status, last_login_at, created_at
-    FROM users ${whereClause}
-    ORDER BY created_at DESC
+  const dataSql = `SELECT u.id, u.openid, u.nickname, u.user_name, u.email, u.phone,
+    u.avatar_url, u.role, u.department, u.department_id, u.position, u.worker_code, u.status,
+    (SELECT CASE WHEN COUNT(*) > 0 THEN 'field' ELSE 'office' END
+     FROM attendance_leave_requests alr
+     WHERE alr.applicant_id = u.id AND alr.request_type = 'biz_trip' AND alr.status = 'in_progress') AS biz_trip_status,
+    u.last_login_at, u.created_at
+    FROM users u ${whereClause}
+    ORDER BY u.created_at DESC
     LIMIT ? OFFSET ?`;
 
   const listParams = [...params, pageSize, offset];
@@ -123,38 +127,6 @@ async function toggleUserStatus(userId, status) {
 
   logger.info('用户状态变更', { module: 'ADMIN', userId, status });
   return { userId: String(userId), status };
-}
-
-/**
- * 设置用户出差状态 (field=出差 / office=公司)
- */
-async function setBizTripStatus(userId, bizTripStatus) {
-  if (!['field', 'office'].includes(bizTripStatus)) {
-    throw new ValidationError('状态值无效，仅支持 field 或 office');
-  }
-  await db.execute(
-    'UPDATE users SET biz_trip_status = ?, worker_status = ?, updated_at = NOW() WHERE id = ?',
-    [bizTripStatus, 'active', userId]
-  );
-  return { userId, bizTripStatus };
-}
-
-/**
- * 批量设置用户出差状态
- */
-async function batchSetBizTripStatus(userIds, bizTripStatus) {
-  if (!['field', 'office'].includes(bizTripStatus)) {
-    throw new ValidationError('状态值无效');
-  }
-  if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-    throw new ValidationError('userIds 不能为空');
-  }
-  const placeholders = userIds.map(() => '?').join(',');
-  await db.execute(
-    `UPDATE users SET biz_trip_status = ?, worker_status = 'active', updated_at = NOW() WHERE id IN (${placeholders})`,
-    [bizTripStatus, ...userIds]
-  );
-  return { updated: userIds.length, bizTripStatus };
 }
 
 /**
@@ -935,7 +907,7 @@ async function updateSystemConfig(configs) {
 
 module.exports = {
   getUserList, getUserDetail, updateUser, batchImportUsers,
-  setAdminRole, toggleUserStatus, setBizTripStatus, batchSetBizTripStatus, createUser, approveUser, inviteUser,
+  setAdminRole, toggleUserStatus, createUser, approveUser, inviteUser,
   setUserPassword, deleteUser,
   getDepartmentTree, getDepartmentList, createDepartment, updateDepartment, deleteDepartment,
   getRoleList, getRoleDetail, createRole, updateRole, deleteRole,
