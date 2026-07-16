@@ -282,7 +282,6 @@
         "navigationStyle": "custom",
         "componentPlaceholder": { "nav-bar": "view" }
       }
-    }
     },
     { "path": "pages/exam/index/index", "style": { "navigationBarTitleText": "在线考试", "navigationStyle": "custom", "componentPlaceholder": { "nav-bar": "view" } } },
     { "path": "pages/exam/practice/index", "style": { "navigationBarTitleText": "模拟练习", "navigationStyle": "custom", "componentPlaceholder": { "nav-bar": "view" } } },

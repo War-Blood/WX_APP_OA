@@ -171,6 +171,18 @@ const router = createRouter({
           ]
         },
         {
+          path: 'exam',
+          name: 'Exam',
+          redirect: '/exam/questions',
+          meta: { title: '考试管理', icon: 'Edit' },
+          children: [
+            { path: 'questions', name: 'ExamQuestions', component: () => import('@/views/exam/questions.vue'), meta: { title: '题库管理' } },
+            { path: 'papers', name: 'ExamPapers', component: () => import('@/views/exam/papers.vue'), meta: { title: '试卷管理' } },
+            { path: 'records', name: 'ExamRecords', component: () => import('@/views/exam/records.vue'), meta: { title: '考试记录' } },
+            { path: 'stats', name: 'ExamStats', component: () => import('@/views/exam/stats.vue'), meta: { title: '成绩统计' } },
+          ]
+        },
+        {
           path: 'modules',
           name: 'Modules',
           component: () => import('@/views/modules/index.vue'),
