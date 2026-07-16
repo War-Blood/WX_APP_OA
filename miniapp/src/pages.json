@@ -285,7 +285,7 @@
     },
     { "path": "pages/exam/index/index", "style": { "navigationBarTitleText": "在线考试", "navigationStyle": "custom", "componentPlaceholder": { "nav-bar": "view" } } },
     { "path": "pages/exam/practice/index", "style": { "navigationBarTitleText": "模拟练习", "navigationStyle": "custom", "componentPlaceholder": { "nav-bar": "view" } } },
-    { "path": "pages/exam/exam/index", "style": { "navigationBarTitleText": "正式考试", "navigationStyle": "custom", "disableSwipeBack": true, "componentPlaceholder": { "nav-bar": "view" } } },
+    { "path": "pages/exam/exam/index", "needLogin": true, "disableSwipeBack": true, "style": { "navigationBarTitleText": "正式考试", "navigationStyle": "custom", "componentPlaceholder": { "nav-bar": "view" } } },
     { "path": "pages/exam/result/index", "style": { "navigationBarTitleText": "考试结果", "navigationStyle": "custom", "componentPlaceholder": { "nav-bar": "view" } } },
     { "path": "pages/exam/records/index", "style": { "navigationBarTitleText": "考试记录", "navigationStyle": "custom", "componentPlaceholder": { "nav-bar": "view" } } }
   ],

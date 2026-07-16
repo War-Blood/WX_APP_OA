@@ -57,7 +57,8 @@
 </template>
 
 <script setup>
-import { ref, onShow } from 'vue'
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { examApi } from '@/services/modules/exam'
 import { showError } from '@/utils/toast'
