@@ -1,8 +1,8 @@
 'use strict';
 
-const db = require('../../../../common/config/database');
-const { BusinessError, ValidationError } = require('../../../../common/utils/errors');
-const { ErrorCode } = require('../../../../common/utils/constants');
+const db = require('../../../common/config/database');
+const { BusinessError, ValidationError } = require('../../../common/utils/errors');
+const { ErrorCode } = require('../../../common/utils/constants');
 
 /**
  * 题库管理服务

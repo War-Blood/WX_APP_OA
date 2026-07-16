@@ -14,14 +14,14 @@ const adminAuth = [authenticate, requireRole('admin', 'superadmin')];
 router.post('/questions/list', ...adminAuth, questionController.list);
 router.post('/questions/create', ...adminAuth, questionController.create);
 router.post('/questions/update', ...adminAuth, questionController.update);
-router.post('/questions/delete', ...adminAuth, questionController.delete);
+router.post('/questions/delete', ...adminAuth, questionController.remove);
 router.post('/questions/batch-import', ...adminAuth, questionController.batchImport);
 
 // ===== 试卷管理（管理员） =====
 router.post('/papers/list', ...adminAuth, paperController.list);
 router.post('/papers/create', ...adminAuth, paperController.create);
 router.post('/papers/update', ...adminAuth, paperController.update);
-router.post('/papers/delete', ...adminAuth, paperController.delete);
+router.post('/papers/delete', ...adminAuth, paperController.remove);
 router.post('/papers/publish', ...adminAuth, paperController.publish);
 
 // ===== 考试（登录用户） =====

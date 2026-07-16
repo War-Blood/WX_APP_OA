@@ -1,6 +1,6 @@
 'use strict';
 
-const db = require('../../../../common/config/database');
+const db = require('../../../common/config/database');
 
 /**
  * 考试记录服务 — 个人/全员/统计

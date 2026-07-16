@@ -1,7 +1,7 @@
 'use strict';
 
 const examService = require('../services/exam.service');
-const { success } = require('../../../../common/utils/response');
+const { success } = require('../../../common/utils/response');
 
 async function examList(req, res, next) {
   try {

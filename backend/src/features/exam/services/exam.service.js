@@ -1,9 +1,9 @@
 'use strict';
 
-const db = require('../../../../common/config/database');
-const { BusinessError, NotFoundError } = require('../../../../common/utils/errors');
-const { ErrorCode } = require('../../../../common/utils/constants');
-const logger = require('../../../../common/utils/logger');
+const db = require('../../../common/config/database');
+const { BusinessError, NotFoundError } = require('../../../common/utils/errors');
+const { ErrorCode } = require('../../../common/utils/constants');
+const logger = require('../../../common/utils/logger');
 
 /**
  * 考试流程服务 — 开始/交卷/判分/防作弊

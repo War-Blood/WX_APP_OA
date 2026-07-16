@@ -1,7 +1,7 @@
 'use strict';
 
 const paperService = require('../services/paper.service');
-const { success, paginated } = require('../../../../common/utils/response');
+const { success, paginated } = require('../../../common/utils/response');
 
 async function list(req, res, next) {
   try {

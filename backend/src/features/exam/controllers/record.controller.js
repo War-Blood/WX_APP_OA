@@ -1,7 +1,7 @@
 'use strict';
 
 const recordService = require('../services/record.service');
-const { success, paginated } = require('../../../../common/utils/response');
+const { success, paginated } = require('../../../common/utils/response');
 
 async function myRecords(req, res, next) {
   try {
