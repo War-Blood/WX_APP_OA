@@ -30,8 +30,10 @@
           <view class="step-btn" @tap="count = Math.min(100, count + 5)"><text>+</text></view>
         </view>
       </view>
-      <view class="btn-primary" @tap="handleStartPractice"><text>开始练习</text></view>
     </scroll-view>
+    <view class="bottom-bar" v-if="activeTab === 'practice'">
+      <view class="btn-primary" @tap="handleStartPractice"><text>开始练习</text></view>
+    </view>
 
     <!-- 考试Tab -->
     <scroll-view v-else class="content" scroll-y>
@@ -121,6 +123,7 @@ onShow(async () => {
 .step-val { font-size: 36rpx; font-weight: 600; color: #333; }
 .btn-primary { margin-top: 24rpx; height: 96rpx; display: flex; align-items: center; justify-content: center; border-radius: 48rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); }
 .btn-primary text { font-size: 32rpx; font-weight: 600; color: #FFF; }
+.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; box-shadow: 0 -2rpx 12rpx rgba(0,0,0,.04); }
 .btn-primary.small { height: 60rpx; border-radius: 30rpx; width: 180rpx; }
 .btn-secondary { height: 60rpx; border-radius: 30rpx; display: flex; align-items: center; justify-content: center; background: #F0F2F5; width: 180rpx; }
 .btn-secondary text { font-size: 26rpx; color: #666; }

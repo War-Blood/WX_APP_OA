@@ -16,7 +16,7 @@
           </view>
         </view>
       </view>
-      <view class="btn-row">
+      <view class="bottom-bar">
         <view class="btn-outline" @tap="idx = Math.max(0, idx - 1)"><text>上一题</text></view>
         <view v-if="idx < total - 1" class="btn-primary" @tap="idx = Math.min(total - 1, idx + 1)"><text>下一题</text></view>
         <view v-else class="btn-danger" @tap="handleSubmit"><text>交卷</text></view>
@@ -99,7 +99,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .options { display: flex; flex-direction: column; gap: 12rpx; }
 .opt { padding: 20rpx; border-radius: 12rpx; border: 2rpx solid #E4E7ED; font-size: 28rpx; color: #333; }
 .opt.selected { border-color: #2B6DE8; background: #EDF2FF; }
-.btn-row { display: flex; gap: 16rpx; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; }
+.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; gap: 16rpx; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; box-shadow: 0 -2rpx 12rpx rgba(0,0,0,.04); padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; }
 .btn-outline { flex: 1; height: 88rpx; display: flex; align-items: center; justify-content: center; border-radius: 44rpx; border: 2rpx solid #E4E7ED; font-size: 28rpx; color: #666; }
 .btn-primary { flex: 1; height: 88rpx; display: flex; align-items: center; justify-content: center; border-radius: 44rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); }
 .btn-primary text { font-size: 28rpx; font-weight: 600; color: #FFF; }

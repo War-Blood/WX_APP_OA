@@ -3,6 +3,34 @@
 > 覆盖 Web 端 4 页 + 小程序端 5 页的全部触发状态：常态 / 空态 / 加载态 / 错误态 / 边界态
 > 设计依据：OA 前端样式框架（Worktile 风格 v2.0）
 
+## 小程序页面设计规范
+
+### 按钮置底（强制）
+
+所有小程序页面的操作按钮**必须**使用 `position: fixed; bottom: 0` 置底，**禁止**放在滚动内容区内。
+
+```scss
+// 标准置底栏 — 所有小程序页面统一使用
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20rpx 24rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  background: #FFFFFF;
+  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.04);
+  display: flex;
+  gap: 16rpx;
+  z-index: 100;
+}
+
+// 内容区需留出底部空间
+.content {
+  padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
+}
+```
+
 ---
 
 ## 零、设计令牌

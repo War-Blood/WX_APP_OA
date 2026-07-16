@@ -17,7 +17,7 @@
           <text v-if="current.analysis" class="a-text">{{ current.analysis }}</text>
         </view>
       </view>
-      <view class="btn-row">
+      <view class="bottom-bar">
         <view class="btn-outline" @tap="idx = Math.max(0, idx - 1)"><text>上一题</text></view>
         <view v-if="idx < total - 1" class="btn-primary" @tap="idx = Math.min(total - 1, idx + 1)"><text>下一题</text></view>
         <view v-else class="btn-primary" @tap="handleSubmit"><text>提交查看结果</text></view>
@@ -104,7 +104,7 @@ function handleExit() {
 .analysis { margin-top: 20rpx; padding: 16rpx; background: #F9FAFB; border-radius: 8rpx; }
 .a-label { font-size: 26rpx; font-weight: 600; display: block; }
 .a-text { font-size: 24rpx; color: #666; margin-top: 8rpx; display: block; }
-.btn-row { display: flex; gap: 16rpx; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; }
+.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; gap: 16rpx; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; box-shadow: 0 -2rpx 12rpx rgba(0,0,0,.04); padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; }
 .btn-outline { flex: 1; height: 88rpx; display: flex; align-items: center; justify-content: center; border-radius: 44rpx; border: 2rpx solid #E4E7ED; font-size: 28rpx; color: #666; }
 .btn-primary { flex: 1; height: 88rpx; display: flex; align-items: center; justify-content: center; border-radius: 44rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); }
 .btn-primary text { font-size: 28rpx; font-weight: 600; color: #FFF; }
