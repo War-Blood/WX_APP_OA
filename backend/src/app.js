@@ -134,6 +134,10 @@ app.use('/api/compliance', complianceRoutes);
 const attendanceRoutes = require('./features/attendance/routes/attendance.routes');
 app.use('/api/attendance', attendanceRoutes);
 
+// 考试管理路由
+const examRoutes = require('./features/exam/routes/exam.routes');
+app.use('/api/exam', examRoutes);
+
 // 10. 404 处理
 app.use((req, res) => {
   res.status(404).json({
