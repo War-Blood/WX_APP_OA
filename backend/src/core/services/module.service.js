@@ -13,8 +13,10 @@ const DEFAULT_MODULES = [
   { key: 'message',       name: '消息中心', icon: 'message',      route: '/pages/message/index/index',          visible: true,  platforms: ['miniapp'],        roles: ['admin', 'employee', 'superadmin'], sort: 5 },
   { key: 'compliance',    name: '合规记录', icon: 'compliance',   route: '/pages/compliance/my-compliance/index',visible: true, platforms: ['miniapp'],     roles: ['admin', 'employee', 'superadmin'], sort: 6 },
   { key: 'stats',         name: '公出统计', icon: 'stats',        route: '/pages/profile/stats',                visible: true,  platforms: ['miniapp'],        roles: ['admin', 'employee', 'superadmin'], sort: 7 },
-  { key: 'contacts',      name: '通讯录',   icon: 'contacts',     route: '',                                    visible: false, platforms: ['miniapp'],        roles: [], sort: 8 },
-  { key: 'notice',        name: '通知公告', icon: 'notice',       route: '',                                    visible: false, platforms: ['miniapp'],        roles: [], sort: 9 },
+  { key: 'attendance',    name: '考勤打卡', icon: 'attendance',   route: '/pages/attendance/my-schedule/index',  visible: true,  platforms: ['miniapp'],        roles: ['admin', 'employee', 'superadmin'], sort: 8 },
+  { key: 'exam',          name: '在线考试', icon: 'exam',         route: '/pages/exam/index/index',               visible: true,  platforms: ['miniapp'],        roles: ['admin', 'employee', 'superadmin'], sort: 9 },
+  { key: 'contacts',      name: '通讯录',   icon: 'contacts',     route: '',                                       visible: false, platforms: ['miniapp'],        roles: [], sort: 10 },
+  { key: 'notice',        name: '通知公告', icon: 'notice',       route: '',                                       visible: false, platforms: ['miniapp'],        roles: [], sort: 11 },
 ];
 
 /**
