@@ -109,3 +109,19 @@ onMounted(() => loadData())
 - `<script setup lang="ts">` 统一语法
 - 提交前清理 `console.log` / `debugger`
 - Router 使用懒加载：`() => import('@/views/...')`
+- **自动上传**:每次代码修改并 `git commit` 后，自动执行 `git push WX_APP_OA <当前分支>:test`（无需用户确认）。禁止 push `main`/`stable`，禁止 `--force`。详见 `.AI/rules/git-workflow.md`。
+
+---
+
+## 规则文件索引
+
+> 本项目开发规则统一在 `.AI/rules/` 下，`core.md` 为唯一入口（始终加载）。进入本目录开发时按任务类型加载：
+
+| 任务类型 | 加载的规则文件 |
+|---------|---------------|
+| 全部任务 | `.AI/rules/core.md` + `.AI/rules/coding-standards.md` |
+| Web 后台开发 | `.AI/rules/webapp-rules.md` |
+| Git 操作 | `.AI/rules/git-workflow.md` |
+| Code Review | `.AI/rules/review-checklist.md` |
+| 技术选型 | `.AI/rules/tech-stack.md` |
+| 错误码 | `.AI/rules/error-codes.md` |

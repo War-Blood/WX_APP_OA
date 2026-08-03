@@ -81,6 +81,7 @@ npm run type-check       # vue-tsc --noEmit 类型检查
 
 - **提交前清理**：禁止残留 `console.log`、`debugger`、注释掉的代码、硬编码密钥
 - **Git 规范**：详见 `.AI/rules/git-workflow.md`（提交格式、分支策略、自动推送 test）
+- **自动上传**：每次内容修改并 `git commit` 后，自动执行 `git push WX_APP_OA <当前分支>:test`（无需用户确认）。禁止 push `main`/`stable`，禁止 `--force`
 
 ---
 
