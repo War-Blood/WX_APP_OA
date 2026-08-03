@@ -82,7 +82,7 @@ function openEdit(row: any) {
   Object.assign(form, { id: row.id, title: row.title, duration: row.duration, passScore: row.pass_score, maxAttempts: row.max_attempts, maxScreenshotWarns: row.max_screenshot_warns, scopeType: row.scope_type, scopeDepartments: row.scope_departments || [] })
   editingId.value = row.id; dialogVisible.value = true
 }
-function viewPaper(row: any) { /* TODO: 打开只读查看弹窗 */ }
+function viewPaper(_row: any) { /* TODO: 打开只读查看弹窗 */ }
 
 async function handleSave() {
   if (!form.title) { toast.warning('试卷名称不能为空'); return }

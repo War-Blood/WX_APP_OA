@@ -46,7 +46,7 @@
       <div v-if="batchResult" style="margin-top:16px">
         <p>✅ 成功 {{ batchResult.success }} 题</p>
         <p v-if="batchResult.failed">⚠ 失败 {{ batchResult.failed }} 题</p>
-        <ul v-if="batchResult.errors">{{ batchResult.errors.map((e:any) => `${c}第${e.row}行: ${e.reason}`).join(', ') }}</ul>
+        <ul v-if="batchResult.errors">{{ batchResult.errors.map((e:any) => `第${e.row}行: ${e.reason}`).join(', ') }}</ul>
       </div>
       <template #footer><el-button @click="batchVisible=false">关闭</el-button><el-button type="primary" @click="doBatchImport">开始导入</el-button></template>
     </el-dialog>
