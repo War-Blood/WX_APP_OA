@@ -11,6 +11,7 @@
 <script setup>
 import { onLaunch, onShow } from '@dcloudio/uni-app'
 import { useAppStore } from '@/stores/app'
+import { authApi } from '@/services/modules/auth'
 
 const appStore = useAppStore()
 const REFRESH_INTERVAL = 24 * 3600 * 1000 // 1 天
@@ -35,8 +36,37 @@ function tryAutoRefresh() {
   })
 }
 
+// 邀请码注册用户（cdk_ openid）静默绑定真实微信 openid，使电脑端微信也可登录
+async function tryBindWechat() {
+  const token = uni.getStorageSync('token')
+  if (!token) return
+
+  // 从后端获取最新 needsWechatBind（兼容旧本地 userInfo 无此字段）
+  let needsBind = false
+  try {
+    const res = await authApi.getProfile()
+    needsBind = !!res.data?.needsWechatBind
+    const userInfo = uni.getStorageSync('userInfo') || {}
+    userInfo.needsWechatBind = needsBind
+    uni.setStorageSync('userInfo', userInfo)
+  } catch { return }
+
+  if (!needsBind) return
+
+  try {
+    const { code } = await uni.login({ provider: 'weixin' })
+    if (!code) return
+    await authApi.bindWechat(code)
+    const userInfo = uni.getStorageSync('userInfo') || {}
+    userInfo.needsWechatBind = false
+    uni.setStorageSync('userInfo', userInfo)
+    tryAutoRefresh() // 刷新 token，使其携带真实 openid
+  } catch { /* 静默失败，下次启动重试 */ }
+}
+
 onLaunch(() => {
   appStore.fetchModules()
+  tryBindWechat()
 
   const token = uni.getStorageSync('token')
   const pages = getCurrentPages()

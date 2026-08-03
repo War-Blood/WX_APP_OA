@@ -183,15 +183,32 @@ async function totpDisable(req, res, next) {
 /**
  * POST /api/auth/redeem
  * CDK 邀请码兑换注册（公开接口）
+ * 携带 wxCode 时绑定真实微信 openid
  */
 async function redeemInviteCode(req, res, next) {
   try {
-    const { name, code } = req.body;
+    const { name, code, wxCode } = req.body;
     if (!code) throw new ValidationError('邀请码不能为空');
     if (!name) throw new ValidationError('昵称不能为空');
 
-    const result = await inviteService.redeemInviteCode(code, name);
+    const result = await inviteService.redeemInviteCode(code, name, wxCode);
     res.json(success(result, '注册成功'));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/auth/bind-wechat
+ * 绑定微信 openid（需登录，邀请码注册用户用于绑定真实微信）
+ */
+async function bindWechat(req, res, next) {
+  try {
+    const { code } = req.body;
+    if (!code) throw new ValidationError('微信登录凭证 code 不能为空');
+
+    const result = await authService.bindWechat(req.user.userId, code);
+    res.json(success(result, '绑定成功'));
   } catch (err) {
     next(err);
   }
@@ -207,4 +224,4 @@ async function refreshToken(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { login, getProfile, updateProfile, adminLogin, accountLogin, qywxLogin, linkQywx, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha, redeemInviteCode, refreshToken };
+module.exports = { login, getProfile, updateProfile, adminLogin, accountLogin, qywxLogin, linkQywx, bindWechat, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha, redeemInviteCode, refreshToken };

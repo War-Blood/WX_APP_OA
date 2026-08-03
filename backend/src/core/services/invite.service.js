@@ -6,6 +6,7 @@ const db = require('../../common/config/database');
 const config = require('../../common/config/env');
 const { BusinessError, ValidationError } = require('../../common/utils/errors');
 const logger = require('../../common/utils/logger');
+const { code2session } = require('../../common/utils/wx-api');
 const { nextWorkerCode } = require('../../common/utils/worker-code');
 
 /**
@@ -67,9 +68,10 @@ async function generateInviteCodes(count, createdBy) {
  * 兑换邀请码
  * @param {string} code - 邀请码
  * @param {string} name - 用户昵称
+ * @param {string} [wxCode] - 微信 uni.login 登录凭证（可选，用于绑定真实 openid）
  * @returns {Promise<{token: string, user: Object}>}
  */
-async function redeemInviteCode(code, name) {
+async function redeemInviteCode(code, name, wxCode) {
   if (!code || !code.trim()) throw new ValidationError('邀请码不能为空');
   if (!name || !name.trim()) throw new ValidationError('昵称不能为空');
 
@@ -92,8 +94,27 @@ async function redeemInviteCode(code, name) {
     throw new BusinessError('该邀请码已被使用');
   }
 
-  // 2. 生成 openid（基于 code 保证唯一）
-  const openid = 'cdk_' + trimmedCode;
+  // 2. 生成 openid：优先用 wxCode 换取真实微信 openid，失败时兜底用 cdk_ 前缀
+  let openid = 'cdk_' + trimmedCode;
+  if (wxCode) {
+    try {
+      openid = await code2session(wxCode);
+      // 校验该真实 openid 是否已被其他账号使用（uk_openid 唯一约束兜底）
+      const occupied = await db.query(
+        'SELECT id FROM users WHERE openid = ? AND deleted_at IS NULL',
+        [openid]
+      );
+      if (occupied.length > 0) {
+        throw new BusinessError('该微信已注册，请直接登录');
+      }
+    } catch (err) {
+      // 业务校验错误（微信已注册等）直接抛出；接口/网络异常则回退 cdk_ 前缀
+      if (err instanceof BusinessError && err.message === '该微信已注册，请直接登录') {
+        throw err;
+      }
+      logger.warn('邀请码兑换绑定微信 openid 失败，回退 cdk_ 前缀', { module: 'INVITE', error: err.message });
+    }
+  }
 
   // 3. 生成工号并插入新用户
   const workerCode = await nextWorkerCode('employee');
@@ -139,6 +160,7 @@ async function redeemInviteCode(code, name) {
       role: 'employee',
       department: null,
       status: 'active',
+      needsWechatBind: openid.startsWith('cdk_'),
     },
   };
 }

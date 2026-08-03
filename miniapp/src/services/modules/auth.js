@@ -17,8 +17,12 @@ export const authApi = {
     return put('/api/user/profile', data)
   },
 
-  redeemInviteCode({ name, code }) {
-    return post('/api/auth/redeem', { name, code })
+  redeemInviteCode({ name, code, wxCode }) {
+    return post('/api/auth/redeem', { name, code, wxCode })
+  },
+
+  bindWechat(code) {
+    return post('/api/auth/bind-wechat', { code })
   },
 
   accountLogin({ account, password }) {

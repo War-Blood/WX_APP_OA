@@ -328,7 +328,13 @@ async function handleInviteRedeem() {
           const code = step2.content.trim()
           uni.showLoading({ title: '验证中...', mask: true })
           try {
-            const res = await authApi.redeemInviteCode({ name, code })
+            // 兑换前获取微信登录凭证，用于绑定真实 openid（电脑端也可登录）
+            let wxCode
+            try {
+              const loginRes = await uni.login({ provider: 'weixin' })
+              wxCode = loginRes?.code
+            } catch { /* 获取失败时走 cdk_ 兜底 */ }
+            const res = await authApi.redeemInviteCode({ name, code, wxCode })
             uni.hideLoading()
             if (res.data?.token) {
               uni.setStorageSync('token', res.data.token)

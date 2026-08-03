@@ -7,12 +7,23 @@ const config = require('../../common/config/env');
 const db = require('../../common/config/database');
 const { BusinessError } = require('../../common/utils/errors');
 const logger = require('../../common/utils/logger');
+const { code2session } = require('../../common/utils/wx-api');
 const { nextWorkerCode } = require('../../common/utils/worker-code');
 
 /**
  * 认证服务
  * 处理用户登录、Token 签发、用户资料查询与更新等业务逻辑
  */
+
+/**
+ * 判断账号 openid 是否为邀请码注册的伪造 openid（cdk_ 前缀）
+ * 此类账号尚未绑定真实微信，需要触发微信绑定
+ * @param {string} openid - 用户 openid
+ * @returns {boolean} 是否需要绑定微信
+ */
+function needsWechatBind(openid) {
+  return typeof openid === 'string' && openid.startsWith('cdk_');
+}
 
 /**
  * 微信登录
@@ -24,22 +35,7 @@ async function login(code) {
   // 1. 调用微信 API 换取 openid
   logger.info('微信登录 - 调用 code2session', { module: 'AUTH' });
 
-  const wxResponse = await axios.get('https://api.weixin.qq.com/sns/jscode2session', {
-    params: {
-      appid: config.wx.appId,
-      secret: config.wx.secret,
-      js_code: code,
-      grant_type: 'authorization_code',
-    },
-    timeout: 5000,
-  });
-
-  const { openid, session_key, errcode, errmsg } = wxResponse.data;
-
-  if (!openid) {
-    logger.error('微信登录失败', { module: 'AUTH', errcode, errmsg });
-    throw new BusinessError('微信登录失败: ' + (errmsg || '获取 openid 失败'));
-  }
+  const openid = await code2session(code);
 
   // 2. 在 users 表中查找用户
   const users = await db.query('SELECT * FROM users WHERE openid = ? AND deleted_at IS NULL', [openid]);
@@ -176,6 +172,7 @@ async function finalizeLogin(user) {
       role: user.role,
       department: user.department || null,
       status: user.status,
+      needsWechatBind: needsWechatBind(user.openid),
     },
   };
 }
@@ -194,6 +191,7 @@ async function getProfile(userId) {
 
   // 排除 openid 等敏感字段
   const { openid, ...profile } = users[0];
+  profile.needsWechatBind = needsWechatBind(openid);
   return profile;
 }
 
@@ -298,7 +296,7 @@ async function accountLogin(account, password) {
     config.jwt.secret, { expiresIn: config.jwt.expiresIn }
   );
 
-  return { token, user: { id: user.id, nickname: user.nickname, avatar_url: user.avatar_url, role: user.role, department: user.department, status: user.status } };
+  return { token, user: { id: user.id, nickname: user.nickname, avatar_url: user.avatar_url, role: user.role, department: user.department, status: user.status, needsWechatBind: needsWechatBind(user.openid) } };
 }
 
 async function adminLogin(account, password, totp) {
@@ -418,6 +416,43 @@ async function linkQywxAccount(openid, qywxUserId) {
 }
 
 /**
+ * 绑定微信 openid
+ * 邀请码注册的用户 openid 为伪造的 cdk_ 前缀,本接口用真实微信 openid 覆盖绑定,
+ * 使该账号可在任意设备通过微信一键登录
+ * @param {number} userId - 当前登录用户 ID
+ * @param {string} code - 微信 uni.login 登录凭证
+ * @returns {Promise<{bound: boolean}>}
+ */
+async function bindWechat(userId, code) {
+  // 1. 用 code 换取真实 openid
+  const realOpenid = await code2session(code);
+
+  // 2. 查当前用户
+  const users = await db.query('SELECT id, openid FROM users WHERE id = ? AND deleted_at IS NULL', [userId]);
+  if (users.length === 0) throw new BusinessError('用户不存在');
+
+  const user = users[0];
+
+  // 3. 非 cdk_ 前缀(已绑定真实微信)→ 幂等成功
+  if (!needsWechatBind(user.openid)) {
+    return { bound: false };
+  }
+
+  // 4. 校验真实 openid 未被其他账号占用
+  const occupied = await db.query(
+    'SELECT id FROM users WHERE openid = ? AND id != ? AND deleted_at IS NULL',
+    [realOpenid, userId]
+  );
+  if (occupied.length > 0) throw new BusinessError('该微信已绑定其他账号');
+
+  // 5. 更新 openid
+  await db.execute('UPDATE users SET openid = ? WHERE id = ?', [realOpenid, userId]);
+  logger.info('微信 openid 绑定成功', { module: 'AUTH', userId, realOpenid });
+
+  return { bound: true };
+}
+
+/**
  * 生成TOTP密钥和绑定二维码URL
  */
 async function setupTOTP(userId) {
@@ -474,8 +509,9 @@ async function refreshToken(user) {
   const payload = { userId: u.id, role: u.role, userName: u.user_name };
   const token = jwt.sign(payload, config.jwt.secret, { expiresIn: config.jwt.expiresIn });
 
-  const { password: _, totp_secret: __, openid: ___, qywx_userid: ____, ...profile } = u;
+  const { password: _, totp_secret: __, openid, qywx_userid: ____, ...profile } = u;
+  profile.needsWechatBind = needsWechatBind(openid);
   return { token, user: profile };
 }
 
-module.exports = { login, qywxLogin, adminLogin, accountLogin, getProfile, updateProfile, linkQywxAccount, setupTOTP, enableTOTP, disableTOTP, refreshToken };
+module.exports = { login, qywxLogin, adminLogin, accountLogin, getProfile, updateProfile, linkQywxAccount, bindWechat, setupTOTP, enableTOTP, disableTOTP, refreshToken };

@@ -19,6 +19,7 @@ router.post('/auth/qywx-login', authController.qywxLogin);
 router.post('/auth/admin/login', authController.adminLogin);
 router.post('/auth/account-login', authController.accountLogin);
 router.post('/auth/redeem', authController.redeemInviteCode);
+router.post('/auth/bind-wechat', authenticate, authController.bindWechat);
 router.post('/auth/refresh-token', authenticate, authController.refreshToken);
 router.post('/auth/link-qywx', authenticate, requireRole('admin', 'superadmin'), authController.linkQywx);
 
