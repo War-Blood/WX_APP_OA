@@ -3,7 +3,9 @@ import { ref, onMounted, computed } from 'vue'
 import { Search, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import {
   getDailyStatus,
-  type DailyStatusWorker, type DailyStatusSummary, type DailyStatusResponse
+  getTomorrowStatus,
+  type DailyStatusWorker, type DailyStatusSummary, type DailyStatusResponse,
+  type TomorrowStatusResponse
 } from '@/api/report'
 
 // 日期（默认昨天）
@@ -13,10 +15,13 @@ function yesterday() {
   return d.toISOString().slice(0, 10)
 }
 const date = ref(yesterday())
+const mode = ref<'today' | 'tomorrow'>('today')
 
 // 数据
 const loading = ref(false)
 const response = ref<DailyStatusResponse | null>(null)
+const tomorrowLoading = ref(false)
+const tomorrowResponse = ref<TomorrowStatusResponse | null>(null)
 
 // 筛选
 const keyword = ref('')
@@ -108,6 +113,25 @@ async function loadData() {
   }
 }
 
+async function loadTomorrow() {
+  tomorrowLoading.value = true
+  try {
+    tomorrowResponse.value = await getTomorrowStatus({})
+  } catch {
+    tomorrowResponse.value = null
+  } finally {
+    tomorrowLoading.value = false
+  }
+}
+
+function switchMode(m: 'today' | 'tomorrow') {
+  if (mode.value === m) return
+  mode.value = m
+  if (m === 'tomorrow' && !tomorrowResponse.value) {
+    loadTomorrow()
+  }
+}
+
 function handleDateChange() {
   loadData()
 }
@@ -145,7 +169,7 @@ onMounted(() => {
 
 <template>
   <div class="daily-status-page">
-    <!-- 日期选择 -->
+    <!-- 日期选择 + 今日/明日切换 -->
     <div class="top-bar">
       <el-button :icon="ArrowLeft" size="small" @click="prevDay" />
       <el-date-picker
@@ -153,14 +177,20 @@ onMounted(() => {
         type="date"
         placeholder="选择日期"
         value-format="YYYY-MM-DD"
+        :disabled="mode === 'tomorrow'"
         @change="handleDateChange"
       />
       <el-button :icon="ArrowRight" size="small" @click="nextDay" />
-      <span class="date-hint" v-if="response">共 {{ response.totalWorkers }} 人</span>
+      <el-radio-group v-model="mode" class="mode-seg" @change="(v: string | number | boolean) => switchMode(v as 'today' | 'tomorrow')">
+        <el-radio-button :value="'today'">今日</el-radio-button>
+        <el-radio-button :value="'tomorrow'">明日</el-radio-button>
+      </el-radio-group>
+      <span class="date-hint" v-if="mode === 'today' && response">共 {{ response.totalWorkers }} 人</span>
+      <span class="date-hint" v-if="mode === 'tomorrow' && tomorrowResponse">共 {{ tomorrowResponse.totalWorkers }} 人</span>
     </div>
 
-    <!-- 汇总统计 -->
-    <el-row :gutter="12" class="summary-row" v-if="response">
+    <!-- 今日模式:汇总统计 -->
+    <el-row :gutter="12" class="summary-row" v-if="mode === 'today' && response">
       <el-col v-for="item in summaryItems" :key="item.key" :span="3" style="max-width:14.28%">
         <div class="summary-item" :style="{ borderTopColor: item.color }">
           <div class="summary-count" :style="{ color: item.color }">{{ item.count }}</div>
@@ -169,11 +199,11 @@ onMounted(() => {
       </el-col>
     </el-row>
 
-    <!-- 搜索筛选 -->
-    <div class="filter-bar">
+    <!-- 今日模式:搜索筛选 -->
+    <div class="filter-bar" v-if="mode === 'today'">
       <el-input
         v-model="keyword"
-        placeholder="搜索姓名/工号"
+        placeholder="搜索姓名"
         clearable
         :prefix-icon="Search"
         style="width: 240px"
@@ -184,10 +214,9 @@ onMounted(() => {
       </el-select>
     </div>
 
-    <!-- 表格 -->
-    <el-table :data="filteredWorkers" v-loading="loading" stripe border :row-class-name="rowClassName">
+    <!-- 今日模式:表格 -->
+    <el-table v-if="mode === 'today'" :data="filteredWorkers" v-loading="loading" stripe border :row-class-name="rowClassName">
       <el-table-column prop="userName" label="姓名" width="100" />
-      <el-table-column prop="workerCode" label="工号" width="100" />
       <el-table-column prop="project" label="项目" min-width="140" show-overflow-tooltip>
         <template #default="{ row }">
           {{ row.project || '—' }}
@@ -222,6 +251,28 @@ onMounted(() => {
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 明日模式:分组列表 -->
+    <div v-if="mode === 'tomorrow'" v-loading="tomorrowLoading" class="tomorrow-panel">
+      <template v-if="tomorrowResponse">
+        <div v-for="g in tomorrowResponse.groups" :key="g.key" class="tomorrow-group">
+          <div class="tomorrow-group-header">
+            <span class="tomorrow-group-name">{{ g.label }}</span>
+            <el-tag size="small" type="primary">{{ g.workers.length }}人</el-tag>
+          </div>
+          <el-table :data="g.workers" size="small" stripe border>
+            <el-table-column prop="userName" label="姓名" width="120" />
+            <el-table-column prop="tomorrowWorkType" label="明日工作类型" min-width="140">
+              <template #default="{ row }">
+                <span v-if="row.tomorrowWorkType">{{ row.tomorrowWorkType }}</span>
+                <span v-else class="tomorrow-empty">未填写</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </template>
+      <el-empty v-else-if="!tomorrowLoading" description="暂无明日计划数据" />
+    </div>
   </div>
 </template>
 
@@ -275,6 +326,35 @@ onMounted(() => {
 .substitute-name {
   color: #909399;
   font-size: 12px;
+}
+
+.mode-seg {
+  margin-left: 8px;
+}
+
+.tomorrow-panel {
+  min-height: 200px;
+}
+
+.tomorrow-group {
+  margin-bottom: 16px;
+
+  .tomorrow-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+
+    .tomorrow-group-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #2B6DE8;
+    }
+  }
+}
+
+.tomorrow-empty {
+  color: #C0C4CC;
 }
 
 :deep(.row-missing) {

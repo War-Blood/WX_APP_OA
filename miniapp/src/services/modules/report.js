@@ -58,6 +58,10 @@ export const reportApi = {
     return post('/api/report/daily-status', params)
   },
 
+  getTomorrowStatus(params) {
+    return post('/api/report/tomorrow-status', params)
+  },
+
   getMonthlySummary(params) {
     return post('/api/report/monthly-summary', params)
   },

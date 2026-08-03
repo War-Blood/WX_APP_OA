@@ -30,23 +30,24 @@ function renderCalendar() {
     calChart = echarts.init(calChartRef.value)
   }
 
-  const data = calData.value.map(d => [d.date, d.count])
-  const maxCount = Math.max(1, ...calData.value.map(d => d.count))
+  // 数据: [date, 完成率]。完成率 = 已提交/总人数(1=全员提交, 0=无提交)
+  const data = calData.value.map(d => [d.date, d.total > 0 ? d.submitted / d.total : 0])
 
   calChart.setOption({
     tooltip: {
-      formatter: (p: { data: [string, number] }) =>
-        `${p.data[0]}<br/>提交人次: <b>${p.data[1]}</b>`
+      formatter: (p: { data: [string, number] }) => {
+        const d = calData.value.find(x => x.date === p.data[0])
+        if (!d) return p.data[0]
+        return `${p.data[0]}<br/>已提交: <b>${d.submitted}</b> / ${d.total}人`
+      }
     },
     visualMap: {
-      min: 0, max: maxCount,
+      min: 0, max: 1,
       orient: 'horizontal', left: 'center', bottom: 0,
       pieces: [
-        { min: 0, max: 0, color: '#F0F0F0', label: '0' },
-        { min: 1, max: 3, color: '#C5DFFF', label: '1-3' },
-        { min: 4, max: 6, color: '#7BB5F0', label: '4-6' },
-        { min: 7, max: 10, color: '#3D8DE0', label: '7-10' },
-        { min: 11, max: 999, color: '#1A5FB4', label: '10+' }
+        { min: 1, max: 1, color: '#E8F5E9', label: '全员提交' },
+        { min: 0.0001, max: 0.9999, color: '#FFFFFF', label: '部分提交' },
+        { min: 0, max: 0, color: '#F0F0F0', label: '无数据' }
       ]
     },
     calendar: {
@@ -66,8 +67,10 @@ function renderCalendar() {
         show: true,
         fontSize: 11,
         fontWeight: 'bold',
-        formatter: (p: { data: [string, number] }) =>
-          p.data[1] > 0 ? String(p.data[1]) : ''
+        formatter: (p: { data: [string, number] }) => {
+          const d = calData.value.find(x => x.date === p.data[0])
+          return d && d.total > 0 ? `${d.submitted}/${d.total}` : ''
+        }
       },
       emphasis: { itemStyle: { color: 'inherit', borderColor: '#333', borderWidth: 3 } }
     }]
@@ -110,7 +113,7 @@ onUnmounted(() => {
     <el-card class="section-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>提交日历热力图</span>
+          <span>提交日历</span>
           <div class="card-header-right">
             <el-button size="small" @click="prevCalendarMonth">‹</el-button>
             <span class="month-label">{{ calMonth }}</span>

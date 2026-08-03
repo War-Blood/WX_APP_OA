@@ -278,6 +278,28 @@ export interface DailyStatusResponse {
   workers: DailyStatusWorker[]
 }
 
+/** 明日计划条目 */
+export interface TomorrowStatusWorker {
+  userId: number
+  userName: string
+  workerCode: string
+  tomorrowWorkType: string
+}
+
+/** 明日计划分组 */
+export interface TomorrowStatusGroup {
+  key: string
+  label: string
+  workers: TomorrowStatusWorker[]
+}
+
+/** 明日计划响应 */
+export interface TomorrowStatusResponse {
+  date: string
+  totalWorkers: number
+  groups: TomorrowStatusGroup[]
+}
+
 /** 月度工作占比响应 */
 export interface MonthlySummaryResponse {
   userId: number
@@ -348,6 +370,13 @@ export function getDailyStatus(params: {
   return request.post('/report/daily-status', params)
 }
 
+/** 明日计划状态 */
+export function getTomorrowStatus(params: {
+  date?: string
+}): Promise<TomorrowStatusResponse> {
+  return request.post('/report/tomorrow-status', params)
+}
+
 /** 管理层看板 — 月度工作占比 */
 export function getMonthlySummary(params: {
   userId: number
@@ -363,10 +392,11 @@ export function getTeamLogs(userId: number, days?: number): Promise<TeamLogsResu
 
 // ===== M2: 日历热力图 + 项目进展 =====
 
-/** 每日提交人次 */
+/** 每日提交统计（已提交人数 / 在职总人数） */
 export interface DailyCountItem {
   date: string
-  count: number
+  submitted: number
+  total: number
 }
 
 export interface DailyCountsResponse {
@@ -407,6 +437,7 @@ export interface WorkerWorkTypeItem {
   workerCode: string
   workTypes: Record<string, number>
   total: number
+  supplementCount?: number
 }
 
 export interface WorkerWorkTypesResponse {

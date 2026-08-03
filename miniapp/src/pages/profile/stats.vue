@@ -55,7 +55,7 @@
 
     <!-- 全员当日 -->
     <view v-if="showTab('daily')" class="daily-tab">
-      <!-- 日期导航 -->
+      <!-- 日期导航 + 今日/明日切换 -->
       <view class="date-bar">
         <view class="date-nav-btn" @tap="dailyPrevDay"><text class="date-nav-icon">‹</text></view>
         <picker mode="date" :value="dailyDate" :end="todayStr" @change="onDailyDateChange">
@@ -67,10 +67,18 @@
         <view class="date-nav-btn" :class="{ 'date-nav-disabled': dailyDate === todayStr }" @tap="dailyNextDay">
           <text class="date-nav-icon">›</text>
         </view>
+        <view class="daily-seg">
+          <view class="daily-seg-item" :class="{ 'daily-seg-item--active': dailyMode === 'today' }" @tap="switchDailyMode('today')">
+            <text class="daily-seg-text">今日</text>
+          </view>
+          <view class="daily-seg-item" :class="{ 'daily-seg-item--active': dailyMode === 'tomorrow' }" @tap="switchDailyMode('tomorrow')">
+            <text class="daily-seg-text">明日</text>
+          </view>
+        </view>
       </view>
 
-      <!-- 摘要统计条 -->
-      <view v-if="dailyResponse" class="summary-bar">
+      <!-- 今日模式:摘要统计条 -->
+      <view v-if="dailyMode === 'today' && dailyResponse" class="summary-bar">
         <view class="summary-item summary-item--submitted">
           <text class="summary-val">{{ dailySubmitted }}</text>
           <text class="summary-lbl">已提交</text>
@@ -79,14 +87,18 @@
           <text class="summary-val" :class="{ 'summary-val--danger': dailyMissing > 0 }">{{ dailyMissing }}</text>
           <text class="summary-lbl">缺失</text>
         </view>
+        <view class="summary-item summary-item--total">
+          <text class="summary-val">{{ dailyResponse.totalWorkers || 0 }}</text>
+          <text class="summary-lbl">总人数</text>
+        </view>
       </view>
 
-      <!-- 加载/空状态 -->
-      <view v-if="dailyLoading" class="loading"><text>加载中...</text></view>
-      <view v-else-if="!dailyResponse" class="empty"><text>暂无数据</text></view>
+      <!-- 今日模式:加载/空状态 -->
+      <view v-if="dailyMode === 'today' && dailyLoading" class="loading"><text>加载中...</text></view>
+      <view v-else-if="dailyMode === 'today' && !dailyResponse" class="empty"><text>暂无数据</text></view>
 
-      <!-- 内容列表 -->
-      <scroll-view v-else class="daily-scroll" scroll-y>
+      <!-- 今日模式:内容列表 -->
+      <scroll-view v-else-if="dailyMode === 'today'" class="daily-scroll" scroll-y>
         <!-- 缺失人员 -->
         <view v-if="dailyMissingWorkers.length" class="daily-section">
           <text class="section-header section-header--missing">未提交 ({{ dailyMissingWorkers.length }})</text>
@@ -160,6 +172,29 @@
         </view>
         <view class="spacer" />
       </scroll-view>
+
+      <!-- 明日模式:加载/空状态 -->
+      <view v-if="dailyMode === 'tomorrow' && tomorrowLoading" class="loading"><text>加载中...</text></view>
+      <view v-else-if="dailyMode === 'tomorrow' && !tomorrowResponse" class="empty"><text>暂无数据</text></view>
+
+      <!-- 明日模式:分组列表 -->
+      <scroll-view v-else-if="dailyMode === 'tomorrow'" class="daily-scroll" scroll-y>
+        <view v-for="g in tomorrowResponse.groups" :key="g.key" class="daily-section">
+          <text class="section-header section-header--tomorrow">{{ g.label }} ({{ g.workers.length }})</text>
+          <view class="daily-card-list">
+            <view v-for="w in g.workers" :key="w.userId" class="worker-card worker-card--tomorrow">
+              <view class="card-left">
+                <text class="card-name">{{ w.userName }}</text>
+              </view>
+              <view class="card-right">
+                <text v-if="w.tomorrowWorkType" class="card-work-type">{{ w.tomorrowWorkType }}</text>
+                <text v-else class="card-work-type card-work-type--empty">未填写</text>
+              </view>
+            </view>
+          </view>
+        </view>
+        <view class="spacer" />
+      </scroll-view>
     </view>
 
     <!-- 日历热力图 -->
@@ -180,10 +215,10 @@
           <text v-for="d in dayHeaders" :key="d" class="cal-hd">{{ d }}</text>
         </view>
         <view v-for="(week, wi) in calendarGrid" :key="wi" class="cal-row">
-          <view v-for="(cell, ci) in week" :key="ci" class="cal-cell" :class="cell ? calClass(cell.count) : 'cal-empty'">
+          <view v-for="(cell, ci) in week" :key="ci" class="cal-cell" :class="calClass(cell)">
             <template v-if="cell">
               <text class="cal-d">{{ cell.day }}</text>
-              <text class="cal-n">{{ cell.count }}</text>
+              <text class="cal-n">{{ cell.submitted }}/{{ cell.total }}</text>
             </template>
           </view>
         </view>
@@ -221,18 +256,32 @@
     <scroll-view v-if="showTab('workers')" class="content-scroll" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
       <!-- 工作类型表 -->
       <view v-if="workTypeData.length" class="card">
-        <text class="card-title">工作类型分布（{{ workTypeMonth }}）</text>
+        <view class="card-head-row">
+          <text class="card-title">工作类型分布</text>
+          <view class="month-nav" style="margin:0">
+            <view class="nav-btn" @tap="wtPrev"><text class="nav-icon">‹</text></view>
+            <text class="nav-title">{{ workTypeMonth }}</text>
+            <view class="nav-btn" @tap="wtNext"><text class="nav-icon">›</text></view>
+          </view>
+        </view>
         <scroll-view scroll-x class="wt-scroll">
           <view class="wt-table">
             <view class="wt-row wt-head">
               <text class="wt-c wt-name">姓名</text>
-              <text class="wt-c wt-code">工号</text>
+              <text class="wt-c wt-val wt-supp">补</text>
               <text v-for="l in wtShort" :key="l" class="wt-c wt-val">{{ l }}</text>
               <text class="wt-c wt-val wt-total">计</text>
             </view>
+            <!-- 汇总行 -->
+            <view class="wt-row wt-summary">
+              <text class="wt-c wt-name">汇总</text>
+              <text class="wt-c wt-val wt-supp">{{ wtSummary.supplement }}</text>
+              <text v-for="l in wtLabels" :key="l" class="wt-c wt-val">{{ wtSummary.workTypes[l] || 0 }}</text>
+              <text class="wt-c wt-val wt-total">{{ wtSummary.total }}</text>
+            </view>
             <view v-for="w in workTypeData" :key="w.userName" class="wt-row" @tap="openDrill(w)">
               <text class="wt-c wt-name">{{ w.userName }}</text>
-              <text class="wt-c wt-code">{{ w.workerCode }}</text>
+              <text class="wt-c wt-val wt-supp">{{ w.supplementCount || 0 }}</text>
               <text v-for="l in wtLabels" :key="l" class="wt-c wt-val" :style="{ background: wtCellBg(w.workTypes[l], wtMax(l)) }">{{ w.workTypes[l] || 0 }}</text>
               <text class="wt-c wt-val wt-total">{{ w.total }}</text>
             </view>
@@ -390,26 +439,39 @@ const calMonth = ref(nowMonth())
 const calData = ref([])
 const calLoading = ref(false)
 const dayHeaders = ['一','二','三','四','五','六','日']
-const calLegend = [{ label:'0', color:'#F0F0F0' },{ label:'1-3', color:'#C5DFFF' },{ label:'4-6', color:'#7BB5F0' },{ label:'7+', color:'#3D8DE0' }]
+const calLegend = [
+  { label:'全员提交', color:'#E8F5E9' },
+  { label:'部分提交', color:'#FFFFFF' },
+  { label:'无数据', color:'#F0F0F0' },
+]
 const calMonthLabel = computed(() => { const [y,m] = calMonth.value.split('-'); return y + '年' + parseInt(m) + '月' })
 
 const calendarGrid = computed(() => {
   const [y, m] = calMonth.value.split('-').map(Number)
   const startDow = (new Date(y, m - 1, 1).getDay() + 6) % 7
   const days = new Date(y, m, 0).getDate()
-  const map = {}; calData.value.forEach(d => { map[d.date] = d.count })
+  const map = {}; calData.value.forEach(d => { map[d.date] = d })
   const rows = []; let week = []
   for (let i = 0; i < startDow; i++) week.push(null)
   for (let d = 1; d <= days; d++) {
     const ds = calMonth.value + '-' + String(d).padStart(2, '0')
-    week.push({ day: d, date: ds, count: map[ds] || 0 })
+    const cell = map[ds]
+    const submitted = cell ? cell.submitted || 0 : 0
+    const total = cell ? cell.total || 0 : 0
+    week.push({ day: d, date: ds, submitted, total, hasData: !!cell })
     if (week.length === 7) { rows.push(week); week = [] }
   }
   if (week.length) { while (week.length < 7) week.push(null); rows.push(week) }
   return rows
 })
 
-function calClass(n) { return n === 0 ? 'cal-zero' : n <= 3 ? 'cal-low' : n <= 6 ? 'cal-mid' : 'cal-high' }
+// 背景规则：全员提交→淡绿；部分提交→白；无数据(休息/未到)→浅灰
+function calClass(cell) {
+  if (!cell) return 'cal-empty'
+  if (!cell.hasData) return 'cal-nodata'
+  if (cell.total > 0 && cell.submitted >= cell.total) return 'cal-full'
+  return 'cal-partial'
+}
 function calPrev() { calMonth.value = prevM(calMonth.value); loadCalendar() }
 function calNext() { calMonth.value = nextM(calMonth.value); loadCalendar() }
 
@@ -428,6 +490,19 @@ const wtLabels = ['工作（陆）','工作（海）','待工','在途','请假'
 const wtShort = ['陆','海','待','途','假']
 function wtMax(k) { return Math.max(1, ...workTypeData.value.map(w => w.workTypes[k] || 0)) }
 function wtCellBg(v, max) { if (!v) return 'transparent'; const p = v / max; return p <= .25 ? '#E8F5E9' : p <= .5 ? '#A5D6A7' : '#66BB6A' }
+// 汇总行：各列合计 + 补录合计 + 总计
+const wtSummary = computed(() => {
+  const s = { workTypes: {}, supplement: 0, total: 0 }
+  wtLabels.forEach(l => { s.workTypes[l] = 0 })
+  workTypeData.value.forEach(w => {
+    wtLabels.forEach(l => { s.workTypes[l] += w.workTypes[l] || 0 })
+    s.supplement += w.supplementCount || 0
+    s.total += w.total || 0
+  })
+  return s
+})
+function wtPrev() { workTypeMonth.value = prevM(workTypeMonth.value); loadWorkTypes() }
+function wtNext() { workTypeMonth.value = nextM(workTypeMonth.value); loadWorkTypes() }
 
 const areaData = ref([])
 
@@ -500,14 +575,22 @@ function closeProjDetail() {
 const todayStr = new Date().toISOString().slice(0, 10)
 const yesterday = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10) }
 const dailyDate = ref(yesterday())
+const dailyMode = ref('today') // today | tomorrow
 const dailyResponse = ref(null)
 const dailyLoading = ref(false)
+const tomorrowResponse = ref(null)
+const tomorrowLoading = ref(false)
 
 const dailyDateDisplay = computed(() => {
+  if (dailyMode.value === 'tomorrow') return '明日 ' + tomorrowDate()
   if (dailyDate.value === todayStr) return '今天 ' + dailyDate.value
   if (dailyDate.value === yesterday()) return '昨天 ' + dailyDate.value
   return dailyDate.value
 })
+
+function tomorrowDate() {
+  const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10)
+}
 
 const dailyMissing = computed(() => dailyResponse.value?.summary?.missing || 0)
 const dailySubmitted = computed(() => {
@@ -535,6 +618,23 @@ async function loadDailyStatus() {
     if (res.code === 0 && res.data) dailyResponse.value = res.data
   } catch { dailyResponse.value = null }
   finally { dailyLoading.value = false }
+}
+
+async function loadTomorrowStatus() {
+  tomorrowLoading.value = true
+  try {
+    const res = await reportApi.getTomorrowStatus({})
+    if (res.code === 0 && res.data) tomorrowResponse.value = res.data
+  } catch { tomorrowResponse.value = null }
+  finally { tomorrowLoading.value = false }
+}
+
+function switchDailyMode(mode) {
+  if (dailyMode.value === mode) return
+  dailyMode.value = mode
+  if (mode === 'tomorrow' && !tomorrowResponse.value) {
+    loadTomorrowStatus()
+  }
 }
 
 function dailyPrevDay() { const d = new Date(dailyDate.value); d.setDate(d.getDate() - 1); dailyDate.value = d.toISOString().slice(0, 10); loadDailyStatus() }
@@ -581,7 +681,10 @@ async function loadAreas() {
 async function onRefresh() {
   refreshing.value = true
   if (activeTab.value === 'personal') await Promise.all([loadPersonal(), loadMonthly(), loadTeamLogs()])
-  else if (activeTab.value === 'daily') await loadDailyStatus()
+  else if (activeTab.value === 'daily') {
+    if (dailyMode.value === 'tomorrow') await loadTomorrowStatus()
+    else await loadDailyStatus()
+  }
   else if (activeTab.value === 'calendar') await loadCalendar()
   else if (activeTab.value === 'projects') await loadProjects()
   else if (activeTab.value === 'workers') await Promise.all([loadWorkTypes(), loadAreas()])
@@ -676,14 +779,13 @@ onMounted(async () => {
 .cal-hd { flex:1; text-align:center; font-size:20rpx; color:$text-secondary; padding:6rpx 0; }
 .cal-cell { flex:1; aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:4rpx; margin:2rpx; }
 .cal-empty { background:transparent; }
-.cal-zero { background:#F5F5F5; }
-.cal-low  { background:#D6EAFF; }
-.cal-mid  { background:#7BB5F0; }
-.cal-high { background:#1A5FB4; }
-.cal-high .cal-d,
-.cal-high .cal-n { color:#fff; }
+.cal-nodata { background:#F0F0F0; }
+.cal-full { background:#E8F5E9; }
+.cal-partial { background:#FFFFFF; border:1rpx solid #E5E7EB; }
+.cal-partial .cal-n { color:$primary-color; }
+.cal-full .cal-n { color:#22C55E; }
 .cal-d { font-size:22rpx; font-weight:500; color:$text-primary; line-height:1.2; }
-.cal-n { font-size:24rpx; font-weight:700; color:$primary-color; line-height:1.2; }
+.cal-n { font-size:20rpx; font-weight:700; color:$text-regular; line-height:1.2; }
 
 // ===== 项目进展 =====
 .proj-list { display:flex; flex-direction:column; gap:$spacing-sm; }
@@ -698,15 +800,18 @@ onMounted(async () => {
 .proj-pct { font-size:$font-sm; font-weight:600; color:$text-primary; text-align:right; display:block; }
 
 // ===== 工作类型表格 =====
+.card-head-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:$spacing-sm; }
 .wt-scroll { width:100%; white-space:nowrap; }
 .wt-table { display:inline-flex; flex-direction:column; min-width:100%; }
 .wt-row { display:flex; border-bottom:1rpx solid $border-light; }
 .wt-head { background:#F7F8FA; border-radius:$radius-sm $radius-sm 0 0; }
 .wt-c { padding:10rpx 6rpx; font-size:20rpx; text-align:center; display:flex; align-items:center; justify-content:center; }
 .wt-name { width:100rpx; flex-shrink:0; font-weight:500; color:$text-primary; justify-content:flex-start; padding-left:12rpx; }
-.wt-code { width:72rpx; flex-shrink:0; color:$text-secondary; }
+.wt-supp { color:#F59E0B; font-weight:600; }
 .wt-val { width:52rpx; flex-shrink:0; border-radius:4rpx; margin:1rpx; }
 .wt-total { font-weight:700; color:$primary-color; }
+.wt-summary { background:#F0F7FF; font-weight:600; }
+.wt-summary .wt-c { color:$text-primary; font-weight:600; }
 
 // ===== 省份排行 =====
 .area-list { display:flex; flex-direction:column; }
@@ -737,12 +842,19 @@ onMounted(async () => {
 .date-picker { display:flex; align-items:center; gap:8rpx; padding:12rpx 24rpx; background:#F7F8FA; border-radius:$radius-base; min-width:280rpx; justify-content:center; }
 .date-text { font-size:$font-base; color:$text-primary; font-weight:500; }
 .date-arrow { font-size:24rpx; color:$text-secondary; }
+.daily-seg { display:flex; background:#F7F8FA; border-radius:$radius-base; padding:4rpx; }
+.daily-seg-item { padding:12rpx 24rpx; border-radius:$radius-sm; }
+.daily-seg-item--active { background:$primary-color; }
+.daily-seg-text { font-size:$font-sm; color:$text-regular; font-weight:500; }
+.daily-seg-item--active .daily-seg-text { color:#FFFFFF; }
 .summary-bar { display:flex; gap:$spacing-sm; padding:$spacing-sm $spacing-base; flex-shrink:0; }
 .summary-item { flex:1; display:flex; align-items:center; gap:8rpx; padding:16rpx 20rpx; border-radius:$radius-base; }
 .summary-item--submitted { background:#EFFDF5; }
 .summary-item--missing { background:#FFF0F0; }
+.summary-item--total { background:#F0F7FF; }
 .summary-val { font-size:36rpx; font-weight:700; color:$success-color; }
 .summary-val--danger { color:$danger-color; }
+.summary-item--total .summary-val { color:$primary-color; }
 .summary-lbl { font-size:$font-sm; color:$text-regular; }
 .daily-scroll { flex:1; height:0; padding:0 $spacing-base; }
 .daily-section { margin-bottom:$spacing-sm; }
@@ -750,6 +862,7 @@ onMounted(async () => {
 .section-header--missing { color:$danger-color; }
 .section-header--active  { color:$success-color; }
 .section-header--leave   { color:$text-secondary; }
+.section-header--tomorrow { color:$primary-color; }
 .daily-card-list { display:flex; flex-direction:column; gap:$spacing-xs; }
 .worker-card {
   display:flex; align-items:center; padding:20rpx $spacing-base; background:$bg-card;
@@ -761,6 +874,7 @@ onMounted(async () => {
 .worker-card--supplement { border-left:6rpx solid $warning-color; }
 .worker-card--office { border-left:6rpx solid $primary-color; }
 .worker-card--substituted { border-left:6rpx solid #6366F1; }
+.worker-card--tomorrow { border-left:6rpx solid $primary-color; }
 .card-left { display:flex; flex-direction:column; gap:4rpx; width:140rpx; flex-shrink:0; }
 .card-name { font-size:26rpx; font-weight:600; color:$text-primary; }
 .card-code { font-size:$font-xs; color:$text-secondary; }
@@ -769,6 +883,7 @@ onMounted(async () => {
 .card-area { font-size:$font-xs; color:$text-secondary; }
 .card-right { display:flex; flex-direction:column; align-items:flex-end; gap:4rpx; flex-shrink:0; margin-left:$spacing-sm; }
 .card-work-type { font-size:$font-xs; color:$primary-color; }
+.card-work-type--empty { color:$text-secondary; }
 .card-time { font-size:18rpx; color:$text-placeholder; }
 .card-status-tag { font-size:$font-xs; font-weight:500; padding:2rpx 10rpx; border-radius:$radius-sm; }
 .tag--submitted   { background:#EFFDF5; color:$success-color; }

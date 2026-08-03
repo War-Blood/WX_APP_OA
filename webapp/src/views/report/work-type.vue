@@ -1,11 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { getWorkerWorkTypes, type WorkerWorkTypeItem } from '@/api/report'
 
 const workTypeLoading = ref(false)
 const workTypeList = ref<WorkerWorkTypeItem[]>([])
 const workTypeMonth = ref(new Date().toISOString().slice(0, 7))
+const WT_LABELS = ['工作（陆）','工作（海）','待工','在途','请假']
+
+// 汇总行：各列合计 + 补录合计 + 总计
+const wtSummary = computed(() => {
+  const s: Record<string, number> = { supplement: 0, total: 0 }
+  WT_LABELS.forEach(l => { s[l] = 0 })
+  workTypeList.value.forEach(w => {
+    WT_LABELS.forEach(l => { s[l] += (w as any).workTypes?.[l] || 0 })
+    s.supplement += w.supplementCount || 0
+    s.total += w.total || 0
+  })
+  return s
+})
 
 async function loadWorkTypes() {
   workTypeLoading.value = true
@@ -59,7 +72,7 @@ onMounted(loadWorkTypes)
     <el-card class="section-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>人员工作类型分布</span>
+          <span>工作类型分布</span>
           <div class="card-header-right">
             <el-button size="small" @click="prevWorkTypeMonth">‹</el-button>
             <span class="month-label">{{ workTypeMonth }}</span>
@@ -69,9 +82,22 @@ onMounted(loadWorkTypes)
         </div>
       </template>
       <el-table :data="workTypeList" v-loading="workTypeLoading" stripe border>
+        <!-- 汇总行 -->
+        <template #append>
+          <tr class="wt-summary">
+            <td class="wt-sum-cell wt-sum-name">汇总</td>
+            <td class="wt-sum-cell wt-sum-supp">{{ wtSummary.supplement }}</td>
+            <td v-for="wt in WT_LABELS" :key="wt" class="wt-sum-cell">{{ wtSummary[wt] }}</td>
+            <td class="wt-sum-cell wt-sum-total">{{ wtSummary.total }}</td>
+          </tr>
+        </template>
         <el-table-column prop="userName" label="姓名" width="90" />
-        <el-table-column prop="workerCode" label="工号" width="80" />
-        <el-table-column v-for="wt in ['工作（陆）','工作（海）','待工','在途','请假']" :key="wt" :label="wt.replace('工作（','').replace('）','')" width="76" align="center">
+        <el-table-column label="补" width="60" align="center">
+          <template #default="{ row }">
+            <span class="wt-supp">{{ (row as any).supplementCount || 0 }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column v-for="wt in WT_LABELS" :key="wt" :label="wt.replace('工作（','').replace('）','')" width="76" align="center">
           <template #default="{ row }">
             <span
               :style="{
@@ -94,6 +120,32 @@ onMounted(loadWorkTypes)
 
 <style scoped lang="scss">
 .worktype-page { padding: 20px; }
+
+.wt-summary {
+  background: #F0F7FF;
+  font-weight: 600;
+
+  .wt-sum-cell {
+    padding: 8px 0;
+    text-align: center;
+    color: #333;
+    border-bottom: 1px solid #E5E7EB;
+  }
+
+  .wt-sum-name {
+    padding-left: 12px;
+    text-align: left;
+  }
+
+  .wt-sum-supp { color: #F59E0B; }
+
+  .wt-sum-total { color: #2B6DE8; font-weight: 700; }
+}
+
+.wt-supp {
+  color: #F59E0B;
+  font-weight: 600;
+}
 
 .section-card {
   .card-header {
