@@ -561,17 +561,23 @@ async function getDailyStatus(dateStr) {
 
 /**
  * 明日计划状态
- * 按每个人最近一次填写的明日工作类型（tomorrow_work_type）分组展示，
- * 用于「全员当日」的明日视图
- * @param {string} [date] - 查询日期（明日，YYYY-MM-DD）
- * @returns {Promise<Object>} { date, groups: [{ key, label, workers: [...] }] }
+ * 展示某一天（N 日）的明日工作安排：查 N-1 日日报里填写的 tomorrow_work_type，
+ * 与今日视图结构对称，返回平铺 workers，前端按明日工作类型分组
+ * @param {string} [date] - 目标日 N（YYYY-MM-DD），默认明日
+ * @returns {Promise<Object>} { date, totalWorkers, summary, workers }
  */
 async function getTomorrowStatus(date) {
+  // 目标日 N（明日视图选中日）
   const targetDate = date || (() => {
     const t = new Date();
     t.setDate(t.getDate() + 1);
     return formatDate(t);
   })();
+
+  // 前一天 N-1：明日计划记录在 N-1 日的日报中
+  const d = new Date(targetDate + 'T00:00:00');
+  d.setDate(d.getDate() - 1);
+  const prevDate = formatDate(d);
 
   // 所有在职作业人员
   const activeUsers = await db.query(
@@ -583,58 +589,70 @@ async function getTomorrowStatus(date) {
     []
   );
 
-  // 每个人最近一次提交的明日工作类型（取最新 report_date）
-  const latestRows = await db.query(
-    `SELECT dr.user_id, dr.tomorrow_work_type
+  // N-1 日日报中填写的明日工作类型（本人提交）
+  const ownRows = await db.query(
+    `SELECT dr.id AS reportId, dr.user_id, dr.tomorrow_work_type, dr.project, dr.area
      FROM daily_reports dr
-     INNER JOIN (
-       SELECT user_id, MAX(report_date) AS max_date
-       FROM daily_reports
-       WHERE report_type != 'office' AND status != 'draft' AND deleted_at IS NULL
-         AND tomorrow_work_type IS NOT NULL AND tomorrow_work_type != ''
-       GROUP BY user_id
-     ) t ON dr.user_id = t.user_id AND dr.report_date = t.max_date
-     WHERE dr.report_type != 'office' AND dr.status != 'draft' AND dr.deleted_at IS NULL`,
-    []
+     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
+       AND dr.report_type != 'office'`,
+    [prevDate]
   );
 
-  // user_id → 明日工作类型
+  // N-1 日被代填的人的明日工作类型（daily_report_workers）
+  const subRows = await db.query(
+    `SELECT dr.id AS reportId, drw.worker_uid AS user_id, dr.tomorrow_work_type, dr.project, dr.area
+     FROM daily_report_workers drw
+     JOIN daily_reports dr ON drw.report_id = dr.id
+     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
+       AND dr.report_type != 'office'`,
+    [prevDate]
+  );
+
+  // 构建 user_id → 明日计划信息（含本人提交与被代填）
   const tomorrowMap = {};
-  latestRows.forEach(r => { tomorrowMap[r.user_id] = r.tomorrow_work_type; });
+  ownRows.forEach(r => {
+    tomorrowMap[r.user_id] = {
+      reportId: r.reportId,
+      tomorrowWorkType: r.tomorrow_work_type || '',
+      project: r.project || null,
+      area: r.area ? String(r.area).split('-')[0] : null,
+    };
+  });
+  subRows.forEach(r => {
+    if (!tomorrowMap[r.user_id]) {
+      tomorrowMap[r.user_id] = {
+        reportId: r.reportId,
+        tomorrowWorkType: r.tomorrow_work_type || '',
+        project: r.project || null,
+        area: r.area ? String(r.area).split('-')[0] : null,
+      };
+    }
+  });
 
-  // 归一化明日工作类型
-  const normalize = (wt) => {
-    if (!wt) return '未填写计划';
-    if (wt === '工作' || wt === '作业') return '工作（陆）';
-    if (wt === '工作（陆）' || wt === '工作（海）') return '计划公出';
-    if (wt === '待工' || wt === '在途') return '计划待工/在途';
-    if (wt === '请假') return '计划请假';
-    return '未填写计划';
-  };
-
-  // 按组聚合
-  const groupsOrder = ['未填写计划', '计划公出', '计划待工/在途', '计划请假'];
-  const groupMap = {};
-  groupsOrder.forEach(g => { groupMap[g] = [] });
-
+  // 组装 workers：所有在职人员，有明日计划的填类型，无计划则空
+  const workers = [];
+  const summary = {};
   activeUsers.forEach(u => {
-    const label = normalize(tomorrowMap[u.id]);
-    groupMap[label].push({
+    const info = tomorrowMap[u.id];
+    const wt = info ? (info.tomorrowWorkType || '') : '';
+    workers.push({
       userId: u.id,
       userName: u.nickname || u.user_name || '',
       workerCode: u.worker_code || '',
-      tomorrowWorkType: tomorrowMap[u.id] || '',
+      reportId: info ? info.reportId : null,
+      tomorrowWorkType: wt,
+      project: info ? info.project : null,
+      area: info ? info.area : null,
     });
+    if (wt) summary[wt] = (summary[wt] || 0) + 1;
   });
-
-  const groups = groupsOrder
-    .map(key => ({ key, label: key, workers: groupMap[key] }))
-    .filter(g => g.workers.length > 0);
 
   return {
     date: targetDate,
+    prevDate,
     totalWorkers: activeUsers.length,
-    groups,
+    summary,
+    workers,
   };
 }
 
