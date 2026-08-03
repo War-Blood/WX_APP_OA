@@ -159,20 +159,16 @@
             </view>
             <view class="form-group">
               <text class="form-label">关联方</text>
-              <picker
-                v-if="relatedPartyHistory.length > 0"
-                mode="selector"
-                :range="relatedPartyHistory"
-                @change="e => formData.relatedParty = relatedPartyHistory[e.detail.value]"
-              >
-                <view class="form-picker">
-                  <text class="picker-value" :class="{ 'picker-placeholder': !formData.relatedParty }">
-                    {{ formData.relatedParty || '从历史记录选择' }}
-                  </text>
-                  <text class="picker-icon">▾</text>
-                </view>
-              </picker>
-              <input v-else class="form-input" placeholder="请输入关联方" v-model="formData.relatedParty" />
+              <input class="form-input" placeholder="请输入关联方" v-model="formData.relatedParty" />
+              <!-- 历史记录快捷建议(点击填入) -->
+              <view v-if="relatedPartyHistory.length > 0 && !formData.relatedParty" class="rp-history">
+                <text
+                  v-for="rp in relatedPartyHistory"
+                  :key="rp"
+                  class="rp-history-tag"
+                  @tap="formData.relatedParty = rp"
+                >{{ rp }}</text>
+              </view>
             </view>
           </view>
 
@@ -1361,6 +1357,21 @@ async function handleSubmit() {
   color: $text-primary;
   box-sizing: border-box;
   width: 100%;
+}
+
+.rp-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.rp-history-tag {
+  padding: 6rpx 20rpx;
+  background: $primary-bg;
+  border-radius: 24rpx;
+  font-size: 24rpx;
+  color: $primary-color;
 }
 
 .form-picker {
