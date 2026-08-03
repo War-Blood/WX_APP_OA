@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
@@ -17,7 +18,8 @@ const statsLoading = ref(true)
 const stats = ref<AllStatsResponse | null>(null)
 
 // 日报查询 — 新增筛选
-const keyword = ref('')
+const route = useRoute()
+const keyword = ref(typeof route.query.keyword === 'string' ? route.query.keyword : '')
 const statusFilter = ref('')
 const reportTypeFilter = ref('')
 const workTypeFilter = ref('')

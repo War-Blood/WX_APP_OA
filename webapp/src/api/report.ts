@@ -283,21 +283,19 @@ export interface TomorrowStatusWorker {
   userId: number
   userName: string
   workerCode: string
+  reportId: number | null
   tomorrowWorkType: string
+  project: string | null
+  area: string | null
 }
 
-/** 明日计划分组 */
-export interface TomorrowStatusGroup {
-  key: string
-  label: string
-  workers: TomorrowStatusWorker[]
-}
-
-/** 明日计划响应 */
+/** 明日计划响应（workers 平铺,前端按明日工作类型分组） */
 export interface TomorrowStatusResponse {
   date: string
+  prevDate: string
   totalWorkers: number
-  groups: TomorrowStatusGroup[]
+  summary: Record<string, number>
+  workers: TomorrowStatusWorker[]
 }
 
 /** 月度工作占比响应 */

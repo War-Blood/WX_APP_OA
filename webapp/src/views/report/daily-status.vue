@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { Search, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import {
   getDailyStatus,
   getTomorrowStatus,
   type DailyStatusWorker, type DailyStatusSummary, type DailyStatusResponse,
-  type TomorrowStatusResponse
+  type TomorrowStatusWorker, type TomorrowStatusResponse
 } from '@/api/report'
+
+const router = useRouter()
+
+// 查看该人员的日报列表(跳转到日报管理页并搜索其姓名)
+function goDailyDetail(row: { userName: string }) {
+  router.push({ path: '/report', query: { keyword: row.userName } })
+}
 
 // 日期（默认昨天）
 function yesterday() {
@@ -100,6 +108,16 @@ const summaryItems = computed<{ key: string; label: string; count: number; color
   ]
 })
 
+// 已提交总人数 = 已提交+已代填+补公出+公司日报+请假
+const submittedTotal = computed(() => {
+  if (!response.value) return 0
+  const s = response.value.summary
+  return (s.submitted || 0) + (s.substituted || 0) + (s.supplement || 0) + (s.office || 0) + (s.leave || 0)
+})
+
+// 总人数 = 已提交 + 缺失
+const totalWorkers = computed(() => submittedTotal.value + (response.value?.summary?.missing || 0))
+
 async function loadData() {
   loading.value = true
   try {
@@ -113,10 +131,12 @@ async function loadData() {
   }
 }
 
-async function loadTomorrow() {
+async function loadTomorrow(dateStr?: string) {
   tomorrowLoading.value = true
   try {
-    tomorrowResponse.value = await getTomorrowStatus({})
+    const params: { date?: string } = {}
+    if (dateStr) params.date = dateStr
+    tomorrowResponse.value = await getTomorrowStatus(params)
   } catch {
     tomorrowResponse.value = null
   } finally {
@@ -127,27 +147,54 @@ async function loadTomorrow() {
 function switchMode(m: 'today' | 'tomorrow') {
   if (mode.value === m) return
   mode.value = m
-  if (m === 'tomorrow' && !tomorrowResponse.value) {
-    loadTomorrow()
+  if (m === 'tomorrow') {
+    // 明日视图默认看"今天日报里的明日计划"
+    date.value = todayStr()
+    loadTomorrow(date.value)
+  } else {
+    date.value = yesterday()
+    loadData()
   }
 }
 
+// 明日分组：按明日工作类型划分
+const tomorrowGroups = computed<{ label: string; workers: TomorrowStatusWorker[] }[]>(() => {
+  if (!tomorrowResponse.value) return []
+  const workers = tomorrowResponse.value.workers || []
+  const order = ['工作（陆）', '工作（海）', '待工', '在途', '请假']
+  const groups: { label: string; workers: TomorrowStatusWorker[] }[] = []
+  order.forEach(wt => {
+    const list = workers.filter(w => w.tomorrowWorkType === wt)
+    if (list.length) groups.push({ label: wt, workers: list })
+  })
+  const noPlan = workers.filter(w => !w.tomorrowWorkType)
+  if (noPlan.length) groups.push({ label: '未填写', workers: noPlan })
+  return groups
+})
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 function handleDateChange() {
-  loadData()
+  if (mode.value === 'tomorrow') loadTomorrow(date.value)
+  else loadData()
 }
 
 function prevDay() {
   const d = new Date(date.value)
   d.setDate(d.getDate() - 1)
   date.value = d.toISOString().slice(0, 10)
-  loadData()
+  if (mode.value === 'tomorrow') loadTomorrow(date.value)
+  else loadData()
 }
 
 function nextDay() {
   const d = new Date(date.value)
   d.setDate(d.getDate() + 1)
   date.value = d.toISOString().slice(0, 10)
-  loadData()
+  if (mode.value === 'tomorrow') loadTomorrow(date.value)
+  else loadData()
 }
 
 function handleSearch() {
@@ -177,7 +224,6 @@ onMounted(() => {
         type="date"
         placeholder="选择日期"
         value-format="YYYY-MM-DD"
-        :disabled="mode === 'tomorrow'"
         @change="handleDateChange"
       />
       <el-button :icon="ArrowRight" size="small" @click="nextDay" />
@@ -185,7 +231,7 @@ onMounted(() => {
         <el-radio-button :value="'today'">今日</el-radio-button>
         <el-radio-button :value="'tomorrow'">明日</el-radio-button>
       </el-radio-group>
-      <span class="date-hint" v-if="mode === 'today' && response">共 {{ response.totalWorkers }} 人</span>
+      <span class="date-hint" v-if="mode === 'today' && response">共 {{ totalWorkers }} 人</span>
       <span class="date-hint" v-if="mode === 'tomorrow' && tomorrowResponse">共 {{ tomorrowResponse.totalWorkers }} 人</span>
     </div>
 
@@ -255,17 +301,22 @@ onMounted(() => {
     <!-- 明日模式:分组列表 -->
     <div v-if="mode === 'tomorrow'" v-loading="tomorrowLoading" class="tomorrow-panel">
       <template v-if="tomorrowResponse">
-        <div v-for="g in tomorrowResponse.groups" :key="g.key" class="tomorrow-group">
+        <div v-for="g in tomorrowGroups" :key="g.label" class="tomorrow-group">
           <div class="tomorrow-group-header">
             <span class="tomorrow-group-name">{{ g.label }}</span>
             <el-tag size="small" type="primary">{{ g.workers.length }}人</el-tag>
           </div>
           <el-table :data="g.workers" size="small" stripe border>
             <el-table-column prop="userName" label="姓名" width="120" />
-            <el-table-column prop="tomorrowWorkType" label="明日工作类型" min-width="140">
+            <el-table-column prop="project" label="项目" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">
-                <span v-if="row.tomorrowWorkType">{{ row.tomorrowWorkType }}</span>
-                <span v-else class="tomorrow-empty">未填写</span>
+                {{ row.project || '—' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="100" align="center">
+              <template #default="{ row }">
+                <el-button v-if="row.reportId" size="small" link type="primary" @click="goDailyDetail(row)">查看日志</el-button>
+                <span v-else>—</span>
               </template>
             </el-table-column>
           </el-table>

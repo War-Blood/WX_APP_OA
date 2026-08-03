@@ -88,7 +88,7 @@
           <text class="summary-lbl">缺失</text>
         </view>
         <view class="summary-item summary-item--total">
-          <text class="summary-val">{{ dailyResponse.totalWorkers || 0 }}</text>
+          <text class="summary-val">{{ dailySubmitted + dailyMissing }}</text>
           <text class="summary-lbl">总人数</text>
         </view>
       </view>
@@ -179,12 +179,13 @@
 
       <!-- 明日模式:分组列表 -->
       <scroll-view v-else-if="dailyMode === 'tomorrow'" class="daily-scroll" scroll-y>
-        <view v-for="g in tomorrowResponse.groups" :key="g.key" class="daily-section">
+        <view v-for="g in tomorrowGroups" :key="g.label" class="daily-section">
           <text class="section-header section-header--tomorrow">{{ g.label }} ({{ g.workers.length }})</text>
           <view class="daily-card-list">
-            <view v-for="w in g.workers" :key="w.userId" class="worker-card worker-card--tomorrow">
+            <view v-for="w in g.workers" :key="w.userId" class="worker-card worker-card--tomorrow" @tap="goDailyDetail(w)">
               <view class="card-left">
                 <text class="card-name">{{ w.userName }}</text>
+                <text v-if="w.project" class="card-project">{{ w.project }}</text>
               </view>
               <view class="card-right">
                 <text v-if="w.tomorrowWorkType" class="card-work-type">{{ w.tomorrowWorkType }}</text>
@@ -582,15 +583,11 @@ const tomorrowResponse = ref(null)
 const tomorrowLoading = ref(false)
 
 const dailyDateDisplay = computed(() => {
-  if (dailyMode.value === 'tomorrow') return '明日 ' + tomorrowDate()
+  if (dailyMode.value === 'tomorrow') return '明日安排 ' + dailyDate.value
   if (dailyDate.value === todayStr) return '今天 ' + dailyDate.value
   if (dailyDate.value === yesterday()) return '昨天 ' + dailyDate.value
   return dailyDate.value
 })
-
-function tomorrowDate() {
-  const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10)
-}
 
 const dailyMissing = computed(() => dailyResponse.value?.summary?.missing || 0)
 const dailySubmitted = computed(() => {
@@ -620,10 +617,10 @@ async function loadDailyStatus() {
   finally { dailyLoading.value = false }
 }
 
-async function loadTomorrowStatus() {
+async function loadTomorrowStatus(date) {
   tomorrowLoading.value = true
   try {
-    const res = await reportApi.getTomorrowStatus({})
+    const res = await reportApi.getTomorrowStatus({ date })
     if (res.code === 0 && res.data) tomorrowResponse.value = res.data
   } catch { tomorrowResponse.value = null }
   finally { tomorrowLoading.value = false }
@@ -632,15 +629,45 @@ async function loadTomorrowStatus() {
 function switchDailyMode(mode) {
   if (dailyMode.value === mode) return
   dailyMode.value = mode
-  if (mode === 'tomorrow' && !tomorrowResponse.value) {
-    loadTomorrowStatus()
+  if (mode === 'tomorrow') {
+    // 明日视图默认看"今天日报里的明日计划"(即明天的安排)
+    dailyDate.value = todayStr
+    loadTomorrowStatus(dailyDate.value)
+  } else {
+    dailyDate.value = yesterday()
+    loadDailyStatus()
   }
 }
 
-function dailyPrevDay() { const d = new Date(dailyDate.value); d.setDate(d.getDate() - 1); dailyDate.value = d.toISOString().slice(0, 10); loadDailyStatus() }
-function dailyNextDay() { if (dailyDate.value >= todayStr) return; const d = new Date(dailyDate.value); d.setDate(d.getDate() + 1); dailyDate.value = d.toISOString().slice(0, 10); loadDailyStatus() }
-function onDailyDateChange(e) { dailyDate.value = e.detail.value; loadDailyStatus() }
+function dailyPrevDay() {
+  const d = new Date(dailyDate.value); d.setDate(d.getDate() - 1); dailyDate.value = d.toISOString().slice(0, 10)
+  if (dailyMode.value === 'tomorrow') loadTomorrowStatus(dailyDate.value); else loadDailyStatus()
+}
+function dailyNextDay() {
+  if (dailyDate.value >= todayStr) return
+  const d = new Date(dailyDate.value); d.setDate(d.getDate() + 1); dailyDate.value = d.toISOString().slice(0, 10)
+  if (dailyMode.value === 'tomorrow') loadTomorrowStatus(dailyDate.value); else loadDailyStatus()
+}
+function onDailyDateChange(e) {
+  dailyDate.value = e.detail.value
+  if (dailyMode.value === 'tomorrow') loadTomorrowStatus(dailyDate.value); else loadDailyStatus()
+}
 function goDailyDetail(w) { if (w.reportId) uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + w.reportId }) }
+
+// 明日视图:按明日工作类型分组
+const tomorrowGroups = computed(() => {
+  if (!tomorrowResponse.value) return []
+  const workers = tomorrowResponse.value.workers || []
+  const order = ['工作（陆）', '工作（海）', '待工', '在途', '请假']
+  const groups = []
+  order.forEach(wt => {
+    const list = workers.filter(w => w.tomorrowWorkType === wt)
+    if (list.length) groups.push({ label: wt, workers: list })
+  })
+  const noPlan = workers.filter(w => !w.tomorrowWorkType)
+  if (noPlan.length) groups.push({ label: '未填写', workers: noPlan })
+  return groups
+})
 
 // ============ 数据加载 ============
 async function loadPersonal() {
@@ -682,7 +709,7 @@ async function onRefresh() {
   refreshing.value = true
   if (activeTab.value === 'personal') await Promise.all([loadPersonal(), loadMonthly(), loadTeamLogs()])
   else if (activeTab.value === 'daily') {
-    if (dailyMode.value === 'tomorrow') await loadTomorrowStatus()
+    if (dailyMode.value === 'tomorrow') await loadTomorrowStatus(dailyDate.value)
     else await loadDailyStatus()
   }
   else if (activeTab.value === 'calendar') await loadCalendar()
