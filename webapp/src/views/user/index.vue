@@ -87,7 +87,8 @@ async function loadUsers() {
       page: page.value, pageSize: pageSize.value,
       keyword: keyword.value || undefined,
       role: roleFilter.value || undefined,
-      status: statusFilter.value || undefined
+      // '全部状态'传 all,让后端不过滤 active,待审核/已禁用用户可见
+      status: statusFilter.value || 'all'
     })
     userList.value = res.list
     total.value = res.total
