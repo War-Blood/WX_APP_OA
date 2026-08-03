@@ -108,3 +108,6 @@ deploy.tar.gz
 需求/worktile/项目-项目管理-任务看板-我负责的任务.png
 需求/worktile/项目-项目管理-项目概览.png
 需求/worktile/项目-项目管理-项目概览2.png
+
+# Claude session captures（临时会话捕获，不入库）
+.memory/captures/
