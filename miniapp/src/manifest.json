@@ -2,8 +2,8 @@
     "name" : "贝良办公助手",
     "appid" : "__UNI__4B05A3D",
     "description" : "轻量化办公·高效能协作",
-    "versionName" : "1.0.2.4",
-    "versionCode" : "1024",
+    "versionName" : "1.0.2.7",
+    "versionCode" : "1027",
     "vueVersion" : "3",
     "transformPx" : false,
     "mp-weixin" : {

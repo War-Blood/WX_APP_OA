@@ -174,7 +174,7 @@ async function loadReportList(reset = true) {
   }
 
   try {
-    const statusMap = { all: undefined, draft: 'draft', submitted: 'submitted' }
+    const statusMap = { all: undefined, draft: 'draft', submitted: 'submitted', approved: 'approved', rejected: 'rejected' }
     const res = await reportApi.getList({
       page: currentPage.value,
       pageSize: 20,

@@ -1052,12 +1052,14 @@ async function handleSubmit() {
     }
   }
 
-  // 今日工作小结校验（公出/补公出时始终校验，公司日报时校验）
-  if (currentTab.value === 'office') {
-    if (!formData.value.todayWork) {
-      showError('请输入今日工作内容')
-      return
-    }
+  // 今日工作小结必填校验：与 UI 显示条件严格对齐
+  // office 始终显示；公出/补公出在「非请假/调休」时显示；显示才校验
+  const todayWorkVisible =
+    currentTab.value === 'office' || !isLeave.value
+  if (todayWorkVisible && !formData.value.todayWork) {
+    const label = currentTab.value === 'office' ? '今日工作内容' : '今日工作小结'
+    showError(`请输入${label}`)
+    return
   }
 
   // 补公出额外校验
