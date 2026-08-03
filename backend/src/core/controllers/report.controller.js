@@ -445,6 +445,20 @@ async function dailyStatus(req, res, next) {
   }
 }
 
+/**
+ * 明日计划状态
+ * POST /api/report/tomorrow-status
+ */
+async function tomorrowStatus(req, res, next) {
+  try {
+    const { date } = req.body;
+    const result = await statsService.getTomorrowStatus(date);
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ==============================
 // 管理层看板 — 月度工作占比（新增）
 // ==============================
@@ -636,6 +650,7 @@ module.exports = {
   supplementReview,
   stats,
   dailyStatus,
+  tomorrowStatus,
   monthlySummary,
   teamLogs,
   workerList,

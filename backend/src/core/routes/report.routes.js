@@ -77,6 +77,9 @@ router.post('/stats', authenticate, reportController.stats);
 // POST /api/report/daily-status — 全员当日状态
 router.post('/daily-status', ...adminAuth, reportController.dailyStatus);
 
+// POST /api/report/tomorrow-status — 明日计划状态
+router.post('/tomorrow-status', ...adminAuth, reportController.tomorrowStatus);
+
 // POST /api/report/monthly-summary — 月度工作占比（管理员看全员，员工看自己）
 router.post('/monthly-summary', authenticate, reportController.monthlySummary);
 

@@ -560,6 +560,85 @@ async function getDailyStatus(dateStr) {
 }
 
 /**
+ * 明日计划状态
+ * 按每个人最近一次填写的明日工作类型（tomorrow_work_type）分组展示，
+ * 用于「全员当日」的明日视图
+ * @param {string} [date] - 查询日期（明日，YYYY-MM-DD）
+ * @returns {Promise<Object>} { date, groups: [{ key, label, workers: [...] }] }
+ */
+async function getTomorrowStatus(date) {
+  const targetDate = date || (() => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return formatDate(t);
+  })();
+
+  // 所有在职作业人员
+  const activeUsers = await db.query(
+    `SELECT id, nickname, user_name, worker_code
+     FROM users
+     WHERE worker_status = 'active' AND status = 'active'
+       AND deleted_at IS NULL AND role NOT IN ('admin', 'superadmin')
+     ORDER BY id ASC`,
+    []
+  );
+
+  // 每个人最近一次提交的明日工作类型（取最新 report_date）
+  const latestRows = await db.query(
+    `SELECT dr.user_id, dr.tomorrow_work_type
+     FROM daily_reports dr
+     INNER JOIN (
+       SELECT user_id, MAX(report_date) AS max_date
+       FROM daily_reports
+       WHERE report_type != 'office' AND status != 'draft' AND deleted_at IS NULL
+         AND tomorrow_work_type IS NOT NULL AND tomorrow_work_type != ''
+       GROUP BY user_id
+     ) t ON dr.user_id = t.user_id AND dr.report_date = t.max_date
+     WHERE dr.report_type != 'office' AND dr.status != 'draft' AND dr.deleted_at IS NULL`,
+    []
+  );
+
+  // user_id → 明日工作类型
+  const tomorrowMap = {};
+  latestRows.forEach(r => { tomorrowMap[r.user_id] = r.tomorrow_work_type; });
+
+  // 归一化明日工作类型
+  const normalize = (wt) => {
+    if (!wt) return '未填写计划';
+    if (wt === '工作' || wt === '作业') return '工作（陆）';
+    if (wt === '工作（陆）' || wt === '工作（海）') return '计划公出';
+    if (wt === '待工' || wt === '在途') return '计划待工/在途';
+    if (wt === '请假') return '计划请假';
+    return '未填写计划';
+  };
+
+  // 按组聚合
+  const groupsOrder = ['未填写计划', '计划公出', '计划待工/在途', '计划请假'];
+  const groupMap = {};
+  groupsOrder.forEach(g => { groupMap[g] = [] });
+
+  activeUsers.forEach(u => {
+    const label = normalize(tomorrowMap[u.id]);
+    groupMap[label].push({
+      userId: u.id,
+      userName: u.nickname || u.user_name || '',
+      workerCode: u.worker_code || '',
+      tomorrowWorkType: tomorrowMap[u.id] || '',
+    });
+  });
+
+  const groups = groupsOrder
+    .map(key => ({ key, label: key, workers: groupMap[key] }))
+    .filter(g => g.workers.length > 0);
+
+  return {
+    date: targetDate,
+    totalWorkers: activeUsers.length,
+    groups,
+  };
+}
+
+/**
  * 格式化日期为 YYYY-MM-DD
  */
 function formatDate(d) {
@@ -581,27 +660,72 @@ function formatDateTime(d) {
 }
 
 /**
- * 月度每日提交人次（日历热力图数据源）
+ * 月度每日提交统计
+ * 每格返回当天去重已提交人数 submitted 与当天在职人数 total，
+ * 供日历展示「已提交/总人数」及全员提交淡绿背景
  * @param {string} month - 月份 (YYYY-MM)
- * @returns {Promise<Object>} { month, data: [{ date, count }] }
+ * @returns {Promise<Object>} { month, data: [{ date, submitted, total }] }
  */
 async function getDailyCounts(month) {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
-  const rows = await db.query(
-    `SELECT report_date AS date, COUNT(*) AS count
+
+  // 当月所有在职作业人员（含入场日期，用于按日判断是否在岗）
+  const activeUsers = await db.query(
+    `SELECT id, entry_date FROM users
+     WHERE worker_status = 'active' AND status = 'active'
+       AND deleted_at IS NULL AND role NOT IN ('admin', 'superadmin')`,
+    []
+  );
+
+  // 当月已审核通过的日报中，当天去重的直接提交人
+  const submitterRows = await db.query(
+    `SELECT report_date, user_id
      FROM daily_reports
      WHERE status = 'approved' AND report_type != 'office'
        AND DATE_FORMAT(report_date, '%Y-%m') = ?
-     GROUP BY report_date
-     ORDER BY report_date`,
+       AND deleted_at IS NULL`,
     [month]
   );
-  return {
-    month,
-    data: rows.map(r => ({ date: formatDate(r.date), count: Number(r.count) })),
+
+  // 当月已审核通过的日报中，当天被代填的人（daily_report_workers）
+  const subWorkerRows = await db.query(
+    `SELECT dr.report_date, drw.worker_uid AS user_id
+     FROM daily_report_workers drw
+     JOIN daily_reports dr ON drw.report_id = dr.id
+     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+       AND dr.deleted_at IS NULL`,
+    [month]
+  );
+
+  // 按日期聚合：submittedSet[date] = Set(当天已提交去重人员)
+  const submittedSet = {};
+  const addSubmitted = (r) => {
+    if (!r || !r.user_id) return;
+    const d = formatDate(r.report_date);
+    if (!submittedSet[d]) submittedSet[d] = new Set();
+    submittedSet[d].add(Number(r.user_id));
   };
+  submitterRows.forEach(addSubmitted);
+  subWorkerRows.forEach(addSubmitted);
+
+  // 生成当月每一天的数据
+  const [y, m] = month.split('-').map(Number);
+  const year = y;
+  const monthIdx = m - 1;
+  const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+  const data = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    // total = 入场日期 <= 当天 的在职作业人数
+    const total = activeUsers.filter(u => !u.entry_date || formatDate(u.entry_date) <= dateStr).length;
+    const submitted = submittedSet[dateStr] ? submittedSet[dateStr].size : 0;
+    data.push({ date: dateStr, submitted, total });
+  }
+
+  return { month, data };
 }
 
 /**
@@ -729,6 +853,19 @@ async function getWorkerWorkTypes(month) {
     [month]
   );
 
+  // 当月补录（补公出）的去重天数统计：user_id → 去重天数
+  const supplementRows = await db.query(
+    `SELECT user_id, COUNT(DISTINCT report_date) AS cnt
+     FROM daily_reports
+     WHERE status = 'approved' AND report_type = 'biz_trip_supplement'
+       AND DATE_FORMAT(report_date, '%Y-%m') = ?
+       AND deleted_at IS NULL
+     GROUP BY user_id`,
+    [month]
+  );
+  const supplementMap = {};
+  supplementRows.forEach(r => { supplementMap[r.user_id] = Number(r.cnt); });
+
   // 名字→用户ID 查找表
   const nameToUid = {};
   activeWorkers.forEach(w => {
@@ -808,6 +945,7 @@ async function getWorkerWorkTypes(month) {
       workerCode: w.worker_code || '',
       workTypes: workTypesObj,
       total,
+      supplementCount: supplementMap[w.id] || 0,
     };
   });
 
@@ -1217,4 +1355,4 @@ async function getUserMonthlyLogs(userId, month) {
   };
 }
 
-module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getDailyCounts, getProjectProgress, getWorkerWorkTypes, getAreaDistribution, getProvinceWorkers, getUserMonthlyLogs };
+module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getTomorrowStatus, getDailyCounts, getProjectProgress, getWorkerWorkTypes, getAreaDistribution, getProvinceWorkers, getUserMonthlyLogs };
