@@ -26,6 +26,26 @@ function needsWechatBind(openid) {
 }
 
 /**
+ * openid 脱敏：仅记录前 8 位 + 总长度，避免完整敏感信息落日志
+ * @param {string} openid - 微信 openid
+ * @returns {string} 如 "oTvs43W6…(28)"
+ */
+function maskOpenid(openid) {
+  if (!openid) return '';
+  const len = String(openid).length;
+  return String(openid).slice(0, 8) + '…(' + len + ')';
+}
+
+/**
+ * 登录诊断日志（接收器）：统一 module 标记，便于从 pm2 logs / combined.log 过滤
+ * @param {string} message - 日志消息
+ * @param {Object} data - 诊断上下文
+ */
+function diagLog(message, data) {
+  logger.info(message, { module: 'AUTH-DIAG', ...data });
+}
+
+/**
  * 微信登录
  * 用 code 换取 openid，查找或创建用户，返回 JWT + 用户信息
  * @param {string} code - 微信小程序登录凭证
@@ -36,9 +56,15 @@ async function login(code) {
   logger.info('微信登录 - 调用 code2session', { module: 'AUTH' });
 
   const openid = await code2session(code);
+  diagLog('登录诊断[1] code2session成功', { openid: maskOpenid(openid), isCdk: needsWechatBind(openid) });
 
   // 2. 在 users 表中查找用户
   const users = await db.query('SELECT * FROM users WHERE openid = ? AND deleted_at IS NULL', [openid]);
+  diagLog('登录诊断[2] active用户匹配', {
+    activeFound: users.length > 0,
+    activeUserId: users.length ? users[0].id : null,
+    activeStatus: users.length ? users[0].status : null,
+  });
 
   // 3. 未注册 → 检查是否被软删除，是则自动恢复
   if (users.length === 0) {
@@ -46,6 +72,12 @@ async function login(code) {
       'SELECT * FROM users WHERE openid = ? AND deleted_at IS NOT NULL',
       [openid]
     );
+    diagLog('登录诊断[3] deleted用户匹配', {
+      deletedFound: deletedUser.length > 0,
+      deletedUserId: deletedUser.length ? deletedUser[0].id : null,
+      deletedStatus: deletedUser.length ? deletedUser[0].status : null,
+      deletedAt: deletedUser.length ? deletedUser[0].deleted_at : null,
+    });
     if (deletedUser.length > 0) {
       // 重新发起申请：恢复账号但设为 pending，需管理员重新审核
       // 若工号缺失则补全
@@ -57,11 +89,13 @@ async function login(code) {
         "UPDATE users SET deleted_at = NULL, status = 'pending', worker_code = ? WHERE id = ?",
         [workerCode, deletedUser[0].id]
       );
+      diagLog('登录诊断[4] 触发恢复', { restoring: true, userId: deletedUser[0].id, workerCode, newStatus: 'pending' });
       logger.info('用户重新申请 - 已提交审核', { module: 'AUTH', userId: deletedUser[0].id });
       const reappliedUser = { ...deletedUser[0], deleted_at: null, status: 'pending', worker_code: workerCode };
       // 登录成功但前端会拦截 pending 状态，显示"等待审核"
       return finalizeLogin(reappliedUser);
     }
+    diagLog('登录诊断[5] 未注册', { notRegistered: true, openidPrefix: maskOpenid(openid), isCdk: needsWechatBind(openid) });
     throw new BusinessError('您的账号未注册，请联系管理员');
   }
 
@@ -69,15 +103,18 @@ async function login(code) {
 
   // 4. 检查账号状态
   if (user.status === 'pending') {
+    diagLog('登录诊断[6] 分支pending', { branch: 'pending', userId: user.id });
     logger.info('用户登录 - 账号审核中', { module: 'AUTH', userId: user.id });
     // pending 也允许登录拿 token，但前端拦截显示审核中
     return finalizeLogin(user);
   }
   if (user.status === 'disabled') {
+    diagLog('登录诊断[6] 分支disabled', { branch: 'disabled', userId: user.id });
     throw new BusinessError('您的账号已被禁用，请联系管理员');
   }
 
   // 5. active → 完成登录
+  diagLog('登录诊断[6] 分支active', { branch: 'active', userId: user.id });
   return finalizeLogin(user);
 }
 
@@ -255,12 +292,18 @@ async function accountLogin(account, password) {
     'SELECT * FROM users WHERE user_name = ? AND deleted_at IS NULL',
     [account]
   );
+  diagLog('账号登录诊断[1] active匹配', { account, activeFound: users.length > 0 });
   // 若未找到，检查是否被软删除，是则自动恢复
   if (users.length === 0) {
     const deletedUser = await db.query(
       'SELECT * FROM users WHERE user_name = ? AND deleted_at IS NOT NULL',
       [account]
     );
+    diagLog('账号登录诊断[2] deleted匹配', {
+      deletedFound: deletedUser.length > 0,
+      deletedUserId: deletedUser.length ? deletedUser[0].id : null,
+      deletedStatus: deletedUser.length ? deletedUser[0].status : null,
+    });
     if (deletedUser.length > 0) {
       // 重新发起申请：恢复账号但设为 pending，需管理员重新审核
       // 若工号缺失则补全
@@ -272,12 +315,17 @@ async function accountLogin(account, password) {
         "UPDATE users SET deleted_at = NULL, status = 'pending', worker_code = ? WHERE id = ?",
         [workerCode, deletedUser[0].id]
       );
+      diagLog('账号登录诊断[3] 触发恢复', { restoring: true, userId: deletedUser[0].id, workerCode, newStatus: 'pending' });
       logger.info('用户重新申请 - 已提交审核（账号登录）', { module: 'AUTH', userId: deletedUser[0].id });
       users = [{ ...deletedUser[0], deleted_at: null, status: 'pending', worker_code: workerCode }];
     }
   }
-  if (users.length === 0) throw new BusinessError('账号不存在');
+  if (users.length === 0) {
+    diagLog('账号登录诊断[4] 账号不存在', { account, notFound: true });
+    throw new BusinessError('账号不存在');
+  }
   const user = users[0];
+  diagLog('账号登录诊断[5] 用户状态', { userId: user.id, status: user.status });
   // 仅拒绝 disabled，pending 允许登录（前端拦截显示等待审核）
   if (user.status === 'disabled') throw new BusinessError('账号已被禁用，请联系管理员');
   if (user.status === 'pending') {
