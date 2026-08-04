@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
-import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreReport, reviewAction, batchReviewAction, reviewSupplement, updateReport, exportToWecomSheet } from '@/api/report'
+import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreReport, reviewSupplement, updateReport, exportToWecomSheet } from '@/api/report'
 import type { ReportUpdateResult } from '@/api/report'
 import type { AllStatsResponse } from '@/api/report'
 import { currentMonthInBeijing } from '@/utils/date'
@@ -38,7 +38,6 @@ const reportList = ref<Record<string, unknown>[]>([])
 const reportTotal = ref(0)
 const reportPage = ref(1)
 const reportPageSize = ref(50)
-const selectedRows = ref<Record<string, unknown>[]>([])
 
 // 人员看板
 const workerKeyword = ref('')
@@ -156,62 +155,6 @@ function validateDateRange() {
 function handleSearchWithValidation() {
   if (!validateDateRange()) return
   handleSearch()
-}
-
-function handleSelectionChange(rows: Record<string, unknown>[]) {
-  selectedRows.value = rows
-}
-
-function isSelectableRow(row: Record<string, unknown>) {
-  return row.status === 'pending'
-}
-
-async function handleBatchReview(action: 'approve' | 'reject') {
-  const pendingRows = selectedRows.value.filter(row => row.status === 'pending')
-  const skipped = selectedRows.value.length - pendingRows.length
-  const ids = pendingRows.map(row => row.id as string).filter(Boolean)
-  if (!ids.length) {
-    toast.warning(skipped > 0 ? '所选日报均非待审核状态' : '请先选择待审核日报')
-    return
-  }
-  if (skipped > 0) {
-    toast.warning(`已跳过 ${skipped} 条非待审核日报`)
-  }
-
-  let opinion: string | undefined
-  if (action === 'reject') {
-    try {
-      const { value } = await ElMessageBox.prompt('请输入驳回原因', '批量驳回', {
-        inputType: 'textarea',
-        inputPlaceholder: '请填写驳回原因',
-        inputValidator: (val: string) => !!val.trim(),
-        inputErrorMessage: '驳回原因不能为空',
-        confirmButtonText: '确定驳回',
-        cancelButtonText: '取消'
-      })
-      opinion = value
-    } catch {
-      return
-    }
-  } else {
-    try {
-      await ElMessageBox.confirm(`确认批量通过 ${ids.length} 条日报？`, '批量通过', {
-        type: 'warning'
-      })
-    } catch {
-      return
-    }
-  }
-
-  try {
-    const result = await batchReviewAction(ids, action, opinion)
-    toast.success(`已处理 ${result.processed} 条日报`)
-    selectedRows.value = []
-    loadReports()
-  } catch {
-    selectedRows.value = []
-    loadReports()
-  }
 }
 
 async function handleExport() {
@@ -358,35 +301,6 @@ async function handleDelete(row: Record<string, unknown>) {
     } as any)
     loadReports()
   } catch { /* cancelled */ }
-}
-
-async function handleReview(row: Record<string, unknown>, action: 'approve' | 'reject') {
-  if (action === 'approve') {
-    try {
-      await ElMessageBox.confirm('确定通过该条日报？', '审核确认', { type: 'warning' })
-    } catch { return }
-    try {
-      await reviewAction(row.id as string, action)
-      toast.success('已通过')
-    } catch { toast.error('操作失败'); return }
-    loadReports()
-  } else {
-    try {
-      const { value: opinion } = await ElMessageBox.prompt('请输入驳回原因', '驳回确认', {
-        inputType: 'textarea',
-        inputPlaceholder: '请详细说明驳回原因',
-        inputValidator: (val: string) => !!val.trim(),
-        inputErrorMessage: '驳回原因不能为空',
-        confirmButtonText: '确定驳回',
-        cancelButtonText: '取消',
-        distinguishCancelAndClose: true
-      })
-      if (!opinion) return
-      await reviewAction(row.id as string, action, opinion)
-      toast.success('已驳回')
-      loadReports()
-    } catch { /* cancelled or API error */ }
-  }
 }
 
 async function showDetail(row: Record<string, unknown>) {
@@ -587,12 +501,6 @@ onMounted(() => { loadStats(); loadReports() })
         </div>
         <div class="toolbar-row">
           <el-button :icon="Refresh" @click="handleSearchWithValidation">刷新</el-button>
-          <el-button type="success" :disabled="!selectedRows.length" @click="handleBatchReview('approve')">
-            批量通过
-          </el-button>
-          <el-button type="danger" :disabled="!selectedRows.length" @click="handleBatchReview('reject')">
-            批量驳回
-          </el-button>
           <el-button type="success" :icon="Download" @click="handleExport">导出CSV</el-button>
           <el-date-picker v-model="attendanceMonth" type="month" placeholder="选择月份" style="width:140px" format="YYYY-MM" value-format="YYYY-MM" />
           <el-button type="primary" :icon="Download" @click="handleExportAttendance">导出考勤</el-button>
@@ -607,10 +515,8 @@ onMounted(() => { loadStats(); loadReports() })
         border
         highlight-current-row
         @row-click="showDetail"
-        @selection-change="handleSelectionChange"
         style="cursor:pointer"
       >
-        <el-table-column type="selection" width="48" :selectable="isSelectableRow" />
         <el-table-column prop="reportDate" label="日报时间" width="110" fixed="left" />
         <el-table-column label="日志类型" width="100" align="center">
           <template #default="{ row }">
@@ -638,8 +544,6 @@ onMounted(() => { loadStats(); loadReports() })
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status === 'pending'" size="small" type="success" @click.stop="handleReview(row, 'approve')">通过</el-button>
-            <el-button v-if="row.status === 'pending'" size="small" type="danger" @click.stop="handleReview(row, 'reject')">驳回</el-button>
             <el-button v-if="(row.reportType as string) === 'biz_trip_supplement'" size="small" type="primary" @click.stop="openSupplementReview(row)">审核</el-button>
             <el-button size="small" type="warning" link @click.stop="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" link :icon="Delete" @click.stop="handleDelete(row)" />

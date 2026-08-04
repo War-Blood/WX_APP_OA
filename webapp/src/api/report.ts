@@ -82,20 +82,6 @@ export function getReviewList(params: {
   return request.post('/project/reviewList', params)
 }
 
-/** 审核日报(通过/驳回) */
-export function reviewAction(id: string, action: 'approve' | 'reject', opinion?: string): Promise<{ status: string }> {
-  return request.post('/project/reviewAction', { id, action, opinion })
-}
-
-/** 批量审核日报(通过/驳回，原子事务) */
-export function batchReviewAction(ids: string[], action: 'approve' | 'reject', opinion?: string): Promise<{
-  success: boolean
-  processed: number
-  status: string
-}> {
-  return request.post('/project/reviewBatch', { ids, action, opinion })
-}
-
 /** 删除日报 */
 export function deleteReport(id: string): Promise<void> {
   return request.post('/report/delete', { id })
