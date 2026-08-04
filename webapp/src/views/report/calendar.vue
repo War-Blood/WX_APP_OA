@@ -52,15 +52,15 @@ function renderCalendar() {
       ]
     },
     calendar: {
-      top: 60, left: 20, right: 20, bottom: 30,
+      top: 50, left: 20, right: 20, bottom: 40,
       range: calMonth.value,
       orient: 'horizontal',
-      cellSize: ['auto', 40],
+      cellSize: ['auto', 34],
       splitLine: { show: true, lineStyle: { color: '#eee', width: 1 } },
       itemStyle: { borderWidth: 3, borderColor: '#fff', borderRadius: 6 },
-      yearLabel: { show: true, fontSize: 14, fontWeight: 'bold', color: '#333' },
-      monthLabel: { nameMap: 'ZH', fontSize: 13, color: '#666', margin: 10 },
-      dayLabel: { nameMap: 'ZH', fontSize: 11, color: '#999', firstDay: 1 }
+      yearLabel: { show: true, fontSize: 13, fontWeight: 'bold', color: '#333' },
+      monthLabel: { nameMap: 'ZH', fontSize: 12, color: '#666', margin: 8 },
+      dayLabel: { nameMap: 'ZH', fontSize: 10, color: '#999', firstDay: 1 }
     },
     series: [{
       type: 'heatmap',
@@ -125,7 +125,7 @@ onUnmounted(() => {
           </div>
         </div>
       </template>
-      <div ref="calChartRef" v-loading="calLoading" style="height:320px"></div>
+      <div ref="calChartRef" v-loading="calLoading" style="height:360px"></div>
     </el-card>
   </div>
 </template>
