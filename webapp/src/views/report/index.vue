@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
-import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreReport, reviewSupplement, updateReport, exportToWecomSheet } from '@/api/report'
+import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreReport, updateReport, exportToWecomSheet } from '@/api/report'
 import type { ReportUpdateResult } from '@/api/report'
 import type { AllStatsResponse } from '@/api/report'
 import { currentMonthInBeijing } from '@/utils/date'
@@ -48,12 +48,6 @@ const workerTotal = ref(0)
 const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detailData = ref<Record<string, any>>({})
-
-// 审核弹窗（补公出）
-const reviewVisible = ref(false)
-const reviewItem = ref<Record<string, unknown> | null>(null)
-const reviewDecision = ref<'special' | 'forget'>('special')
-const reviewComment = ref('')
 
 // 编辑弹窗
 const editVisible = ref(false)
@@ -315,31 +309,6 @@ async function showDetail(row: Record<string, unknown>) {
   detailVisible.value = true
 }
 
-// --- 补公出审核 ---
-function openSupplementReview(row: Record<string, unknown>) {
-  reviewItem.value = row
-  reviewDecision.value = 'special'
-  reviewComment.value = ''
-  reviewVisible.value = true
-}
-
-async function handleSupplementReview() {
-  if (!reviewItem.value) return
-  try {
-    await reviewSupplement({
-      reportId: reviewItem.value.id as number,
-      decision: reviewDecision.value,
-      comment: reviewComment.value || undefined
-    })
-    toast.success('审核完成')
-  } catch {
-    // 错误已由拦截器处理
-  } finally {
-    reviewVisible.value = false
-    loadReports()
-  }
-}
-
 // ===== 编辑公出日志 =====
 function openEdit(row: Record<string, unknown>) {
   editData.value = {
@@ -544,7 +513,6 @@ onMounted(() => { loadStats(); loadReports() })
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="(row.reportType as string) === 'biz_trip_supplement'" size="small" type="primary" @click.stop="openSupplementReview(row)">审核</el-button>
             <el-button size="small" type="warning" link @click.stop="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" link :icon="Delete" @click.stop="handleDelete(row)" />
           </template>
@@ -590,43 +558,6 @@ onMounted(() => { loadStats(); loadReports() })
       :loading="detailLoading"
       @update:visible="detailVisible = $event"
     />
-
-    <!-- 补公出审核弹窗 -->
-    <el-dialog v-model="reviewVisible" title="补公出日志审核" width="550px" destroy-on-close>
-      <template v-if="reviewItem">
-        <el-descriptions :column="1" border size="small" class="review-detail">
-          <el-descriptions-item label="提交人">{{ reviewItem.submitter }}</el-descriptions-item>
-          <el-descriptions-item label="补录日期">{{ reviewItem.supplementDate || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="项目">{{ reviewItem.project }}</el-descriptions-item>
-          <el-descriptions-item label="补录原因">{{ reviewItem.supplementReason || '-' }}</el-descriptions-item>
-        </el-descriptions>
-
-        <el-divider />
-
-        <div class="review-section">
-          <p class="section-title">审核判定</p>
-          <el-radio-group v-model="reviewDecision">
-            <el-radio value="special">特殊情况 — 日志标记为正常</el-radio>
-            <el-radio value="forget">非特殊/忘记 — 日志标记为延迟</el-radio>
-          </el-radio-group>
-        </div>
-
-        <div class="review-section">
-          <p class="section-title">审核意见</p>
-          <el-input
-            v-model="reviewComment"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入审核意见（可选）"
-          />
-        </div>
-      </template>
-
-      <template #footer>
-        <el-button @click="reviewVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSupplementReview" :disabled="!reviewItem">确认</el-button>
-      </template>
-    </el-dialog>
 
     <!-- 编辑弹窗 -->
     <el-dialog v-model="editVisible" title="编辑公出日志" width="750px" destroy-on-close>
@@ -774,7 +705,5 @@ onMounted(() => { loadStats(); loadReports() })
 .toolbar-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .toolbar-left { display: flex; gap: 12px; align-items: center; }
 .pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; .total-text { font-size: 14px; color: #999; } }
-.review-detail { margin-bottom: 8px; }
-.review-section { margin-bottom: 16px; .section-title { font-weight: 600; margin-bottom: 8px; color: #303133; } }
 .edit-readonly { margin-bottom: 8px; }
 </style>
