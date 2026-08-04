@@ -44,6 +44,7 @@ function renderCalendar() {
     visualMap: {
       min: 0, max: 1,
       orient: 'horizontal', left: 'center', bottom: 0,
+      calculable: false,
       pieces: [
         { min: 1, max: 1, color: '#E8F5E9', label: '全员提交' },
         { min: 0.0001, max: 0.9999, color: '#FFFFFF', label: '部分提交' },
@@ -51,13 +52,15 @@ function renderCalendar() {
       ]
     },
     calendar: {
-      top: 40, left: 30, right: 30,
+      top: 60, left: 20, right: 20, bottom: 30,
       range: calMonth.value,
-      cellSize: ['auto', 36],
-      yearLabel: { show: false },
-      monthLabel: { fontSize: 13 },
-      dayLabel: { fontSize: 11, nameMap: 'ZH' },
-      itemStyle: { borderWidth: 2, borderColor: '#fff', borderRadius: 4 }
+      orient: 'horizontal',
+      cellSize: ['auto', 40],
+      splitLine: { show: true, lineStyle: { color: '#eee', width: 1 } },
+      itemStyle: { borderWidth: 3, borderColor: '#fff', borderRadius: 6 },
+      yearLabel: { show: true, fontSize: 14, fontWeight: 'bold', color: '#333' },
+      monthLabel: { nameMap: 'ZH', fontSize: 13, color: '#666', margin: 10 },
+      dayLabel: { nameMap: 'ZH', fontSize: 11, color: '#999', firstDay: 1 }
     },
     series: [{
       type: 'heatmap',
@@ -65,7 +68,7 @@ function renderCalendar() {
       data,
       label: {
         show: true,
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 'bold',
         formatter: (p: { data: [string, number] }) => {
           const d = calData.value.find(x => x.date === p.data[0])
@@ -122,7 +125,7 @@ onUnmounted(() => {
           </div>
         </div>
       </template>
-      <div ref="calChartRef" v-loading="calLoading" style="height:250px"></div>
+      <div ref="calChartRef" v-loading="calLoading" style="height:320px"></div>
     </el-card>
   </div>
 </template>
