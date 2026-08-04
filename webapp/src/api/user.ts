@@ -8,6 +8,7 @@ export interface UserItem {
   role: string
   department: string
   departmentId?: number | null
+  workerCode?: string
   position?: string
   phone?: string
   email?: string

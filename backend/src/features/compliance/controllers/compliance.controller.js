@@ -61,7 +61,7 @@ async function getBizTripList(req, res, next) {
     const offset = (page - 1) * pageSize;
 
     const rows = await db.query(
-      `SELECT bts.*, u.user_name as user_name, u.avatar
+      `SELECT bts.*, u.user_name as user_name, u.avatar_url as avatar
        FROM biz_trip_status bts
        JOIN users u ON bts.user_id = u.id
        WHERE bts.status = ?
@@ -70,17 +70,18 @@ async function getBizTripList(req, res, next) {
       [status, parseInt(pageSize), offset]
     );
 
-    const [countRows] = await db.query(
+    const countRows = await db.query(
       'SELECT COUNT(*) as total FROM biz_trip_status WHERE status = ?',
       [status]
     );
+    const total = countRows[0]?.total ?? 0;
 
     res.json({
       code: 0,
       message: 'success',
       data: {
         list: rows,
-        total: countRows[0].total,
+        total,
         page: parseInt(page),
         pageSize: parseInt(pageSize)
       }

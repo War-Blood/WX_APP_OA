@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { toast } from '@/utils/toast'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { User, Lock, CircleCheck } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
@@ -18,19 +18,40 @@ const captchaToken = ref('')
 const sliderLeft = ref(0)
 const sliderText = ref('请拖动滑块验证')
 const sliderSuccess = ref(false)
+let captchaRetryTimer: ReturnType<typeof setTimeout> | null = null
 
 // 检测企业微信 OAuth 回调 token
 onMounted(async () => {
   const q = route.query
   if (q.token) {
     userStore.setToken(q.token as string)
-    userStore.refreshProfile().then(() => router.replace('/'))
+    try {
+      await userStore.refreshProfile()
+      await router.replace('/')
+      return
+    } catch {
+      userStore.logout()
+      toast.error('登录状态校验失败，请重新登录')
+      await router.replace({ query: {} })
+    }
   } else if (q.error) {
     toast.error(decodeURIComponent(q.error as string))
-    router.replace({ query: {} })
+    await router.replace({ query: {} })
   }
   await refreshCaptcha()
 })
+
+onUnmounted(() => {
+  if (captchaRetryTimer) clearTimeout(captchaRetryTimer)
+})
+
+function scheduleCaptchaRefresh(delay = 3000) {
+  if (captchaRetryTimer) clearTimeout(captchaRetryTimer)
+  captchaRetryTimer = setTimeout(() => {
+    captchaRetryTimer = null
+    refreshCaptcha()
+  }, delay)
+}
 
 async function refreshCaptcha() {
   try {
@@ -42,7 +63,7 @@ async function refreshCaptcha() {
     sliderText.value = '请拖动滑块验证'
   } catch {
     // 获取失败，30s 后重试
-    setTimeout(refreshCaptcha, 3000)
+    scheduleCaptchaRefresh(3000)
   }
 }
 
@@ -115,7 +136,7 @@ async function onSliderUp() {
       // 验证失败，重置
       sliderLeft.value = 0
       sliderText.value = '验证失败，请重试'
-      setTimeout(refreshCaptcha, 1000)
+      scheduleCaptchaRefresh(1000)
     } finally {
       sliderChecking.value = false
     }
@@ -136,11 +157,13 @@ const rules = {
 const formRef = ref()
 
 const handleLogin = async () => {
+  if (loading.value) return
   if (!sliderVerified.value) {
     toast.warning('请先完成滑动验证')
     return
   }
-  await formRef.value.validate()
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
 
   loading.value = true
   try {
@@ -263,7 +286,7 @@ const handleQywxLogin = () => {
           size="large"
           class="login-btn"
           :loading="loading"
-          :disabled="!sliderVerified"
+          :disabled="!sliderVerified || loading"
           @click="handleLogin"
         >
           {{ sliderVerified ? '账号登录' : '请先完成滑动验证' }}

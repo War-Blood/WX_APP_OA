@@ -2,6 +2,7 @@
 
 const router = require('express').Router();
 const adminController = require('../controllers/admin.controller');
+const operationLogController = require('../controllers/operation-log.controller');
 const { authenticate, requireRole, requirePermission } = require('../../common/middleware/auth');
 
 // 管理员及以上权限
@@ -23,6 +24,9 @@ router.post('/admin/createUser',   ...adminAuth, adminController.createUser);
 router.post('/admin/approveUser',  ...adminAuth, adminController.approveUser);
 router.post('/admin/inviteUser',   ...adminAuth, adminController.inviteUser);
 router.post('/admin/setPassword',  ...adminAuth, adminController.setPassword);
+
+// 操作日志 仅 admin+
+router.get('/admin/operation-logs', ...adminAuth, operationLogController.list);
 
 // 设置管理员角色 — 仅 superadmin
 router.post('/admin/setAdmin',     ...superAuth, adminController.setAdmin);
@@ -67,6 +71,7 @@ router.delete('/admin/role-groups/:id',    ...superAuth, adminController.deleteR
 // 审批类型管理 — admin+
 // ==============================
 router.get('/admin/approval-types',       ...adminAuth, adminController.getApprovalTypes);
+router.post('/admin/approval-types',      ...adminAuth, adminController.createApprovalType);
 router.put('/admin/approval-types/:id',   ...adminAuth, adminController.updateApprovalType);
 
 // ==============================

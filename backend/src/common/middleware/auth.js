@@ -1,8 +1,10 @@
 'use strict';
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const config = require('../config/env');
 const db = require('../config/database');
+const { getClient } = require('../config/redis');
 const { AuthError, ForbiddenError } = require('../utils/errors');
 
 /**
@@ -29,6 +31,18 @@ async function authenticate(req, res, next) {
         throw new AuthError('Token 已过期，请重新登录');
       }
       throw new AuthError('无效的 Token');
+    }
+
+    // Token 黑名单校验：登出后 token 立即失效
+    try {
+      const hash = crypto.createHash('sha256').update(token).digest('hex');
+      const blacklisted = await getClient().get(`auth:logout:${hash}`);
+      if (blacklisted) {
+        throw new AuthError('Token 已失效，请重新登录');
+      }
+    } catch (err) {
+      if (err instanceof AuthError) throw err;
+      // Redis unavailable: fall back to DB-only authentication
     }
 
     // DB 校验：检查用户状态是否仍然 active

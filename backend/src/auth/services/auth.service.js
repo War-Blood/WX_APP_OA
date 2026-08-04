@@ -2,9 +2,11 @@
 
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const config = require('../../common/config/env');
 const db = require('../../common/config/database');
+const { getClient } = require('../../common/config/redis');
 const { BusinessError } = require('../../common/utils/errors');
 const logger = require('../../common/utils/logger');
 const { code2session } = require('../../common/utils/wx-api');
@@ -347,6 +349,49 @@ async function accountLogin(account, password) {
   return { token, user: { id: user.id, nickname: user.nickname, avatar_url: user.avatar_url, role: user.role, department: user.department, status: user.status, needsWechatBind: needsWechatBind(user.openid) } };
 }
 
+/**
+ * 当前用户修改密码
+ * @param {number} userId - 用户 ID
+ * @param {string} currentPassword - 当前密码
+ * @param {string} newPassword - 新密码
+ * @returns {Promise<{success: boolean}>}
+ */
+async function changePassword(userId, currentPassword, newPassword) {
+  if (!currentPassword || !newPassword) {
+    throw new BusinessError('当前密码和新密码不能为空');
+  }
+  if (newPassword.length < 8) {
+    throw new BusinessError('新密码长度不能少于8位');
+  }
+  if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    throw new BusinessError('新密码必须包含字母和数字');
+  }
+  if (currentPassword === newPassword) {
+    throw new BusinessError('新密码不能与当前密码相同');
+  }
+
+  const users = await db.query(
+    'SELECT id, password_hash FROM users WHERE id = ? AND deleted_at IS NULL',
+    [userId]
+  );
+  if (!users.length) {
+    throw new BusinessError('用户不存在');
+  }
+  if (!users[0].password_hash) {
+    throw new BusinessError('该账号未设置密码，请联系管理员设置后再修改');
+  }
+
+  const isValid = await bcrypt.compare(currentPassword, users[0].password_hash);
+  if (!isValid) {
+    throw new BusinessError('当前密码错误');
+  }
+
+  const hash = await bcrypt.hash(newPassword, 10);
+  await db.execute('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?', [hash, userId]);
+  logger.info('用户修改密码', { module: 'AUTH', userId });
+  return { success: true };
+}
+
 async function adminLogin(account, password, totp) {
   logger.info('Web 管理员登录', { module: 'AUTH', account });
 
@@ -562,4 +607,28 @@ async function refreshToken(user) {
   return { token, user: profile };
 }
 
-module.exports = { login, qywxLogin, adminLogin, accountLogin, getProfile, updateProfile, linkQywxAccount, bindWechat, setupTOTP, enableTOTP, disableTOTP, refreshToken };
+/**
+ * 登出并注销当前 Token
+ * 将 token 哈希写入 Redis 黑名单，剩余有效期与 JWT 过期时间一致。
+ * Redis 不可用时降级为前端本地清理，不阻断登出。
+ * @param {string} token - 当前 Authorization 中的 JWT
+ * @returns {Promise<{success: boolean}>}
+ */
+async function logout(token) {
+  try {
+    const decoded = jwt.verify(token, config.jwt.secret);
+    const hash = crypto.createHash('sha256').update(token).digest('hex');
+    const ttl = Math.max(1, Math.floor(decoded.exp - Date.now() / 1000));
+    try {
+      const redis = getClient();
+      await redis.set(`auth:logout:${hash}`, '1', { EX: ttl });
+    } catch {
+      // Redis unavailable: client-side logout is still sufficient for this request
+    }
+    return { success: true };
+  } catch {
+    return { success: false };
+  }
+}
+
+module.exports = { login, qywxLogin, adminLogin, accountLogin, getProfile, updateProfile, changePassword, linkQywxAccount, bindWechat, setupTOTP, enableTOTP, disableTOTP, refreshToken, logout };

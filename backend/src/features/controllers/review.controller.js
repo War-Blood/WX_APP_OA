@@ -2,6 +2,7 @@
 
 const reviewService = require('../services/review.service');
 const { success, paginated } = require('../../common/utils/response');
+const { ValidationError } = require('../../common/utils/errors');
 
 /**
  * 审核控制器
@@ -105,6 +106,35 @@ async function reviewAction(req, res, next) {
 }
 
 /**
+ * 批量审核日报
+ * POST /api/project/reviewBatch
+ */
+async function reviewBatch(req, res, next) {
+  try {
+    const { ids, action, opinion } = req.body;
+    const reviewerId = req.user.userId;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new ValidationError('请选择待审核日报');
+    }
+    if (!action) {
+      throw new ValidationError('审核操作不能为空');
+    }
+
+    const result = await reviewService.reviewBatch({
+      ids,
+      reviewerId,
+      action,
+      opinion,
+    });
+
+    res.json(success(result, `已处理 ${result.processed} 条日报`));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * 审核统计
  * POST /api/project/reviewStats
  */
@@ -124,5 +154,6 @@ module.exports = {
   reviewList,
   reviewDetail,
   reviewAction,
+  reviewBatch,
   reviewStats,
 };

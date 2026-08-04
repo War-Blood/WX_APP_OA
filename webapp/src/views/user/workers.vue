@@ -89,9 +89,14 @@ function openCreateDialog() {
   isEdit.value = false
   editUserId.value = null
   dialogTitle.value = '新增外场人员'
-  form.value = { userName: '', workerCode: '', position: '' }
+  resetCreateDialog()
   dialogVisible.value = true
   loadNonRosterUsers()
+}
+
+function resetCreateDialog() {
+  selectedNonRosterId.value = null
+  form.value = { userName: '', workerCode: '', position: '' }
 }
 
 function openEditDialog(row: WorkerItem) {
@@ -293,7 +298,7 @@ onMounted(() => {
     </div>
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="480px" destroy-on-close>
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="480px" destroy-on-close @closed="resetCreateDialog">
       <el-form :model="form" label-width="80px">
         <el-form-item v-if="!isEdit" label="快速选择">
           <el-select

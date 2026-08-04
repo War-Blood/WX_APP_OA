@@ -8,6 +8,7 @@ import {
   type DailyStatusWorker, type DailyStatusSummary, type DailyStatusResponse,
   type TomorrowStatusWorker, type TomorrowStatusResponse
 } from '@/api/report'
+import { currentDateInBeijing, shiftDate } from '@/utils/date'
 
 const router = useRouter()
 
@@ -18,9 +19,7 @@ function goDailyDetail(row: { userName: string }) {
 
 // 日期（默认昨天）
 function yesterday() {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().slice(0, 10)
+  return shiftDate(currentDateInBeijing(), -1)
 }
 const date = ref(yesterday())
 const mode = ref<'today' | 'tomorrow'>('today')
@@ -173,7 +172,7 @@ const tomorrowGroups = computed<{ label: string; workers: TomorrowStatusWorker[]
 })
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10)
+  return currentDateInBeijing()
 }
 
 function handleDateChange() {
@@ -182,17 +181,13 @@ function handleDateChange() {
 }
 
 function prevDay() {
-  const d = new Date(date.value)
-  d.setDate(d.getDate() - 1)
-  date.value = d.toISOString().slice(0, 10)
+  date.value = shiftDate(date.value, -1)
   if (mode.value === 'tomorrow') loadTomorrow(date.value)
   else loadData()
 }
 
 function nextDay() {
-  const d = new Date(date.value)
-  d.setDate(d.getDate() + 1)
-  date.value = d.toISOString().slice(0, 10)
+  date.value = shiftDate(date.value, 1)
   if (mode.value === 'tomorrow') loadTomorrow(date.value)
   else loadData()
 }

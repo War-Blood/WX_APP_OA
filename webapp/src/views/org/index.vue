@@ -341,10 +341,14 @@ const contextMenu = ref({ visible: false, x: 0, y: 0, node: null as DepartmentIt
 
 function handleContextMenu(event: MouseEvent, data: DepartmentItem) {
   event.preventDefault()
+  const menuWidth = 160
+  const menuHeight = 112
+  const x = Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8))
+  const y = Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8))
   contextMenu.value = {
     visible: true,
-    x: event.clientX,
-    y: event.clientY,
+    x,
+    y,
     node: data,
   }
   // 点击其他区域关闭

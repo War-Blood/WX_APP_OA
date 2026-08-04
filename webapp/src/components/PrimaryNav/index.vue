@@ -16,14 +16,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useUserStore } from '@/stores/user'
-import { getVisibleModules } from '@/config/modules'
+import { useModuleStore } from '@/stores/module'
+import { modules } from '@/config/modules'
 
 defineProps<{ activeKey: string }>()
 defineEmits<{ select: [key: string] }>()
 
 const userStore = useUserStore()
+const moduleStore = useModuleStore()
 const visibleModules = computed(() => {
-  return getVisibleModules(userStore.userInfo?.role || 'employee')
+  const role = userStore.userInfo?.role || 'employee'
+  return modules.filter(mod => moduleStore.isModuleVisible(mod, role))
 })
 </script>
 

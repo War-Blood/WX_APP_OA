@@ -251,7 +251,7 @@ UserInfo --> UserListResult : "列表项"
 - 全局注册：
   - 注册 Element Plus 中文语言包与所有图标组件，便于在全局使用
 - 自定义组件：
-  - AppHeader、AppSidebar 作为布局子组件，分别负责顶部导航与侧边菜单
+  - TopBar、ModuleSidebar 作为布局子组件，分别负责顶部导航与侧边菜单
 - 表单与表格：
   - 使用 ElForm、ElTable、ElPagination、ElDialog、ElTabs 等构建复杂交互
 - 数据展示：
@@ -259,8 +259,8 @@ UserInfo --> UserListResult : "列表项"
 
 **章节来源**
 - [webapp/src/main.ts:7-21](file://webapp/src/main.ts#L7-L21)
-- [webapp/src/components/AppHeader/index.vue](file://webapp/src/components/AppHeader/index.vue)
-- [webapp/src/components/AppSidebar/index.vue](file://webapp/src/components/AppSidebar/index.vue)
+- [webapp/src/components/TopBar/index.vue](file://webapp/src/components/TopBar/index.vue)
+- [webapp/src/components/ModuleSidebar/index.vue](file://webapp/src/components/ModuleSidebar/index.vue)
 
 ### 用户管理页面
 - 功能点：

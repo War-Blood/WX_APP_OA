@@ -17,6 +17,15 @@ const DEFAULT_MODULES = [
   { key: 'exam',          name: '在线考试', icon: 'exam',         route: '/pages/exam/index/index',               visible: true,  platforms: ['miniapp'],        roles: ['admin', 'employee', 'superadmin'], sort: 9 },
   { key: 'contacts',      name: '通讯录',   icon: 'contacts',     route: '',                                       visible: false, platforms: ['miniapp'],        roles: [], sort: 10 },
   { key: 'notice',        name: '通知公告', icon: 'notice',       route: '',                                       visible: false, platforms: ['miniapp'],        roles: [], sort: 11 },
+  { key: 'dashboard',     name: '仪表盘',   icon: 'DataLine',     route: '/dashboard',                           visible: true,  platforms: ['web'],           roles: ['employee', 'admin', 'superadmin'], sort: 12 },
+  { key: 'user',          name: '人事',     icon: 'User',         route: '/user',                                visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 13 },
+  { key: 'project',       name: '项目',     icon: 'FolderOpened', route: '/project',                             visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 14 },
+  { key: 'attendance',    name: '考勤',     icon: 'Calendar',     route: '/attendance',                         visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 15 },
+  { key: 'exam',          name: '考试管理', icon: 'Edit',         route: '/exam',                               visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 16 },
+  { key: 'compliance',    name: '合规',     icon: 'Verified',     route: '/compliance',                         visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 17 },
+  { key: 'settings',      name: '设置',     icon: 'Setting',      route: '/settings',                            visible: true,  platforms: ['web'],           roles: ['superadmin'], sort: 18 },
+  { key: 'announcement',  name: '公告管理', icon: 'Bell',         route: '/announcement',                      visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 19 },
+  { key: 'logs',          name: '操作日志', icon: 'Tickets',      route: '/logs',                               visible: true,  platforms: ['web'],           roles: ['superadmin'], sort: 20 },
 ];
 
 /**

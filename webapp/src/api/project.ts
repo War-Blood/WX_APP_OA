@@ -4,9 +4,8 @@ export interface ProjectItem {
   id: string
   name: string
   area: string
-  status: string
   memberCount: number
-  progress: string
+  reportCount: number
   lastReportDate: string
 }
 
@@ -18,7 +17,14 @@ export interface ProjectListResult {
 export interface ProjectDetail extends ProjectItem {
   members: Array<{ userId: string; nickName: string; role: string }>
   reports: Array<{
-    id: string; date: string; workers: string; workContent: string; status: string; statusText: string
+    id: string
+    date: string
+    workers: string
+    workContent: string
+    todayWork?: string
+    submitter?: string
+    status: string
+    statusText: string
   }>
   stats: {
     totalReports: number

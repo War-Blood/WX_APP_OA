@@ -60,6 +60,24 @@ async function updateProfile(req, res, next) {
 }
 
 /**
+ * POST /api/user/change-password
+ * 当前用户修改密码
+ */
+async function changePassword(req, res, next) {
+  try {
+    const { userId } = req.user;
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      throw new ValidationError('当前密码和新密码不能为空');
+    }
+    const result = await authService.changePassword(userId, currentPassword, newPassword);
+    res.json(success(result, '密码已修改'));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * POST /api/auth/admin/login
  * Web 管理员账号密码登录（v2.1: 需滑动验证 token）
  */
@@ -224,4 +242,18 @@ async function refreshToken(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { login, getProfile, updateProfile, adminLogin, accountLogin, qywxLogin, linkQywx, bindWechat, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha, redeemInviteCode, refreshToken };
+/**
+ * POST /api/auth/logout — 退出登录并注销当前 Token
+ */
+async function logout(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace('Bearer ', '');
+    const result = await authService.logout(token);
+    res.json(success(result, '已退出登录'));
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { login, getProfile, updateProfile, changePassword, adminLogin, accountLogin, qywxLogin, linkQywx, bindWechat, totpSetup, totpEnable, totpDisable, getCaptcha, verifyCaptcha, redeemInviteCode, refreshToken, logout };

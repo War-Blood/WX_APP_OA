@@ -2,10 +2,11 @@
 import { ref, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { getProjectProgress, getReportList, type ProjectProgressItem } from '@/api/report'
+import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
 
 const progLoading = ref(false)
 const progList = ref<ProjectProgressItem[]>([])
-const progMonth = ref(new Date().toISOString().slice(0, 7))
+const progMonth = ref(currentMonthInBeijing())
 
 const projLogVisible = ref(false)
 const projLogTitle = ref('')
@@ -39,16 +40,12 @@ async function loadProjects() {
 }
 
 function prevProgMonth() {
-  const d = new Date(progMonth.value + '-01')
-  d.setMonth(d.getMonth() - 1)
-  progMonth.value = d.toISOString().slice(0, 7)
+  progMonth.value = shiftMonth(progMonth.value, -1)
   loadProjects()
 }
 
 function nextProgMonth() {
-  const d = new Date(progMonth.value + '-01')
-  d.setMonth(d.getMonth() + 1)
-  progMonth.value = d.toISOString().slice(0, 7)
+  progMonth.value = shiftMonth(progMonth.value, 1)
   loadProjects()
 }
 

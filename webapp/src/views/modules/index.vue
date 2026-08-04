@@ -2,10 +2,13 @@
 import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
 import request from '@/utils/request'
+import { modules as staticModules } from '@/config/modules'
+import { useModuleStore } from '@/stores/module'
 
 const loading = ref(false)
 const saving = ref(false)
 const modules = ref<any[]>([])
+const moduleStore = useModuleStore()
 
 interface ModuleItem {
   key: string; name: string; icon: string; route: string
@@ -24,7 +27,12 @@ async function loadModules() {
 async function saveModules() {
   saving.value = true
   try {
-    await request.post('/admin/modules', { action: 'saveModules', modules: modules.value })
+    const payload = [
+      ...modules.value.filter((m: ModuleItem) => !m.platforms.includes('web')),
+      ...webModuleRows()
+    ]
+    await request.post('/admin/modules', { action: 'saveModules', modules: payload })
+    moduleStore.applyWebModules(webModuleRows())
     toast.success('保存成功')
     loadModules()
   } catch { toast.error('保存失败') }
@@ -44,7 +52,29 @@ function toggleVisible(mod: ModuleItem) {
 }
 
 function filteredModules(platform: string) {
+  if (platform === 'web') return webModuleRows()
   return modules.value.filter((m: ModuleItem) => m.platforms.includes(platform)).sort((a: ModuleItem, b: ModuleItem) => a.sort - b.sort)
+}
+
+function webModuleRows(): ModuleItem[] {
+  const remoteMap = new Map(
+    modules.value
+      .filter((m: ModuleItem) => m.platforms.includes('web'))
+      .map((m: ModuleItem) => [m.key, m])
+  )
+  return staticModules.map((m, index) => {
+    const remote = remoteMap.get(m.key)
+    return {
+      key: m.key,
+      name: m.title,
+      icon: m.icon,
+      route: m.path,
+      visible: remote?.visible ?? true,
+      platforms: ['web'],
+      roles: remote?.roles ?? [...m.roles],
+      sort: remote?.sort ?? index
+    }
+  })
 }
 
 onMounted(() => loadModules())

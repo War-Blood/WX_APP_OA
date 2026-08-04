@@ -7,6 +7,7 @@ import { getWorkerList, type WorkerItem } from '@/api/admin'
 
 // 人员列表
 const workers = ref<WorkerItem[]>([])
+const workerLoading = ref(false)
 const selectedUserId = ref<number | null>(null)
 
 // 月份
@@ -32,12 +33,15 @@ const selectedUserName = computed(() => {
   return w?.userName ?? ''
 })
 
-async function loadWorkers() {
+async function loadWorkers(keyword?: string) {
+  workerLoading.value = true
   try {
-    const res = await getWorkerList({ pageSize: 200 })
+    const res = await getWorkerList({ page: 1, pageSize: 200, keyword })
     workers.value = res.list
   } catch {
     workers.value = []
+  } finally {
+    workerLoading.value = false
   }
 }
 
@@ -85,6 +89,10 @@ onMounted(() => {
           v-model="selectedUserId"
           placeholder="请选择人员"
           filterable
+          remote
+          reserve-keyword
+          :remote-method="loadWorkers"
+          :loading="workerLoading"
           style="width: 220px"
           @change="handleUserChange"
         >

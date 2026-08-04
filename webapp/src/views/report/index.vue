@@ -5,9 +5,16 @@ import { useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
-import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreReport, getDeletedReports, reviewAction, reviewSupplement, updateReport, exportToWecomSheet } from '@/api/report'
+import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreReport, reviewAction, batchReviewAction, reviewSupplement, updateReport, exportToWecomSheet } from '@/api/report'
 import type { ReportUpdateResult } from '@/api/report'
 import type { AllStatsResponse } from '@/api/report'
+import { currentMonthInBeijing } from '@/utils/date'
+import ReportStatsPanel from '@/components/ReportStatsPanel.vue'
+import ReportWorkersPanel from '@/components/ReportWorkersPanel.vue'
+import ReportTrashPanel from '@/components/ReportTrashPanel.vue'
+import ReportDetailDialog from '@/components/ReportDetailDialog.vue'
+
+const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
 
 // --- 状态 ---
 const activeTab = ref('query')
@@ -25,12 +32,13 @@ const reportTypeFilter = ref('')
 const workTypeFilter = ref('')
 const startDate = ref('')
 const endDate = ref('')
-const attendanceMonth = ref(new Date().toISOString().slice(0, 7))
+const attendanceMonth = ref(currentMonthInBeijing())
 const wecomExporting = ref(false)
 const reportList = ref<Record<string, unknown>[]>([])
 const reportTotal = ref(0)
 const reportPage = ref(1)
 const reportPageSize = ref(50)
+const selectedRows = ref<Record<string, unknown>[]>([])
 
 // 人员看板
 const workerKeyword = ref('')
@@ -39,6 +47,7 @@ const workerTotal = ref(0)
 
 // 详情弹窗
 const detailVisible = ref(false)
+const detailLoading = ref(false)
 const detailData = ref<Record<string, any>>({})
 
 // 审核弹窗（补公出）
@@ -83,14 +92,9 @@ const tabItems = [
 ]
 
 // 回收站
-const trashList = ref<any[]>([])
-const trashLoading = ref(false)
-const trashPage = ref(1)
-const trashTotal = ref(0)
-
 // 日志类型 tag 映射
-function getReportTypeTag(reportType: string): { text: string; type: string } {
-  const map: Record<string, { text: string; type: string }> = {
+function getReportTypeTag(reportType: string): { text: string; type: '' | 'success' | 'warning' | 'info' | 'danger' } {
+  const map: Record<string, { text: string; type: '' | 'success' | 'warning' | 'info' | 'danger' }> = {
     biz_trip: { text: '公出日志', type: 'success' },
     biz_trip_supplement: { text: '补公出', type: 'warning' }
   }
@@ -135,6 +139,80 @@ async function loadReports() {
 
 function handleSearch() { reportPage.value = 1; loadReports() }
 function handleReportPageChange(p: number) { reportPage.value = p; loadReports() }
+function handleReportSizeChange(size: number) {
+  reportPageSize.value = size
+  reportPage.value = 1
+  loadReports()
+}
+
+function validateDateRange() {
+  if (startDate.value && endDate.value && startDate.value > endDate.value) {
+    toast.warning('开始日期不能晚于结束日期')
+    return false
+  }
+  return true
+}
+
+function handleSearchWithValidation() {
+  if (!validateDateRange()) return
+  handleSearch()
+}
+
+function handleSelectionChange(rows: Record<string, unknown>[]) {
+  selectedRows.value = rows
+}
+
+function isSelectableRow(row: Record<string, unknown>) {
+  return row.status === 'pending'
+}
+
+async function handleBatchReview(action: 'approve' | 'reject') {
+  const pendingRows = selectedRows.value.filter(row => row.status === 'pending')
+  const skipped = selectedRows.value.length - pendingRows.length
+  const ids = pendingRows.map(row => row.id as string).filter(Boolean)
+  if (!ids.length) {
+    toast.warning(skipped > 0 ? '所选日报均非待审核状态' : '请先选择待审核日报')
+    return
+  }
+  if (skipped > 0) {
+    toast.warning(`已跳过 ${skipped} 条非待审核日报`)
+  }
+
+  let opinion: string | undefined
+  if (action === 'reject') {
+    try {
+      const { value } = await ElMessageBox.prompt('请输入驳回原因', '批量驳回', {
+        inputType: 'textarea',
+        inputPlaceholder: '请填写驳回原因',
+        inputValidator: (val: string) => !!val.trim(),
+        inputErrorMessage: '驳回原因不能为空',
+        confirmButtonText: '确定驳回',
+        cancelButtonText: '取消'
+      })
+      opinion = value
+    } catch {
+      return
+    }
+  } else {
+    try {
+      await ElMessageBox.confirm(`确认批量通过 ${ids.length} 条日报？`, '批量通过', {
+        type: 'warning'
+      })
+    } catch {
+      return
+    }
+  }
+
+  try {
+    const result = await batchReviewAction(ids, action, opinion)
+    toast.success(`已处理 ${result.processed} 条日报`)
+    selectedRows.value = []
+    loadReports()
+  } catch {
+    selectedRows.value = []
+    loadReports()
+  }
+}
 
 async function handleExport() {
   try {
@@ -146,7 +224,7 @@ async function handleExport() {
     if (endDate.value) params.endDate = endDate.value
     if (keyword.value) params.keyword = keyword.value
     const token = localStorage.getItem('token') || ''
-    const res = await fetch('/api/report/export', {
+    const res = await fetch(`${apiBase}/report/export`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify(params)
@@ -167,7 +245,7 @@ async function handleExportAttendance() {
   if (!attendanceMonth.value) { toast.warning('请选择月份'); return }
   try {
     const token = localStorage.getItem('token') || ''
-    const res = await fetch('/api/report/export-attendance', {
+    const res = await fetch(`${apiBase}/report/export-attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ month: attendanceMonth.value })
@@ -208,13 +286,13 @@ async function handleExportStatusBoard() {
       cancelButtonText: '取消',
       inputType: 'month',
       inputPlaceholder: '选择月份',
-      inputValue: new Date().toISOString().slice(0, 7),
+      inputValue: currentMonthInBeijing(),
     })
     if (!month) return
 
     // Step 2: fetch schedule from 出勤日历
     const token = localStorage.getItem('token') || ''
-    const previewRes = await fetch('/api/attendance/schedule/preview', {
+    const previewRes = await fetch(`${apiBase}/attendance/schedule/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ month })
@@ -243,7 +321,7 @@ async function handleExportStatusBoard() {
     })
 
     // Step 5: export (后端自动查询 company_schedules 计算加班)
-    const res = await fetch('/api/report/export-status-board', {
+    const res = await fetch(`${apiBase}/report/export-status-board`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ month, restDays: allRestDays })
@@ -282,26 +360,6 @@ async function handleDelete(row: Record<string, unknown>) {
   } catch { /* cancelled */ }
 }
 
-async function loadTrash() {
-  trashLoading.value = true
-  try {
-    const res = await getDeletedReports({ page: trashPage.value, pageSize: 20 })
-    trashList.value = res.list || []
-    trashTotal.value = res.total || 0
-  } catch {
-    toast.error('加载回收站失败')
-  } finally { trashLoading.value = false }
-}
-
-async function handleRestore(id: string) {
-  try {
-    await restoreReport(id)
-    toast.success('已恢复')
-    loadTrash()
-    loadReports()
-  } catch { toast.error('恢复失败') }
-}
-
 async function handleReview(row: Record<string, unknown>, action: 'approve' | 'reject') {
   if (action === 'approve') {
     try {
@@ -310,7 +368,7 @@ async function handleReview(row: Record<string, unknown>, action: 'approve' | 'r
     try {
       await reviewAction(row.id as string, action)
       toast.success('已通过')
-    } catch (e) { toast.error('操作失败'); return }
+    } catch { toast.error('操作失败'); return }
     loadReports()
   } else {
     try {
@@ -332,10 +390,13 @@ async function handleReview(row: Record<string, unknown>, action: 'approve' | 'r
 }
 
 async function showDetail(row: Record<string, unknown>) {
+  detailLoading.value = true
   try {
     detailData.value = await getReportDetail(String(row.id))
   } catch {
     detailData.value = row  // fallback to table row
+  } finally {
+    detailLoading.value = false
   }
   detailVisible.value = true
 }
@@ -399,6 +460,28 @@ function openEdit(row: Record<string, unknown>) {
 }
 
 async function handleEditSubmit() {
+  if (!editData.value.reportDate) {
+    toast.warning('请选择日报日期')
+    return
+  }
+  const requiredQty = Number(editData.value.requiredQty)
+  const completedQty = Number(editData.value.completedQty)
+  if (requiredQty > 0 && completedQty > requiredQty) {
+    toast.warning('完成数量不能大于需求数量')
+    return
+  }
+  if (['approved', 'rejected', 'submitted'].includes(String(editData.value.status))) {
+    try {
+      await ElMessageBox.confirm('该日志已进入审核流程，确认继续修改？', '修改确认', {
+        confirmButtonText: '确认修改',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+    } catch {
+      return
+    }
+  }
+
   editSaving.value = true
   try {
     const res: ReportUpdateResult = await updateReport({
@@ -469,7 +552,6 @@ function handleTabChange(tab: string) {
   if (tab === 'stats') loadStats()
   else if (tab === 'query') loadReports()
   else if (tab === 'workers') loadWorkers()
-  else if (tab === 'trash') loadTrash()
 }
 
 onMounted(() => { loadStats(); loadReports() })
@@ -483,39 +565,14 @@ onMounted(() => { loadStats(); loadReports() })
 
     <!-- ====== Tab 1: 统计看板 ====== -->
     <template v-if="activeTab === 'stats'">
-      <el-row :gutter="16" class="stats-row" v-loading="statsLoading">
-        <el-col :span="6">
-          <el-card class="stat-card" shadow="hover">
-            <div class="stat-val">{{ stats?.totalLogs ?? '-' }}</div>
-            <div class="stat-lbl">总日志数</div>
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card class="stat-card" shadow="hover">
-            <div class="stat-val" style="color:#409EFF">{{ stats?.monthNew ?? '-' }}</div>
-            <div class="stat-lbl">本月新增</div>
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card class="stat-card" shadow="hover">
-            <div class="stat-val" style="color:#E6A23C">{{ stats?.delayedTotal ?? '-' }}</div>
-            <div class="stat-lbl">延迟条数</div>
-          </el-card>
-        </el-col>
-        <el-col :span="6">
-          <el-card class="stat-card" shadow="hover">
-            <div class="stat-val" style="color:#F56C6C">{{ stats?.missingPersonCount ?? '-' }}</div>
-            <div class="stat-lbl">缺失人次</div>
-          </el-card>
-        </el-col>
-      </el-row>
+      <ReportStatsPanel :stats="stats" :loading="statsLoading" />
     </template>
 
     <!-- ====== Tab 2: 日报查询 ====== -->
     <template v-if="activeTab === 'query'">
       <div class="toolbar">
         <div class="toolbar-row">
-          <el-input v-model="keyword" placeholder="搜索项目/人员/工作内容" clearable :prefix-icon="Search" style="width:240px" @clear="handleSearch" @keyup.enter="handleSearch" />
+          <el-input v-model="keyword" placeholder="搜索项目/人员/工作内容" clearable :prefix-icon="Search" style="width:240px" @clear="handleSearchWithValidation" @keyup.enter="handleSearchWithValidation" />
           <el-select v-model="statusFilter" placeholder="状态" style="width:110px" @change="handleSearch">
             <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
@@ -525,11 +582,17 @@ onMounted(() => { loadStats(); loadReports() })
           <el-select v-model="workTypeFilter" placeholder="工作类型" style="width:130px" @change="handleSearch">
             <el-option v-for="o in workTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
-          <el-date-picker v-model="startDate" type="date" placeholder="开始日期" style="width:140px" @change="handleSearch" value-format="YYYY-MM-DD" />
-          <el-date-picker v-model="endDate" type="date" placeholder="结束日期" style="width:140px" @change="handleSearch" value-format="YYYY-MM-DD" />
+          <el-date-picker v-model="startDate" type="date" placeholder="开始日期" style="width:140px" @change="handleSearchWithValidation" value-format="YYYY-MM-DD" />
+          <el-date-picker v-model="endDate" type="date" placeholder="结束日期" style="width:140px" @change="handleSearchWithValidation" value-format="YYYY-MM-DD" />
         </div>
         <div class="toolbar-row">
-          <el-button :icon="Refresh" @click="handleSearch">刷新</el-button>
+          <el-button :icon="Refresh" @click="handleSearchWithValidation">刷新</el-button>
+          <el-button type="success" :disabled="!selectedRows.length" @click="handleBatchReview('approve')">
+            批量通过
+          </el-button>
+          <el-button type="danger" :disabled="!selectedRows.length" @click="handleBatchReview('reject')">
+            批量驳回
+          </el-button>
           <el-button type="success" :icon="Download" @click="handleExport">导出CSV</el-button>
           <el-date-picker v-model="attendanceMonth" type="month" placeholder="选择月份" style="width:140px" format="YYYY-MM" value-format="YYYY-MM" />
           <el-button type="primary" :icon="Download" @click="handleExportAttendance">导出考勤</el-button>
@@ -537,11 +600,21 @@ onMounted(() => { loadStats(); loadReports() })
           <el-button type="warning" :icon="Download" :loading="wecomExporting" @click="handleExportWecom">导出到企微表格</el-button>
         </div>
       </div>
-      <el-table :data="reportList" v-loading="loading" stripe border highlight-current-row @row-click="showDetail" style="cursor:pointer">
+      <el-table
+        :data="reportList"
+        v-loading="loading"
+        stripe
+        border
+        highlight-current-row
+        @row-click="showDetail"
+        @selection-change="handleSelectionChange"
+        style="cursor:pointer"
+      >
+        <el-table-column type="selection" width="48" :selectable="isSelectableRow" />
         <el-table-column prop="reportDate" label="日报时间" width="110" fixed="left" />
         <el-table-column label="日志类型" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="getReportTypeTag(row.reportType as string).type as 'success' | 'warning' | 'info' | '' || 'info'" size="small">
+            <el-tag :type="getReportTypeTag(row.reportType as string).type || 'info'" size="small">
               {{ getReportTypeTag(row.reportType as string).text }}
             </el-tag>
           </template>
@@ -575,101 +648,44 @@ onMounted(() => { loadStats(); loadReports() })
       </el-table>
       <div class="pagination-wrap">
         <span class="total-text">共 {{ reportTotal }} 条</span>
-        <el-pagination v-model:current-page="reportPage" :page-size="reportPageSize" :total="reportTotal" layout="prev, pager, next" background @current-change="handleReportPageChange" />
+        <el-pagination
+          v-model:current-page="reportPage"
+          v-model:page-size="reportPageSize"
+          :page-sizes="[20, 50, 100]"
+          :total="reportTotal"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="handleReportPageChange"
+          @size-change="handleReportSizeChange"
+        />
       </div>
     </template>
 
     <!-- ====== Tab 3: 人员看板 ====== -->
     <template v-if="activeTab === 'workers'">
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <el-input v-model="workerKeyword" placeholder="搜索人员姓名" clearable :prefix-icon="Search" style="width:240px" @clear="handleWorkerSearch" @keyup.enter="handleWorkerSearch" />
-          <el-button :icon="Refresh" @click="handleWorkerSearch">刷新</el-button>
-        </div>
-      </div>
-      <el-table :data="workerList" v-loading="loading" stripe border>
-        <el-table-column prop="name" label="人员" width="120" />
-        <el-table-column prop="total" label="日报总数" width="100" align="center" sortable />
-        <el-table-column prop="monthCount" label="本月数" width="100" align="center" sortable />
-        <el-table-column prop="lastDate" label="最后提交" width="120" align="center" sortable />
-        <el-table-column label="操作" width="120">
-          <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="searchPersonReports(row.name as string)">查看日报</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div class="pagination-wrap">
-        <span class="total-text">共 {{ workerTotal }} 人</span>
-      </div>
+      <ReportWorkersPanel
+        v-model:worker-keyword="workerKeyword"
+        :worker-list="workerList"
+        :worker-total="workerTotal"
+        :loading="loading"
+        @search="handleWorkerSearch"
+        @refresh="handleWorkerSearch"
+        @view-reports="searchPersonReports"
+      />
     </template>
 
     <!-- ====== Tab 4: 回收站 ====== -->
     <template v-if="activeTab === 'trash'">
-      <div class="toolbar">
-        <el-button :icon="Refresh" @click="loadTrash">刷新</el-button>
-      </div>
-      <el-table :data="trashList" v-loading="trashLoading" stripe border>
-        <el-table-column prop="report_date" label="日期" width="110" />
-        <el-table-column prop="userName" label="填写人" width="100" />
-        <el-table-column prop="project" label="项目" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="today_work_type" label="工作类型" width="100" />
-        <el-table-column prop="work_content" label="工作内容" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="deleted_at" label="删除时间" width="160">
-          <template #default="{ row }">{{ row.deleted_at?.slice(0, 16).replace('T', ' ') }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="100" align="center">
-          <template #default="{ row }">
-            <el-button size="small" type="primary" @click="handleRestore(row.id)">恢复</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div class="pagination-wrap" v-if="trashTotal > 20">
-        <span class="total-text">共 {{ trashTotal }} 条</span>
-        <el-pagination v-model:current-page="trashPage" :page-size="20" :total="trashTotal" layout="prev, pager, next" background @current-change="(p: number) => { trashPage = p; loadTrash() }" />
-      </div>
+      <ReportTrashPanel @restored="loadReports" />
     </template>
 
     <!-- 详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="日报详情" width="750px" destroy-on-close>
-      <el-descriptions :column="2" border size="small">
-        <el-descriptions-item label="日期">{{ detailData.reportDate || detailData.date || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag v-if="detailData.status === 'submitted'" type="info" size="small">已提交</el-tag>
-          <el-tag v-else-if="detailData.status === 'pending'" type="warning" size="small">待审核</el-tag>
-          <el-tag v-else-if="detailData.status === 'approved'" type="success" size="small">已通过</el-tag>
-          <el-tag v-else-if="detailData.status === 'rejected'" type="danger" size="small">已驳回</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="日志类型">
-          <el-tag :type="getReportTypeTag(detailData.reportType as string).type as 'success' | 'warning' | 'info' || 'info'" size="small">
-            {{ getReportTypeTag(detailData.reportType as string).text }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="及时性">{{ detailData.timeliness === 'delayed' ? '延迟' : detailData.timeliness === 'on_time' ? '正常' : '-' }}</el-descriptions-item>
-        <el-descriptions-item label="项目">{{ detailData.project || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="区域">{{ detailData.area || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="作业人员">{{ detailData.workers || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="机型">{{ detailData.machineModel || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="工作类型">{{ detailData.todayWorkType || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="人数">{{ detailData.workerCount || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="入场日期">{{ detailData.entryDate || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="初始出差日期">{{ detailData.initialBizTripDate || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="需求数量">{{ detailData.requiredQty ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="完成数量">{{ detailData.completedQty ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="个人出差天数">{{ detailData.personalBizTripDays ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="项目出差天数">{{ detailData.bizTripDays ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="补录日期">{{ detailData.supplementDate || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="补录原因">{{ detailData.supplementReason || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="今日工作" :span="2">{{ detailData.todayWork || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="明日计划" :span="2">{{ detailData.tomorrowPlan || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="工作内容" :span="2">{{ detailData.workContent || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="相关方" :span="2">{{ detailData.relatedParty || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ detailData.remark || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="问题反馈" :span="2">{{ detailData.issues || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="协调事项" :span="2">{{ detailData.content || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ detailData.createTime || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ detailData.updateTime || '-' }}</el-descriptions-item>
-      </el-descriptions>
-    </el-dialog>
+    <ReportDetailDialog
+      :visible="detailVisible"
+      :data="detailData"
+      :loading="detailLoading"
+      @update:visible="detailVisible = $event"
+    />
 
     <!-- 补公出审核弹窗 -->
     <el-dialog v-model="reviewVisible" title="补公出日志审核" width="550px" destroy-on-close>
@@ -850,7 +866,6 @@ onMounted(() => { loadStats(); loadReports() })
 
 <style scoped lang="scss">
 .report-page { padding: 20px; }
-.stats-row { margin-bottom: 16px; .stat-card { text-align: center; .stat-val { font-size: 28px; font-weight: 700; } .stat-lbl { font-size: 13px; color: #999; margin-top: 4px; } } }
 .toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
 .toolbar-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .toolbar-left { display: flex; gap: 12px; align-items: center; }

@@ -1,0 +1,22 @@
+[
+  {"query": "快捷 考勤模块 增加批量排班功能，管理员可以一次选择多个人统一排班", "should_trigger": true},
+  {"query": "迭代 请假模块 加个审批驳回时填写原因的功能", "should_trigger": true},
+  {"query": "小改一下 日报提交按钮位置不对，应该放右下角", "should_trigger": true},
+  {"query": "增量开发 审批流程加个条件分支，金额超过5000的需要总监审批", "should_trigger": true},
+  {"query": "快捷 给统计页面加个导出Excel的功能按钮", "should_trigger": true},
+  {"query": "加个功能：消息中心支持一键全部标记已读", "should_trigger": true},
+  {"query": "快捷迭代 员工管理列表加个按部门筛选的下拉框", "should_trigger": true},
+  {"query": "考勤汇总页面需要加个按月份选择的日期筛选器", "should_trigger": true},
+  {"query": "快捷 审批详情页底部加个抄送人列表显示", "should_trigger": true},
+  {"query": "日报编辑页需要加个草稿自动保存，每30秒存一次", "should_trigger": true},
+  {"query": "功能块开发 合同管理 需要完整的需求分析和PRD", "should_trigger": false},
+  {"query": "帮我新建一个通知推送模块，支持app推送和短信", "should_trigger": false},
+  {"query": "为什么uni.navigateTo跳转没反应？路径是对的但是不跳", "should_trigger": false},
+  {"query": "帮我看看request.js的拦截器逻辑，401的时候怎么处理的", "should_trigger": false},
+  {"query": "git push origin feature/xxx:test 报错了 fatal: remote not found", "should_trigger": false},
+  {"query": "users表加个phone字段，要varchar(20)，SQL怎么写", "should_trigger": false},
+  {"query": "npm install报了一堆ERESOLVE错误，帮我看下怎么解决", "should_trigger": false},
+  {"query": "帮我写个RELEASE_NOTES.md总结这次上线的改动", "should_trigger": false},
+  {"query": "线上出了个紧急bug，用户登录后白屏，赶紧帮我排查", "should_trigger": false},
+  {"query": "我想把整个审批模块重构成微服务架构，你觉得可行吗", "should_trigger": false}
+]

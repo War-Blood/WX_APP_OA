@@ -2,10 +2,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { getWorkerWorkTypes, type WorkerWorkTypeItem } from '@/api/report'
+import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
 
 const workTypeLoading = ref(false)
 const workTypeList = ref<WorkerWorkTypeItem[]>([])
-const workTypeMonth = ref(new Date().toISOString().slice(0, 7))
+const workTypeMonth = ref(currentMonthInBeijing())
 const WT_LABELS = ['工作（陆）','工作（海）','待工','在途','请假']
 
 // 汇总行：各列合计 + 补录合计 + 总计
@@ -33,16 +34,12 @@ async function loadWorkTypes() {
 }
 
 function prevWorkTypeMonth() {
-  const d = new Date(workTypeMonth.value + '-01')
-  d.setMonth(d.getMonth() - 1)
-  workTypeMonth.value = d.toISOString().slice(0, 7)
+  workTypeMonth.value = shiftMonth(workTypeMonth.value, -1)
   loadWorkTypes()
 }
 
 function nextWorkTypeMonth() {
-  const d = new Date(workTypeMonth.value + '-01')
-  d.setMonth(d.getMonth() + 1)
-  workTypeMonth.value = d.toISOString().slice(0, 7)
+  workTypeMonth.value = shiftMonth(workTypeMonth.value, 1)
   loadWorkTypes()
 }
 

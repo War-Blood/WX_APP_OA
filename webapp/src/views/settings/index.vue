@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import { getSystemConfig, updateSystemConfig, type ConfigItem } from '@/api/settings'
 
 const loading = ref(false)
@@ -31,12 +32,25 @@ async function loadConfig() {
 }
 
 async function saveConfig() {
+  if (!validateConfigs()) return
+  try {
+    await ElMessageBox.confirm('确认保存系统配置？', '保存确认', {
+      confirmButtonText: '确认保存',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+
   saving.value = true
   try {
     await updateSystemConfig(configs.value.map(c => ({ key: c.key, value: c.value, group: c.group, description: c.description })))
     toast.success('配置已保存')
     loadConfig()
-  } catch { }
+  } catch {
+    toast.error('配置保存失败')
+  }
   finally { saving.value = false }
 }
 
@@ -47,6 +61,29 @@ const groups = [
 ]
 
 function groupedConfigs(group: string) { return configs.value.filter(c => c.group === group) }
+
+const numericKeys = new Set(['login_attempts', 'lock_duration', 'password_min_length', 'session_timeout'])
+const timeKeys = new Set(['report_remind_time'])
+
+function isNumericConfig(key: string) { return numericKeys.has(key) }
+function isTimeConfig(key: string) { return timeKeys.has(key) }
+
+function validateConfigs() {
+  for (const config of configs.value) {
+    if (isNumericConfig(config.key)) {
+      const num = Number(config.value)
+      if (!Number.isInteger(num) || num <= 0) {
+        toast.warning(`${config.description}必须为正整数`)
+        return false
+      }
+    }
+    if (isTimeConfig(config.key) && !/^\d{2}:\d{2}$/.test(config.value)) {
+      toast.warning(`${config.description}格式必须为 HH:mm`)
+      return false
+    }
+  }
+  return true
+}
 
 onMounted(() => { loadConfig() })
 </script>
@@ -62,7 +99,23 @@ onMounted(() => { loadConfig() })
         <h4 class="group-title">{{ g.label }}</h4>
         <el-form label-width="140px">
           <el-form-item v-for="c in groupedConfigs(g.key)" :key="c.key" :label="c.description || c.key">
-            <el-input v-model="c.value" :placeholder="c.description" />
+            <el-input-number
+              v-if="isNumericConfig(c.key)"
+              :model-value="Number(c.value) || 0"
+              :min="1"
+              :max="99999"
+              style="width: 220px"
+              @update:model-value="c.value = String($event ?? '')"
+            />
+            <el-time-picker
+              v-else-if="isTimeConfig(c.key)"
+              :model-value="c.value"
+              value-format="HH:mm"
+              format="HH:mm"
+              style="width: 220px"
+              @update:model-value="c.value = $event || ''"
+            />
+            <el-input v-else v-model="c.value" :placeholder="c.description" />
           </el-form-item>
         </el-form>
       </div>

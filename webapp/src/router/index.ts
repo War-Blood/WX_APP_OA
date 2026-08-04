@@ -8,7 +8,13 @@ const router = createRouter({
       path: '/login',
       name: 'Login',
       component: () => import('@/views/login/index.vue'),
-      meta: { public: true }
+      meta: { public: true, title: '登录' }
+    },
+    {
+      path: '/403',
+      name: 'Forbidden',
+      component: () => import('@/views/error/403.vue'),
+      meta: { public: true, title: '无权限' }
     },
     {
       path: '/',
@@ -20,35 +26,45 @@ const router = createRouter({
           path: 'dashboard',
           name: 'Dashboard',
           component: () => import('@/views/dashboard/index.vue'),
-          meta: { title: '仪表盘', icon: 'DataLine' }
+          meta: { title: '仪表盘', icon: 'DataLine', roles: ['employee', 'admin', 'superadmin'] }
+        },
+        {
+          path: 'profile',
+          name: 'Profile',
+          component: () => import('@/views/profile/index.vue'),
+          meta: { title: '个人中心', roles: ['employee', 'admin', 'superadmin'] }
         },
         {
           path: 'user',
           name: 'User',
           component: () => import('@/views/user/index.vue'),
-          meta: { title: '用户管理', icon: 'User' }
+          meta: { title: '用户管理', icon: 'User', roles: ['admin', 'superadmin'] }
         },
         {
           path: 'role',
           name: 'Role',
           component: () => import('@/views/role/index.vue'),
-          meta: { title: '角色管理', icon: 'Avatar' }
+          meta: { title: '角色管理', icon: 'Avatar', roles: ['superadmin'] }
         },
         {
           path: 'org',
           name: 'Org',
           component: () => import('@/views/org/index.vue'),
-          meta: { title: '组织架构', icon: 'Share' }
+          meta: { title: '组织架构', icon: 'Share', roles: ['admin', 'superadmin'] }
         },
         {
           path: 'approval',
           name: 'Approval',
           component: () => import('@/views/approval/index.vue'),
-          meta: { title: '审批管理', icon: 'DocumentChecked' }
+          meta: { title: '审批管理', icon: 'DocumentChecked', roles: ['admin', 'superadmin'] }
         },
         {
           path: 'report',
-          meta: { title: '日报管理', icon: 'Document' },
+          meta: {
+            title: '日报管理',
+            icon: 'Document',
+            roles: ['employee', 'admin', 'superadmin']
+          },
           children: [
             {
               path: '',
@@ -60,7 +76,7 @@ const router = createRouter({
               path: 'audit',
               name: 'ReportAudit',
               component: () => import('@/views/report/audit.vue'),
-              meta: { title: '补公出审核' }
+              meta: { title: '补公出审核', roles: ['admin', 'superadmin'] }
             },
             {
               path: 'overview',
@@ -102,7 +118,7 @@ const router = createRouter({
               path: 'daily-status',
               name: 'ReportDailyStatus',
               component: () => import('@/views/report/daily-status.vue'),
-              meta: { title: '员工当日状态' }
+              meta: { title: '员工当日状态', roles: ['admin', 'superadmin'] }
             },
             {
               path: 'monthly-summary',
@@ -116,31 +132,29 @@ const router = createRouter({
           path: '/user/workers',
           name: 'UserWorkers',
           component: () => import('@/views/user/workers.vue'),
-          meta: { title: '外场人员花名册' }
+          meta: { title: '外场人员花名册', roles: ['admin', 'superadmin'] }
         },
         {
           path: 'project',
           name: 'Project',
           component: () => import('@/views/project/index.vue'),
-          meta: { title: '项目管理', icon: 'FolderOpened' }
+          meta: { title: '项目管理', icon: 'FolderOpened', roles: ['admin', 'superadmin'] }
         },
         {
           path: 'compliance',
           name: 'Compliance',
           redirect: '/compliance/dashboard',
-          meta: { title: '合规管理', icon: 'DocumentChecked' },
+          meta: {
+            title: '合规管理',
+            icon: 'DocumentChecked',
+            roles: ['admin', 'superadmin']
+          },
           children: [
             {
               path: 'dashboard',
               name: 'ComplianceDashboard',
               component: () => import('@/views/compliance/Dashboard.vue'),
               meta: { title: '合规统计看板' }
-            },
-            {
-              path: 'biz-trip',
-              name: 'BizTripManage',
-              component: () => import('@/views/compliance/BizTripManage.vue'),
-              meta: { title: '出差管理' }
             },
             {
               path: 'missing-review',
@@ -154,7 +168,11 @@ const router = createRouter({
           path: 'attendance',
           name: 'Attendance',
           redirect: '/attendance/schedule-rules',
-          meta: { title: '出勤日历', icon: 'Calendar' },
+          meta: {
+            title: '考勤',
+            icon: 'Calendar',
+            roles: ['admin', 'superadmin']
+          },
           children: [
             {
               path: 'schedule-rules',
@@ -167,6 +185,12 @@ const router = createRouter({
               name: 'AttendanceLeaveManage',
               component: () => import('@/views/attendance/LeaveManage.vue'),
               meta: { title: '请假出差管理' }
+            },
+            {
+              path: 'biz-trip',
+              name: 'BizTripManage',
+              component: () => import('@/views/compliance/BizTripManage.vue'),
+              meta: { title: '出差管理' }
             }
           ]
         },
@@ -174,51 +198,109 @@ const router = createRouter({
           path: 'exam',
           name: 'Exam',
           redirect: '/exam/questions',
-          meta: { title: '考试管理', icon: 'Edit' },
+          meta: {
+            title: '考试管理',
+            icon: 'Edit',
+            roles: ['admin', 'superadmin']
+          },
           children: [
-            { path: 'questions', name: 'ExamQuestions', component: () => import('@/views/exam/questions.vue'), meta: { title: '题库管理' } },
-            { path: 'papers', name: 'ExamPapers', component: () => import('@/views/exam/papers.vue'), meta: { title: '试卷管理' } },
-            { path: 'records', name: 'ExamRecords', component: () => import('@/views/exam/records.vue'), meta: { title: '考试记录' } },
-            { path: 'stats', name: 'ExamStats', component: () => import('@/views/exam/stats.vue'), meta: { title: '成绩统计' } },
+            {
+              path: 'questions',
+              name: 'ExamQuestions',
+              component: () => import('@/views/exam/questions.vue'),
+              meta: { title: '题库管理' }
+            },
+            {
+              path: 'papers',
+              name: 'ExamPapers',
+              component: () => import('@/views/exam/papers.vue'),
+              meta: { title: '试卷管理' }
+            },
+            {
+              path: 'records',
+              name: 'ExamRecords',
+              component: () => import('@/views/exam/records.vue'),
+              meta: { title: '考试记录' }
+            },
+            {
+              path: 'stats',
+              name: 'ExamStats',
+              component: () => import('@/views/exam/stats.vue'),
+              meta: { title: '成绩统计' }
+            }
           ]
         },
         {
           path: 'modules',
           name: 'Modules',
           component: () => import('@/views/modules/index.vue'),
-          meta: { title: '模块管理', icon: 'Switch' }
+          meta: { title: '模块管理', icon: 'Switch', roles: ['superadmin'] }
         },
         {
           path: 'settings',
           name: 'Settings',
           component: () => import('@/views/settings/index.vue'),
-          meta: { title: '系统设置', icon: 'Setting' }
+          meta: { title: '系统设置', icon: 'Setting', roles: ['superadmin'] }
+        },
+        {
+          path: 'logs',
+          name: 'OperationLogs',
+          component: () => import('@/views/logs/index.vue'),
+          meta: { title: '操作日志', icon: 'Tickets', roles: ['superadmin'] }
+        },
+        {
+          path: 'announcement',
+          name: 'Announcement',
+          component: () => import('@/views/announcement/index.vue'),
+          meta: { title: '公告管理', icon: 'Bell', roles: ['admin', 'superadmin'] }
         }
       ]
     },
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
-      component: () => import('@/views/error/404.vue')
+      component: () => import('@/views/error/404.vue'),
+      meta: { public: true, title: '页面不存在' }
     }
   ]
 })
 
-// 路由守卫
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to) => {
   const userStore = useUserStore()
 
   if (to.meta.public) {
-    next()
-    return
+    if (to.path === '/login' && userStore.token) {
+      return '/'
+    }
+    return true
   }
 
   if (!userStore.token) {
-    next('/login')
-    return
+    return {
+      path: '/login',
+      query: to.fullPath === '/' ? {} : { redirect: to.fullPath }
+    }
   }
 
-  next()
+  if (!userStore.userInfo) {
+    try {
+      await userStore.refreshProfile()
+    } catch {
+      userStore.logout()
+      return { path: '/login' }
+    }
+  }
+
+  const roles = to.meta.roles as string[] | undefined
+  if (roles?.length && !roles.includes(userStore.userInfo?.role || '')) {
+    return '/403'
+  }
+
+  return true
+})
+
+router.afterEach((to) => {
+  document.title = `${(to.meta.title as string) || 'OA管理后台'} - OA管理后台`
 })
 
 export default router

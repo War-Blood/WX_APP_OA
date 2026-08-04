@@ -33,6 +33,24 @@
         <el-form-item label="题干"><el-input v-model="form.title" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="分值"><el-input-number v-model="form.score" :min="1" :max="20" /></el-form-item>
         <el-form-item v-if="form.type==='multiple'" label="评分"><el-select v-model="form.scoreMode"><el-option label="全对得分" value="exact" /><el-option label="漏选给分" value="partial" /></el-select></el-form-item>
+        <el-form-item label="选项">
+          <div class="option-editor">
+            <div v-for="(option, index) in form.options" :key="option.key" class="option-row">
+              <el-input v-model="option.key" placeholder="选项标识" style="width: 80px" maxlength="4" />
+              <el-input v-model="option.text" placeholder="选项内容" />
+              <el-button
+                size="small"
+                type="danger"
+                link
+                :disabled="form.options.length <= 2"
+                @click="removeOption(index)"
+              >
+                删除
+              </el-button>
+            </div>
+            <el-button size="small" type="primary" plain @click="addOption">添加选项</el-button>
+          </div>
+        </el-form-item>
         <el-form-item label="答案"><el-input v-model="form.answer" placeholder="多选用逗号分隔如 A,B" /></el-form-item>
         <el-form-item label="解析"><el-input v-model="form.analysis" type="textarea" :rows="2" placeholder="可选" /></el-form-item>
       </el-form>
@@ -62,11 +80,45 @@ import { getQuestionList, createQuestion, updateQuestion, deleteQuestion, batchI
 const loading = ref(false); const tableData = ref<any[]>([]); const total = ref(0); const page = ref(1)
 const keyword = ref(''); const filterType = ref('')
 const dialogVisible = ref(false); const editingId = ref<number | null>(null)
-const form = reactive({ type: 'single', title: '', score: 2, scoreMode: 'exact', answer: '', analysis: '' })
+const form = reactive({
+  type: 'single',
+  title: '',
+  score: 2,
+  scoreMode: 'exact',
+  answer: '',
+  analysis: '',
+  options: [
+    { key: 'A', text: '' },
+    { key: 'B', text: '' }
+  ]
+})
 const batchVisible = ref(false); const batchFile = ref<any>(null); const batchResult = ref<any>(null)
 
 function typeLabel(t: string) { return { single: '单选', multiple: '多选', judge: '判断' }[t] || t }
-function resetForm() { Object.assign(form, { type: 'single', title: '', score: 2, scoreMode: 'exact', answer: '', analysis: '' }); editingId.value = null }
+function defaultOptions(type: string) {
+  if (type === 'judge') {
+    return [
+      { key: '正确', text: '正确' },
+      { key: '错误', text: '错误' }
+    ]
+  }
+  return [
+    { key: 'A', text: '' },
+    { key: 'B', text: '' }
+  ]
+}
+function resetForm() {
+  Object.assign(form, {
+    type: 'single',
+    title: '',
+    score: 2,
+    scoreMode: 'exact',
+    answer: '',
+    analysis: '',
+    options: defaultOptions('single')
+  })
+  editingId.value = null
+}
 
 async function loadData() {
   loading.value = true
@@ -80,16 +132,43 @@ async function loadData() {
 function openCreate() { resetForm(); dialogVisible.value = true }
 function openEdit(row: any) {
   editingId.value = row.id
-  Object.assign(form, { type: row.type, title: row.title, score: row.score, scoreMode: row.score_mode || 'exact', answer: row.answer, analysis: row.analysis || '' })
+  const rawOptions = row.options
+  let options = Array.isArray(rawOptions) ? rawOptions : []
+  if (typeof rawOptions === 'string') {
+    try { options = JSON.parse(rawOptions) } catch { options = [] }
+  }
+  Object.assign(form, {
+    type: row.type,
+    title: row.title,
+    score: row.score,
+    scoreMode: row.score_mode || 'exact',
+    answer: row.answer,
+    analysis: row.analysis || '',
+    options: options.length >= 2 ? options : defaultOptions(row.type)
+  })
   dialogVisible.value = true
+}
+
+function addOption() {
+  const nextKey = String.fromCharCode(65 + form.options.length)
+  form.options.push({ key: nextKey, text: '' })
+}
+
+function removeOption(index: number) {
+  if (form.options.length <= 2) return
+  form.options.splice(index, 1)
 }
 
 async function handleSave() {
   if (!form.title) { toast.warning('题干不能为空'); return }
   if (!form.answer) { toast.warning('答案不能为空'); return }
+  if (form.options.length < 2 || form.options.some(o => !o.text.trim())) {
+    toast.warning('至少需要2个有效选项')
+    return
+  }
   try {
-    if (editingId.value) await updateQuestion({ id: editingId.value, ...form, options: [] } as any)
-    else await createQuestion({ ...form, options: [{ key: 'A', text: '选项A' }, { key: 'B', text: '选项B' }] } as any)
+    if (editingId.value) await updateQuestion({ id: editingId.value, ...form } as any)
+    else await createQuestion({ ...form } as any)
     dialogVisible.value = false; loadData()
   } catch { toast.error('保存失败') }
 }
@@ -118,4 +197,18 @@ onMounted(() => loadData())
 .toolbar { display: flex; justify-content: space-between; align-items: center; }
 .title { font-size: 18px; font-weight: 600; }
 .actions { display: flex; gap: 12px; }
+
+.option-editor {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
 </style>

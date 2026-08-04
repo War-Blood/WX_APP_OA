@@ -3,10 +3,11 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { getDailyCounts, type DailyCountItem } from '@/api/report'
+import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
 
 const calLoading = ref(false)
 const calData = ref<DailyCountItem[]>([])
-const calMonth = ref(new Date().toISOString().slice(0, 7))
+const calMonth = ref(currentMonthInBeijing())
 const calChartRef = ref<HTMLDivElement>()
 let calChart: echarts.ECharts | null = null
 
@@ -81,16 +82,12 @@ function renderCalendar() {
 }
 
 function prevCalendarMonth() {
-  const d = new Date(calMonth.value + '-01')
-  d.setMonth(d.getMonth() - 1)
-  calMonth.value = d.toISOString().slice(0, 7)
+  calMonth.value = shiftMonth(calMonth.value, -1)
   loadCalendar()
 }
 
 function nextCalendarMonth() {
-  const d = new Date(calMonth.value + '-01')
-  d.setMonth(d.getMonth() + 1)
-  calMonth.value = d.toISOString().slice(0, 7)
+  calMonth.value = shiftMonth(calMonth.value, 1)
   loadCalendar()
 }
 

@@ -50,6 +50,20 @@
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="handleSave">保存</el-button></template>
     </el-dialog>
+
+    <el-dialog v-model="previewVisible" title="试卷预览" width="640px" destroy-on-close>
+      <el-descriptions v-if="previewRow" :column="2" border>
+        <el-descriptions-item label="名称" :span="2">{{ previewRow.title }}</el-descriptions-item>
+        <el-descriptions-item label="时长">{{ previewRow.duration }}分钟</el-descriptions-item>
+        <el-descriptions-item label="合格线">{{ previewRow.pass_score }}</el-descriptions-item>
+        <el-descriptions-item label="范围">{{ previewRow.scope_type === 'department' ? '指定部门' : '全员' }}</el-descriptions-item>
+        <el-descriptions-item label="版本">v{{ previewRow.version }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{ statusLabel(previewRow.status) }}</el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button @click="previewVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -62,6 +76,8 @@ import { getDepartmentList } from '@/api/user'
 
 const loading = ref(false); const tableData = ref<any[]>([]); const total = ref(0); const page = ref(1); const tabStatus = ref('')
 const dialogVisible = ref(false); const editingId = ref<number | null>(null)
+const previewVisible = ref(false)
+const previewRow = ref<any>(null)
 const deptTree = ref<any[]>([])
 const form = reactive({ title: '', duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all', scopeDepartments: [] as number[], questionIds: [] as number[] })
 
@@ -82,7 +98,10 @@ function openEdit(row: any) {
   Object.assign(form, { id: row.id, title: row.title, duration: row.duration, passScore: row.pass_score, maxAttempts: row.max_attempts, maxScreenshotWarns: row.max_screenshot_warns, scopeType: row.scope_type, scopeDepartments: row.scope_departments || [] })
   editingId.value = row.id; dialogVisible.value = true
 }
-function viewPaper(_row: any) { /* TODO: 打开只读查看弹窗 */ }
+function viewPaper(row: any) {
+  previewRow.value = row
+  previewVisible.value = true
+}
 
 async function handleSave() {
   if (!form.title) { toast.warning('试卷名称不能为空'); return }

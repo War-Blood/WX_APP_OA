@@ -19,6 +19,9 @@ router.post('/project/reviewDetail', authenticate, requireRole('admin', 'superad
 // POST /api/project/reviewAction — 审核操作（通过/驳回）
 router.post('/project/reviewAction', authenticate, requireRole('admin', 'superadmin'), reviewController.reviewAction);
 
+// POST /api/project/reviewBatch — 批量审核操作（通过/驳回，原子事务）
+router.post('/project/reviewBatch', authenticate, requireRole('admin', 'superadmin'), reviewController.reviewBatch);
+
 // POST /api/project/reviewStats — 审核统计
 router.post('/project/reviewStats', authenticate, requireRole('admin', 'superadmin'), reviewController.reviewStats);
 

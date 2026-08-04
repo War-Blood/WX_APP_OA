@@ -85,24 +85,57 @@
     </el-row>
     
     <!-- 及时率趋势图 -->
-    <el-card style="margin-top: 20px;">
+    <el-card style="margin-top: 20px;" v-loading="loading">
       <template #header>
         <div class="card-header">
           <span>近6个月及时率趋势</span>
         </div>
       </template>
-      <div ref="trendChart" style="height: 400px;"></div>
+      <el-empty v-if="!loading && !trendData.length" description="暂无趋势数据" :image-size="80" />
+      <div v-show="trendData.length" ref="trendChart" style="height: 400px;"></div>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { toast } from '@/utils/toast'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import { complianceApi } from '@/api/compliance'
 
-const dashboard = ref({
+interface MissingTopItem {
+  worker_name?: string
+  missing_count: number
+}
+
+interface ProjectMissingItem {
+  project: string
+  missing_count: number
+}
+
+interface TrendItem {
+  month: string
+  total: number
+  on_time_count: number
+}
+
+interface DashboardData {
+  overallRate?: number
+  totalReports?: number
+  onTimeCount?: number
+  delayedCount?: number
+  missingCount?: number
+  missingTop10?: MissingTopItem[]
+  trendData?: TrendItem[]
+}
+
+const dashboard = ref<{
+  overallRate: number
+  totalReports: number
+  onTimeCount: number
+  delayedCount: number
+  missingCount: number
+}>({
   overallRate: 0,
   totalReports: 0,
   onTimeCount: 0,
@@ -110,19 +143,22 @@ const dashboard = ref({
   missingCount: 0
 })
 
-const missingTop10 = ref<any[]>([])
-const projectMissing = ref<any[]>([])
-const trendData = ref<any[]>([])
+const missingTop10 = ref<MissingTopItem[]>([])
+const projectMissing = ref<ProjectMissingItem[]>([])
+const trendData = ref<TrendItem[]>([])
 const trendChart = ref<HTMLDivElement>()
+const loading = ref(false)
+let trendChartInstance: echarts.ECharts | null = null
+let resizeHandler: (() => void) | null = null
 
 onMounted(() => {
   loadDashboard()
 })
 
 async function loadDashboard() {
+  loading.value = true
   try {
-    const res = await complianceApi.getDashboard()
-    const data = res.data
+    const data = await complianceApi.getDashboard() as DashboardData
     
     dashboard.value = {
       overallRate: data.overallRate || 0,
@@ -139,15 +175,19 @@ async function loadDashboard() {
     loadProjectMissing()
     
     renderTrendChart()
-  } catch (err: any) {
-    toast.error(err.message || '加载合规统计失败')
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : '加载合规统计失败')
+  } finally {
+    loading.value = false
   }
 }
 
 async function loadProjectMissing() {
   try {
-    const res = await complianceApi.getMissingReports({ page: 1, pageSize: 1000 })
-    const allRecords = res.data.list || []
+    const res = await complianceApi.getMissingReports({ page: 1, pageSize: 1000 }) as {
+      list?: Array<{ project?: string }>
+    }
+    const allRecords = res.list || []
     // 按项目聚合缺失次数
     const projectMap = new Map<string, number>()
     for (const item of allRecords) {
@@ -164,11 +204,15 @@ async function loadProjectMissing() {
 
 function renderTrendChart() {
   if (!trendChart.value) return
+
+  if (!trendChartInstance) {
+    trendChartInstance = echarts.init(trendChart.value)
+    resizeHandler = () => trendChartInstance?.resize()
+    window.addEventListener('resize', resizeHandler)
+  }
   
-  const chart = echarts.init(trendChart.value)
-  
-  const months = trendData.value.map((item: any) => item.month)
-  const rates = trendData.value.map((item: any) => 
+  const months = trendData.value.map(item => item.month)
+  const rates = trendData.value.map(item =>
     item.total > 0 ? ((item.on_time_count / item.total) * 100).toFixed(2) : 0
   )
   
@@ -206,12 +250,15 @@ function renderTrendChart() {
     ]
   }
   
-  chart.setOption(option)
-  
-  window.addEventListener('resize', () => {
-    chart.resize()
-  })
+  trendChartInstance.setOption(option)
 }
+
+onUnmounted(() => {
+  if (resizeHandler) window.removeEventListener('resize', resizeHandler)
+  trendChartInstance?.dispose()
+  trendChartInstance = null
+  resizeHandler = null
+})
 </script>
 
 <style scoped>

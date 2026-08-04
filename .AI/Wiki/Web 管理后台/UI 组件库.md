@@ -2,8 +2,8 @@
 
 <cite>
 **本文引用的文件**
-- [webapp/src/components/AppHeader/index.vue](file://webapp/src/components/AppHeader/index.vue)
-- [webapp/src/components/AppSidebar/index.vue](file://webapp/src/components/AppSidebar/index.vue)
+- [webapp/src/components/TopBar/index.vue](file://webapp/src/components/TopBar/index.vue)
+- [webapp/src/components/ModuleSidebar/index.vue](file://webapp/src/components/ModuleSidebar/index.vue)
 - [webapp/src/layouts/DefaultLayout.vue](file://webapp/src/layouts/DefaultLayout.vue)
 - [webapp/src/stores/app.ts](file://webapp/src/stores/app.ts)
 - [webapp/src/stores/user.ts](file://webapp/src/stores/user.ts)
@@ -19,8 +19,8 @@
 
 ## 更新摘要
 **所做更改**
-- 更新了AppHeader组件的用户信息展示逻辑和下拉菜单交互
-- 完善了AppSidebar组件的菜单项配置和图标系统
+- 更新了TopBar组件的用户信息展示逻辑和下拉菜单交互
+- 完善了ModuleSidebar组件的菜单项配置和图标系统
 - 优化了DefaultLayout组件的布局计算和样式管理
 - 增强了状态管理store的功能和类型定义
 - 改进了样式系统的变量管理和主题定制
@@ -53,8 +53,8 @@ subgraph "布局层"
 DL["DefaultLayout.vue"]
 end
 subgraph "头部与侧边栏"
-AH["AppHeader/index.vue"]
-AS["AppSidebar/index.vue"]
+AH["TopBar/index.vue"]
+AS["ModuleSidebar/index.vue"]
 end
 subgraph "状态管理"
 ST_APP["stores/app.ts"]
@@ -85,8 +85,8 @@ VC --> VAR
 - [webapp/src/main.ts:1-28](file://webapp/src/main.ts#L1-L28)
 - [webapp/src/App.vue:1-11](file://webapp/src/App.vue#L1-L11)
 - [webapp/src/layouts/DefaultLayout.vue:1-54](file://webapp/src/layouts/DefaultLayout.vue#L1-L54)
-- [webapp/src/components/AppHeader/index.vue:1-89](file://webapp/src/components/AppHeader/index.vue#L1-L89)
-- [webapp/src/components/AppSidebar/index.vue:1-148](file://webapp/src/components/AppSidebar/index.vue#L1-L148)
+- [webapp/src/components/TopBar/index.vue:1-89](file://webapp/src/components/TopBar/index.vue#L1-L89)
+- [webapp/src/components/ModuleSidebar/index.vue:1-148](file://webapp/src/components/ModuleSidebar/index.vue#L1-L148)
 - [webapp/src/stores/app.ts:1-30](file://webapp/src/stores/app.ts#L1-L30)
 - [webapp/src/stores/user.ts:1-54](file://webapp/src/stores/user.ts#L1-L54)
 - [webapp/src/styles/index.scss:1-4](file://webapp/src/styles/index.scss#L1-L4)
@@ -101,12 +101,12 @@ VC --> VAR
 - [webapp/vite.config.ts:1-33](file://webapp/vite.config.ts#L1-L33)
 
 ## 核心组件
-- **应用头部组件（AppHeader）**
+- **应用头部组件（TopBar）**
   - 功能：面包屑导航、用户信息下拉菜单（个人中心、退出登录）
   - 依赖：用户状态（Pinia）、路由跳转（vue-router）、Element Plus 下拉与面包屑
   - 关键交互：下拉命令处理、头像与昵称展示、路由跳转
   - **更新**：增强了用户信息展示逻辑，支持头像和昵称的动态显示
-- **应用侧边栏组件（AppSidebar）**
+- **应用侧边栏组件（ModuleSidebar）**
   - 功能：Logo、菜单项列表、折叠/展开控制、当前激活菜单高亮
   - 依赖：应用状态（Pinia）、路由跳转、Element Plus 菜单与图标
   - 关键交互：菜单选择、折叠切换、动态宽度计算
@@ -117,8 +117,8 @@ VC --> VAR
   - **更新**：优化了布局计算逻辑，提升了响应式体验
 
 **章节来源**
-- [webapp/src/components/AppHeader/index.vue:1-89](file://webapp/src/components/AppHeader/index.vue#L1-L89)
-- [webapp/src/components/AppSidebar/index.vue:1-148](file://webapp/src/components/AppSidebar/index.vue#L1-L148)
+- [webapp/src/components/TopBar/index.vue:1-89](file://webapp/src/components/TopBar/index.vue#L1-L89)
+- [webapp/src/components/ModuleSidebar/index.vue:1-148](file://webapp/src/components/ModuleSidebar/index.vue#L1-L148)
 - [webapp/src/layouts/DefaultLayout.vue:1-54](file://webapp/src/layouts/DefaultLayout.vue#L1-L54)
 - [webapp/src/stores/app.ts:1-30](file://webapp/src/stores/app.ts#L1-L30)
 - [webapp/src/stores/user.ts:1-54](file://webapp/src/stores/user.ts#L1-L54)
@@ -128,8 +128,8 @@ VC --> VAR
 
 ```mermaid
 graph TB
-L["DefaultLayout.vue"] --> H["AppHeader/index.vue"]
-L --> S["AppSidebar/index.vue"]
+L["DefaultLayout.vue"] --> H["TopBar/index.vue"]
+L --> S["ModuleSidebar/index.vue"]
 H --> UStore["stores/user.ts"]
 S --> AStore["stores/app.ts"]
 L --> AStore
@@ -142,8 +142,8 @@ VC["vite.config.ts"] --> Vars
 
 **图表来源**
 - [webapp/src/layouts/DefaultLayout.vue:1-54](file://webapp/src/layouts/DefaultLayout.vue#L1-L54)
-- [webapp/src/components/AppHeader/index.vue:1-89](file://webapp/src/components/AppHeader/index.vue#L1-L89)
-- [webapp/src/components/AppSidebar/index.vue:1-148](file://webapp/src/components/AppSidebar/index.vue#L1-L148)
+- [webapp/src/components/TopBar/index.vue:1-89](file://webapp/src/components/TopBar/index.vue#L1-L89)
+- [webapp/src/components/ModuleSidebar/index.vue:1-148](file://webapp/src/components/ModuleSidebar/index.vue#L1-L148)
 - [webapp/src/stores/app.ts:1-30](file://webapp/src/stores/app.ts#L1-L30)
 - [webapp/src/stores/user.ts:1-54](file://webapp/src/stores/user.ts#L1-L54)
 - [webapp/src/main.ts:1-28](file://webapp/src/main.ts#L1-L28)
@@ -155,7 +155,7 @@ VC["vite.config.ts"] --> Vars
 
 ## 组件详解
 
-### 应用头部组件（AppHeader）
+### 应用头部组件（TopBar）
 - **组件职责**
   - 展示面包屑导航，标题取自路由元信息
   - 用户信息下拉菜单，支持"个人中心"和"退出登录"
@@ -174,7 +174,7 @@ VC["vite.config.ts"] --> Vars
 ```mermaid
 sequenceDiagram
 participant U as "用户"
-participant H as "AppHeader"
+participant H as "TopBar"
 participant US as "UserStore"
 participant R as "Router"
 U->>H : 打开下拉菜单
@@ -187,14 +187,14 @@ H-->>U : 页面更新
 ```
 
 **图表来源**
-- [webapp/src/components/AppHeader/index.vue:1-89](file://webapp/src/components/AppHeader/index.vue#L1-L89)
+- [webapp/src/components/TopBar/index.vue:1-89](file://webapp/src/components/TopBar/index.vue#L1-L89)
 - [webapp/src/stores/user.ts:1-54](file://webapp/src/stores/user.ts#L1-L54)
 
 **章节来源**
-- [webapp/src/components/AppHeader/index.vue:1-89](file://webapp/src/components/AppHeader/index.vue#L1-L89)
+- [webapp/src/components/TopBar/index.vue:1-89](file://webapp/src/components/TopBar/index.vue#L1-L89)
 - [webapp/src/stores/user.ts:1-54](file://webapp/src/stores/user.ts#L1-L54)
 
-### 应用侧边栏组件（AppSidebar）
+### 应用侧边栏组件（ModuleSidebar）
 - **组件职责**
   - Logo 区域（展开/折叠时显示不同文案）
   - 菜单项列表（路径、标题、图标）
@@ -216,7 +216,7 @@ H-->>U : 页面更新
 ```mermaid
 sequenceDiagram
 participant U as "用户"
-participant S as "AppSidebar"
+participant S as "ModuleSidebar"
 participant AS as "AppStore"
 participant R as "Router"
 U->>S : 点击菜单项
@@ -231,11 +231,11 @@ S-->>U : 侧边栏宽度变化
 ```
 
 **图表来源**
-- [webapp/src/components/AppSidebar/index.vue:1-148](file://webapp/src/components/AppSidebar/index.vue#L1-L148)
+- [webapp/src/components/ModuleSidebar/index.vue:1-148](file://webapp/src/components/ModuleSidebar/index.vue#L1-L148)
 - [webapp/src/stores/app.ts:1-30](file://webapp/src/stores/app.ts#L1-L30)
 
 **章节来源**
-- [webapp/src/components/AppSidebar/index.vue:1-148](file://webapp/src/components/AppSidebar/index.vue#L1-L148)
+- [webapp/src/components/ModuleSidebar/index.vue:1-148](file://webapp/src/components/ModuleSidebar/index.vue#L1-L148)
 - [webapp/src/stores/app.ts:1-30](file://webapp/src/stores/app.ts#L1-L30)
 
 ### 默认布局（DefaultLayout）
@@ -314,8 +314,8 @@ M --> ET
 
 ## 依赖关系分析
 - **组件耦合**
-  - AppHeader 依赖 UserStore 与 Router
-  - AppSidebar 依赖 AppStore 与 Router
+  - TopBar 依赖 UserStore 与 Router
+  - ModuleSidebar 依赖 AppStore 与 Router
   - DefaultLayout 依赖 AppStore 并组合两个自定义组件
   - **更新**：增强了组件间的解耦和独立性
 - **外部依赖**
@@ -330,8 +330,8 @@ M --> ET
 
 ```mermaid
 graph TB
-AH["AppHeader"] --> US["UserStore"]
-AS["AppSidebar"] --> ASI["AppStore"]
+AH["TopBar"] --> US["UserStore"]
+AS["ModuleSidebar"] --> ASI["AppStore"]
 DL["DefaultLayout"] --> AH
 DL --> AS
 DL --> ASI
@@ -342,8 +342,8 @@ IDX --> COM["common.scss"]
 ```
 
 **图表来源**
-- [webapp/src/components/AppHeader/index.vue:1-89](file://webapp/src/components/AppHeader/index.vue#L1-L89)
-- [webapp/src/components/AppSidebar/index.vue:1-148](file://webapp/src/components/AppSidebar/index.vue#L1-L148)
+- [webapp/src/components/TopBar/index.vue:1-89](file://webapp/src/components/TopBar/index.vue#L1-L89)
+- [webapp/src/components/ModuleSidebar/index.vue:1-148](file://webapp/src/components/ModuleSidebar/index.vue#L1-L148)
 - [webapp/src/layouts/DefaultLayout.vue:1-54](file://webapp/src/layouts/DefaultLayout.vue#L1-L54)
 - [webapp/src/stores/app.ts:1-30](file://webapp/src/stores/app.ts#L1-L30)
 - [webapp/src/stores/user.ts:1-54](file://webapp/src/stores/user.ts#L1-L54)
@@ -397,8 +397,8 @@ IDX --> COM["common.scss"]
   - **更新**：增加了菜单相关的故障排查指南
 
 **章节来源**
-- [webapp/src/components/AppHeader/index.vue:1-89](file://webapp/src/components/AppHeader/index.vue#L1-L89)
-- [webapp/src/components/AppSidebar/index.vue:1-148](file://webapp/src/components/AppSidebar/index.vue#L1-L148)
+- [webapp/src/components/TopBar/index.vue:1-89](file://webapp/src/components/TopBar/index.vue#L1-L89)
+- [webapp/src/components/ModuleSidebar/index.vue:1-148](file://webapp/src/components/ModuleSidebar/index.vue#L1-L148)
 - [webapp/src/stores/user.ts:1-54](file://webapp/src/stores/user.ts#L1-L54)
 - [webapp/src/stores/app.ts:1-30](file://webapp/src/stores/app.ts#L1-L30)
 - [webapp/src/main.ts:1-28](file://webapp/src/main.ts#L1-L28)
@@ -409,7 +409,7 @@ IDX --> COM["common.scss"]
 本项目以 Element Plus 为基础，结合自定义头部与侧边栏组件，配合 Pinia 状态管理与 SCSS 主题体系，实现了统一、可扩展且易于维护的 UI 组件库。通过变量驱动的主题定制、合理的布局与交互设计，满足管理后台对一致性与效率的要求。
 
 **更新**：经过持续优化，组件库在以下方面得到了显著提升：
-- **组件功能完善**：AppHeader和AppSidebar增加了更多实用功能
+- **组件功能完善**：TopBar和ModuleSidebar增加了更多实用功能
 - **状态管理增强**：stores提供了更丰富的API和类型定义
 - **样式系统优化**：变量管理和主题覆盖更加完善
 - **性能表现提升**：通过多种优化策略提升了整体性能

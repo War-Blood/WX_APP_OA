@@ -85,6 +85,7 @@ export const modules: ModuleConfig[] = [
     children: [
       { title: '排班规则', path: '/attendance/schedule-rules' },
       { title: '请假出差', path: '/attendance/leave-manage' },
+      { title: '出差管理', path: '/attendance/biz-trip' },
     ],
   },
   {
@@ -108,9 +109,16 @@ export const modules: ModuleConfig[] = [
     roles: ['admin', 'superadmin'],
     children: [
       { title: '统计看板', path: '/compliance/dashboard' },
-      { title: '出差管理', path: '/compliance/biz-trip' },
       { title: '缺失审核', path: '/compliance/missing-review' },
     ],
+  },
+  {
+    key: 'announcement',
+    icon: 'Bell',
+    title: '公告',
+    path: '/announcement',
+    roles: ['admin', 'superadmin'],
+    children: [{ title: '公告管理', path: '/announcement' }],
   },
   {
     key: 'settings',
@@ -121,6 +129,7 @@ export const modules: ModuleConfig[] = [
     children: [
       { title: '模块管理', path: '/modules' },
       { title: '系统设置', path: '/settings' },
+      { title: '操作日志', path: '/logs' },
     ],
   },
 ]

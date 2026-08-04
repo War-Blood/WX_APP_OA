@@ -39,7 +39,6 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="applicantName" label="申请人" width="100" />
         <el-table-column prop="departmentName" label="部门" width="100" />
         <el-table-column label="详情" min-width="200">
           <template #default="{ row }">
@@ -55,7 +54,7 @@
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">{{ statusMap[row.status] }}</el-tag>
+            <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="reason" label="备注" min-width="120" show-overflow-tooltip />
@@ -74,9 +73,11 @@
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.pageSize"
         :total="pagination.total"
-        layout="total, prev, pager, next"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
         style="margin-top:16px;justify-content:flex-end"
-        @change="loadData"
+        @current-change="handlePageChange"
+        @size-change="handleSizeChange"
       />
     </el-card>
   </div>
@@ -86,8 +87,8 @@
 import { toast } from '@/utils/toast'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { getLeaveList, deleteLeave } from '@/api/attendance'
-import { getDepartmentList } from '@/api/user'
+import { getLeaveList, deleteLeave, type LeaveRequest } from '@/api/attendance'
+import { getDepartmentList, type DepartmentItem } from '@/api/user'
 
 const statusMap: Record<string, string> = {
   active: '生效中', cancelled: '已撤销', in_progress: '进行中', ended: '已结束'
@@ -97,12 +98,13 @@ const leaveTypeMap: Record<string, string> = {
 }
 const statusType = (s: string) => {
   const m: Record<string, string> = { active: 'success', in_progress: 'warning', ended: 'info', cancelled: 'danger' }
-  return (m[s] || 'info') as any
+  return (m[s] || 'info') as 'success' | 'warning' | 'info' | 'danger'
 }
+const statusLabel = (s: string) => statusMap[s] || s
 
 const loading = ref(false)
-const deptOptions = ref<any[]>([])
-const tableData = ref<any[]>([])
+const deptOptions = ref<DepartmentItem[]>([])
+const tableData = ref<LeaveRequest[]>([])
 const filters = reactive({ requestType: '', status: '', keyword: '', departmentId: null as number | null })
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 
@@ -114,19 +116,37 @@ function fmt(t: string | null) {
 async function loadData() {
   loading.value = true
   try {
-    const params: any = { page: pagination.page, pageSize: pagination.pageSize }
+    const params: {
+      page: number
+      pageSize: number
+      requestType?: string
+      status?: string
+      departmentId?: number
+      keyword?: string
+    } = { page: pagination.page, pageSize: pagination.pageSize }
     if (filters.requestType) params.requestType = filters.requestType
     if (filters.status) params.status = filters.status
     if (filters.departmentId) params.departmentId = filters.departmentId
     if (filters.keyword) params.keyword = filters.keyword
-    const res: any = await getLeaveList(params)
+    const res = await getLeaveList(params) as { list?: LeaveRequest[]; total?: number }
     tableData.value = res.list || []
     pagination.total = res.total || 0
   } catch { toast.error('加载失败') }
   finally { loading.value = false }
 }
 
-async function handleDelete(row: any) {
+function handlePageChange(page: number) {
+  pagination.page = page
+  loadData()
+}
+
+function handleSizeChange(size: number) {
+  pagination.pageSize = size
+  pagination.page = 1
+  loadData()
+}
+
+async function handleDelete(row: LeaveRequest) {
   try {
     await ElMessageBox.confirm(`确认永久删除此记录？`, '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
     await deleteLeave(row.id)
@@ -137,7 +157,7 @@ async function handleDelete(row: any) {
 
 onMounted(() => {
   loadData()
-  getDepartmentList().then((res: any) => { deptOptions.value = res.data || res || [] }).catch(() => {})
+  getDepartmentList().then((res) => { deptOptions.value = res || [] }).catch(() => {})
 })
 </script>
 

@@ -45,12 +45,12 @@ export function getRoleDetail(id: number): Promise<RoleItem> {
 }
 
 /** 创建角色 */
-export function createRole(data: { code: string; name: string; description?: string }): Promise<{ id: number }> {
+export function createRole(data: { code: string; name: string; description?: string; groupId?: number | null }): Promise<{ id: number }> {
   return request.post('/admin/roles', data)
 }
 
 /** 更新角色 */
-export function updateRole(id: number, data: { name?: string; description?: string; status?: string }): Promise<void> {
+export function updateRole(id: number, data: { name?: string; description?: string; status?: string; groupId?: number | null }): Promise<void> {
   return request.put(`/admin/roles/${id}`, data)
 }
 

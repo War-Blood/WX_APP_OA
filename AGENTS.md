@@ -2,7 +2,8 @@
 
 本项目完整规则体系见 [CLAUDE.md](./CLAUDE.md)。
 
-Codex 特有差异：[当前无，如有在此补充]
+Codex 特有差异：
+- 每次 Codex 执行完成后需提交一次 git；提交与推送按 `.AI/rules/git-workflow.md` 执行（含自动 push 到 test）
 
 ---
 

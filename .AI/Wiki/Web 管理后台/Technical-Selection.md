@@ -271,8 +271,8 @@ webapp/
 │   ├── components/            # 公共组件
 │   │   ├── CommonTable/       # 通用表格
 │   │   ├── CommonForm/        # 通用表单
-│   │   ├── AppHeader/         # 顶部导航
-│   │   ├── AppSidebar/        # 侧边栏
+│   │   ├── TopBar/         # 顶部导航
+│   │   ├── ModuleSidebar/        # 侧边栏
 │   │   └── ...
 │   ├── composables/           # 组合式函数
 │   │   ├── usePermission.ts   # 权限检查

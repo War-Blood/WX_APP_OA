@@ -1,0 +1,22 @@
+[
+  {"query": "我想开发一个新的资产管理模块，包括设备入库、领用、归还、报废全流程", "should_trigger": true},
+  {"query": "功能块开发 会议管理", "should_trigger": true},
+  {"query": "帮我新建一个请假审批的功能模块，需要小程序端和web管理端", "should_trigger": true},
+  {"query": "开始开发新功能：客户关系管理系统", "should_trigger": true},
+  {"query": "架构基础流程 合同管理", "should_trigger": true},
+  {"query": "我需要给OA系统加一个车辆管理模块，从0开始规划", "should_trigger": true},
+  {"query": "新建功能模块：培训管理，需要完整PRD文档", "should_trigger": true},
+  {"query": "我想在OA里新增一个公告发布的功能，帮我做完整的需求分析和PRD", "should_trigger": true},
+  {"query": "做一个任务看板功能模块，参考现有的考勤模块文档格式来写PRD", "should_trigger": true},
+  {"query": "帮我把这个想法做成一个完整的功能模块：员工入职流程管理，从填表到审批到归档", "should_trigger": true},
+  {"query": "考勤模块的请假天数计算好像有bug，帮我修一下", "should_trigger": false},
+  {"query": "快捷 给考勤加个批量排班功能", "should_trigger": false},
+  {"query": "帮我看看日报模块的代码结构，我想了解下现有的分层是怎么做的", "should_trigger": false},
+  {"query": "统计页面的图表加载不出来，控制台报了个错，帮我排查", "should_trigger": false},
+  {"query": "git提交一下最近的改动，然后push到test", "should_trigger": false},
+  {"query": "审批模块的列表查询有点慢，帮我看看能不能优化一下SQL", "should_trigger": false},
+  {"query": "帮我写个Python脚本处理一下这个Excel数据，导出成CSV", "should_trigger": false},
+  {"query": "数据库新建表的时候IF NOT EXISTS是什么作用？", "should_trigger": false},
+  {"query": "重构一下用户管理页面的代码，太乱了想整理一下", "should_trigger": false},
+  {"query": "帮我review一下最近的代码改动，看看有没有安全问题", "should_trigger": false}
+]

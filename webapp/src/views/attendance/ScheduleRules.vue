@@ -87,8 +87,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
+import { currentMonthInBeijing } from '@/utils/date'
 
-const month = ref(new Date().toISOString().slice(0, 7))
+const month = ref(currentMonthInBeijing())
 const days = ref<string[]>([])
 const dayDowMap = ref<Record<string, number>>({})  // date → dayOfWeek (避免浏览器 Date 解析差异)
 const workSet = ref(new Set<string>())

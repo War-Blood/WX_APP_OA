@@ -21,6 +21,7 @@ router.post('/auth/account-login', authController.accountLogin);
 router.post('/auth/redeem', authController.redeemInviteCode);
 router.post('/auth/bind-wechat', authenticate, authController.bindWechat);
 router.post('/auth/refresh-token', authenticate, authController.refreshToken);
+router.post('/auth/logout', authenticate, authController.logout);
 router.post('/auth/link-qywx', authenticate, requireRole('admin', 'superadmin'), authController.linkQywx);
 
 // 滑动验证（公开接口）
@@ -37,5 +38,8 @@ router.get('/user/profile', authenticate, authController.getProfile);
 
 // PUT /api/user/profile — 更新用户资料（需认证）
 router.put('/user/profile', authenticate, authController.updateProfile);
+
+// POST /api/user/change-password — 当前用户修改密码（需认证）
+router.post('/user/change-password', authenticate, authController.changePassword);
 
 module.exports = router;

@@ -271,10 +271,10 @@ async function getRoleDetail(req, res, next) {
  */
 async function createRole(req, res, next) {
   try {
-    const { code, name, description } = req.body;
+    const { code, name, description, groupId } = req.body;
     if (!code) throw new ValidationError('角色标识不能为空');
     if (!name) throw new ValidationError('角色名称不能为空');
-    const result = await adminService.createRole({ code, name, description });
+    const result = await adminService.createRole({ code, name, description, groupId });
     res.json(success(result, '角色已创建'));
   } catch (err) {
     next(err);
@@ -288,8 +288,8 @@ async function createRole(req, res, next) {
 async function updateRole(req, res, next) {
   try {
     const { id } = req.params;
-    const { name, description, status } = req.body;
-    const result = await adminService.updateRole(id, { name, description, status });
+    const { name, description, status, groupId } = req.body;
+    const result = await adminService.updateRole(id, { name, description, status, groupId });
     res.json(success(result, '角色已更新'));
   } catch (err) {
     next(err);
@@ -349,6 +349,22 @@ async function getApprovalTypes(req, res, next) {
   try {
     const result = await adminService.getApprovalTypes();
     res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/admin/approval-types
+ * 创建审批类型
+ */
+async function createApprovalType(req, res, next) {
+  try {
+    const { typeKey, name, icon, sortOrder, needAttachment, needRemark, formTemplate, status } = req.body;
+    const result = await adminService.createApprovalType({
+      typeKey, name, icon, sortOrder, needAttachment, needRemark, formTemplate, status,
+    });
+    res.json(success(result, '审批类型已创建'));
   } catch (err) {
     next(err);
   }
@@ -537,7 +553,7 @@ module.exports = {
   getRoles, getRoleDetail, createRole, updateRole, deleteRole,
   getPermissions, setRolePermissions,
   getRoleGroups, getRoleGroupDetail, createRoleGroup, updateRoleGroup, deleteRoleGroup,
-  getApprovalTypes, updateApprovalType,
+  getApprovalTypes, createApprovalType, updateApprovalType,
   getSettings, updateSettings,
   workers,
   modules,

@@ -563,13 +563,14 @@ async function deleteDepartment(id) {
  */
 async function getRoleList() {
   const rows = await db.query(
-    'SELECT id, code, name, description, is_system, status FROM roles WHERE deleted_at IS NULL ORDER BY id ASC'
+    'SELECT id, code, name, description, group_id AS groupId, is_system, status FROM roles WHERE deleted_at IS NULL ORDER BY id ASC'
   );
   return rows.map(r => ({
     id: r.id,
     code: r.code,
     name: r.name,
     description: r.description,
+    groupId: r.groupId != null ? Number(r.groupId) : null,
     isSystem: !!r.is_system,
     status: r.status,
   }));
@@ -580,7 +581,7 @@ async function getRoleList() {
  */
 async function getRoleDetail(id) {
   const rows = await db.query(
-    'SELECT id, code, name, description, is_system, status FROM roles WHERE id = ? AND deleted_at IS NULL', [id]
+    'SELECT id, code, name, description, group_id AS groupId, is_system, status FROM roles WHERE id = ? AND deleted_at IS NULL', [id]
   );
   if (rows.length === 0) throw new BusinessError('角色不存在');
 
@@ -601,6 +602,7 @@ async function getRoleDetail(id) {
     code: role.code,
     name: role.name,
     description: role.description,
+    groupId: role.groupId != null ? Number(role.groupId) : null,
     isSystem: !!role.is_system,
     status: role.status,
     permissions: perms.map(p => ({
@@ -616,7 +618,7 @@ async function getRoleDetail(id) {
 /**
  * 创建角色
  */
-async function createRole({ code, name, description }) {
+async function createRole({ code, name, description, groupId }) {
   if (!code || !code.trim()) throw new ValidationError('角色标识不能为空');
   if (!name || !name.trim()) throw new ValidationError('角色名称不能为空');
   if (!/^[a-z_][a-z0-9_]*$/.test(code)) throw new ValidationError('角色标识只能包含小写字母、数字和下划线');
@@ -625,8 +627,8 @@ async function createRole({ code, name, description }) {
   if (existing.length > 0) throw new BusinessError('角色标识已存在');
 
   const result = await db.execute(
-    'INSERT INTO roles (code, name, description) VALUES (?, ?, ?)',
-    [code.trim(), name.trim(), description || null]
+    'INSERT INTO roles (code, name, description, group_id) VALUES (?, ?, ?, ?)',
+    [code.trim(), name.trim(), description || null, groupId || null]
   );
 
   logger.info('创建角色', { module: 'ADMIN', roleCode: code, roleId: result[0].insertId });
@@ -636,7 +638,7 @@ async function createRole({ code, name, description }) {
 /**
  * 更新角色
  */
-async function updateRole(id, { name, description, status }) {
+async function updateRole(id, { name, description, status, groupId }) {
   const rows = await db.query('SELECT id, is_system FROM roles WHERE id = ? AND deleted_at IS NULL', [id]);
   if (rows.length === 0) throw new BusinessError('角色不存在');
 
@@ -649,6 +651,10 @@ async function updateRole(id, { name, description, status }) {
     if (!['active', 'disabled'].includes(status)) throw new ValidationError('状态值无效');
     updates.push('status = ?');
     params.push(status);
+  }
+  if (groupId !== undefined) {
+    updates.push('group_id = ?');
+    params.push(groupId || null);
   }
 
   if (updates.length === 0) throw new BusinessError('没有需要更新的字段');
@@ -822,6 +828,42 @@ async function getApprovalTypes() {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }));
+}
+
+/**
+ * 创建审批类型
+ */
+async function createApprovalType({ typeKey, name, icon, sortOrder, needAttachment, needRemark, formTemplate, status }) {
+  if (!typeKey || !typeKey.trim()) throw new ValidationError('审批类型标识不能为空');
+  if (!name || !name.trim()) throw new ValidationError('审批类型名称不能为空');
+  if (!/^[a-z][a-z0-9_]*$/.test(typeKey)) {
+    throw new ValidationError('审批类型标识只能使用小写字母、数字和下划线');
+  }
+
+  const existing = await db.query(
+    'SELECT id FROM approval_types WHERE type_key = ? AND deleted_at IS NULL',
+    [typeKey.trim()]
+  );
+  if (existing.length > 0) throw new BusinessError('审批类型标识已存在');
+
+  const result = await db.execute(
+    `INSERT INTO approval_types
+      (type_key, name, icon, sort_order, need_attachment, need_remark, form_template, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      typeKey.trim(),
+      name.trim(),
+      icon || null,
+      sortOrder || 0,
+      needAttachment ? 1 : 0,
+      needRemark ? 1 : 0,
+      formTemplate ? JSON.stringify(formTemplate) : null,
+      status === 'disabled' ? 'disabled' : 'active'
+    ]
+  );
+
+  logger.info('创建审批类型', { module: 'ADMIN', typeKey, typeId: result[0].insertId });
+  return { id: result[0].insertId };
 }
 
 /**

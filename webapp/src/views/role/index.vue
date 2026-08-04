@@ -56,8 +56,48 @@
       <!-- 标签页 -->
       <el-tabs v-model="activeTab" class="role-tabs">
         <el-tab-pane label="角色成员" name="members">
-          <div class="tab-placeholder">
-            <el-empty description="成员管理功能即将上线" :image-size="60" />
+          <div class="member-panel">
+            <div class="member-toolbar">
+              <span class="member-total">共 {{ memberTotal }} 人</span>
+              <el-button
+                v-if="selectedRole.code !== 'employee'"
+                size="small"
+                type="primary"
+                @click="openMemberDialog"
+              >
+                添加成员
+              </el-button>
+            </div>
+            <el-table :data="roleMembers" v-loading="memberLoading" stripe border>
+              <el-table-column label="姓名" min-width="120">
+                <template #default="{ row }">{{ row.nickName || row.userName }}</template>
+              </el-table-column>
+              <el-table-column label="部门" min-width="140">
+                <template #default="{ row }">{{ row.department || '-' }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
+                    {{ getMemberStatusLabel(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="90" align="center">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="selectedRole.code !== 'employee'"
+                    size="small"
+                    link
+                    type="danger"
+                    @click="removeMember(row)"
+                  >
+                    移除
+                  </el-button>
+                  <span v-else>—</span>
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-if="!roleMembers.length && !memberLoading" description="暂无成员" :image-size="60" />
           </div>
         </el-tab-pane>
 
@@ -115,11 +155,11 @@
 
     <!-- 新增/编辑角色弹窗 -->
     <el-dialog v-model="roleDialogVisible" :title="isRoleEdit ? '编辑角色' : '新增角色'" width="440px" destroy-on-close>
-      <el-form :model="roleForm" label-width="80px">
-        <el-form-item label="角色标识" required>
+      <el-form ref="roleFormRef" :model="roleForm" :rules="roleFormRules" label-width="80px">
+        <el-form-item label="角色标识" prop="code">
           <el-input v-model="roleForm.code" placeholder="小写字母+数字+下划线" :disabled="isRoleEdit" />
         </el-form-item>
-        <el-form-item label="角色名称" required>
+        <el-form-item label="角色名称" prop="name">
           <el-input v-model="roleForm.name" placeholder="角色名称" />
         </el-form-item>
         <el-form-item label="描述">
@@ -139,11 +179,11 @@
 
     <!-- 新增分组弹窗 -->
     <el-dialog v-model="groupDialogVisible" title="新增角色分组" width="400px" destroy-on-close>
-      <el-form :model="groupForm" label-width="80px">
-        <el-form-item label="分组标识" required>
+      <el-form ref="groupFormRef" :model="groupForm" :rules="groupFormRules" label-width="80px">
+        <el-form-item label="分组标识" prop="code">
           <el-input v-model="groupForm.code" placeholder="小写字母+数字+下划线" />
         </el-form-item>
-        <el-form-item label="分组名称" required>
+        <el-form-item label="分组名称" prop="name">
           <el-input v-model="groupForm.name" placeholder="分组名称" />
         </el-form-item>
         <el-form-item label="描述">
@@ -155,13 +195,39 @@
         <el-button type="primary" :loading="groupSaving" @click="handleSaveGroup">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 添加角色成员 -->
+    <el-dialog v-model="memberDialogVisible" title="添加角色成员" width="520px" destroy-on-close>
+      <el-select
+        v-model="memberCandidateId"
+        filterable
+        remote
+        reserve-keyword
+        clearable
+        placeholder="搜索用户姓名"
+        :remote-method="loadMemberCandidates"
+        :loading="memberCandidateLoading"
+        style="width: 100%"
+      >
+        <el-option
+          v-for="user in memberCandidates"
+          :key="user.userId"
+          :label="`${user.nickName || user.userName} (${user.department || '未分配部门'})`"
+          :value="user.userId"
+        />
+      </el-select>
+      <template #footer>
+        <el-button @click="memberDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="memberSaving" @click="handleAddMember">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { toast } from '@/utils/toast'
 import { ref, computed, onMounted } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, FolderOpened } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import {
@@ -170,6 +236,7 @@ import {
   getRoleGroupList, createRoleGroup,
   type RoleItem, type PermissionGroup, type RoleGroupItem,
 } from '@/api/role'
+import { getUserList, updateUser, type UserItem } from '@/api/user'
 
 const userStore = useUserStore()
 const isSuperAdmin = computed(() => userStore.userInfo?.role === 'superadmin')
@@ -192,6 +259,7 @@ async function selectGroup(groupId: number) {
 
 async function selectRole(role: RoleItem) {
   selectedRole.value = role
+  loadRoleMembers()
   // 加载角色权限
   try {
     const detail = await getRoleDetail(role.id)
@@ -270,6 +338,105 @@ const roleDialogVisible = ref(false)
 const isRoleEdit = ref(false)
 const roleSaving = ref(false)
 const roleForm = ref({ code: '', name: '', description: '', groupId: null as number | null })
+const roleFormRef = ref<FormInstance>()
+const roleFormRules: FormRules = {
+  code: [
+    { required: true, message: '请输入角色标识', trigger: 'blur' },
+    { pattern: /^[a-z0-9_]+$/, message: '仅支持小写字母、数字和下划线', trigger: 'blur' }
+  ],
+  name: [{ required: true, message: '请输入角色名称', trigger: 'blur' }]
+}
+
+// ---- 角色成员 ----
+const roleMembers = ref<UserItem[]>([])
+const memberTotal = ref(0)
+const memberLoading = ref(false)
+const memberDialogVisible = ref(false)
+const memberCandidateId = ref<string | null>(null)
+const memberCandidates = ref<UserItem[]>([])
+const memberCandidateLoading = ref(false)
+const memberSaving = ref(false)
+
+async function loadRoleMembers() {
+  if (!selectedRole.value) return
+  memberLoading.value = true
+  try {
+    const res = await getUserList({
+      page: 1,
+      pageSize: 200,
+      role: selectedRole.value.code
+    })
+    roleMembers.value = res.list
+    memberTotal.value = res.total
+  } catch {
+    roleMembers.value = []
+    memberTotal.value = 0
+  } finally {
+    memberLoading.value = false
+  }
+}
+
+function getMemberStatusLabel(status: string) {
+  const map: Record<string, string> = {
+    active: '正常',
+    pending: '待审核',
+    disabled: '已禁用'
+  }
+  return map[status] || status
+}
+
+async function openMemberDialog() {
+  memberDialogVisible.value = true
+  memberCandidateId.value = null
+  await loadMemberCandidates()
+}
+
+async function loadMemberCandidates(keyword?: string) {
+  memberCandidateLoading.value = true
+  try {
+    const res = await getUserList({ page: 1, pageSize: 50, keyword })
+    const memberIds = new Set(roleMembers.value.map(member => member.userId))
+    memberCandidates.value = res.list.filter(user => !memberIds.has(user.userId))
+  } catch {
+    memberCandidates.value = []
+  } finally {
+    memberCandidateLoading.value = false
+  }
+}
+
+async function handleAddMember() {
+  if (!selectedRole.value || !memberCandidateId.value) {
+    toast.warning('请选择要添加的用户')
+    return
+  }
+  memberSaving.value = true
+  try {
+    await updateUser(memberCandidateId.value, { role: selectedRole.value.code })
+    toast.success('成员已添加')
+    memberDialogVisible.value = false
+    loadRoleMembers()
+  } catch {
+    // handled by interceptor
+  } finally {
+    memberSaving.value = false
+  }
+}
+
+async function removeMember(row: UserItem) {
+  if (!selectedRole.value) return
+  try {
+    await ElMessageBox.confirm(`确定将「${row.nickName || row.userName}」移出该角色？`, '移除成员', {
+      type: 'warning',
+      confirmButtonText: '确定移除',
+      cancelButtonText: '取消'
+    })
+    await updateUser(row.userId, { role: 'employee' })
+    toast.success('成员已移除')
+    loadRoleMembers()
+  } catch {
+    // cancelled or handled by interceptor
+  }
+}
 
 function openCreateRole(groupId: number) {
   isRoleEdit.value = false
@@ -282,15 +449,25 @@ function openEditRole(role: RoleItem) {
   roleDialogVisible.value = true
 }
 async function handleSaveRole() {
+  const valid = await roleFormRef.value?.validate().catch(() => false)
+  if (!valid) return
   roleSaving.value = true
   try {
     if (isRoleEdit.value && selectedRole.value) {
-      await updateRole(selectedRole.value.id, { name: roleForm.value.name, description: roleForm.value.description })
+      await updateRole(selectedRole.value.id, {
+        name: roleForm.value.name,
+        description: roleForm.value.description,
+        groupId: roleForm.value.groupId
+      })
       toast.success('角色已更新')
     } else {
-      await createRole({ code: roleForm.value.code, name: roleForm.value.name, description: roleForm.value.description })
+      await createRole({
+        code: roleForm.value.code,
+        name: roleForm.value.name,
+        description: roleForm.value.description,
+        groupId: roleForm.value.groupId
+      })
       toast.success('角色已创建')
-      // 创建后归入分组（需要额外调用 updateRole... but we don't have groupId in createRole yet. Let's set it after creation.)
     }
     roleDialogVisible.value = false
     loadTree()
@@ -311,12 +488,22 @@ async function handleDeleteRole(role: RoleItem) {
 const groupDialogVisible = ref(false)
 const groupSaving = ref(false)
 const groupForm = ref({ code: '', name: '', description: '' })
+const groupFormRef = ref<FormInstance>()
+const groupFormRules: FormRules = {
+  code: [
+    { required: true, message: '请输入分组标识', trigger: 'blur' },
+    { pattern: /^[a-z0-9_]+$/, message: '仅支持小写字母、数字和下划线', trigger: 'blur' }
+  ],
+  name: [{ required: true, message: '请输入分组名称', trigger: 'blur' }]
+}
 
 function openCreateGroup() {
   groupForm.value = { code: '', name: '', description: '' }
   groupDialogVisible.value = true
 }
 async function handleSaveGroup() {
+  const valid = await groupFormRef.value?.validate().catch(() => false)
+  if (!valid) return
   groupSaving.value = true
   try {
     await createRoleGroup({ code: groupForm.value.code, name: groupForm.value.name, description: groupForm.value.description })
@@ -391,6 +578,20 @@ onMounted(async () => {
     }
 
     .tab-placeholder { padding: 40px 0; }
+
+    .member-panel {
+      .member-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+
+        .member-total {
+          font-size: 13px;
+          color: #909399;
+        }
+      }
+    }
   }
 
   .empty-panel { display: flex; align-items: center; justify-content: center; }

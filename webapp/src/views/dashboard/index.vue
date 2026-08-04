@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getStatsHome } from '@/api/stats'
 import { getUserList } from '@/api/user'
+import { useUserStore } from '@/stores/user'
+import { useModuleStore } from '@/stores/module'
+import { modules } from '@/config/modules'
 
 const router = useRouter()
+const userStore = useUserStore()
+const moduleStore = useModuleStore()
 const loading = ref(true)
 
 interface MetricCard {
@@ -22,14 +27,18 @@ const metrics = ref<MetricCard[]>([
   { title: '活跃项目', value: 0, icon: 'FolderOpened', color: '#EF4444', bg: '#FEE2E2' },
 ])
 
-const shortcuts = [
-  { title: '用户管理', path: '/user', icon: 'User', desc: '管理用户与权限' },
-  { title: '审批管理', path: '/approval', icon: 'DocumentChecked', desc: '处理审批流程' },
-  { title: '日报管理', path: '/report', icon: 'Document', desc: '查看日报统计' },
-  { title: '组织架构', path: '/org', icon: 'Share', desc: '管理部门层级' },
-  { title: '考勤日历', path: '/attendance', icon: 'Calendar', desc: '排班与出勤' },
-  { title: '合规管理', path: '/compliance', icon: 'Verified', desc: '合规数据看板' },
-]
+const shortcuts = computed(() => {
+  const role = userStore.userInfo?.role || 'employee'
+  return modules
+    .filter(mod => moduleStore.isModuleVisible(mod, role))
+    .filter(mod => mod.key !== 'dashboard')
+    .map(mod => ({
+      title: mod.title,
+      path: mod.children[0]?.path || mod.path,
+      icon: mod.icon,
+      desc: mod.children[0]?.title || mod.title
+    }))
+})
 
 onMounted(async () => {
   loading.value = true

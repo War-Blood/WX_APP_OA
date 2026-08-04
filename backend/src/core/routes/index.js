@@ -8,6 +8,7 @@ const messageRoutes = require('./message.routes');
 const clientErrorRoutes = require('./client-error.routes');
 const adminRoutes = require('./admin.routes');
 const projectRoutes = require('./project.routes');
+const announcementRoutes = require('./announcement.routes');
 
 router.use('/', healthRoutes);
 router.use('/report', reportRoutes);
@@ -16,5 +17,6 @@ router.use('/message', messageRoutes);
 router.use('/client-error', clientErrorRoutes);
 router.use('/', adminRoutes);
 router.use('/project', projectRoutes);
+router.use('/announcement', announcementRoutes);
 
 module.exports = router;

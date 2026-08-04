@@ -17,6 +17,18 @@ export function getApprovalTypes(): Promise<ApprovalTypeItem[]> {
   return request.get('/admin/approval-types')
 }
 
+export function createApprovalType(data: {
+  typeKey: string
+  name: string
+  icon?: string
+  sortOrder?: number
+  needAttachment?: boolean
+  needRemark?: boolean
+  status?: string
+}): Promise<{ id: number }> {
+  return request.post('/admin/approval-types', data)
+}
+
 /** 更新审批类型配置 */
 export function updateApprovalType(id: number, data: Partial<ApprovalTypeItem>): Promise<void> {
   return request.put(`/admin/approval-types/${id}`, data)

@@ -319,6 +319,77 @@ async function reviewAction({ reportId, reviewerId, action, opinion }) {
  * @param {string} [period='week'] - 统计周期: week / month / quarter
  * @returns {Promise<{totalPending: number, todayReviewed: number, avgReviewTime: string, approvalRate: string, trendList: Array}>}
  */
+async function reviewBatch({ ids, reviewerId, action, opinion }) {
+  if (!['approve', 'reject'].includes(action)) {
+    throw new BusinessError('审核操作无效，仅支持 approve 或 reject');
+  }
+  if (action === 'reject' && !opinion) {
+    throw new BusinessError('驳回时必须填写审核意见');
+  }
+
+  const uniqueIds = [...new Set((ids || []).map(id => Number(id)).filter(id => Number.isInteger(id) && id > 0))];
+  if (uniqueIds.length === 0) {
+    throw new BusinessError('请选择待审核日报');
+  }
+  if (uniqueIds.length > 200) {
+    throw new BusinessError('单次批量审核不能超过 200 条');
+  }
+
+  return db.transaction(async (conn) => {
+    const [reports] = await conn.query(
+      `SELECT id, user_id, project, report_date, workers, status
+       FROM daily_reports
+       WHERE id IN (${uniqueIds.map(() => '?').join(',')})
+       FOR UPDATE`,
+      uniqueIds
+    );
+
+    if (reports.length !== uniqueIds.length) {
+      throw new NotFoundError('部分日报不存在，请刷新后重试');
+    }
+
+    const nonPending = reports.find(report => report.status !== 'pending');
+    if (nonPending) {
+      throw new BusinessError(`日报 ${nonPending.id} 已审核，请刷新后重试`);
+    }
+
+    const now = new Date();
+    const targetStatus = action === 'approve' ? 'approved' : 'rejected';
+    const actionText = action === 'approve' ? '通过' : '驳回';
+    const messageTitle = '日报审核通知';
+
+    for (const report of reports) {
+      await conn.execute(
+        'UPDATE daily_reports SET status = ?, updated_at = NOW() WHERE id = ?',
+        [targetStatus, report.id]
+      );
+
+      await conn.execute(
+        `INSERT INTO review_records (report_id, reviewer_id, action, opinion, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [report.id, reviewerId, action, opinion || null, now]
+      );
+
+      const messageDesc = `您的日报「${report.project || '未知项目'}」已被${actionText}`;
+      const messageContent = opinion
+        ? `${actionText}原因：${opinion}\n\n日报日期：${report.report_date}\n项目：${report.project || '未知'}\n作业人员：${report.workers || '-'}`
+        : `日报「${report.project || '未知项目'}」审核${actionText}\n\n日报日期：${report.report_date}\n作业人员：${report.workers || '-'}`;
+
+      await conn.execute(
+        `INSERT INTO messages (receiver_id, type, title, description, content, is_read, created_at)
+         VALUES (?, 'report', ?, ?, ?, 0, NOW())`,
+        [report.user_id, messageTitle, messageDesc, messageContent]
+      );
+    }
+
+    return {
+      success: true,
+      processed: reports.length,
+      status: targetStatus,
+    };
+  });
+}
+
 async function reviewStats(period = 'week') {
   // 待审核总数
   const [pendingRow] = await db.query(
@@ -416,5 +487,6 @@ module.exports = {
   reviewList,
   reviewDetail,
   reviewAction,
+  reviewBatch,
   reviewStats,
 };
