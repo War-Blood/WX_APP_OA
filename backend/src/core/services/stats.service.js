@@ -581,15 +581,9 @@ async function getTomorrowStatus(date) {
   d.setDate(d.getDate() - 1);
   const prevDate = formatDate(d);
 
-  // 所有在职作业人员
-  const activeUsers = await db.query(
-    `SELECT id, nickname, user_name, worker_code
-     FROM users
-     WHERE worker_status = 'active' AND status = 'active'
-       AND deleted_at IS NULL AND role NOT IN ('admin', 'superadmin')
-     ORDER BY id ASC`,
-    []
-  );
+  // 与今日状态保持同一人员口径：取 N-1 日“全员当日状态”展示的人员集合
+  const dailyStatus = await getDailyStatus(prevDate);
+  const dailyWorkers = dailyStatus.workers || [];
 
   // N-1 日日报中填写的明日工作类型（本人提交）
   const ownRows = await db.query(
@@ -631,16 +625,16 @@ async function getTomorrowStatus(date) {
     }
   });
 
-  // 组装 workers：所有在职人员，有明日计划的填类型，无计划则空
+  // 组装 workers：按今日状态人员集合输出，有明日计划的填类型，无计划则空
   const workers = [];
   const summary = {};
-  activeUsers.forEach(u => {
-    const info = tomorrowMap[u.id];
+  dailyWorkers.forEach(u => {
+    const info = tomorrowMap[u.userId];
     const wt = info ? (info.tomorrowWorkType || '') : '';
     workers.push({
-      userId: u.id,
-      userName: u.nickname || u.user_name || '',
-      workerCode: u.worker_code || '',
+      userId: u.userId,
+      userName: u.userName || '',
+      workerCode: u.workerCode || '',
       reportId: info ? info.reportId : null,
       tomorrowWorkType: wt,
       project: info ? info.project : null,
@@ -652,7 +646,7 @@ async function getTomorrowStatus(date) {
   return {
     date: targetDate,
     prevDate,
-    totalWorkers: activeUsers.length,
+    totalWorkers: workers.length,
     summary,
     workers,
   };
