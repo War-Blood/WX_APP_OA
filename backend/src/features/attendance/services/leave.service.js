@@ -68,12 +68,16 @@ async function generateLeaveReports(userId, startDate, endDate) {
     cur.setDate(cur.getDate() + 1);
   }
   if (inserts.length === 0) return;
+
+  // 补充填写人姓名：取申请人的昵称/姓名写入 workers
+  const userRows = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
+  const name = userRows.length > 0 ? (userRows[0].nickname || userRows[0].user_name || '') : '';
   const placeholders = inserts.map(() => '(?,?)').join(',');
   await db.execute(
-    `INSERT INTO daily_reports (user_id, report_date, report_type, today_work_type, project, status)
-     VALUES ${inserts.map(() => "(?,?,'office','请假','请假','approved')").join(',')}
-     ON DUPLICATE KEY UPDATE today_work_type='请假', report_type='office'`,
-    inserts.flatMap(([uid, ds]) => [uid, ds])
+    `INSERT INTO daily_reports (user_id, report_date, report_type, today_work_type, project, status, workers)
+     VALUES ${inserts.map(() => "(?,?,'office','请假','请假','approved',?)").join(',')}
+     ON DUPLICATE KEY UPDATE today_work_type='请假', report_type='office', workers=VALUES(workers)`,
+    inserts.flatMap(([uid, ds]) => [uid, ds, name])
   );
 }
 

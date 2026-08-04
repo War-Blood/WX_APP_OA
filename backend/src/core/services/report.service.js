@@ -75,7 +75,7 @@ function formatReportRow(row) {
     status: row.status,
     statusText: STATUS_TEXT_MAP[row.status] || row.status,
     progressText: row.progress_percent != null ? `${row.progress_percent}%` : '0%',
-    submitter: extractFirstName(row.workers),
+    submitter: extractFirstName(row.workers) || row.submitter_name || '',
     summary: row.today_work || '',
     userName: row.userName || '',
     department: row.department || '',
@@ -486,7 +486,7 @@ async function submit(data, userId) {
   }
   // workers 为空时，默认填入提交人自己
   if (!workersText) {
-    const [selfRows] = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
+    const selfRows = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
     workersText = selfRows.length > 0 ? (selfRows[0].nickname || selfRows[0].user_name || '') : '';
   }
 
@@ -499,10 +499,15 @@ async function submit(data, userId) {
       [userId, effectiveReportDate]
     );
 
+    // 填写人姓名：提交人自己的昵称（写入 submitter_name 列）
+    const selfUserRows = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
+    const selfName = selfUserRows.length > 0 ? (selfUserRows[0].nickname || selfUserRows[0].user_name || '') : '';
+
     const fields = {
       user_id: userId,
       report_date: effectiveReportDate,
       report_type: reportType,
+      submitter_name: selfName || null,
       project: project || null,
       area: area || null,
       today_work_type: todayWorkType || null,
