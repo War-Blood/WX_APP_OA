@@ -217,7 +217,7 @@ async function loadPageData() {
     unreadCount.value = unreadRes.data.count || 0
     activityPage.value = 1
     noMoreData.value = false
-  } catch (err) { console.error('首页数据加载失败', err) }
+  } catch { /* 加载失败时保留当前统计值 */ }
 }
 
 async function onRefresh() { isRefreshing.value = true; await loadPageData(); isRefreshing.value = false }
@@ -243,7 +243,13 @@ function handleTabChange(tab) {
   const map = { home: '/pages/home/index', features: '/pages/features/index', profile: '/pages/profile/index' }
   if (map[tab] && tab !== 'home') uni.switchTab({ url: map[tab] })
 }
-function goToStat(stat) { if (stat.route) uni.navigateTo({ url: stat.route }) }
+function goToStat(stat) {
+  if (stat.label === '未填写') {
+    uni.navigateTo({ url: '/pages/employee/missing-dates/index' })
+    return
+  }
+  if (stat.route) uni.navigateTo({ url: stat.route })
+}
 function goToFeature(route) { if (route) uni.navigateTo({ url: route }) }
 function goToActivity(item) {
   const map = { approval: '/pages/approval/index/index', report: userStore.isAdmin ? '/pages/admin/review-list/index' : '/pages/employee/report-history/index' }

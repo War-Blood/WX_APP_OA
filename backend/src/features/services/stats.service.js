@@ -106,11 +106,73 @@ async function getHomeStats(userId, role) {
         AND MONTH(report_date) = MONTH(CURDATE()) AND YEAR(report_date) = YEAR(CURDATE())
     `, [userId]);
     stats.monthFilled = filledRows?.cnt ?? 0;
-    stats.monthUnfilled = monthDays > 0 ? monthDays - stats.monthFilled : 0;
+    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const missingDetails = await getMissingDetails(userId, role, monthStr);
+    stats.monthUnfilled = missingDetails.list.reduce((sum, item) => sum + item.total, 0);
   }
   stats.monthDays = monthDays;
 
   return stats;
+}
+
+/**
+ * 未填写明细
+ * 统计指定月份出差期间未提交公出日志的人员与日期；
+ * 管理员返回全员，员工只返回本人。
+ * @param {number} userId - 当前用户 ID
+ * @param {string} role - 当前用户角色
+ * @param {string} [month] - YYYY-MM，默认当前月
+ * @returns {Promise<{month: string, total: number, list: Array}>}
+ */
+async function getMissingDetails(userId, role, month) {
+  const isAdmin = role === 'admin' || role === 'superadmin';
+  const now = new Date();
+  const [year, monthNum] = month
+    ? month.split('-').map(Number)
+    : [now.getFullYear(), now.getMonth() + 1];
+  const monthStr = `${year}-${String(monthNum).padStart(2, '0')}`;
+  const daysInMonth = new Date(year, monthNum, 0).getDate();
+  const nowDate = new Date();
+  const todayDay = (year === nowDate.getFullYear() && monthNum === nowDate.getMonth() + 1)
+    ? nowDate.getDate()
+    : daysInMonth;
+  const loopDays = Math.max(0, Math.min(daysInMonth, todayDay - 1));
+  const coreStatsService = require('../../core/services/stats.service');
+  const userMap = new Map();
+
+  for (let day = 1; day <= loopDays; day++) {
+    const ds = `${monthStr}-${String(day).padStart(2, '0')}`;
+    const daily = await coreStatsService.getDailyStatus(ds);
+    const missingWorkers = (daily.workers || []).filter(w => w.status === 'missing');
+    for (const w of missingWorkers) {
+      if (!isAdmin && Number(w.userId) !== Number(userId)) continue;
+      const key = String(w.userId);
+      if (!userMap.has(key)) {
+        userMap.set(key, {
+          userId: w.userId,
+          userName: w.userName || '',
+          workerCode: w.workerCode || '',
+          project: w.project || '',
+          area: w.area || '',
+          missingDates: [],
+        });
+      }
+      userMap.get(key).missingDates.push(ds);
+    }
+  }
+
+  const list = [...userMap.values()].map(item => ({
+    ...item,
+    missingDates: item.missingDates.sort((a, b) => b.localeCompare(a)),
+    total: item.missingDates.length,
+  }));
+  if (!isAdmin) {
+    list.sort((a, b) => a.userName.localeCompare(b.userName));
+  } else {
+    list.sort((a, b) => b.total - a.total || a.userName.localeCompare(b.userName));
+  }
+
+  return { month: monthStr, total: list.length, list };
 }
 
 /**
@@ -334,6 +396,7 @@ async function getReportStats() {
 
 module.exports = {
   getHomeStats,
+  getMissingDetails,
   getActivities,
   getProfileStats,
   getReportStats,

@@ -25,6 +25,14 @@ export const statsApi = {
   },
 
   /**
+   * 获取未填写明细
+   * @param {string} [month] - YYYY-MM，默认当前月
+   */
+  getMissingDetails(month) {
+    return post('/api/stats/missing-details', { month })
+  },
+
+  /**
    * 获取个人中心统计
    * @returns {Promise} 个人统计数据
    */

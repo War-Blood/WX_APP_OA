@@ -46,6 +46,21 @@ async function activities(req, res, next) {
 }
 
 /**
+ * 未填写明细
+ * POST /api/stats/missing-details
+ */
+async function missingDetails(req, res, next) {
+  try {
+    const userId = req.user.userId;
+    const { month } = req.body;
+    const result = await statsService.getMissingDetails(userId, req.user.role, month);
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * 个人中心统计
  * POST /api/stats/profile
  * P1 优先级，返回个人累计数据
@@ -148,6 +163,7 @@ async function userMonthlyLogs(req, res, next) {
 module.exports = {
   home,
   activities,
+  missingDetails,
   profile,
   reportStats,
   dailyCounts,

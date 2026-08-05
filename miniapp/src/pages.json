@@ -94,6 +94,16 @@
       }
     },
     {
+      "path": "pages/employee/missing-dates/index",
+      "style": {
+        "navigationBarTitleText": "未填写明细",
+        "navigationStyle": "custom",
+        "componentPlaceholder": {
+          "nav-bar": "view"
+        }
+      }
+    },
+    {
       "path": "pages/employee/report-detail/index",
       "style": {
         "navigationBarTitleText": "日报详情",

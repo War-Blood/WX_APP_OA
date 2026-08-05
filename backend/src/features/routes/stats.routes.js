@@ -35,6 +35,9 @@ router.post('/stats/home', authenticate, statsController.home);
 // POST /api/stats/activities — 最近动态列表（分页）
 router.post('/stats/activities', authenticate, statsController.activities);
 
+// POST /api/stats/missing-details — 未填写明细
+router.post('/stats/missing-details', authenticate, statsController.missingDetails);
+
 // POST /api/stats/profile — 个人中心统计
 router.post('/stats/profile', authenticate, statsController.profile);
 
