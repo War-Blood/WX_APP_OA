@@ -497,7 +497,6 @@ async function submit(data, userId) {
   // 4. 插入 daily_reports（使用事务包裹 + 代填关联表写入）
   const reportId = await db.transaction(async (conn) => {
     // 4a. 检查当日是否已有自己的日报
-    // 🔍 临时调试 — 确认后删除
     const [existing] = await conn.query(
       'SELECT id, status, today_work_type FROM daily_reports WHERE user_id = ? AND report_date = ? AND deleted_at IS NULL',
       [userId, effectiveReportDate]
