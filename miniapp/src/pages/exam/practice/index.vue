@@ -81,7 +81,7 @@ function handleExit() {
 (async () => {
   const q = getCurrentPages().slice(-1)[0].options || {}
   try {
-    const res = await examApi.startPractice({ type: (q.type || 'single').split(','), count: Number(q.count) || 20 })
+    const res = await examApi.startPractice({ categoryId: Number(q.categoryId) || 0, type: (q.type || 'single').split(','), count: Number(q.count) || 20 })
     const d = res.data
     snapshot.value = d.snapshot; total.value = d.snapshot.length; recordId.value = d.recordId
   } catch { showError('加载失败') }

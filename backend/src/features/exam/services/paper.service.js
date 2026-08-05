@@ -43,9 +43,11 @@ async function update(id, data) {
   const [paper] = await db.query('SELECT * FROM exam_papers WHERE id = ?', [id]);
   if (!paper) throw new BusinessError('试卷不存在', null, ErrorCode.EXAM_PAPER_NOT_FOUND);
 
-  // 已发布试卷不可修改题目
+  // 已发布试卷修改题目 → 自动克隆新版本，旧卷归档
   if (paper.status === 'published' && data.questionIds) {
-    throw new BusinessError('已发布试卷不可编辑题目，请克隆新版本', null, ErrorCode.EXAM_PUBLISHED_READONLY);
+    await db.execute("UPDATE exam_papers SET status = 'archived' WHERE id = ?", [id]);
+    const result = await clone(id, data);
+    return { cloned: true, id: result.id, version: result.version, message: '已发布试卷已自动克隆为新版本' };
   }
 
   const updates = [];
@@ -67,6 +69,24 @@ async function update(id, data) {
   return { updated: true };
 }
 
+async function clone(id, data = {}) {
+  const [paper] = await db.query('SELECT * FROM exam_papers WHERE id = ?', [id]);
+  if (!paper) throw new BusinessError('试卷不存在', null, ErrorCode.EXAM_PAPER_NOT_FOUND);
+  const title = data.title || paper.title;
+  const questionIds = data.questionIds !== undefined
+    ? JSON.stringify(data.questionIds)
+    : paper.question_ids;
+  const result = await db.execute(
+    `INSERT INTO exam_papers (title, description, duration, pass_score, total_score,
+     max_attempts, max_screenshot_warns, scope_type, scope_departments, question_ids, status, version, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
+    [title, paper.description, paper.duration, paper.pass_score, paper.total_score,
+     paper.max_attempts, paper.max_screenshot_warns, paper.scope_type, paper.scope_departments,
+     questionIds, paper.version + 1, data.createdBy || paper.created_by]
+  );
+  return { id: result[0].insertId, version: paper.version + 1 };
+}
+
 async function remove(id) {
   const [paper] = await db.query('SELECT id FROM exam_papers WHERE id = ?', [id]);
   if (!paper) throw new BusinessError('试卷不存在', null, ErrorCode.EXAM_PAPER_NOT_FOUND);
@@ -82,4 +102,4 @@ async function publish(id) {
   return { published: true };
 }
 
-module.exports = { list, create, update, remove, publish };
+module.exports = { list, create, update, clone, remove, publish };

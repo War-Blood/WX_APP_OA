@@ -3,6 +3,7 @@
 const cron = require('node-cron');
 const reminderTask = require('./reminder.task');
 const complianceTask = require('./compliance.task');
+const examTask = require('./exam.task');
 const statsService = require('../../features/compliance/services/stats.service');
 const logger = require('../utils/logger');
 
@@ -55,6 +56,18 @@ cron.schedule('0 0 1 * *', async () => {
     logger.info('[Scheduler] Monthly stats updated');
   } catch (err) {
     logger.error('[Scheduler] Stats update failed:', err);
+  }
+}, {
+  timezone: 'Asia/Shanghai'
+});
+
+// 每5分钟扫描答题模块超时的进行中考试
+cron.schedule('*/5 * * * *', async () => {
+  logger.info('[Scheduler] Running exam timeout scan...');
+  try {
+    await examTask.scanTimeoutExams();
+  } catch (err) {
+    logger.error('[Scheduler] Exam timeout scan failed:', err);
   }
 }, {
   timezone: 'Asia/Shanghai'

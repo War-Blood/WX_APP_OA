@@ -12,7 +12,7 @@ function getFallbackModules() {
     { key: 'compliance', name: '合规记录', icon: 'compliance', route: '/pages/compliance/my-compliance/index', visible: true, sort: 6 },
     { key: 'stats', name: '公出统计', icon: 'stats', route: '/pages/profile/stats', visible: true, sort: 7 },
     { key: 'attendance', name: '考勤打卡', icon: 'attendance', route: '/pages/attendance/my-schedule/index', visible: true, sort: 8 },
-    { key: 'exam', name: '在线考试', icon: 'exam', route: '/pages/exam/index/index', visible: true, sort: 9 }
+    { key: 'exam', name: '答题模块', icon: 'exam', route: '/pages/exam/index/index', visible: true, sort: 9 }
   ]
 }
 

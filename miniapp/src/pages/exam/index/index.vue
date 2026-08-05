@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <nav-bar title="在线考试" :showBack="true" />
+    <nav-bar title="答题模块" :showBack="true" />
     <view class="tabs">
       <view v-for="t in tabs" :key="t.key" class="tab" @tap="activeTab = t.key">
         <text :class="{ active: activeTab === t.key }">{{ t.label }}</text>
@@ -68,6 +68,7 @@ import { showError } from '@/utils/toast'
 const tabs = [{ key: 'practice', label: '练习' }, { key: 'exam', label: '考试' }]
 const activeTab = ref('practice')
 const categoryLabels = ref(['全部分类'])
+const categoryIds = ref([0])
 const categoryIdx = ref(0)
 const questionTypes = [{ key: 'single', label: '单选' }, { key: 'multiple', label: '多选' }, { key: 'judge', label: '判断' }]
 const typeSelections = ref(['single', 'multiple'])
@@ -81,9 +82,18 @@ function toggleType(k) {
 }
 function onCategoryChange(e) { categoryIdx.value = e.detail.value }
 
+function flattenCategories(nodes, outLabels, outIds) {
+  nodes.forEach(n => {
+    outLabels.push(n.path || n.name)
+    outIds.push(n.id)
+    if (n.children && n.children.length) flattenCategories(n.children, outLabels, outIds)
+  })
+}
+
 async function handleStartPractice() {
   if (!typeSelections.value.length) return showError('请选择题型')
-  uni.navigateTo({ url: `/pages/exam/practice/index?type=${typeSelections.value.join(',')}&count=${count.value}` })
+  const categoryId = categoryIds.value[categoryIdx.value] || 0
+  uni.navigateTo({ url: `/pages/exam/practice/index?type=${typeSelections.value.join(',')}&count=${count.value}&categoryId=${categoryId}` })
 }
 
 async function handleStartExam(item) {
@@ -97,12 +107,25 @@ async function handleStartExam(item) {
     uni.navigateTo({ url: `/pages/exam/exam/index?paperId=${item.paperId}` })
   }
 }
-function goResult(paperId) {
-  uni.navigateTo({ url: `/pages/exam/result/index?paperId=${paperId}` })
+function goResult(item) {
+  const recordId = item.recordId || ''
+  uni.navigateTo({ url: `/pages/exam/result/index?recordId=${recordId}` })
 }
 
 onShow(async () => {
-  try { const res = await examApi.getExamList(); if (res.data) examList.value = res.data } catch { /* silent */ }
+  try {
+    const res = await examApi.getExamList()
+    if (res.data) examList.value = res.data
+  } catch { /* silent */ }
+  // 加载真实分类树（G1）
+  try {
+    const catRes = await examApi.getCategoryList()
+    const labels = ['全部分类']
+    const ids = [0]
+    if (catRes.data && catRes.data.length) flattenCategories(catRes.data, labels, ids)
+    categoryLabels.value = labels
+    categoryIds.value = ids
+  } catch { /* 分类加载失败则保持'全部分类' */ }
 })
 </script>
 

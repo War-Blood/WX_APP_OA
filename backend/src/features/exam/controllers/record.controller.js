@@ -27,4 +27,12 @@ async function stats(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { myRecords, allRecords, stats };
+async function detail(req, res, next) {
+  try {
+    const { recordId } = req.body;
+    const result = await recordService.detail(recordId, req.user.userId);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+module.exports = { myRecords, allRecords, stats, detail };

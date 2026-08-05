@@ -16,9 +16,11 @@
       <view class="card" v-if="details.length">
         <text class="card-title">答题详情</text>
         <view v-for="(d, i) in details" :key="i" class="detail-item" :class="d.correct ? 'd-correct' : 'd-wrong'">
-          <text class="d-status">{{ d.correct ? '✅' : '❌' }} {{ i + 1 }}. [{{ d.type }}]</text>
+          <text class="d-status">{{ d.correct ? '✅' : '❌' }} {{ i + 1 }}. [{{ typeLabel(d.type) }}]</text>
+          <text class="d-title">{{ d.title }}</text>
           <text class="d-answer">你的答案: {{ d.userAnswer || '未答' }}</text>
           <text v-if="!d.correct" class="d-right">正确答案: {{ d.rightAnswer }}</text>
+          <text v-if="d.analysis" class="d-analysis">解析：{{ d.analysis }}</text>
         </view>
       </view>
     </scroll-view>
@@ -31,21 +33,48 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
+import { examApi } from '@/services/modules/exam'
+import { showError } from '@/utils/toast'
 
+const recordId = ref('')
 const score = ref(0); const totalScore = ref(0); const isPass = ref(false)
-const elapsed = ref(0); const details = ref([])
+const elapsed = ref(0); const details = ref([]); const loading = ref(false)
 
-function fmtTime(s) { const m = Math.floor(s / 60); const sec = s % 60; return `${m}分${sec}秒` }
+const typeLabels = { single: '单选', multiple: '多选', judge: '判断' }
+function typeLabel(t) { return typeLabels[t] || t || '' }
+function fmtTime(s) { if (s == null || isNaN(s)) return '--'; const m = Math.floor(s / 60); const sec = Math.floor(s % 60); return `${m}分${sec}秒` }
 function goHome() { uni.reLaunch({ url: '/pages/home/index' }) }
 function goRecords() { uni.navigateTo({ url: '/pages/exam/records/index' }) }
 
-onMounted(() => {
-  const q = getCurrentPages().slice(-1)[0].options || {}
-  score.value = Number(q.score) || 0; totalScore.value = Number(q.totalScore) || 0
-  isPass.value = q.isPass === 'true' || q.isPass === '1'
-  elapsed.value = Number(q.elapsed) || 0
-  try { details.value = JSON.parse(q.details || '[]') } catch { details.value = [] }
+onLoad((q) => {
+  recordId.value = q?.recordId || ''
+  // URL 参数兜底（无 recordId 时）
+  score.value = Number(q?.score) || 0
+  totalScore.value = Number(q?.totalScore) || 0
+  isPass.value = q?.isPass === 'true' || q?.isPass === '1'
+  elapsed.value = Number(q?.elapsed) || 0
+})
+
+onMounted(async () => {
+  if (!recordId.value) return
+  loading.value = true
+  try {
+    const res = await examApi.getRecordDetail(recordId.value)
+    const d = res.data || {}
+    if (d.score != null) score.value = d.score
+    if (d.totalScore != null) totalScore.value = d.totalScore
+    if (d.isPass != null) isPass.value = !!d.isPass
+    details.value = d.details || []
+    if (d.startTime && d.endTime) {
+      elapsed.value = Math.round((new Date(d.endTime) - new Date(d.startTime)) / 1000)
+    }
+  } catch {
+    showError('加载详情失败')
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 
@@ -67,8 +96,10 @@ onMounted(() => {
 .d-correct { border-left: 4rpx solid #22C55E; padding-left: 12rpx; }
 .d-wrong { border-left: 4rpx solid #EF4444; padding-left: 12rpx; }
 .d-status { font-size: 26rpx; color: #333; font-weight: 500; display: block; }
+.d-title { font-size: 26rpx; color: #333; margin-top: 6rpx; display: block; line-height: 1.5; }
 .d-answer { font-size: 24rpx; color: #666; margin-top: 4rpx; display: block; }
 .d-right { font-size: 24rpx; color: #22C55E; margin-top: 4rpx; display: block; }
+.d-analysis { font-size: 24rpx; color: #F59E0B; margin-top: 4rpx; display: block; }
 .bottom-bar { display: flex; gap: 16rpx; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; }
 .btn-primary { flex: 1; height: 88rpx; display: flex; align-items: center; justify-content: center; border-radius: 44rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); }
 .btn-primary text { font-size: 28rpx; font-weight: 600; color: #FFF; }

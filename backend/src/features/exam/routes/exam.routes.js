@@ -4,11 +4,18 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requireRole } = require('../../../common/middleware/auth');
 const questionController = require('../controllers/question.controller');
+const categoryController = require('../controllers/category.controller');
 const paperController = require('../controllers/paper.controller');
 const examController = require('../controllers/exam.controller');
 const recordController = require('../controllers/record.controller');
 
 const adminAuth = [authenticate, requireRole('admin', 'superadmin')];
+
+// ===== 分类管理（管理员） =====
+router.post('/categories/list', ...adminAuth, categoryController.list);
+router.post('/categories/create', ...adminAuth, categoryController.create);
+router.post('/categories/update', ...adminAuth, categoryController.update);
+router.post('/categories/delete', ...adminAuth, categoryController.remove);
 
 // ===== 题库管理（管理员） =====
 router.post('/questions/list', ...adminAuth, questionController.list);
@@ -23,6 +30,7 @@ router.post('/papers/create', ...adminAuth, paperController.create);
 router.post('/papers/update', ...adminAuth, paperController.update);
 router.post('/papers/delete', ...adminAuth, paperController.remove);
 router.post('/papers/publish', ...adminAuth, paperController.publish);
+router.post('/papers/clone', ...adminAuth, paperController.clone);
 
 // ===== 考试（登录用户） =====
 router.post('/exam/list', authenticate, examController.examList);
@@ -38,5 +46,6 @@ router.post('/practice/submit', authenticate, examController.submitPractice);
 router.post('/records/my', authenticate, recordController.myRecords);
 router.post('/records/all', ...adminAuth, recordController.allRecords);
 router.post('/records/stats', ...adminAuth, recordController.stats);
+router.post('/records/detail', authenticate, recordController.detail);
 
 module.exports = router;

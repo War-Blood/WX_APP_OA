@@ -296,7 +296,7 @@
     {
       "path": "pages/exam/index/index",
       "style": {
-        "navigationBarTitleText": "在线考试",
+        "navigationBarTitleText": "答题模块",
         "navigationStyle": "custom",
         "componentPlaceholder": { "nav-bar": "view" }
       }

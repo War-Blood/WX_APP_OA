@@ -19,11 +19,12 @@
         <el-table-column prop="pass_score" label="合格线" width="80" />
         <el-table-column label="范围" width="100"><template #default="{ row }">{{ row.scope_type === 'department' ? '指定部门' : '全员' }}</template></el-table-column>
         <el-table-column prop="version" label="版本" width="60"><template #default="{ row }">v{{ row.version }}</template></el-table-column>
-        <el-table-column label="状态" width="80"><template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
+        <el-table-column label="状态" width="80"><template #default="{ row }"><el-tag :type="statusType(row.status || '')" size="small">{{ statusLabel(row.status || '') }}</el-tag></template></el-table-column>
         <el-table-column label="操作" width="220"><template #default="{ row }">
           <el-button v-if="row.status==='draft'" size="small" link @click="openEdit(row)">编辑</el-button>
           <el-button v-else size="small" link @click="viewPaper(row)">查看</el-button>
           <el-button v-if="row.status==='draft'" size="small" link type="success" @click="handlePublish(row)">发布</el-button>
+          <el-button v-if="row.status==='published'" size="small" link type="warning" @click="handleClone(row)">克隆</el-button>
           <el-button v-if="row.status==='draft'" size="small" link type="danger" @click="handleDelete(row)">删除</el-button>
           <el-button v-if="row.status==='published'" size="small" link type="warning" @click="handleArchive(row)">归档</el-button>
         </template></el-table-column>
@@ -58,11 +59,9 @@
         <el-descriptions-item label="合格线">{{ previewRow.pass_score }}</el-descriptions-item>
         <el-descriptions-item label="范围">{{ previewRow.scope_type === 'department' ? '指定部门' : '全员' }}</el-descriptions-item>
         <el-descriptions-item label="版本">v{{ previewRow.version }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ statusLabel(previewRow.status) }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{ statusLabel(previewRow.status || '') }}</el-descriptions-item>
       </el-descriptions>
-      <template #footer>
-        <el-button @click="previewVisible = false">关闭</el-button>
-      </template>
+      <template #footer><el-button @click="previewVisible = false">关闭</el-button></template>
     </el-dialog>
   </div>
 </template>
@@ -71,34 +70,75 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { toast } from '@/utils/toast'
-import { getPaperList, createPaper, updatePaper, deletePaper, publishPaper } from '@/api/exam'
+import type { PaperRow } from '@/api/exam'
+import { getPaperList, createPaper, updatePaper, deletePaper, publishPaper, clonePaper } from '@/api/exam'
 import { getDepartmentList } from '@/api/user'
 
-const loading = ref(false); const tableData = ref<any[]>([]); const total = ref(0); const page = ref(1); const tabStatus = ref('')
-const dialogVisible = ref(false); const editingId = ref<number | null>(null)
-const previewVisible = ref(false)
-const previewRow = ref<any>(null)
-const deptTree = ref<any[]>([])
-const form = reactive({ title: '', duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all', scopeDepartments: [] as number[], questionIds: [] as number[] })
+interface DeptNode { id: number; name: string; children?: DeptNode[] }
 
-const statusType = (s: string) => ({ draft: 'info', published: 'success', archived: '' } as any)[s] || ''
-const statusLabel = (s: string) => ({ draft: '草稿', published: '已发布', archived: '归档' } as any)[s] || s
+const loading = ref(false)
+const tableData = ref<PaperRow[]>([])
+const total = ref(0)
+const page = ref(1)
+const tabStatus = ref('')
+const dialogVisible = ref(false)
+const editingId = ref<number | null>(null)
+const previewVisible = ref(false)
+const previewRow = ref<PaperRow | null>(null)
+const deptTree = ref<DeptNode[]>([])
+const form = reactive<{
+  title: string
+  duration: number
+  passScore: number
+  totalScore: number
+  maxAttempts: number
+  maxScreenshotWarns: number
+  scopeType: 'all' | 'department'
+  scopeDepartments: number[]
+  questionIds: number[]
+}>({ title: '', duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all', scopeDepartments: [], questionIds: [] })
+
+const statusType = (s: string): '' | 'info' | 'success' | 'warning' | 'danger' =>
+  ({ draft: 'info', published: 'success', archived: '' } as Record<string, '' | 'info' | 'success' | 'warning' | 'danger'>)[s] || ''
+const statusLabel = (s: string): string => ({ draft: '草稿', published: '已发布', archived: '归档' })[s] || s
 
 async function loadData() {
   loading.value = true
   try {
-    const res: any = await getPaperList({ page: page.value, pageSize: 20, status: tabStatus.value || undefined })
-    tableData.value = res.list || []; total.value = res.total || 0
+    const res = await getPaperList({ page: page.value, pageSize: 20, status: tabStatus.value || undefined })
+    tableData.value = res.list || []
+    total.value = res.total || 0
   } catch { toast.error('加载失败') }
   finally { loading.value = false }
 }
 
-function openCreate() { Object.assign(form, { title: '', id: undefined, duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all', scopeDepartments: [], questionIds: [] }); editingId.value = null; dialogVisible.value = true }
-function openEdit(row: any) {
-  Object.assign(form, { id: row.id, title: row.title, duration: row.duration, passScore: row.pass_score, maxAttempts: row.max_attempts, maxScreenshotWarns: row.max_screenshot_warns, scopeType: row.scope_type, scopeDepartments: row.scope_departments || [] })
-  editingId.value = row.id; dialogVisible.value = true
+function parseDepts(raw: number[] | string | undefined): number[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  try { return JSON.parse(raw) } catch { return [] }
 }
-function viewPaper(row: any) {
+
+function openCreate() {
+  Object.assign(form, { title: '', duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all' as const, scopeDepartments: [], questionIds: [] })
+  editingId.value = null
+  dialogVisible.value = true
+}
+
+function openEdit(row: PaperRow) {
+  Object.assign(form, {
+    title: row.title,
+    duration: row.duration,
+    passScore: row.pass_score,
+    maxAttempts: row.max_attempts ?? 1,
+    maxScreenshotWarns: row.max_screenshot_warns ?? 2,
+    scopeType: (row.scope_type || 'all') as 'all' | 'department',
+    scopeDepartments: parseDepts(row.scope_departments),
+  })
+  editingId.value = row.id
+  dialogVisible.value = true
+}
+
+function viewPaper(row: PaperRow) {
   previewRow.value = row
   previewVisible.value = true
 }
@@ -106,23 +146,51 @@ function viewPaper(row: any) {
 async function handleSave() {
   if (!form.title) { toast.warning('试卷名称不能为空'); return }
   try {
-    if (editingId.value) await updatePaper({ id: editingId.value, ...form } as any)
-    else await createPaper(form as any)
-    dialogVisible.value = false; loadData()
+    if (editingId.value) await updatePaper({ id: editingId.value, ...form })
+    else await createPaper({ ...form })
+    dialogVisible.value = false
+    loadData()
   } catch { toast.error('保存失败') }
 }
 
-async function handlePublish(row: any) { try { await publishPaper(row.id); toast.success('已发布'); loadData() } catch { toast.error('发布失败') } }
-async function handleDelete(row: any) {
-  try { await ElMessageBox.confirm('确定删除该试卷？', '删除确认', { type: 'warning' }); await deletePaper(row.id); toast.success('已删除'); loadData() } catch { /* cancelled */ }
+async function handlePublish(row: PaperRow) {
+  try { await publishPaper(row.id); toast.success('已发布'); loadData() } catch { toast.error('发布失败') }
 }
-async function handleArchive(row: any) {
-  try { await ElMessageBox.confirm('确定归档该试卷？归档后员工不可见。', '归档确认', { type: 'warning' }); await updatePaper({ id: row.id, status: 'archived' } as any); toast.success('已归档'); loadData() } catch { /* cancelled */ }
+async function handleDelete(row: PaperRow) {
+  try {
+    await ElMessageBox.confirm('确定删除该试卷？', '删除确认', { type: 'warning' })
+    await deletePaper(row.id)
+    toast.success('已删除')
+    loadData()
+  } catch { /* cancelled */ }
+}
+async function handleArchive(row: PaperRow) {
+  try {
+    await ElMessageBox.confirm('确定归档该试卷？归档后员工不可见。', '归档确认', { type: 'warning' })
+    await updatePaper({ id: row.id, status: 'archived' })
+    toast.success('已归档')
+    loadData()
+  } catch { /* cancelled */ }
+}
+async function handleClone(row: PaperRow) {
+  try {
+    const { value } = await ElMessageBox.prompt('新版本名称', '克隆试卷', {
+      confirmButtonText: '确认克隆',
+      cancelButtonText: '取消',
+      inputValue: `${row.title} (v${(row.version || 1) + 1})`,
+    })
+    await clonePaper(row.id, value)
+    toast.success('已克隆为新版本')
+    loadData()
+  } catch { /* cancelled */ }
 }
 
 onMounted(async () => {
   loadData()
-  try { const res: any = await getDepartmentList(); deptTree.value = res.data || res || [] } catch { /* */ }
+  try {
+    const res = await getDepartmentList()
+    deptTree.value = (res as unknown as { data?: DeptNode[] }).data || []
+  } catch { /* */ }
 })
 </script>
 

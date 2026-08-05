@@ -43,4 +43,12 @@ async function publish(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, create, update, remove, publish };
+async function clone(req, res, next) {
+  try {
+    const { id, title } = req.body;
+    const result = await paperService.clone(id, { title, createdBy: req.user.userId });
+    res.json(success(result, '已克隆为新版本'));
+  } catch (err) { next(err); }
+}
+
+module.exports = { list, create, update, remove, publish, clone };

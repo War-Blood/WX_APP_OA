@@ -31,27 +31,37 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { toast } from '@/utils/toast'
-import { getRecordList } from '@/api/exam'
-import { getPaperList } from '@/api/exam'
+import type { ExamRecord, PaperRow } from '@/api/exam'
+import { getRecordList, getPaperList } from '@/api/exam'
 
-const loading = ref(false); const tableData = ref<any[]>([]); const total = ref(0); const page = ref(1)
-const keyword = ref(''); const filterPaper = ref<number | null>(null); const paperOptions = ref<any[]>([])
+const loading = ref(false)
+const tableData = ref<ExamRecord[]>([])
+const total = ref(0)
+const page = ref(1)
+const keyword = ref('')
+const filterPaper = ref<number | null>(null)
+const paperOptions = ref<PaperRow[]>([])
 
-const statusType = (s: string) => ({ submitted: 'success', doing: 'primary', timeout: 'warning', cheated: 'danger' } as any)[s] || ''
-const statusLabel = (s: string) => ({ submitted: '已提交', doing: '进行中', timeout: '已超时', cheated: '作弊' } as any)[s] || s
+const statusType = (s: string): '' | 'success' | 'warning' | 'danger' | 'primary' =>
+  ({ submitted: 'success', doing: 'primary', timeout: 'warning', cheated: 'danger' } as Record<string, '' | 'success' | 'warning' | 'danger' | 'primary'>)[s] || ''
+const statusLabel = (s: string): string => ({ submitted: '已提交', doing: '进行中', timeout: '已超时', cheated: '作弊' })[s] || s
 
 async function loadData() {
   loading.value = true
   try {
-    const res: any = await getRecordList({ page: page.value, pageSize: 20, keyword: keyword.value || undefined, paperId: filterPaper.value || undefined })
-    tableData.value = res.list || []; total.value = res.total || 0
+    const res = await getRecordList({ page: page.value, pageSize: 20, keyword: keyword.value || undefined, paperId: filterPaper.value || undefined })
+    tableData.value = res.list || []
+    total.value = res.total || 0
   } catch { toast.error('加载失败') }
   finally { loading.value = false }
 }
 
 onMounted(async () => {
   loadData()
-  try { const res: any = await getPaperList({ pageSize: 99 }); paperOptions.value = res.list || [] } catch { /* */ }
+  try {
+    const res = await getPaperList({ pageSize: 99 })
+    paperOptions.value = res.list || []
+  } catch { /* */ }
 })
 </script>
 

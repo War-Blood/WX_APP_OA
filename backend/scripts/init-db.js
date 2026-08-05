@@ -319,6 +319,96 @@ CREATE TABLE IF NOT EXISTS \`system_config\` (
   KEY \`idx_config_group\` (\`config_group\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
 
+-- ============================================
+-- 14. 答题模块分类表
+-- ============================================
+CREATE TABLE IF NOT EXISTS \`exam_categories\` (
+  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  \`parent_id\` INT UNSIGNED DEFAULT 0 COMMENT '父级ID, 0=顶级',
+  \`name\` VARCHAR(50) NOT NULL COMMENT '分类名称',
+  \`path\` VARCHAR(200) DEFAULT NULL COMMENT '路径 如 安全/生产安全',
+  \`sort_order\` INT DEFAULT 0 COMMENT '排序序号',
+  \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (\`id\`),
+  KEY \`idx_parent\` (\`parent_id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块分类表';
+
+-- ============================================
+-- 15. 答题模块题库表
+-- ============================================
+CREATE TABLE IF NOT EXISTS \`exam_questions\` (
+  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  \`category_id\` INT UNSIGNED DEFAULT NULL COMMENT '分类ID',
+  \`type\` ENUM('single','multiple','judge') NOT NULL DEFAULT 'single' COMMENT '题型',
+  \`title\` TEXT NOT NULL COMMENT '题干',
+  \`options\` JSON NOT NULL COMMENT '选项 [{"key":"A","text":"..."}]',
+  \`answer\` VARCHAR(20) NOT NULL COMMENT '正确答案(多选逗号分隔)',
+  \`analysis\` TEXT DEFAULT NULL COMMENT '解析',
+  \`score\` INT NOT NULL DEFAULT 2 COMMENT '分值',
+  \`score_mode\` ENUM('exact','partial') DEFAULT 'exact' COMMENT '判分模式',
+  \`status\` ENUM('active','disabled') DEFAULT 'active' COMMENT '状态',
+  \`created_by\` INT UNSIGNED DEFAULT NULL COMMENT '创建人',
+  \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (\`id\`),
+  KEY \`idx_category\` (\`category_id\`),
+  KEY \`idx_type\` (\`type\`),
+  KEY \`idx_status\` (\`status\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块题库表';
+
+-- ============================================
+-- 16. 答题模块试卷表
+-- ============================================
+CREATE TABLE IF NOT EXISTS \`exam_papers\` (
+  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  \`title\` VARCHAR(200) NOT NULL COMMENT '试卷名称',
+  \`description\` TEXT DEFAULT NULL COMMENT '试卷说明',
+  \`duration\` INT NOT NULL DEFAULT 60 COMMENT '考试时长(分钟)',
+  \`pass_score\` INT NOT NULL DEFAULT 60 COMMENT '合格分数',
+  \`total_score\` INT NOT NULL DEFAULT 100 COMMENT '总分',
+  \`max_attempts\` INT DEFAULT 1 COMMENT '最大考试次数(0=无限)',
+  \`max_screenshot_warns\` INT DEFAULT 2 COMMENT '截屏警告上限',
+  \`scope_type\` ENUM('all','department') DEFAULT 'all' COMMENT '参加范围类型',
+  \`scope_departments\` JSON DEFAULT NULL COMMENT '参加部门 [1,2,3]',
+  \`question_ids\` JSON NOT NULL COMMENT '题目ID列表',
+  \`status\` ENUM('draft','published','archived') DEFAULT 'draft' COMMENT '状态',
+  \`version\` INT DEFAULT 1 COMMENT '版本号',
+  \`created_by\` INT UNSIGNED DEFAULT NULL COMMENT '创建人',
+  \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (\`id\`),
+  KEY \`idx_status\` (\`status\`),
+  KEY \`idx_created_by\` (\`created_by\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块试卷表';
+
+-- ============================================
+-- 17. 答题模块答题记录表
+-- ============================================
+CREATE TABLE IF NOT EXISTS \`exam_records\` (
+  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  \`user_id\` INT UNSIGNED NOT NULL COMMENT '用户ID',
+  \`paper_id\` INT UNSIGNED NOT NULL COMMENT '试卷ID(练习为0)',
+  \`paper_version\` INT DEFAULT NULL COMMENT '试卷版本',
+  \`mode\` ENUM('practice','exam') NOT NULL DEFAULT 'practice' COMMENT '模式',
+  \`answers\` JSON DEFAULT NULL COMMENT '答题结果 {"1":"A"}',
+  \`question_snapshot\` JSON NOT NULL COMMENT '题目快照',
+  \`score\` INT DEFAULT NULL COMMENT '得分',
+  \`total_score\` INT NOT NULL COMMENT '总分',
+  \`is_pass\` TINYINT(1) DEFAULT NULL COMMENT '是否合格',
+  \`warn_count\` INT DEFAULT 0 COMMENT '截屏警告次数',
+  \`server_time\` DATETIME DEFAULT NULL COMMENT '服务器计时基准',
+  \`start_time\` DATETIME NOT NULL COMMENT '开始时间',
+  \`end_time\` DATETIME DEFAULT NULL COMMENT '结束时间',
+  \`status\` ENUM('doing','submitted','timeout','cheated') DEFAULT 'doing' COMMENT '状态',
+  \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`uk_user_paper_doing\` (\`user_id\`, \`paper_id\`, \`mode\`, \`status\`),
+  KEY \`idx_user\` (\`user_id\`),
+  KEY \`idx_paper\` (\`paper_id\`),
+  KEY \`idx_status\` (\`status\`),
+  KEY \`idx_start_time\` (\`start_time\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块答题记录表';
+
 `;
 
 /**

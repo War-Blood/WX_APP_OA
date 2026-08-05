@@ -38,11 +38,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getExamStats } from '@/api/exam'
-import { getPaperList } from '@/api/exam'
+import type { ExamStats, PaperRow } from '@/api/exam'
+import { getExamStats, getPaperList } from '@/api/exam'
 
-const selectedPaper = ref<number | null>(null); const stats = ref<any>(null); const loading = ref(false)
-const paperOptions = ref<any[]>([])
+const selectedPaper = ref<number | null>(null)
+const stats = ref<ExamStats | null>(null)
+const loading = ref(false)
+const paperOptions = ref<PaperRow[]>([])
 
 async function loadStats() {
   if (!selectedPaper.value) return
@@ -52,7 +54,10 @@ async function loadStats() {
 }
 
 onMounted(async () => {
-  try { const res: any = await getPaperList({ pageSize: 99 }); paperOptions.value = (res.list || []).filter((p: any) => p.status === 'published') } catch { /* */ }
+  try {
+    const res = await getPaperList({ pageSize: 99 })
+    paperOptions.value = (res.list || []).filter(p => p.status === 'published')
+  } catch { /* */ }
 })
 </script>
 

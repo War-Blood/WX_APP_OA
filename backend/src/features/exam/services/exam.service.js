@@ -41,6 +41,7 @@ async function examList(userId) {
       result.push({
         paperId: p.id, title: p.title, description: p.description,
         duration: p.duration, passScore: p.pass_score,
+        recordId: record ? record.id : null,
         hasSubmitted: !!record, score: record ? record.score : null,
         isPass: record ? (record.score >= p.pass_score) : null,
         status: record ? record.status : null,
@@ -155,7 +156,7 @@ async function submitExam(userId, recordId, answers) {
       }
     }
     score += earnedPoints;
-    details.push({ questionId: q.id, correct, userAnswer, rightAnswer: q.answer, earnedPoints, totalPoints: q.score });
+    details.push({ questionId: q.id, type: q.type, title: q.title, correct, userAnswer, rightAnswer: q.answer, analysis: q.analysis, earnedPoints, totalPoints: q.score });
   }
 
   const isPass = score >= paper.pass_score;
@@ -230,6 +231,7 @@ async function startPractice({ userId, categoryId, type, count = 20 }) {
 async function submitPractice(userId, recordId, answers) {
   const [record] = await db.query('SELECT * FROM exam_records WHERE id = ? AND user_id = ?', [recordId, userId]);
   if (!record) throw new NotFoundError('练习记录不存在');
+  if (record.status !== 'doing') throw new BusinessError('练习已结束');
 
   const snapshot = typeof record.question_snapshot === 'string' ? JSON.parse(record.question_snapshot) : record.question_snapshot;
   let correctCount = 0;
@@ -239,7 +241,7 @@ async function submitPractice(userId, recordId, answers) {
     const userAnswer = answers[String(q.id)] || '';
     const correct = userAnswer === q.answer;
     if (correct) correctCount++;
-    details.push({ questionId: q.id, correct, userAnswer, rightAnswer: q.answer, analysis: q.analysis });
+    details.push({ questionId: q.id, type: q.type, title: q.title, correct, userAnswer, rightAnswer: q.answer, analysis: q.analysis });
   }
 
   await db.execute(

@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS exam_records (
   start_time DATETIME NOT NULL COMMENT '开始时间',
   end_time DATETIME COMMENT '交卷时间',
   status ENUM('doing','submitted','timeout','cheated') DEFAULT 'doing',
-  UNIQUE KEY uk_user_paper_doing (user_id, paper_id),
+  UNIQUE KEY uk_user_paper_doing (user_id, paper_id, mode, status),
   INDEX idx_user (user_id),
   INDEX idx_paper (paper_id),
   INDEX idx_status (status),

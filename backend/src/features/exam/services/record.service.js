@@ -1,9 +1,10 @@
 'use strict';
 
 const db = require('../../../common/config/database');
+const { NotFoundError } = require('../../../common/utils/errors');
 
 /**
- * 考试记录服务 — 个人/全员/统计
+ * 考试记录服务 — 个人/全员/统计/详情
  */
 
 async function myRecords(userId, { page = 1, pageSize = 20 }) {
@@ -90,4 +91,62 @@ function formatRow(r) {
   };
 }
 
-module.exports = { myRecords, allRecords, stats };
+/**
+ * 单条记录详情（含逐题判分明细，供结果页渲染）
+ * 由 question_snapshot + answers 重新判分，与 submitExam 逻辑一致
+ */
+async function detail(recordId, userId) {
+  const [record] = await db.query(
+    `SELECT r.*, p.title AS paperTitle, p.pass_score AS passScore
+     FROM exam_records r
+     LEFT JOIN exam_papers p ON r.paper_id = p.id
+     WHERE r.id = ? AND r.user_id = ?`,
+    [recordId, userId]
+  );
+  if (!record) throw new NotFoundError('考试记录不存在');
+
+  const snapshot = typeof record.question_snapshot === 'string' ? JSON.parse(record.question_snapshot) : record.question_snapshot;
+  const answers = typeof record.answers === 'string' ? JSON.parse(record.answers || '{}') : (record.answers || {});
+
+  const details = snapshot.map(q => {
+    const userAnswer = answers[String(q.id)] || '';
+    let correct = false;
+    let earnedPoints = 0;
+    if (q.type === 'single' || q.type === 'judge') {
+      correct = userAnswer === q.answer;
+      earnedPoints = correct ? q.score : 0;
+    } else if (q.type === 'multiple') {
+      if (q.scoreMode === 'partial') {
+        const userSet = new Set(userAnswer.split(','));
+        const correctSet = new Set(q.answer.split(','));
+        const hasError = [...userSet].some(k => !correctSet.has(k));
+        if (!hasError) {
+          const matchCount = [...userSet].filter(k => correctSet.has(k)).length;
+          earnedPoints = Math.round(q.score * matchCount / correctSet.size);
+          correct = matchCount === correctSet.size;
+        }
+      } else {
+        const u = userAnswer.split(',').sort().join(',');
+        const c = q.answer.split(',').sort().join(',');
+        correct = u === c;
+        earnedPoints = correct ? q.score : 0;
+      }
+    }
+    return {
+      questionId: q.id, type: q.type, title: q.title,
+      options: q.options, userAnswer, rightAnswer: q.answer,
+      analysis: q.analysis, correct, earnedPoints, totalPoints: q.score,
+    };
+  });
+
+  return {
+    recordId: record.id, paperId: record.paper_id, paperTitle: record.paperTitle || '',
+    mode: record.mode, score: record.score, totalScore: record.total_score,
+    isPass: record.is_pass, passScore: record.passScore,
+    status: record.status, warnCount: record.warn_count,
+    startTime: record.start_time, endTime: record.end_time,
+    details,
+  };
+}
+
+module.exports = { myRecords, allRecords, stats, detail };
