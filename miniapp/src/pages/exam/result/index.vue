@@ -3,16 +3,27 @@
     <nav-bar title="考试结果" :showBack="true" />
     <scroll-view class="content" scroll-y>
       <view class="score-area">
-        <text class="score-num">{{ score }}</text>
-        <text class="score-label">分</text>
-        <view class="pass-tag" :class="isPass ? 'tag-pass' : 'tag-fail'">
-          <text>{{ isPass ? '✅ 已通过' : '❌ 未通过' }}</text>
-        </view>
+        <template v-if="isPractice">
+          <text class="score-num">{{ correctCount }}</text>
+          <text class="score-label">题正确</text>
+          <view class="pass-tag tag-pass"><text>共 {{ details.length }} 题</text></view>
+        </template>
+        <template v-else>
+          <text class="score-num">{{ score }}</text>
+          <text class="score-label">分</text>
+          <view class="pass-tag" :class="isPass ? 'tag-pass' : 'tag-fail'">
+            <text>{{ isPass ? '✅ 已通过' : '❌ 未通过' }}</text>
+          </view>
+        </template>
       </view>
       <view class="stat-card">
-        <text class="stat-label">总分 {{ totalScore }} · 用时 {{ fmtTime(elapsed) }}</text>
+        <template v-if="isPractice">
+          <text class="stat-label">正确 {{ correctCount }} 题 · 错误 {{ details.length - correctCount }} 题</text>
+        </template>
+        <template v-else>
+          <text class="stat-label">总分 {{ totalScore }} · 用时 {{ fmtTime(elapsed) }}</text>
+        </template>
       </view>
-      <!-- TODO: 逐题详情 — 需 API 返回 details 数组 -->
       <view class="card" v-if="details.length">
         <text class="card-title">答题详情</text>
         <view v-for="(d, i) in details" :key="i" class="detail-item" :class="d.correct ? 'd-correct' : 'd-wrong'">
@@ -32,15 +43,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { examApi } from '@/services/modules/exam'
 import { showError } from '@/utils/toast'
 
 const recordId = ref('')
+const mode = ref('')
 const score = ref(0); const totalScore = ref(0); const isPass = ref(false)
 const elapsed = ref(0); const details = ref([]); const loading = ref(false)
+
+const isPractice = computed(() => mode.value === 'practice')
+const correctCount = computed(() => details.value.filter(d => d.correct).length)
 
 const typeLabels = { single: '单选', multiple: '多选', judge: '判断' }
 function typeLabel(t) { return typeLabels[t] || t || '' }
@@ -63,6 +78,7 @@ onMounted(async () => {
   try {
     const res = await examApi.getRecordDetail(recordId.value)
     const d = res.data || {}
+    mode.value = d.mode || ''
     if (d.score != null) score.value = d.score
     if (d.totalScore != null) totalScore.value = d.totalScore
     if (d.isPass != null) isPass.value = !!d.isPass

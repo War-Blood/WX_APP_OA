@@ -2,6 +2,15 @@
   <view class="page">
     <nav-bar title="正式考试" :showBack="true" @back="handleExit" />
     <view v-if="loading" class="loading">加载中...</view>
+    <view v-else-if="loadError" class="error">
+      <text class="error-icon">⚠️</text>
+      <text class="error-title">考试加载失败</text>
+      <text class="error-desc">{{ loadError }}</text>
+      <view class="error-actions">
+        <view class="btn-outline" @tap="retryLoad"><text>重试</text></view>
+        <view class="btn-outline" @tap="goBack"><text>返回</text></view>
+      </view>
+    </view>
     <template v-else-if="current">
       <view class="top-bar">
         <text>⏱ {{ fmtTime(remaining) }}</text>
@@ -29,9 +38,10 @@
 import { ref, computed, onBeforeUnmount } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { examApi } from '@/services/modules/exam'
-import { showError, showSuccess } from '@/utils/toast'
+import { showError } from '@/utils/toast'
 
 const loading = ref(true)
+const loadError = ref('')
 const idx = ref(0); const total = ref(0)
 const recordId = ref(0); const snapshot = ref([]); const answers = ref({})
 const serverTime = ref(0); const duration = ref(0); const remaining = ref(0)
@@ -72,26 +82,44 @@ function handleExit() {
 
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 
-(async () => {
+async function loadExam() {
+  loadError.value = ''
+  loading.value = true
   const q = getCurrentPages().slice(-1)[0].options || {}
   try {
     const res = await examApi.startExam(Number(q.paperId))
     const d = res.data
     snapshot.value = d.snapshot; total.value = d.snapshot.length; recordId.value = d.recordId
-    duration.value = d.duration; serverTime.value = new Date(d.serverTime).getTime()
+    duration.value = d.duration
+    const ts = new Date(d.serverTime).getTime()
+    serverTime.value = isNaN(ts) ? Date.now() : ts
     remaining.value = d.duration * 60
     timer = setInterval(() => {
       remaining.value = Math.max(0, d.duration * 60 - Math.floor((Date.now() - serverTime.value) / 1000))
       if (remaining.value <= 0) { clearInterval(timer); handleSubmit() }
     }, 1000)
-  } catch { showError('加载失败') }
-  finally { loading.value = false }
-})()
+  } catch (e) {
+    // 显示具体失败原因,杜绝白屏(此前 loading=false 且 current=null → 空白页)
+    loadError.value = (e && e.message) || '加载失败，请重试'
+  } finally {
+    loading.value = false
+  }
+}
+
+function retryLoad() { loadExam() }
+function goBack() { uni.navigateBack() }
+
+loadExam()
 </script>
 
 <style lang="scss" scoped>
 .page { width: 100%; height: 100vh; background: #F7F7F7; display: flex; flex-direction: column; }
 .loading { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 28rpx; color: #999; }
+.error { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 48rpx; }
+.error-icon { font-size: 72rpx; margin-bottom: 16rpx; }
+.error-title { font-size: 32rpx; font-weight: 600; color: #333; margin-bottom: 12rpx; }
+.error-desc { font-size: 26rpx; color: #EF4444; text-align: center; margin-bottom: 32rpx; }
+.error-actions { display: flex; gap: 24rpx; width: 100%; }
 .top-bar { display: flex; justify-content: space-between; padding: 16rpx 24rpx; background: #FFF; font-size: 26rpx; color: #333; font-weight: 600; }
 .card { background: #FFF; margin: 16rpx 24rpx; border-radius: 16rpx; padding: 24rpx; flex: 1; overflow-y: auto; }
 .q-tag { display: inline-block; padding: 4rpx 16rpx; border-radius: 12rpx; font-size: 22rpx; color: #2B6DE8; background: #EDF2FF; margin-bottom: 12rpx; }
