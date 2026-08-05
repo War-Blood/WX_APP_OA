@@ -54,8 +54,8 @@
           <picker
             mode="date"
             :value="reportDate"
-            :start="isLeave ? '' : yesterdayStr"
-            :end="isLeave ? '' : todayStr"
+            :start="currentTab === 'office' ? '' : (isLeave ? '' : yesterdayStr)"
+            :end="currentTab === 'office' ? todayStr : (isLeave ? '' : todayStr)"
             @change="onDateChange"
           >
             <view class="form-picker">
@@ -841,7 +841,8 @@ watch(
 )
 
 function autoSaveDraft() {
-  if (!formData.value.project && !formData.value.todayWork && !formData.value.workContent) return
+  if (!formData.value.project && !formData.value.todayWork && !formData.value.workContent
+      && !formData.value.tomorrowPlan && !formData.value.issues && !formData.value.coordination) return
   const draft = {
     currentTab: currentTab.value,
     reportDate: reportDate.value,

@@ -38,21 +38,21 @@ async function getStats(scope, params = {}) {
 async function getUserReportIds(userId, userName) {
   const ids = new Set();
 
-  // 1. 本人提交或正式关联表代填
+  // 1. 本人提交或正式关联表代填（含工作日报 office）
   const ownRows = await db.query(
     `SELECT DISTINCT dr.id FROM daily_reports dr
      LEFT JOIN daily_report_workers drw ON dr.id = drw.report_id
-     WHERE dr.report_type != 'office' AND dr.status = 'approved'
+     WHERE dr.status = 'approved'
        AND (dr.user_id = ? OR drw.worker_uid = ?)`,
     [userId, userId]
   );
   ownRows.forEach(r => ids.add(r.id));
 
-  // 2. workers 文本字段兜底（名字模糊匹配）
+  // 2. workers 文本字段兜底（名字模糊匹配，含工作日报）
   if (userName && userName.length >= 2) {
     const textRows = await db.query(
       `SELECT id FROM daily_reports
-       WHERE report_type != 'office' AND status = 'approved'
+       WHERE status = 'approved'
          AND user_id != ?
          AND workers IS NOT NULL AND workers != ''
          AND workers LIKE ?`,
@@ -267,11 +267,10 @@ async function getMonthlySummary(userId, month) {
   const user = users[0];
   const userName = user.nickname || user.userName || '';
 
-  // 本月已填报天数（排除公司日报，仅统计审核通过的）
+  // 本月已填报天数（含工作日报，仅统计审核通过的）
   const submittedRows = await db.query(
     `SELECT COUNT(*) AS cnt FROM daily_reports
-     WHERE user_id = ? AND report_type != 'office'
-       AND status = 'approved'
+     WHERE user_id = ? AND status = 'approved'
        AND DATE_FORMAT(report_date, '%Y-%m') = ?`,
     [userId, month]
   );
@@ -293,12 +292,11 @@ async function getMonthlySummary(userId, month) {
     }
   }
 
-  // 按 today_work_type 分组统计（仅统计审核通过的）
+  // 按 today_work_type 分组统计（仅统计审核通过的，含工作日报）
   const breakdownRows = await db.query(
     `SELECT today_work_type, COUNT(*) AS cnt
      FROM daily_reports
-     WHERE user_id = ? AND report_type != 'office'
-       AND status = 'approved'
+     WHERE user_id = ? AND status = 'approved'
        AND DATE_FORMAT(report_date, '%Y-%m') = ?
      GROUP BY today_work_type`,
     [userId, month]
@@ -307,18 +305,23 @@ async function getMonthlySummary(userId, month) {
   const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假'];
   const breakdown = {};
   workTypes.forEach(wt => { breakdown[wt] = 0; });
+  breakdown['工作日报'] = 0;
   breakdownRows.forEach(r => {
     if (r.today_work_type && breakdown.hasOwnProperty(r.today_work_type)) {
       breakdown[r.today_work_type] = Number(r.cnt);
+    } else if (!r.today_work_type) {
+      // 无工作类型的工作日报（office）计入「工作日报」分组
+      breakdown['工作日报'] += Number(r.cnt);
     }
   });
 
-  // 比例
+  // 比例（含工作日报分组）
   const ratio = {};
   const denominator = totalSubmitted || 1;
   workTypes.forEach(wt => {
     ratio[wt] = ((breakdown[wt] / denominator) * 100).toFixed(1) + '%';
   });
+  ratio['工作日报'] = ((breakdown['工作日报'] / denominator) * 100).toFixed(1) + '%';
 
   return {
     userId,

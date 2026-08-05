@@ -91,7 +91,7 @@ async function getHomeStats(userId, role) {
       const ds = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const dsResult = await coreStatsService.getDailyStatus(ds);
       totalMissing += dsResult.summary.missing || 0;
-      totalFilled += (dsResult.summary.submitted || 0) + (dsResult.summary.substituted || 0);
+      totalFilled += (dsResult.summary.submitted || 0) + (dsResult.summary.substituted || 0) + (dsResult.summary.office || 0);
     }
 
     stats.monthFilled = totalFilled;
@@ -102,7 +102,7 @@ async function getHomeStats(userId, role) {
     const [filledRows] = await db.query(`
       SELECT COUNT(DISTINCT report_date) AS cnt
       FROM daily_reports
-      WHERE user_id = ? AND report_type = 'biz_trip' AND status = 'approved'
+      WHERE user_id = ? AND report_type IN ('biz_trip', 'office') AND status = 'approved'
         AND MONTH(report_date) = MONTH(CURDATE()) AND YEAR(report_date) = YEAR(CURDATE())
     `, [userId]);
     stats.monthFilled = filledRows?.cnt ?? 0;
