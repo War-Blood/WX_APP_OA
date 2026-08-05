@@ -19,8 +19,8 @@
 | 2 | 小程序接入 | Tab/标签/统计渲染 | 阶段 1 | ✅ 已完成 |
 | 3 | Web 管理页 | daily.vue + 路由/菜单/标签 | 阶段 1 | ✅ 已完成 |
 | 4 | 构建验证 | node --check / vue-tsc / build:mp-weixin | 阶段 2+3 | ✅ 已完成 |
-| 5 | P1 补填历史 | 放开工作日报日期限制 | 阶段 4 | ⬜ 待排期 |
-| 6 | P2 草稿/统计扩展 | 草稿恢复 + 未填写/个人统计纳入 | 阶段 5 | ⬜ 待排期 |
+| 5 | P1 补填历史 | 放开工作日报日期限制 | 阶段 4 | ✅ 已完成 |
+| 6 | P2 草稿/统计扩展 | 草稿恢复 + 未填写/个人统计纳入 | 阶段 5 | ✅ 已完成 |
 
 ### 阶段详细
 
@@ -88,8 +88,8 @@
 | 2 | miniapp-core-agent + miniapp-admin-agent | Tab/标签/统计 | ✅ |
 | 3 | webapp-core-agent + webapp-common-agent | 管理页/路由/标签 | ✅ |
 | 4 | orchestrator | 构建验证（node/vue-tsc/uni build） | ✅ |
-| 5 | miniapp-core-agent + core-agent | 补填历史 | ⬜ |
-| 6 | miniapp-core-agent + data-agent | 草稿/统计扩展 | ⬜ |
+| 5 | miniapp-core-agent + core-agent | 补填历史（日期放开） | ✅ |
+| 6 | miniapp-core-agent + data-agent | 草稿守卫 + 未填写/个人统计纳入 | ✅ |
 
 ## 4. 风险项
 
@@ -108,11 +108,12 @@
 | M2 前端就绪 | 小程序 Tab/标签 + Web 管理页 | ✅ |
 | M3 质量通过 | node --check / vue-tsc / uni build 通过 | ✅ |
 | M4 上线就绪 | commit 12e3963 推送 test;待部署 | 🔄 进行中（待部署验证） |
-| M5 P1 补填 | 可补录历史 | ⬜ |
-| M6 P2 扩展 | 草稿/统计扩展 | ⬜ |
+| M5 P1 补填 | 可补录历史（commit 7b15869） | ✅ |
+| M6 P2 扩展 | 草稿守卫 + 统计纳入（commit 7b15869） | ✅ |
 
 ## 变更记录
 
 | 日期 | 变更内容 | 变更人 |
 |------|---------|--------|
-| 2026-08-05 | 初始创建（本期已完成，P1/P2 待排期） | 殇血轮回 |
+| 2026-08-05 | 初始创建（P0 已完成，P1/P2 待排期） | 殇血轮回 |
+| 2026-08-05 | 更新：P1 补填 + P2 草稿/统计扩展 已完成 | 殇血轮回 |
