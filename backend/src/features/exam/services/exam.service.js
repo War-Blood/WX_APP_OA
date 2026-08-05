@@ -118,7 +118,7 @@ async function submitExam(userId, recordId, answers) {
   if (record.status !== 'doing') throw new BusinessError('考试已结束');
 
   // 计时校验
-  const [paper] = await db.query('SELECT duration FROM exam_papers WHERE id = ?', [record.paper_id]);
+  const [paper] = await db.query('SELECT duration, pass_score FROM exam_papers WHERE id = ?', [record.paper_id]);
   const elapsed = (Date.now() - new Date(record.server_time).getTime()) / 60000;
   if (elapsed > paper.duration + 1) {
     await db.execute("UPDATE exam_records SET status = 'timeout', end_time = NOW() WHERE id = ?", [recordId]);
