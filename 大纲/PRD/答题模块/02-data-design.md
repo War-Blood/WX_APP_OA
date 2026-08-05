@@ -124,6 +124,7 @@ CREATE TABLE exam_records (
 
 | 表 | 索引 | 用途 |
 |----|------|------|
+| exam_categories | `idx_parent` | 分类树查询（推进阶段补） |
 | exam_questions | `idx_category` | 按分类筛选 |
 | exam_questions | `idx_status` | 只查 active 题目 |
 | exam_papers | `idx_status` | 考试列表只查 published |
@@ -137,4 +138,12 @@ CREATE TABLE exam_records (
 ```sql
 -- 执行路径: mysql -u root -p wx_app_oa < sql/v3.0_exam.sql
 -- 或通过 PM2: npm run migrate
+-- 待办: 并入 backend/scripts/init-db.js(推进阶段 G 项)
 ```
+
+## 设计确认与错题本（2026-08-05 调研后）
+
+- **表结构确认**:4 张表与 GitHub 参考项目(学之思等)同构,且 `question_snapshot` 快照 / `version` 版本字段更优,**无需为对齐参考而改表**。
+- **错题本(P1)**:不新增表,从 `exam_records.answers` + `question_snapshot` 推导 `correct=false` 的题目,关联题库解析展示。
+- **exam_categories**:表已建但无 CRUD,**分类树管理为 P0 遗留缺口**(推进阶段补 API/UI)。
+- **建表待办**:`sql/v3.0_exam.sql` 尚未并入 `init-db.js`,推进阶段需合入标准初始化流程。

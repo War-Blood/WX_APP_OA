@@ -45,6 +45,17 @@ if (outOfScope) throw new BusinessError('您不在本次考试参加范围内', 
 
 ## 端点清单
 
+### 分类管理（管理员，P0 遗留缺口 G1）
+
+| 端点 | 说明 |
+|------|------|
+| `POST /api/exam/categories/list` | 分类树列表（返回树形结构） |
+| `POST /api/exam/categories/create` | 新增分类 `{ parentId, name, sortOrder }` |
+| `POST /api/exam/categories/update` | 编辑分类 `{ id, name, sortOrder }` |
+| `POST /api/exam/categories/delete` | 删除分类（有子分类或题目时拒绝） |
+
+> 注：`exam_categories` 表已建（`sql/v3.0_exam.sql`），本组端点为推进阶段 G1 补齐。
+
 ### 题库管理（管理员）
 
 | 端点 | 说明 |
@@ -80,6 +91,8 @@ if (outOfScope) throw new BusinessError('您不在本次考试参加范围内', 
 |------|------|------|
 | `POST /api/exam/practice/start` | 登录 | 开始练习 `{ categoryId, type, count }` |
 | `POST /api/exam/practice/submit` | 登录 | 提交练习 `{ recordId, answers }` |
+
+> 注：**超时自动交卷为定时任务**（每 5 分钟 cron 扫 doing 超时 → timeout，见 04-business-logic 规则5，P0 遗留缺口 G2），非 REST 端点。
 
 ### 记录查询
 

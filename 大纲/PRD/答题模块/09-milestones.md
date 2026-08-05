@@ -14,6 +14,21 @@
 | M7 | API 封装层（小程序+Web） | 0.5d | miniapp-common + webapp-common |
 | M8 | 集成测试 + 验收 | 1d | 全员 |
 
+## 推进阶段（遗留修复，2026-08-05 调研后）
+
+> 三端主体已实现并暂缓验收，推进阶段关闭 6 个 P0 遗留缺口后进入端到端联调验收。
+
+| 阶段 | 内容 | Agent | 依赖 |
+|:--:|------|------|:--:|
+| R1 | 分类树管理（后端 CRUD + Web 分类 UI） | core-agent + webapp-core-agent | M1 |
+| R2 | 超时扫描定时任务（scheduler cron） | core-agent | M3 |
+| R3 | 试卷克隆 / 版本管理 | core-agent | M2 |
+| R4 | 小程序结果页逐题详情 + 记录传分 | miniapp-core-agent | M3 |
+| R5 | Web `any` 清理（TS 类型） | webapp-core-agent | M6 |
+| R6 | 建表并入 init-db + 端到端联调验收 + 上线 | 全员 | R1-R5 |
+
+> R1-R5 相互独立可并行；R6 依赖全部。验收标准见 08-acceptance「遗留缺口验收」。
+
 ## 依赖关系
 
 ```
