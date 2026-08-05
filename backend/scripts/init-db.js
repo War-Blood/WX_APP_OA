@@ -12,7 +12,7 @@
 
 require('dotenv').config();
 const mysql = require('mysql2/promise');
-const config = require('../src/config/env');
+const config = require('../src/common/config/env');
 
 // 建表 SQL — wx_app_oa 数据库
 const CREATE_TABLES_SQL = `
@@ -402,7 +402,6 @@ CREATE TABLE IF NOT EXISTS \`exam_records\` (
   \`status\` ENUM('doing','submitted','timeout','cheated') DEFAULT 'doing' COMMENT '状态',
   \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (\`id\`),
-  UNIQUE KEY \`uk_user_paper_doing\` (\`user_id\`, \`paper_id\`, \`mode\`, \`status\`),
   KEY \`idx_user\` (\`user_id\`),
   KEY \`idx_paper\` (\`paper_id\`),
   KEY \`idx_status\` (\`status\`),

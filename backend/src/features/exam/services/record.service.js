@@ -65,9 +65,9 @@ async function stats(paperId) {
        WHEN score < 60 THEN '0-59'
        WHEN score < 80 THEN '60-79'
        ELSE '80-100'
-     END AS range, COUNT(*) AS count
+     END AS \`range\`, COUNT(*) AS count
      FROM exam_records WHERE paper_id = ? AND status = 'submitted'
-     GROUP BY range ORDER BY range`,
+     GROUP BY \`range\` ORDER BY \`range\``,
     [paperId]
   );
 
