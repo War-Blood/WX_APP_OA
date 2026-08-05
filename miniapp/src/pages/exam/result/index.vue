@@ -65,15 +65,24 @@ function goRecords() { uni.navigateTo({ url: '/pages/exam/records/index' }) }
 
 onLoad((q) => {
   recordId.value = q?.recordId || ''
+  mode.value = q?.mode || ''
   // URL 参数兜底（无 recordId 时）
   score.value = Number(q?.score) || 0
   totalScore.value = Number(q?.totalScore) || 0
   isPass.value = q?.isPass === 'true' || q?.isPass === '1'
   elapsed.value = Number(q?.elapsed) || 0
+  // 练习结果:记录已由后端删除,从本地读取(练习页提交时存入)
+  if (mode.value === 'practice') {
+    const saved = uni.getStorageSync('exam_practice_result')
+    if (saved) {
+      details.value = saved.details || []
+      uni.removeStorageSync('exam_practice_result')
+    }
+  }
 })
 
 onMounted(async () => {
-  if (!recordId.value) return
+  if (!recordId.value || mode.value === 'practice') return
   loading.value = true
   try {
     const res = await examApi.getRecordDetail(recordId.value)

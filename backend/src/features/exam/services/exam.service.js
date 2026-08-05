@@ -290,10 +290,8 @@ async function submitPractice(userId, recordId, answers) {
     details.push({ questionId: q.id, type: q.type, title: q.title, correct, userAnswer, rightAnswer: q.answer, analysis: q.analysis });
   }
 
-  await db.execute(
-    "UPDATE exam_records SET answers = ?, score = ?, end_time = NOW(), status = 'submitted' WHERE id = ?",
-    [JSON.stringify(answers), correctCount, recordId]
-  );
+  // 练习记录不持久化:模拟结束后删除对应记录,避免 DB 负担
+  await db.execute('DELETE FROM exam_records WHERE id = ?', [recordId]);
 
   return { correctCount, totalCount: snapshot.length, details };
 }

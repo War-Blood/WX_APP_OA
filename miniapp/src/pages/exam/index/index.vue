@@ -48,7 +48,7 @@
             <text :style="{ color: item.isPass ? '#22C55E' : '#EF4444' }">{{ item.score }}分 {{ item.isPass ? '✅ 已通过' : '❌ 未通过' }}</text>
           </view>
           <view class="exam-actions">
-            <view v-if="item.hasSubmitted" class="btn-secondary" @tap="goResult(item.paperId)"><text>查看成绩</text></view>
+            <view v-if="item.hasSubmitted" class="btn-secondary" @tap="goResult(item)"><text>查看成绩</text></view>
             <view v-else class="btn-primary small" @tap="handleStartExam(item)"><text>开始考试</text></view>
           </view>
         </view>

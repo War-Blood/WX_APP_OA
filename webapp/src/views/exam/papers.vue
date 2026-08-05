@@ -54,6 +54,26 @@
         <el-form-item label="结束时间">
           <el-date-picker v-model="form.endTime" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="可留空(永久开放)" style="width:100%" />
         </el-form-item>
+        <el-form-item label="组卷选题">
+          <div class="paper-select">
+            <div class="select-filters">
+              <el-select v-model="qFilter.categoryId" placeholder="分类" clearable style="width:140px" @change="onQFilterChange">
+                <el-option v-for="c in categoryOptions" :key="c.id" :label="c.path || c.name" :value="c.id" />
+              </el-select>
+              <el-select v-model="qFilter.type" placeholder="题型" clearable style="width:100px" @change="onQFilterChange">
+                <el-option label="单选" value="single" /><el-option label="多选" value="multiple" /><el-option label="判断" value="judge" />
+              </el-select>
+              <el-input v-model="qFilter.keyword" placeholder="搜索题干" clearable style="width:180px" @keyup.enter="onQFilterChange" @clear="onQFilterChange" />
+            </div>
+            <el-table ref="questionTableRef" :data="candidateQuestions" row-key="id" max-height="260" border size="small" @selection-change="onSelectionChange">
+              <el-table-column type="selection" width="40" reserve-selection />
+              <el-table-column label="题型" width="70"><template #default="{ row }">{{ typeLabel(row.type) }}</template></el-table-column>
+              <el-table-column prop="title" label="题干" min-width="220" show-overflow-tooltip />
+              <el-table-column prop="score" label="分值" width="60" align="center" />
+            </el-table>
+            <div class="select-summary">已选 <b>{{ form.questionIds.length }}</b> 题 · 总分 <b>{{ selectedTotalScore }}</b></div>
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="handleSave">保存</el-button></template>
     </el-dialog>
@@ -73,12 +93,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { toast } from '@/utils/toast'
 import type { PaperRow } from '@/api/exam'
-import { getPaperList, createPaper, updatePaper, deletePaper, publishPaper, clonePaper } from '@/api/exam'
-import { getDepartmentList } from '@/api/user'
+import { getPaperList, createPaper, updatePaper, deletePaper, publishPaper, clonePaper, getCategoryList, getQuestionList } from '@/api/exam'
+import { getDepartmentTree } from '@/api/user'
+import type { QuestionRow } from '@/api/exam'
 
 interface DeptNode { id: number; name: string; children?: DeptNode[] }
 
@@ -126,10 +147,78 @@ function parseDepts(raw: number[] | string | undefined): number[] {
   try { return JSON.parse(raw) } catch { return [] }
 }
 
+function parseQuestionIds(raw: number[] | string | undefined): number[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
+// ===== 组卷选题(分类树筛选 + 勾选) =====
+const categoryOptions = ref<{ id: number; name: string; path?: string }[]>([])
+const qFilter = reactive({ categoryId: undefined as number | undefined, type: '', keyword: '' })
+const candidateQuestions = ref<QuestionRow[]>([])
+const selectedScoreMap = ref<Record<number, number>>({})
+const questionTableRef = ref()
+const selectedTotalScore = computed(() => Object.values(selectedScoreMap.value).reduce((s, v) => s + v, 0))
+const typeLabel = (t: string) => ({ single: '单选', multiple: '多选', judge: '判断' })[t] || t
+
+function flattenCategoryOptions(nodes: { id: number; name: string; path?: string; children?: unknown[] }[]) {
+  nodes.forEach(n => {
+    categoryOptions.value.push({ id: n.id, name: n.name, path: n.path })
+    if (n.children && n.children.length) flattenCategoryOptions(n.children as { id: number; name: string; path?: string; children?: unknown[] }[])
+  })
+}
+
+async function loadCategories() {
+  try {
+    const cats = await getCategoryList()
+    categoryOptions.value = []
+    flattenCategoryOptions(cats)
+  } catch { /* */ }
+}
+
+async function loadCandidateQuestions() {
+  try {
+    const res = await getQuestionList({
+      page: 1, pageSize: 100,
+      categoryId: qFilter.categoryId,
+      type: qFilter.type || undefined,
+      keyword: qFilter.keyword || undefined,
+    })
+    candidateQuestions.value = res.list || []
+    nextTick(() => syncTableSelection())
+  } catch { candidateQuestions.value = [] }
+}
+
+function syncTableSelection() {
+  if (!questionTableRef.value) return
+  candidateQuestions.value.forEach(q => {
+    const sel = selectedScoreMap.value[q.id] !== undefined
+    questionTableRef.value.toggleRowSelection(q, sel, true)
+  })
+}
+
+function onQFilterChange() { loadCandidateQuestions() }
+
+function onSelectionChange(rows: QuestionRow[]) {
+  const currentIds = new Set(candidateQuestions.value.map(q => q.id))
+  const currentSelected = new Set(rows.map(r => r.id))
+  // 移除当前列表中被取消选中的
+  candidateQuestions.value.forEach(q => {
+    if (currentIds.has(q.id) && !currentSelected.has(q.id)) delete selectedScoreMap.value[q.id]
+  })
+  // 记录选中的分值
+  rows.forEach(r => { selectedScoreMap.value[r.id] = r.score })
+  form.questionIds = Object.keys(selectedScoreMap.value).map(Number)
+}
+
 function openCreate() {
   Object.assign(form, { title: '', duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all' as const, scopeDepartments: [], startTime: '', endTime: '', questionIds: [] })
+  selectedScoreMap.value = {}
   editingId.value = null
   dialogVisible.value = true
+  loadCategories()
+  loadCandidateQuestions()
 }
 
 function openEdit(row: PaperRow) {
@@ -144,8 +233,16 @@ function openEdit(row: PaperRow) {
     startTime: row.start_time || '',
     endTime: row.end_time || '',
   })
+  // 回显已选题
+  const qids = parseQuestionIds(row.question_ids)
+  const scoreMap: Record<number, number> = {}
+  qids.forEach(id => { scoreMap[id] = 0 })
+  selectedScoreMap.value = scoreMap
+  form.questionIds = qids
   editingId.value = row.id
   dialogVisible.value = true
+  loadCategories()
+  loadCandidateQuestions()
 }
 
 function viewPaper(row: PaperRow) {
@@ -198,8 +295,8 @@ async function handleClone(row: PaperRow) {
 onMounted(async () => {
   loadData()
   try {
-    const res = await getDepartmentList()
-    deptTree.value = (res as unknown as { data?: DeptNode[] }).data || []
+    const res = await getDepartmentTree()
+    deptTree.value = res || []
   } catch { /* */ }
 })
 </script>
@@ -208,4 +305,8 @@ onMounted(async () => {
 .papers-page { padding: 20px; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; }
 .title { font-size: 18px; font-weight: 600; }
+.paper-select { width: 100%; }
+.select-filters { display: flex; gap: 8px; margin-bottom: 8px; }
+.select-summary { margin-top: 8px; font-size: 13px; color: #606266; }
+.select-summary b { color: #2B6DE8; }
 </style>

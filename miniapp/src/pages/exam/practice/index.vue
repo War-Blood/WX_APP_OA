@@ -101,8 +101,14 @@ async function handleSubmit() {
     uni.showLoading({ title: '提交中...' })
     const res = await examApi.submitPractice({ recordId: recordId.value, answers: answers.value })
     uni.hideLoading()
-    // 进入结果页复盘(逐题详情,查漏补缺)
-    uni.redirectTo({ url: `/pages/exam/result/index?recordId=${recordId.value}` })
+    // 练习记录已由后端删除,结果存本地供结果页展示(查漏补缺)
+    const d = res.data || {}
+    uni.setStorageSync('exam_practice_result', {
+      correctCount: d.correctCount || 0,
+      totalCount: d.totalCount || 0,
+      details: d.details || [],
+    })
+    uni.redirectTo({ url: '/pages/exam/result/index?mode=practice' })
   } catch (e) { uni.hideLoading(); showError(e.message || '提交失败') }
 }
 
