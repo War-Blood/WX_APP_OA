@@ -115,7 +115,7 @@ function tryParseJSON(str) {
  * @param {Object} params - 查询参数
  * @returns {Promise<{list: Array, total: number}>}
  */
-async function list(userId, { page, pageSize, status, startDate, endDate, keyword }) {
+async function list(userId, { page, pageSize, status, reportType, startDate, endDate, keyword }) {
   const conditions = ['dr.deleted_at IS NULL'];
   const params = [];
 
@@ -128,6 +128,10 @@ async function list(userId, { page, pageSize, status, startDate, endDate, keywor
   if (status) {
     conditions.push('dr.status = ?');
     params.push(status);
+  }
+  if (reportType) {
+    conditions.push('dr.report_type = ?');
+    params.push(reportType);
   }
   if (startDate) {
     conditions.push('dr.report_date >= ?');

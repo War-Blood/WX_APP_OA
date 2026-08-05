@@ -101,7 +101,7 @@ const summaryItems = computed<{ key: string; label: string; count: number; color
     { key: 'submitted', label: '已提交', count: s.submitted, color: '#67C23A' },
     { key: 'substituted', label: '已代填', count: s.substituted, color: '#909399' },
     { key: 'supplement', label: '补公出', count: s.supplement, color: '#E6A23C' },
-    { key: 'office', label: '公司日报', count: s.office, color: '#409EFF' },
+    { key: 'office', label: '工作日报', count: s.office, color: '#409EFF' },
     { key: 'leave', label: '请假', count: s.leave, color: '#909399' },
     { key: 'missing', label: '缺失', count: s.missing, color: '#F56C6C' }
   ]

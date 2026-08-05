@@ -79,6 +79,12 @@ const router = createRouter({
               meta: { title: '补公出审核', roles: ['admin', 'superadmin'] }
             },
             {
+              path: 'daily',
+              name: 'ReportDaily',
+              component: () => import('@/views/report/daily.vue'),
+              meta: { title: '工作日报', roles: ['admin', 'superadmin'] }
+            },
+            {
               path: 'overview',
               name: 'ReportOverview',
               component: () => import('@/views/report/overview.vue'),

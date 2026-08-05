@@ -10,7 +10,8 @@ defineEmits<{ 'update:visible': [value: boolean] }>()
 function getReportTypeTag(reportType: string): { text: string; type: '' | 'success' | 'warning' | 'info' | 'danger' } {
   const map: Record<string, { text: string; type: '' | 'success' | 'warning' | 'info' | 'danger' }> = {
     biz_trip: { text: '公出日志', type: 'success' },
-    biz_trip_supplement: { text: '补公出', type: 'warning' }
+    biz_trip_supplement: { text: '补公出', type: 'warning' },
+    office: { text: '工作日报', type: 'info' }
   }
   return map[reportType] || { text: reportType, type: '' }
 }

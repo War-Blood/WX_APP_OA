@@ -64,7 +64,7 @@ export interface ReviewListResult {
 
 /** 获取日报列表(管理员可看全部) */
 export function getReportList(params: {
-  page?: number; pageSize?: number; status?: string;
+  page?: number; pageSize?: number; status?: string; reportType?: string;
   startDate?: string; endDate?: string; keyword?: string
 }): Promise<ReportListResult> {
   return request.post('/report/list', params)

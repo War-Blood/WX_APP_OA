@@ -42,7 +42,7 @@ async function resolveEntryDate(userId, entryDate) {
  */
 async function list(req, res, next) {
   try {
-    const { page = 1, pageSize = 50, status, startDate, endDate, keyword } = req.body;
+    const { page = 1, pageSize = 50, status, reportType, startDate, endDate, keyword } = req.body;
     const role = req.user.role;
     // admin/superadmin 看全部，普通用户只看自己的
     const userId = (role === 'admin' || role === 'superadmin') ? 0 : req.user.userId;
@@ -51,6 +51,7 @@ async function list(req, res, next) {
       page: Number(page),
       pageSize: Number(pageSize),
       status,
+      reportType,
       startDate,
       endDate,
       keyword,
@@ -92,7 +93,7 @@ async function submit(req, res, next) {
     // ---- 参数校验（按 reportType 区分必填字段） ----
     const reportType = data.reportType || 'biz_trip';
 
-    if (!['biz_trip', 'biz_trip_supplement'].includes(reportType)) {
+    if (!['biz_trip', 'biz_trip_supplement', 'office'].includes(reportType)) {
       throw new ValidationError(`无效的日志类型: ${reportType}`);
     }
 
@@ -100,14 +101,16 @@ async function submit(req, res, next) {
       throw new ValidationError('日报日期不能为空');
     }
 
-    // 旧版兼容: 未传 todayWorkType 时默认「工作（陆）」
-    if (!data.todayWorkType) {
-      data.todayWorkType = '工作（陆）';
-    }
-
+    // 工作日报（office）无需工作类型；公出/补公出必填
     const validWorkTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假'];
-    if (!validWorkTypes.includes(data.todayWorkType)) {
-      throw new ValidationError(`无效的工作类型: ${data.todayWorkType}`);
+    if (reportType !== 'office') {
+      // 旧版兼容: 未传 todayWorkType 时默认「工作（陆）」
+      if (!data.todayWorkType) {
+        data.todayWorkType = '工作（陆）';
+      }
+      if (!validWorkTypes.includes(data.todayWorkType)) {
+        throw new ValidationError(`无效的工作类型: ${data.todayWorkType}`);
+      }
     }
 
     const isLeave = data.todayWorkType === '请假';

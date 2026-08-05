@@ -339,14 +339,13 @@ async function getMonthlySummary(userId, month) {
 async function getDailyStatus(dateStr) {
   const date = dateStr || formatDate(new Date());
 
-  // 从当日报告反查涉及的公出人员（排除管理员和公司日报office，只保留公出日志提交者）
+  // 从当日报告反查涉及的人员（排除管理员，含公出日志与工作日报提交者）
   const today = formatDate(new Date());
   const allUserRows = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
      FROM users u
      INNER JOIN daily_reports dr ON u.id = dr.user_id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND dr.report_type != 'office'
        AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')
      UNION
      SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
@@ -354,7 +353,6 @@ async function getDailyStatus(dateStr) {
      INNER JOIN daily_report_workers drw ON u.id = drw.worker_uid
      INNER JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND dr.report_type != 'office'
        AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')
      ORDER BY id ASC`,
     [date, date]
@@ -585,12 +583,11 @@ async function getTomorrowStatus(date) {
   const dailyStatus = await getDailyStatus(prevDate);
   const dailyWorkers = dailyStatus.workers || [];
 
-  // N-1 日日报中填写的明日工作类型（本人提交）
+  // N-1 日日报中填写的明日工作类型（本人提交，含工作日报）
   const ownRows = await db.query(
     `SELECT dr.id AS reportId, dr.user_id, dr.tomorrow_work_type, dr.project, dr.area
      FROM daily_reports dr
-     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND dr.report_type != 'office'`,
+     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL`,
     [prevDate]
   );
 
@@ -599,8 +596,7 @@ async function getTomorrowStatus(date) {
     `SELECT dr.id AS reportId, drw.worker_uid AS user_id, dr.tomorrow_work_type, dr.project, dr.area
      FROM daily_report_workers drw
      JOIN daily_reports dr ON drw.report_id = dr.id
-     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND dr.report_type != 'office'`,
+     WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL`,
     [prevDate]
   );
 
@@ -687,7 +683,7 @@ async function getDailyCounts(month) {
 
   // 当月所有在职作业人员（含入场日期，用于按日判断是否在岗）
   const activeUsers = await db.query(
-    `SELECT id, entry_date FROM users
+    `SELECT id, entry_date, nickname, user_name FROM users
      WHERE worker_status = 'active' AND status = 'active'
        AND deleted_at IS NULL AND role NOT IN ('admin', 'superadmin')`,
     []
@@ -701,26 +697,32 @@ async function getDailyCounts(month) {
     []
   );
 
-  // 当月已审核通过的日报中，当天去重的直接提交人
-  const submitterRows = await db.query(
-    `SELECT report_date, user_id
+  // 当月所有已提交（非草稿）日报，用于统计实际填写人
+  const reportRows = await db.query(
+    `SELECT report_date, user_id, report_type, today_work_type, workers
      FROM daily_reports
-     WHERE status = 'approved' AND report_type != 'office'
+     WHERE status != 'draft'
        AND DATE_FORMAT(report_date, '%Y-%m') = ?
        AND deleted_at IS NULL`,
     [month]
   );
 
-  // 当月已审核通过的日报中，当天被代填的人（daily_report_workers）
+  // 当月非草稿日报中，当天被代填的人（daily_report_workers）
   const subWorkerRows = await db.query(
     `SELECT dr.report_date, drw.worker_uid AS user_id
      FROM daily_report_workers drw
      JOIN daily_reports dr ON drw.report_id = dr.id
-     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+     WHERE dr.status != 'draft' AND dr.report_type != 'office' AND dr.today_work_type != '请假'
        AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
        AND dr.deleted_at IS NULL`,
     [month]
   );
+
+  const nameToUser = {};
+  activeUsers.forEach(u => {
+    const name = (u.nickname || u.user_name || '').trim();
+    if (name) nameToUser[name] = u.id;
+  });
 
   // 将出差记录解析为 用户id → [{start, end}],用于逐日判断是否在出差
   const tripMap = {};
@@ -740,6 +742,10 @@ async function getDailyCounts(month) {
 
   // 按日期聚合：submittedSet[date] = Set(当天已提交去重人员,仅公出人员)
   const submittedSet = {};
+  const leaveDateSet = {};
+  // 工作日报（office）提交者：计入当日 submitted 与 total（本人可能不在出差中，不走 isOnTrip 路径）
+  const officeDateSet = {};
+  const isLeaveReport = (r) => r.today_work_type === '请假';
   const addSubmitted = (r) => {
     if (!r || !r.user_id) return;
     const d = formatDate(r.report_date);
@@ -747,8 +753,41 @@ async function getDailyCounts(month) {
     if (!submittedSet[d]) submittedSet[d] = new Set();
     submittedSet[d].add(Number(r.user_id));
   };
-  submitterRows.forEach(addSubmitted);
-  subWorkerRows.forEach(addSubmitted);
+
+  reportRows.forEach(r => {
+    const d = formatDate(r.report_date);
+    if (r.report_type === 'office') {
+      // 工作日报：提交者直接计入当日已提交与在职人数
+      if (!submittedSet[d]) submittedSet[d] = new Set();
+      submittedSet[d].add(Number(r.user_id));
+      if (!officeDateSet[d]) officeDateSet[d] = new Set();
+      officeDateSet[d].add(Number(r.user_id));
+      return;
+    }
+    if (isLeaveReport(r)) {
+      if (!leaveDateSet[d]) leaveDateSet[d] = new Set();
+      leaveDateSet[d].add(Number(r.user_id));
+      return;
+    }
+    addSubmitted(r);
+
+    // workers 文本兜底：被列名但未写入 daily_report_workers 的人员视为已代填
+    if (r.workers) {
+      const names = String(r.workers).split(/[,，、\s/]+/).map(s => s.trim()).filter(Boolean);
+      names.forEach(name => {
+        const uid = nameToUser[name];
+        if (uid && isOnTrip(uid, d)) {
+          if (!submittedSet[d]) submittedSet[d] = new Set();
+          submittedSet[d].add(Number(uid));
+        }
+      });
+    }
+  });
+
+  subWorkerRows.forEach(r => {
+    const d = formatDate(r.report_date);
+    if (isOnTrip(r.user_id, d)) addSubmitted(r);
+  });
 
   // 生成当月每一天的数据
   const [y, m] = month.split('-').map(Number);
@@ -759,11 +798,16 @@ async function getDailyCounts(month) {
   const data = [];
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    // total = 当天在出差的在职人员数(且已入场)
-    const total = activeUsers.filter(u =>
+    // total = 当天在出差的在职人员数(且已入场) + 当天填写了工作日报的提交者
+    const totalSet = new Set(activeUsers.filter(u =>
       isOnTrip(u.id, dateStr) &&
-      (!u.entry_date || formatDate(u.entry_date) <= dateStr)
-    ).length;
+      (!u.entry_date || formatDate(u.entry_date) <= dateStr) &&
+      !(leaveDateSet[dateStr] && leaveDateSet[dateStr].has(Number(u.id)))
+    ).map(u => u.id));
+    if (officeDateSet[dateStr]) {
+      officeDateSet[dateStr].forEach(uid => totalSet.add(uid));
+    }
+    const total = totalSet.size;
     const submitted = submittedSet[dateStr] ? submittedSet[dateStr].size : 0;
     data.push({ date: dateStr, submitted, total });
   }

@@ -66,8 +66,8 @@
         </view>
       </view>
 
-      <!-- 工作类型选择 -->
-      <view class="section-card">
+      <!-- 工作类型选择（工作日报 office 不填工作类型） -->
+      <view v-if="currentTab !== 'office'" class="section-card">
         <text class="section-title">工作类型 <text class="required">*</text></text>
         <picker
           mode="selector"
@@ -480,7 +480,8 @@ const userStore = useUserStore()
 // ===== 常量 =====
 const typeTabs = [
   { key: 'biz_trip', label: '公出日志' },
-  { key: 'biz_trip_supplement', label: '补公出日志' }
+  { key: 'biz_trip_supplement', label: '补公出日志' },
+  { key: 'office', label: '工作日报' }
 ]
 
 const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假']
@@ -592,7 +593,7 @@ const yesterdayStr = computed(() => {
 
 const submitLabel = computed(() => {
   if (currentTab.value === 'biz_trip_supplement') return '公出日志'
-  if (currentTab.value === 'office') return '公司日报'
+  if (currentTab.value === 'office') return '工作日报'
   return '公出日志'
 })
 

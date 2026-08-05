@@ -168,7 +168,7 @@ function formatTime(datetime) {
 const statusLabelMap = {
   submitted: '已提交',
   supplement: '补公出',
-  office: '公司日报',
+  office: '工作日报',
   substituted: '已代填',
   leave: '请假',
   missing: '未提交'

@@ -271,7 +271,7 @@ const progressPercent = computed(() => {
 
 // ===== 日志类型 =====
 function getTypeLabel(type) {
-  const map = { biz_trip: '公出日志', biz_trip_supplement: '补公出日志' }
+  const map = { biz_trip: '公出日志', biz_trip_supplement: '补公出日志', office: '工作日报' }
   return map[type] || type || '日报'
 }
 

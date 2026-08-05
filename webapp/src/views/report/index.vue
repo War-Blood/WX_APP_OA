@@ -65,7 +65,8 @@ const statusOptions = [
 const reportTypeOptions = [
   { label: '全部', value: '' },
   { label: '公出日志', value: 'biz_trip' },
-  { label: '补公出日志', value: 'biz_trip_supplement' }
+  { label: '补公出日志', value: 'biz_trip_supplement' },
+  { label: '工作日报', value: 'office' }
 ]
 
 const workTypeOptions = [
@@ -89,7 +90,8 @@ const tabItems = [
 function getReportTypeTag(reportType: string): { text: string; type: '' | 'success' | 'warning' | 'info' | 'danger' } {
   const map: Record<string, { text: string; type: '' | 'success' | 'warning' | 'info' | 'danger' }> = {
     biz_trip: { text: '公出日志', type: 'success' },
-    biz_trip_supplement: { text: '补公出', type: 'warning' }
+    biz_trip_supplement: { text: '补公出', type: 'warning' },
+    office: { text: '工作日报', type: 'info' }
   }
   return map[reportType] || { text: reportType, type: '' }
 }

@@ -604,7 +604,7 @@ const dailyLeaveWorkers = computed(() => (dailyResponse.value?.workers || []).fi
 function fmtTime(dt) { if (!dt) return ''; const p = String(dt).split(' '); return p[1] ? p[1].slice(0, 5) : dt }
 
 function statusLabel(s) {
-  const m = { submitted: '已提交', supplement: '补公出', office: '公司日报', substituted: '已代填', leave: '请假', missing: '未提交' }
+  const m = { submitted: '已提交', supplement: '补公出', office: '工作日报', substituted: '已代填', leave: '请假', missing: '未提交' }
   return m[s] || s
 }
 
