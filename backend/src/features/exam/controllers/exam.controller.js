@@ -34,6 +34,14 @@ async function reportWarn(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function saveAnswers(req, res, next) {
+  try {
+    const { recordId, answers } = req.body;
+    const result = await examService.saveAnswers(req.user.userId, recordId, answers || {});
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
 async function startPractice(req, res, next) {
   try {
     const { categoryId, type, count } = req.body;
@@ -50,4 +58,4 @@ async function submitPractice(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { examList, start, submit, reportWarn, startPractice, submitPractice };
+module.exports = { examList, start, submit, saveAnswers, reportWarn, startPractice, submitPractice };

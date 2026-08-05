@@ -32,6 +32,8 @@ export interface PaperRow {
   max_screenshot_warns?: number
   scope_type?: 'all' | 'department'
   scope_departments?: number[] | string
+  start_time?: string
+  end_time?: string
   question_ids?: number[] | string
   status?: string
   version?: number
@@ -63,6 +65,8 @@ export interface Paper {
   maxScreenshotWarns?: number
   scopeType?: 'all' | 'department'
   scopeDepartments?: number[]
+  startTime?: string
+  endTime?: string
   questionIds: number[]
   status?: string
   version?: number

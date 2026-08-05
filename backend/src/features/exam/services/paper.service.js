@@ -29,11 +29,12 @@ async function create(data) {
 
   const result = await db.execute(
     `INSERT INTO exam_papers (title, description, duration, pass_score, total_score,
-     max_attempts, max_screenshot_warns, scope_type, scope_departments, question_ids, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     max_attempts, max_screenshot_warns, scope_type, scope_departments, start_time, end_time, question_ids, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [data.title, data.description || '', data.duration || 60, data.passScore || 60,
      data.totalScore || 100, data.maxAttempts ?? 1, data.maxScreenshotWarns ?? 2,
      data.scopeType || 'all', data.scopeType === 'department' ? JSON.stringify(data.scopeDepartments) : null,
+     data.startTime || null, data.endTime || null,
      JSON.stringify(data.questionIds), data.createdBy]
   );
   return { id: result[0].insertId };
@@ -61,6 +62,8 @@ async function update(id, data) {
   if (data.maxScreenshotWarns !== undefined) { updates.push('max_screenshot_warns = ?'); params.push(data.maxScreenshotWarns); }
   if (data.scopeType !== undefined) { updates.push('scope_type = ?'); params.push(data.scopeType); }
   if (data.scopeDepartments !== undefined) { updates.push('scope_departments = ?'); params.push(JSON.stringify(data.scopeDepartments)); }
+  if (data.startTime !== undefined) { updates.push('start_time = ?'); params.push(data.startTime || null); }
+  if (data.endTime !== undefined) { updates.push('end_time = ?'); params.push(data.endTime || null); }
   if (data.questionIds !== undefined) { updates.push('question_ids = ?'); params.push(JSON.stringify(data.questionIds)); }
 
   if (!updates.length) throw new ValidationError('无更新字段');
@@ -78,10 +81,11 @@ async function clone(id, data = {}) {
     : paper.question_ids;
   const result = await db.execute(
     `INSERT INTO exam_papers (title, description, duration, pass_score, total_score,
-     max_attempts, max_screenshot_warns, scope_type, scope_departments, question_ids, status, version, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
+     max_attempts, max_screenshot_warns, scope_type, scope_departments, start_time, end_time, question_ids, status, version, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
     [title, paper.description, paper.duration, paper.pass_score, paper.total_score,
      paper.max_attempts, paper.max_screenshot_warns, paper.scope_type, paper.scope_departments,
+     paper.start_time, paper.end_time,
      questionIds, paper.version + 1, data.createdBy || paper.created_by]
   );
   return { id: result[0].insertId, version: paper.version + 1 };

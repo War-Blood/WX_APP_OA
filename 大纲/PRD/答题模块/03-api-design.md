@@ -71,7 +71,7 @@ if (outOfScope) throw new BusinessError('您不在本次考试参加范围内', 
 | 端点 | 说明 |
 |------|------|
 | `POST /api/exam/papers/list` | 试卷列表 `{ status, page, pageSize }` |
-| `POST /api/exam/papers/create` | 新建 `{ title, description, duration, passScore, totalScore, maxAttempts, maxScreenshotWarns, scopeType, scopeDepartments, questionIds }` |
+| `POST /api/exam/papers/create` | 新建 `{ title, description, duration, passScore, totalScore, maxAttempts, maxScreenshotWarns, scopeType, scopeDepartments, startTime, endTime, questionIds }`(startTime/endTime 为考试窗口,北京时间,可空=永久开放) |
 | `POST /api/exam/papers/update` | 编辑 — 仅 draft 可改题目 |
 | `POST /api/exam/papers/delete` | 删除 `{ id }` |
 | `POST /api/exam/papers/publish` | 发布 `{ id }` |
@@ -81,7 +81,8 @@ if (outOfScope) throw new BusinessError('您不在本次考试参加范围内', 
 | 端点 | 权限 | 说明 |
 |------|------|------|
 | `POST /api/exam/exam/list` | 登录 | 可参加考试列表（scope 过滤） |
-| `POST /api/exam/exam/start` | 登录 | 开始考试 `{ paperId }` → 快照+计时 |
+| `POST /api/exam/exam/start` | 登录 | 进入/恢复考试 `{ paperId }` → 窗口检查;已有 doing 则断线恢复(返回 `remainingSeconds`+`savedAnswers`);否则新建快照+计时 |
+| `POST /api/exam/exam/save-answers` | 登录 | 保存答题进度(断线续答) `{ recordId, answers }` |
 | `POST /api/exam/exam/submit` | 登录 | 交卷 `{ recordId, answers }` → 判分 |
 | `POST /api/exam/exam/warn` | 登录 | 截屏警告 `{ recordId }` |
 

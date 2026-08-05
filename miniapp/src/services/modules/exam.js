@@ -5,6 +5,7 @@ export const examApi = {
   getExamList: () => post('/api/exam/exam/list'),
   startExam: (paperId) => post('/api/exam/exam/start', { paperId }),
   submitExam: (data) => post('/api/exam/exam/submit', data),
+  saveAnswers: (recordId, answers) => post('/api/exam/exam/save-answers', { recordId, answers }),
   reportScreenshot: (recordId) => post('/api/exam/exam/warn', { recordId }),
 
   startPractice: (data) => post('/api/exam/practice/start', data),

@@ -24,11 +24,16 @@ async function checkScope(userId, paper) {
 }
 
 /**
- * 获取可参加的考试列表
+ * 获取可参加的考试列表(仅窗口内已发布卷)
  */
 async function examList(userId) {
   const papers = await db.query(
-    "SELECT id, title, description, duration, pass_score, total_score, scope_type, scope_departments FROM exam_papers WHERE status = 'published' ORDER BY created_at DESC"
+    `SELECT id, title, description, duration, pass_score, total_score, scope_type, scope_departments, start_time, end_time
+     FROM exam_papers
+     WHERE status = 'published'
+       AND (start_time IS NULL OR start_time <= NOW())
+       AND (end_time IS NULL OR end_time > NOW())
+     ORDER BY created_at DESC`
   );
 
   const result = [];
@@ -41,6 +46,7 @@ async function examList(userId) {
       result.push({
         paperId: p.id, title: p.title, description: p.description,
         duration: p.duration, passScore: p.pass_score,
+        startTime: p.start_time, endTime: p.end_time,
         recordId: record ? record.id : null,
         hasSubmitted: !!record, score: record ? record.score : null,
         isPass: record ? (record.score >= p.pass_score) : null,
@@ -52,25 +58,53 @@ async function examList(userId) {
 }
 
 /**
- * 开始正式考试
+ * 进入/恢复正式考试
+ * - 窗口检查(start_time/end_time,北京时间)
+ * - 已有 doing 记录 → 断线恢复(返回 remainingSeconds + savedAnswers),不新建、不消耗次数
+ * - 无 doing → 次数检查后新建
  */
 async function startExam(userId, paperId) {
   const [paper] = await db.query('SELECT * FROM exam_papers WHERE id = ?', [paperId]);
   if (!paper) throw new NotFoundError('试卷不存在');
   if (paper.status !== 'published') throw new BusinessError('试卷未发布', null, ErrorCode.EXAM_PAPER_NOT_PUBLISHED);
 
+  const now = Date.now();
+  // 窗口检查(考试区间)
+  if (paper.start_time && now < new Date(paper.start_time).getTime()) {
+    throw new BusinessError('考试尚未开始', null, ErrorCode.EXAM_PAPER_NOT_PUBLISHED);
+  }
+  if (paper.end_time && now >= new Date(paper.end_time).getTime()) {
+    throw new BusinessError('考试已结束', null, ErrorCode.EXAM_PAPER_NOT_PUBLISHED);
+  }
+
   // 校验范围
   if (!(await checkScope(userId, paper))) {
     throw new BusinessError('您不在本次考试参加范围内', null, ErrorCode.EXAM_SCOPE_DENIED);
   }
 
-  // 清理僵尸记录
-  await db.execute(
-    "UPDATE exam_records SET status = 'timeout', end_time = NOW() WHERE user_id = ? AND paper_id = ? AND status = 'doing'",
+  // 断线恢复:已有进行中的 doing 记录
+  const [existing] = await db.query(
+    "SELECT * FROM exam_records WHERE user_id = ? AND paper_id = ? AND mode = 'exam' AND status = 'doing' ORDER BY id DESC LIMIT 1",
     [userId, paperId]
   );
+  if (existing) {
+    const elapsedMs = now - new Date(existing.server_time).getTime();
+    const remainingSeconds = Math.max(0, paper.duration * 60 - Math.floor(elapsedMs / 1000));
+    const endReached = paper.end_time && now >= new Date(paper.end_time).getTime();
+    if (remainingSeconds > 0 && !endReached) {
+      const snapshot = typeof existing.question_snapshot === 'string' ? JSON.parse(existing.question_snapshot) : existing.question_snapshot;
+      const savedAnswers = existing.answers ? (typeof existing.answers === 'string' ? JSON.parse(existing.answers) : existing.answers) : {};
+      logger.info('恢复考试', { module: 'EXAM', userId, paperId, recordId: existing.id, remainingSeconds });
+      return {
+        recordId: existing.id, snapshot, serverTime: existing.server_time, duration: paper.duration,
+        remainingSeconds, savedAnswers, resumed: true,
+      };
+    }
+    // 个人超时或窗口已结束 → 置 timeout(计一次),次数允许则重来
+    await db.execute("UPDATE exam_records SET status = 'timeout', end_time = NOW() WHERE id = ?", [existing.id]);
+  }
 
-  // 检查最大次数
+  // 检查最大次数(仅 submitted/timeout/cheated 计次;断线恢复不产生新记录,不消耗次数)
   if (paper.max_attempts > 0) {
     const [count] = await db.query(
       "SELECT COUNT(*) AS cnt FROM exam_records WHERE user_id = ? AND paper_id = ? AND mode = 'exam' AND status IN ('submitted','timeout','cheated')",
@@ -106,7 +140,19 @@ async function startExam(userId, paperId) {
 
   return {
     recordId: result[0].insertId, snapshot, serverTime: new Date().toISOString(), duration: paper.duration,
+    remainingSeconds: paper.duration * 60, resumed: false,
   };
+}
+
+/**
+ * 保存答题进度(断线续答数据源)
+ */
+async function saveAnswers(userId, recordId, answers) {
+  const [record] = await db.query('SELECT id, status FROM exam_records WHERE id = ? AND user_id = ?', [recordId, userId]);
+  if (!record) throw new NotFoundError('考试记录不存在');
+  if (record.status !== 'doing') throw new BusinessError('考试已结束');
+  await db.execute('UPDATE exam_records SET answers = ? WHERE id = ?', [JSON.stringify(answers || {}), recordId]);
+  return { saved: true };
 }
 
 /**
@@ -252,4 +298,4 @@ async function submitPractice(userId, recordId, answers) {
   return { correctCount, totalCount: snapshot.length, details };
 }
 
-module.exports = { examList, checkScope, startExam, submitExam, reportWarn, startPractice, submitPractice };
+module.exports = { examList, checkScope, startExam, submitExam, saveAnswers, reportWarn, startPractice, submitPractice };

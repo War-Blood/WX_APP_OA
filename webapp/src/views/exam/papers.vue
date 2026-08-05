@@ -48,6 +48,12 @@
         <el-form-item v-if="form.scopeType==='department'" label="选择部门">
           <el-tree-select v-model="form.scopeDepartments" :data="deptTree" multiple check-strictly :props="{ value: 'id', label: 'name', children: 'children' }" style="width:100%" placeholder="请选择" />
         </el-form-item>
+        <el-form-item label="开始时间">
+          <el-date-picker v-model="form.startTime" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="可留空(永久开放)" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="结束时间">
+          <el-date-picker v-model="form.endTime" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="可留空(永久开放)" style="width:100%" />
+        </el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="handleSave">保存</el-button></template>
     </el-dialog>
@@ -95,8 +101,10 @@ const form = reactive<{
   maxScreenshotWarns: number
   scopeType: 'all' | 'department'
   scopeDepartments: number[]
+  startTime: string
+  endTime: string
   questionIds: number[]
-}>({ title: '', duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all', scopeDepartments: [], questionIds: [] })
+}>({ title: '', duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all', scopeDepartments: [], startTime: '', endTime: '', questionIds: [] })
 
 const statusType = (s: string): '' | 'info' | 'success' | 'warning' | 'danger' =>
   ({ draft: 'info', published: 'success', archived: '' } as Record<string, '' | 'info' | 'success' | 'warning' | 'danger'>)[s] || ''
@@ -119,7 +127,7 @@ function parseDepts(raw: number[] | string | undefined): number[] {
 }
 
 function openCreate() {
-  Object.assign(form, { title: '', duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all' as const, scopeDepartments: [], questionIds: [] })
+  Object.assign(form, { title: '', duration: 60, passScore: 60, totalScore: 100, maxAttempts: 1, maxScreenshotWarns: 2, scopeType: 'all' as const, scopeDepartments: [], startTime: '', endTime: '', questionIds: [] })
   editingId.value = null
   dialogVisible.value = true
 }
@@ -133,6 +141,8 @@ function openEdit(row: PaperRow) {
     maxScreenshotWarns: row.max_screenshot_warns ?? 2,
     scopeType: (row.scope_type || 'all') as 'all' | 'department',
     scopeDepartments: parseDepts(row.scope_departments),
+    startTime: row.start_time || '',
+    endTime: row.end_time || '',
   })
   editingId.value = row.id
   dialogVisible.value = true

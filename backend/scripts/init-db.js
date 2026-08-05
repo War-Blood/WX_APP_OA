@@ -370,6 +370,8 @@ CREATE TABLE IF NOT EXISTS \`exam_papers\` (
   \`max_screenshot_warns\` INT DEFAULT 2 COMMENT '截屏警告上限',
   \`scope_type\` ENUM('all','department') DEFAULT 'all' COMMENT '参加范围类型',
   \`scope_departments\` JSON DEFAULT NULL COMMENT '参加部门 [1,2,3]',
+  \`start_time\` DATETIME DEFAULT NULL COMMENT '考试窗口开始时间(北京时间)',
+  \`end_time\` DATETIME DEFAULT NULL COMMENT '考试窗口结束时间(到点强制交卷)',
   \`question_ids\` JSON NOT NULL COMMENT '题目ID列表',
   \`status\` ENUM('draft','published','archived') DEFAULT 'draft' COMMENT '状态',
   \`version\` INT DEFAULT 1 COMMENT '版本号',

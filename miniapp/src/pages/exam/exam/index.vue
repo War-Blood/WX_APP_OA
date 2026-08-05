@@ -35,7 +35,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { onHide, onUnload } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { examApi } from '@/services/modules/exam'
 import { showError } from '@/utils/toast'
@@ -77,7 +78,7 @@ async function handleSubmit() {
 }
 
 function handleExit() {
-  uni.showModal({ title: '确定退出考试？', content: '退出后计时不暂停，超时自动交卷', success: r => { if (r.confirm) uni.navigateBack() } })
+  uni.showModal({ title: '确定退出考试？', content: '退出后计时不暂停，窗口期内可重新进入继续作答', success: r => { if (r.confirm) { saveProgress(); uni.navigateBack() } } })
 }
 
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
@@ -91,11 +92,13 @@ async function loadExam() {
     const d = res.data
     snapshot.value = d.snapshot; total.value = d.snapshot.length; recordId.value = d.recordId
     duration.value = d.duration
-    const ts = new Date(d.serverTime).getTime()
-    serverTime.value = isNaN(ts) ? Date.now() : ts
-    remaining.value = d.duration * 60
+    if (d.resumed && d.savedAnswers) answers.value = d.savedAnswers // 断线恢复已答
+    // 倒计时:以服务端剩余秒数为基准,本地递减(提交时后端仍强校验真实时间)
+    const baseRemaining = (d.remainingSeconds != null ? d.remainingSeconds : d.duration * 60)
+    remaining.value = baseRemaining
+    const startedAt = Date.now()
     timer = setInterval(() => {
-      remaining.value = Math.max(0, d.duration * 60 - Math.floor((Date.now() - serverTime.value) / 1000))
+      remaining.value = Math.max(0, baseRemaining - Math.floor((Date.now() - startedAt) / 1000))
       if (remaining.value <= 0) { clearInterval(timer); handleSubmit() }
     }, 1000)
   } catch (e) {
@@ -108,6 +111,21 @@ async function loadExam() {
 
 function retryLoad() { loadExam() }
 function goBack() { uni.navigateBack() }
+
+// ===== 断线续答:自动保存答案 =====
+let saveTimer = null
+watch(answers, () => {
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => saveProgress(), 2000)
+}, { deep: true })
+
+async function saveProgress() {
+  if (!recordId.value) return
+  try { await examApi.saveAnswers(recordId.value, answers.value) } catch { /* 静默,下次进入/离开再存 */ }
+}
+
+onHide(() => saveProgress())
+onUnload(() => saveProgress())
 
 loadExam()
 </script>

@@ -20,13 +20,15 @@
 
 ### 考试（小程序）
 
-- [ ] 员工看到 scope 匹配的已发布试卷列表
+- [ ] 员工看到 scope 匹配且**在窗口内**的已发布试卷列表
+- [ ] 窗口外进入(start_time 前 / end_time 后)→ 拒绝并提示"尚未开始/已结束"
 - [ ] 开始考试 → 生成快照 → 返回 serverTime → 前端倒计时
-- [ ] 答题中退出 → 重进自动恢复（doing 记录）
+- [ ] 答题中退出 → **窗口内重进自动恢复**(返回 remainingSeconds + savedAnswers,继续作答,不消耗次数)
+- [ ] 答题变化/离开页面自动**保存答案**(save-answers)
 - [ ] 截屏 3 次 → 展示警告 → 超限强制交卷 status='cheated'
 - [ ] 交卷 → 基于快照判分 → 返回成绩 + 逐题详情
-- [ ] 超时未交卷 → 后端定时任务自动 timeout
-- [ ] 同一试卷不可重复开始（已有 submitted/cheated 记录 + max_attempts 限制）
+- [ ] 超时未交卷 / **窗口 end_time 到点** → 后端定时任务自动 timeout
+- [ ] 同一试卷不可重复开始（已有 submitted/timeout/cheated 记录 + max_attempts 限制;断线恢复不计次）
 
 ### 练习（小程序）
 

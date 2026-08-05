@@ -84,6 +84,8 @@ CREATE TABLE exam_papers (
   max_screenshot_warns INT DEFAULT 2,
   scope_type ENUM('all','department') DEFAULT 'all',
   scope_departments JSON COMMENT '[1,2,3]',
+  start_time DATETIME COMMENT '考试窗口开始时间(北京时间)',
+  end_time DATETIME COMMENT '考试窗口结束时间(到点强制交卷)',
   question_ids JSON NOT NULL,
   status ENUM('draft','published','archived') DEFAULT 'draft',
   version INT DEFAULT 1,

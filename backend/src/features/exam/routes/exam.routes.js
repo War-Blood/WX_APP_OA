@@ -36,6 +36,7 @@ router.post('/papers/clone', ...adminAuth, paperController.clone);
 router.post('/exam/list', authenticate, examController.examList);
 router.post('/exam/start', authenticate, examController.start);
 router.post('/exam/submit', authenticate, examController.submit);
+router.post('/exam/save-answers', authenticate, examController.saveAnswers);
 router.post('/exam/warn', authenticate, examController.reportWarn);
 
 // ===== 练习（登录用户） =====
