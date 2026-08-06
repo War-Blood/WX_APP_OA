@@ -109,6 +109,79 @@ POST /exam/exam/save-answers { recordId, answers }
    startExam 恢复时从 answers 解析回 savedAnswers
 ```
 
+### 10. 随机抽题（考卷设置，2026-08-06 问卷星借鉴）
+
+```
+1. papers/create|update 时校验: draw_rules 非空 ⇒ question_ids 置空(二者互斥)
+2. exam/start 规则1 组装快照时, 若 paper.draw_rules 非空:
+   a. 遍历规则 [{type, categoryId, count, score}]:
+      SELECT id FROM exam_questions
+      WHERE status='active' AND type=?
+        AND (categoryId=0 OR category_id IN (分类子树))
+      ORDER BY RAND() LIMIT count
+   b. 每条规则取到 count 题, 题分按规则 score 覆盖题目原 score
+   c. 全部规则题目合并 → 组装 question_snapshot(冻结, 同一 record 复用)
+3. 断线恢复重进: 已有 doing 记录直接返回快照, 不重新抽题(同一考生题目固定)
+4. 不同考生各自抽题 ⇒ 不同卷(防作弊)
+```
+
+### 11. 题目+选项乱序（考卷设置）
+
+```
+组装快照时(rule 1 步骤6 / rule 10):
+1. shuffle_questions=1 → 题目顺序 Fisher-Yates 打乱
+2. shuffle_options=1 或 单题 shuffle_options=1(取或) → 每题 options 数组打乱,
+   同步重排 answer 键(如原 answer='C', 打乱后 C 移到第2位 → 快照 answer 记录实际位置键)
+3. 判分(rule 2) 基于快照内 answer 判定, 乱序不影响正确性
+```
+
+### 12. 成绩展示掩码（考卷设置）
+
+```
+1. result_visibility='immediate'(默认): 交卷后立即返回成绩+逐题详情(现状)
+2. result_visibility='manual':
+   - 交卷仍正常判分落库(score/is_pass 照存)
+   - 员工侧查询(records/my、records/detail、exam/start、exam/list):
+     result_released=0 → 掩码返回 { score:null, isPass:null, details:[] , resultPending:true }
+     未公布时 records/detail 返回 3008
+   - 管理员 POST /papers/release-result { id } → UPDATE exam_papers SET result_released=1
+     之后员工侧可见成绩
+3. admin 端点(records/all/stats/export) 不受掩码限制
+```
+
+### 13. 发布通知 + 一键催考（考卷发放）
+
+```
+1. papers/publish 成功后:
+   SELECT user_id FROM users WHERE 在 scope 范围内(同规则14)
+   → 逐条 INSERT INTO messages (receiver_id, type='exam', title='新考试通知',
+     description='您有新的考试：{title}', content='考试时间/时长/合格线', ...)
+2. papers/remind { id }:
+   未交卷 = 范围内 user 中不存在 (record.status IN ('doing','submitted','timeout','cheated') 且 paper_id=id)
+   → 向这些 user 发站内信'请尽快完成考试 {title}'
+   → 返回 { remindedCount }
+3. 消息发送失败不影响主流程(复用 attendance/trip.service sendMessage 模式, try-catch)
+```
+
+### 14.5 试卷内分组（题目设置，sections）
+
+```
+1. 手动选题模式: Web 选题区可建分组, 题目归入 sections [{name, questionIds}]
+   (未分组题目归"默认"; draw_rules 随机抽题模式下分组按题型自然成组, 不额外配置)
+2. 组装快照时: 每题附带 section 名, question_snapshot 按 sections 顺序排序
+3. 答题端渲染: 按分组顺序显示分组标题 + 组内题目; 判分不受分组影响
+```
+
+### 14. 发放范围扩展校验（考卷发放）
+
+```
+exam/start 规则1 步骤3 扩展:
+  scope_type='all'      → 放行
+  scope_type='department' → user.department_id ∈ scope_departments
+  scope_type='user'      → user.id ∈ scope_users
+  scope_type='role'      → user.role ∈ scope_roles
+```
+
 ### 7. 试卷克隆（修改已发布试卷时）⚠ P0 遗留缺口 G3（未实现）
 
 ```
@@ -123,22 +196,26 @@ POST /exam/exam/save-answers { recordId, answers }
 - 同用户同一试卷同时只存在一条 doing 记录
 - 快速双击开始 → 第二次 INSERT 撞唯一键失败 → 返回已有 doing 记录
 
-> 实施状态:规则 1/2/3/4/6/8 已实现;规则 5(G2)、7(G3)为 P0 遗留缺口,推进阶段补齐。
+> 实施状态:规则 1/2/3/4/6/8 已实现;规则 5(G2)、7(G3)为 P0 遗留缺口,推进阶段补齐;规则 10-14 为 v1.2 问卷星借鉴设计(2026-08-06 新增,未实现)。
 
-## 参加范围校验伪代码
+## 参加范围校验伪代码（含 user/role 扩展）
 
 ```js
 // exam.service.js
 async function checkScope(userId, paper) {
   if (paper.scope_type === 'all') return true;
+  const [user] = await db.query(
+    'SELECT department_id, role FROM users WHERE id = ?', [userId]
+  );
+  const parse = (v) => (typeof v === 'string' ? JSON.parse(v) : v || []);
   if (paper.scope_type === 'department') {
-    const [user] = await db.query(
-      'SELECT department_id FROM users WHERE id = ?', [userId]
-    );
-    const deptIds = typeof paper.scope_departments === 'string'
-      ? JSON.parse(paper.scope_departments)
-      : paper.scope_departments;
-    return deptIds.includes(user.department_id);
+    return parse(paper.scope_departments).includes(user.department_id);
+  }
+  if (paper.scope_type === 'user') {
+    return parse(paper.scope_users).includes(userId);
+  }
+  if (paper.scope_type === 'role') {
+    return parse(paper.scope_roles).includes(user.role);
   }
   return true; // 兼容无 scope 的旧数据
 }

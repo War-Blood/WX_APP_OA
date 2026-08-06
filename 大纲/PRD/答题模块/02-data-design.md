@@ -14,6 +14,7 @@ exam_categories (分类树)        exam_questions (题库)
                                │ analysis         │
                                │ score            │
                                │ score_mode       │
+                               │ shuffle_options  │
                                │ status           │
                                │ created_by       │──► users.id
                                └──────────────────┘
@@ -28,15 +29,20 @@ exam_papers (试卷)              exam_records (考试记录)
 │ total_score      │           │ answers (JSON)       │
 │ max_attempts     │           │ question_snapshot(JSON)│
 │ max_screenshot_warns│        │ score                │
-│ scope_type (all/department)│ │ total_score          │
-│ scope_departments(JSON)    │ │ is_pass              │
-│ question_ids (JSON)│         │ warn_count           │
-│ status (草稿/发布/归档)│     │ server_time          │
-│ version          │           │ start_time           │
-│ created_by       │──► users.id│ end_time             │
-└──────────────────┘           │ status (doing/提交/超时/作弊)│
-                               │ created_at           │
-                               └──────────────────────┘
+│ scope_type(all/dept/user/  │ │ total_score          │
+│   role)                    │ │ is_pass              │
+│ scope_departments(JSON)    │ │ warn_count           │
+│ scope_users (JSON)         │ │ server_time          │
+│ scope_roles (JSON)         │ │ start_time           │
+│ draw_rules(JSON) 抽题规则   │ │ end_time             │
+│ shuffle_questions/options  │ │ status(doing/提交/超时/作弊)│
+│ sections(JSON) 分组        │ │ created_at           │
+│ result_visibility/released │ │                      │
+│ question_ids (JSON)        │ │                      │
+│ status (草稿/发布/归档)    │ │                      │
+│ version                    │ │                      │
+│ created_by       │──► users.id│                      │
+└──────────────────┘           └──────────────────────┘
 ```
 
 ## 完整建表 DDL
@@ -63,6 +69,7 @@ CREATE TABLE exam_questions (
   analysis TEXT COMMENT '解析',
   score INT NOT NULL DEFAULT 2 COMMENT '分值',
   score_mode ENUM('exact','partial') DEFAULT 'exact',
+  shuffle_options TINYINT(1) DEFAULT 0 COMMENT '本题目选项是否随机排列',
   status ENUM('active','disabled') DEFAULT 'active',
   created_by INT UNSIGNED,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -82,8 +89,16 @@ CREATE TABLE exam_papers (
   total_score INT NOT NULL DEFAULT 100,
   max_attempts INT DEFAULT 1 COMMENT '0=无限',
   max_screenshot_warns INT DEFAULT 2,
-  scope_type ENUM('all','department') DEFAULT 'all',
+  scope_type ENUM('all','department','user','role') DEFAULT 'all',
   scope_departments JSON COMMENT '[1,2,3]',
+  scope_users JSON COMMENT '[userId...] 指定用户范围',
+  scope_roles JSON COMMENT '[role...] 指定角色范围',
+  draw_rules JSON COMMENT '随机抽题规则 [{"type":"single","categoryId":0,"count":10,"score":2}] 空=手动选题',
+  shuffle_questions TINYINT(1) DEFAULT 0 COMMENT '题目顺序随机',
+  shuffle_options TINYINT(1) DEFAULT 0 COMMENT '选项顺序随机(与单题开关取或)',
+  sections JSON COMMENT '[{"name":"单选部分","questionIds":[1,2,3]}] 试卷内分组,可选',
+  result_visibility ENUM('immediate','manual') DEFAULT 'immediate' COMMENT '成绩展示:交卷立即/公布后',
+  result_released TINYINT(1) DEFAULT 0 COMMENT 'manual模式下管理员已公布成绩',
   start_time DATETIME COMMENT '考试窗口开始时间(北京时间)',
   end_time DATETIME COMMENT '考试窗口结束时间(到点强制交卷)',
   question_ids JSON NOT NULL,
@@ -149,3 +164,18 @@ CREATE TABLE exam_records (
 - **错题本(P1)**:不新增表,从 `exam_records.answers` + `question_snapshot` 推导 `correct=false` 的题目,关联题库解析展示。
 - **exam_categories**:表已建但无 CRUD,**分类树管理为 P0 遗留缺口**(推进阶段补 API/UI)。
 - **建表待办**:`sql/v3.0_exam.sql` 尚未并入 `init-db.js`,推进阶段需合入标准初始化流程。
+
+## 考卷/题目/发放字段扩展（2026-08-06 问卷星借鉴）
+
+> 全部为新增字段,`question_ids` 保留全量 id 作兼容;现有数据不受影响。推进阶段由 `sql/v3.0_exam.sql` + `init-db.js` 一并迁移。
+
+| 表 | 新增字段 | 说明 |
+|----|---------|------|
+| exam_questions | `shuffle_options` | 每题选项随机开关 |
+| exam_papers | `draw_rules` | 随机抽题规则,非空时忽略手动选题 |
+| exam_papers | `shuffle_questions` / `shuffle_options` | 试卷级乱序开关 |
+| exam_papers | `sections` | 试卷内分组,可选;答题端按分组渲染 |
+| exam_papers | `result_visibility` / `result_released` | 成绩展示控制(立即/公布后) |
+| exam_papers | `scope_users` / `scope_roles` | 发放范围扩展;`scope_type` 扩为四枚举 |
+
+> **设计决策**:①`draw_rules` 非空时开始考试按规则随机抽题并冻结进 `question_snapshot`(同一考生重进复用,不同考生不同卷);②乱序在**组装快照时**执行,判分基于快照内 answer,不受乱序影响;③`manual` 成绩展示仅掩码返回(库内照常判分),`result_released=1` 后对员工可见。
