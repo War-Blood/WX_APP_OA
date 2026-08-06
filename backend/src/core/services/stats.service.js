@@ -164,16 +164,16 @@ async function getUserStats(userId) {
  * @returns {Promise<Object>}
  */
 async function getAllStats() {
-  // 全系统日志总条数（排除公司日报，仅统计审核通过的）
+  // 全系统日志总条数（排除公司日报/请假单，仅统计公出日志审核通过的）
   const totalRows = await db.query(
-    "SELECT COUNT(*) AS cnt FROM daily_reports WHERE report_type != 'office' AND status = 'approved'"
+    "SELECT COUNT(*) AS cnt FROM daily_reports WHERE report_type NOT IN ('office','leave') AND status = 'approved'"
   );
   const totalLogs = totalRows[0].cnt;
 
   // 本月新增条数（仅统计审核通过的）
   const monthRows = await db.query(
     `SELECT COUNT(*) AS cnt FROM daily_reports
-     WHERE report_type != 'office'
+     WHERE report_type NOT IN ('office','leave')
        AND status = 'approved'
        AND MONTH(report_date) = MONTH(CURDATE()) AND YEAR(report_date) = YEAR(CURDATE())`
   );
@@ -225,7 +225,7 @@ async function getProjectStats() {
        SUM(CASE WHEN MONTH(report_date) = MONTH(CURDATE()) AND YEAR(report_date) = YEAR(CURDATE()) THEN 1 ELSE 0 END) AS month,
        0 AS missing
      FROM daily_reports
-     WHERE report_type != 'office'
+     WHERE report_type NOT IN ('office','leave')
        AND status = 'approved'
        AND project IS NOT NULL AND project != ''
      GROUP BY project
@@ -845,7 +845,7 @@ async function getProjectProgress(month) {
          COUNT(DISTINCT report_date) AS day_count
        FROM daily_reports
        WHERE status = 'approved'
-         AND report_type != 'office'
+         AND report_type NOT IN ('office','leave')
          AND project IS NOT NULL AND project != ''
          AND DATE_FORMAT(report_date, '%Y-%m') = ?
        GROUP BY project

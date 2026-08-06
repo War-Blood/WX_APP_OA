@@ -271,12 +271,12 @@ const progressPercent = computed(() => {
 
 // ===== 日志类型 =====
 function getTypeLabel(type) {
-  const map = { biz_trip: '公出日志', biz_trip_supplement: '补公出日志', office: '工作日报' }
+  const map = { biz_trip: '公出日志', biz_trip_supplement: '补公出日志', office: '工作日报', leave: '请假单' }
   return map[type] || type || '日报'
 }
 
 function getTypeBg(type) {
-  const map = { biz_trip: '#EDF2FF', biz_trip_supplement: '#FFF8E1' }
+  const map = { biz_trip: '#EDF2FF', biz_trip_supplement: '#FFF8E1', leave: '#FFEBEE' }
   return map[type] || '#F5F5F5'
 }
 

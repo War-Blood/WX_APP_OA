@@ -43,10 +43,10 @@ async function apply({ applicantId, leaveSubtype, startDate, endDate, reason }) 
 
     return { requestId, days, status: 'active' };
   }).then(async (result) => {
-    // 非事务：自动生成请假公出日志，避免每日标记为"未提交"
+    // 非事务：自动生成请假单日志，避免每日标记为"未提交"
     try {
       await generateLeaveReports(applicantId, startDate, endDate);
-    } catch (e) { /* 公出日志生成失败不影响主流程 */ }
+    } catch (e) { /* 请假单日志生成失败不影响主流程 */ }
     // 发送消息通知
     await sendMessage(applicantId, '请假申请已生效', `${leaveSubtype} · ${startDate} → ${endDate}（${days}天）`, reason || '');
     return result;
@@ -54,7 +54,7 @@ async function apply({ applicantId, leaveSubtype, startDate, endDate, reason }) 
 }
 
 /**
- * 自动生成请假期间的公出日志（today_work_type='请假', report_type='office'）
+ * 自动生成请假期间的请假单日志（today_work_type='请假', report_type='leave'）
  * 避免请假人员在公出统计中被标记为"未提交"
  */
 async function generateLeaveReports(userId, startDate, endDate) {
@@ -72,11 +72,10 @@ async function generateLeaveReports(userId, startDate, endDate) {
   // 补充填写人姓名：取申请人的昵称/姓名写入 workers
   const userRows = await db.query('SELECT nickname, user_name FROM users WHERE id = ?', [userId]);
   const name = userRows.length > 0 ? (userRows[0].nickname || userRows[0].user_name || '') : '';
-  const placeholders = inserts.map(() => '(?,?)').join(',');
   await db.execute(
     `INSERT INTO daily_reports (user_id, report_date, report_type, today_work_type, project, status, workers)
-     VALUES ${inserts.map(() => "(?,?,'office','请假','请假','approved',?)").join(',')}
-     ON DUPLICATE KEY UPDATE today_work_type='请假', report_type='office', workers=VALUES(workers)`,
+     VALUES ${inserts.map(() => "(?,?,'leave','请假','请假','approved',?)").join(',')}
+     ON DUPLICATE KEY UPDATE today_work_type='请假', report_type='leave', workers=VALUES(workers)`,
     inserts.flatMap(([uid, ds]) => [uid, ds, name])
   );
 }
@@ -103,7 +102,7 @@ async function cancel(requestId, applicantId) {
     );
     return { cancelledAt: new Date().toISOString() };
   }).then(async (result) => {
-    // 清除自动生成的请假公出日志
+    // 清除自动生成的请假单日志
     try {
       if (req.start_date && req.end_date) {
         const s = new Date(req.start_date);
@@ -111,7 +110,7 @@ async function cancel(requestId, applicantId) {
         const startStr = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`;
         const endStr = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}`;
         await db.execute(
-          `DELETE FROM daily_reports WHERE user_id = ? AND report_date BETWEEN ? AND ? AND today_work_type = '请假' AND report_type = 'office'`,
+          `DELETE FROM daily_reports WHERE user_id = ? AND report_date BETWEEN ? AND ? AND today_work_type = '请假' AND report_type = 'leave'`,
           [applicantId, startStr, endStr]
         );
       }

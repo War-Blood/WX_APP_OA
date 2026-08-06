@@ -49,7 +49,7 @@ async function list({ startDate, endDate, departmentId, userId, page = 1, pageSi
   const reports = userIds.length > 0 ? await db.query(
     `SELECT user_id, report_date, today_work_type FROM daily_reports
      WHERE user_id IN (${userIds.map(() => '?').join(',')}) AND report_date BETWEEN ? AND ?
-       AND status = 'approved' AND report_type != 'office'`,
+       AND status = 'approved' AND report_type NOT IN ('office','leave')`,
     [...userIds, startDate, endDate]
   ) : [];
   const reportMap = {};
@@ -150,7 +150,7 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
   const reports = personIds.length > 0 ? await db.query(
     `SELECT user_id, report_date, today_work_type, area FROM daily_reports
      WHERE user_id IN (${personIds.map(() => '?').join(',')}) AND report_date BETWEEN ? AND ?
-       AND status = 'approved' AND report_type != 'office'`,
+       AND status = 'approved' AND report_type NOT IN ('office','leave')`,
     [...personIds, startDate, endDate]
   ) : [];
   const reportMap = {};
@@ -342,7 +342,7 @@ async function mySummary({ userId, startDate, endDate }) {
   const reports = await db.query(
     `SELECT report_date, today_work_type, area, work_content FROM daily_reports
      WHERE user_id = ? AND report_date BETWEEN ? AND ?
-       AND status = 'approved' AND report_type != 'office'`,
+       AND status = 'approved' AND report_type NOT IN ('office','leave')`,
     [userId, startDate, endDate]
   );
   const reportMap = {};

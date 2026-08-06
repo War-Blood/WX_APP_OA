@@ -484,7 +484,7 @@ const typeTabs = [
   { key: 'office', label: '工作日报' }
 ]
 
-const workTypes = ['工作（陆）', '工作（海）', '待工', '在途', '请假']
+const workTypes = ['工作（陆）', '工作（海）', '待工', '在途']
 
 // 机型数据：从本地存储加载历史+内置列表
 function loadMachineHistory() {
