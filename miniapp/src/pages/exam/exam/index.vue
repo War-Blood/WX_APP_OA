@@ -17,7 +17,10 @@
         <text>{{ idx + 1 }}/{{ total }}</text>
       </view>
       <view class="card">
-        <view class="q-tag"><text>{{ typeLabel }}</text></view>
+        <view class="q-tag-row">
+          <view class="q-tag"><text>{{ typeLabel }}</text></view>
+          <view v-if="current.section" class="q-section"><text>{{ current.section }}</text></view>
+        </view>
         <text class="q-title">{{ current.title }}</text>
         <view class="options">
           <view v-for="o in current.options" :key="o.key" class="opt" :class="{ selected: isSelected(o.key) }" @tap="selectOption(o.key)">
@@ -73,6 +76,11 @@ async function handleSubmit() {
     uni.hideLoading()
     if (timer) clearInterval(timer)
     const d = res.data
+    // 成绩展示控制: manual 未公布 → 结果页显示等待公布
+    if (d.resultPending) {
+      uni.redirectTo({ url: `/pages/exam/result/index?recordId=${recordId.value}&pending=1` })
+      return
+    }
     uni.redirectTo({ url: `/pages/exam/result/index?recordId=${recordId.value}&score=${d.score}&totalScore=${d.totalScore}&isPass=${d.isPass}` })
   } catch (e) { uni.hideLoading(); showError(e.message || '提交失败') }
 }
@@ -140,7 +148,9 @@ loadExam()
 .error-actions { display: flex; gap: 24rpx; width: 100%; }
 .top-bar { display: flex; justify-content: space-between; padding: 16rpx 24rpx; background: #FFF; font-size: 26rpx; color: #333; font-weight: 600; }
 .card { background: #FFF; margin: 16rpx 24rpx; border-radius: 16rpx; padding: 24rpx; flex: 1; overflow-y: auto; }
-.q-tag { display: inline-block; padding: 4rpx 16rpx; border-radius: 12rpx; font-size: 22rpx; color: #2B6DE8; background: #EDF2FF; margin-bottom: 12rpx; }
+.q-tag-row { display: flex; align-items: center; gap: 12rpx; margin-bottom: 12rpx; }
+.q-tag { display: inline-block; padding: 4rpx 16rpx; border-radius: 12rpx; font-size: 22rpx; color: #2B6DE8; background: #EDF2FF; }
+.q-section { display: inline-block; padding: 4rpx 16rpx; border-radius: 12rpx; font-size: 22rpx; color: #D97706; background: #FEF3C7; }
 .q-title { font-size: 30rpx; font-weight: 600; color: #333; display: block; margin-bottom: 24rpx; line-height: 1.5; }
 .options { display: flex; flex-direction: column; gap: 12rpx; }
 .opt { padding: 20rpx; border-radius: 12rpx; border: 2rpx solid #E4E7ED; font-size: 28rpx; color: #333; }

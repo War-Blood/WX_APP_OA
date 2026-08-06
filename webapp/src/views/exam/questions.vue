@@ -39,6 +39,7 @@
         <el-form-item label="题干"><el-input v-model="form.title" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="分值"><el-input-number v-model="form.score" :min="1" :max="20" /></el-form-item>
         <el-form-item v-if="form.type==='multiple'" label="评分"><el-select v-model="form.scoreMode"><el-option label="全对得分" value="exact" /><el-option label="漏选给分" value="partial" /></el-select></el-form-item>
+        <el-form-item label="选项乱序"><el-switch v-model="form.shuffleOptions" /><span style="margin-left:8px;color:#999">答题时该题选项随机排列</span></el-form-item>
         <el-form-item label="选项">
           <div class="option-editor">
             <div v-for="(option, index) in form.options" :key="option.key" class="option-row">
@@ -126,6 +127,7 @@ const form = reactive<{
   title: string
   score: number
   scoreMode: 'exact' | 'partial'
+  shuffleOptions: boolean
   answer: string
   analysis: string
   options: { key: string; text: string }[]
@@ -135,6 +137,7 @@ const form = reactive<{
   title: '',
   score: 2,
   scoreMode: 'exact',
+  shuffleOptions: false,
   answer: '',
   analysis: '',
   options: [
@@ -190,6 +193,7 @@ function resetForm() {
     title: '',
     score: 2,
     scoreMode: 'exact' as const,
+    shuffleOptions: false,
     answer: '',
     analysis: '',
     options: defaultOptions('single')
@@ -227,6 +231,7 @@ function openEdit(row: QuestionRow) {
     title: row.title,
     score: row.score,
     scoreMode: row.score_mode || 'exact',
+    shuffleOptions: !!row.shuffle_options,
     answer: row.answer,
     analysis: row.analysis || '',
     options: options.length >= 2 ? options : defaultOptions(row.type)

@@ -51,4 +51,20 @@ async function clone(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, create, update, remove, publish, clone };
+async function releaseResult(req, res, next) {
+  try {
+    const { id } = req.body;
+    const result = await paperService.releaseResult(id);
+    res.json(success(result, '成绩已公布'));
+  } catch (err) { next(err); }
+}
+
+async function remind(req, res, next) {
+  try {
+    const { id } = req.body;
+    const result = await paperService.remind(id);
+    res.json(success(result, '已发送催考提醒'));
+  } catch (err) { next(err); }
+}
+
+module.exports = { list, create, update, remove, publish, clone, releaseResult, remind };

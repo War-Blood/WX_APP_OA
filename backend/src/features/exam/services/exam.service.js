@@ -9,18 +9,64 @@ const logger = require('../../../common/utils/logger');
  * 考试流程服务 — 开始/交卷/判分/防作弊
  */
 
+/** Fisher-Yates 洗牌(返回新数组) */
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** 打乱选项顺序并重映射答案键(A/B/C → 新位置字母) */
+function shuffleOptions(options, answer) {
+  const byKey = {};
+  options.forEach(o => { byKey[o.key] = o.text; });
+  const shuffled = shuffleArray(options.map(o => o.key));
+  const newOptions = shuffled.map((k, i) => ({ key: String.fromCharCode(65 + i), text: byKey[k] }));
+  const newAnswer = answer.split(',').map(k => String.fromCharCode(65 + shuffled.indexOf(k))).join(',');
+  return { options: newOptions, answer: newAnswer };
+}
+
+/** 分类子树 id(含自身,递归收集子孙) */
+async function getCategorySubtreeIds(rootId) {
+  const ids = [rootId];
+  const queue = [rootId];
+  while (queue.length) {
+    const pid = queue.shift();
+    const children = await db.query('SELECT id FROM exam_categories WHERE parent_id = ?', [pid]);
+    for (const c of children) { ids.push(c.id); queue.push(c.id); }
+  }
+  return ids;
+}
+
+/** 解析 JSON 字段(string|array → array) */
+function parseArr(v) {
+  if (!v) return [];
+  if (Array.isArray(v)) return v;
+  try { return JSON.parse(v); } catch { return []; }
+}
+
+const TYPE_LABEL = { single: '单选', multiple: '多选', judge: '判断' };
+
 /**
- * 校验参加范围
+ * 校验参加范围(全员/指定部门/指定用户/指定角色)
  */
 async function checkScope(userId, paper) {
   if (paper.scope_type === 'all') return true;
+  const [user] = await db.query('SELECT department_id, role FROM users WHERE id = ?', [userId]);
+  if (!user) return false;
   if (paper.scope_type === 'department') {
-    const [user] = await db.query('SELECT department_id FROM users WHERE id = ?', [userId]);
-    const deptIds = typeof paper.scope_departments === 'string'
-      ? JSON.parse(paper.scope_departments) : paper.scope_departments;
-    return deptIds && deptIds.includes(user.department_id);
+    return parseArr(paper.scope_departments).includes(user.department_id);
   }
-  return true;
+  if (paper.scope_type === 'user') {
+    return parseArr(paper.scope_users).includes(userId);
+  }
+  if (paper.scope_type === 'role') {
+    return parseArr(paper.scope_roles).includes(user.role);
+  }
+  return true; // 兼容无 scope 的旧数据
 }
 
 /**
@@ -28,7 +74,9 @@ async function checkScope(userId, paper) {
  */
 async function examList(userId) {
   const papers = await db.query(
-    `SELECT id, title, description, duration, pass_score, total_score, scope_type, scope_departments, start_time, end_time
+    `SELECT id, title, description, duration, pass_score, total_score, scope_type,
+       scope_departments, scope_users, scope_roles, start_time, end_time,
+       result_visibility, result_released
      FROM exam_papers
      WHERE status = 'published'
        AND (start_time IS NULL OR start_time <= NOW())
@@ -43,14 +91,18 @@ async function examList(userId) {
         'SELECT id, score, status FROM exam_records WHERE user_id = ? AND paper_id = ? AND mode = ? ORDER BY created_at DESC LIMIT 1',
         [userId, p.id, 'exam']
       );
+      // 成绩展示控制: manual 且未公布 → 掩码分数
+      const resultPending = !!record && p.result_visibility === 'manual' && !p.result_released;
       result.push({
         paperId: p.id, title: p.title, description: p.description,
         duration: p.duration, passScore: p.pass_score,
         startTime: p.start_time, endTime: p.end_time,
         recordId: record ? record.id : null,
-        hasSubmitted: !!record, score: record ? record.score : null,
-        isPass: record ? (record.score >= p.pass_score) : null,
+        hasSubmitted: !!record,
+        score: resultPending ? null : (record ? record.score : null),
+        isPass: resultPending ? null : (record && record.score != null ? (record.score >= p.pass_score ? 1 : 0) : null),
         status: record ? record.status : null,
+        resultPending,
       });
     }
   }
@@ -115,18 +167,75 @@ async function startExam(userId, paperId) {
     }
   }
 
-  // 组装快照
-  const questionIds = typeof paper.question_ids === 'string' ? JSON.parse(paper.question_ids) : paper.question_ids;
-  const questions = await db.query(
-    `SELECT id, type, title, options, answer, analysis, score, score_mode FROM exam_questions WHERE id IN (${questionIds.map(() => '?').join(',')})`,
-    questionIds
-  );
+  // 组装快照: 随机抽题(draw_rules) 或 手动选题(question_ids)
+  const drawRules = parseArr(paper.draw_rules);
+  const drawMode = drawRules.length > 0;
+  let questions;
 
-  const snapshot = questions.map(q => ({
-    id: q.id, type: q.type, title: q.title,
-    options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
-    answer: q.answer, analysis: q.analysis, score: q.score, scoreMode: q.score_mode,
-  }));
+  if (drawMode) {
+    const drawn = [];
+    for (const rule of drawRules) {
+      const count = Math.min(Number(rule.count) || 0, 100);
+      if (count <= 0) continue;
+      const conds = ["status = 'active'"];
+      const params = [];
+      if (rule.type) { conds.push('type = ?'); params.push(rule.type); }
+      if (rule.categoryId) {
+        const subtree = await getCategorySubtreeIds(rule.categoryId);
+        conds.push(`category_id IN (${subtree.map(() => '?').join(',')})`);
+        params.push(...subtree);
+      }
+      const rows = await db.query(
+        `SELECT id, type, title, options, answer, analysis, score, score_mode, shuffle_options
+         FROM exam_questions WHERE ${conds.join(' AND ')} ORDER BY RAND() LIMIT ?`,
+        [...params, count]
+      );
+      // 题分按规则 score 覆盖题目原分
+      rows.forEach(q => { if (rule.score) q.score = rule.score; });
+      drawn.push(...rows);
+    }
+    questions = drawn;
+  } else {
+    const questionIds = typeof paper.question_ids === 'string' ? JSON.parse(paper.question_ids) : paper.question_ids;
+    questions = await db.query(
+      `SELECT id, type, title, options, answer, analysis, score, score_mode, shuffle_options
+       FROM exam_questions WHERE id IN (${questionIds.map(() => '?').join(',')})`,
+      questionIds
+    );
+  }
+
+  // 分组映射(手动分组; 抽题模式按题型自动成组)
+  const sections = parseArr(paper.sections);
+  const sectionMap = {};
+  sections.forEach(sec => (sec.questionIds || []).forEach(qid => { sectionMap[qid] = sec.name; }));
+
+  let snapshot = questions.map(q => {
+    let options = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
+    let answer = q.answer;
+    // 选项乱序(试卷级 OR 单题开关) → 打乱并重映射答案键
+    if ((paper.shuffle_options || q.shuffle_options) && Array.isArray(options) && options.length > 1) {
+      const shuffled = shuffleOptions(options, answer);
+      options = shuffled.options;
+      answer = shuffled.answer;
+    }
+    return {
+      id: q.id, type: q.type, title: q.title, options, answer,
+      analysis: q.analysis, score: q.score, scoreMode: q.score_mode,
+      section: sectionMap[q.id] || (drawMode ? (TYPE_LABEL[q.type] || q.type) : null),
+    };
+  });
+
+  // 题目乱序 → 打乱顺序; 有手动分组时按分组顺序稳定排序(组内保持乱序)
+  if (paper.shuffle_questions) snapshot = shuffleArray(snapshot);
+  if (sections.length) {
+    const orderMap = {};
+    sections.forEach((sec, i) => { orderMap[sec.name] = i; });
+    snapshot.sort((a, b) => {
+      const ai = a.section != null ? (orderMap[a.section] != null ? orderMap[a.section] : 99) : 99;
+      const bi = b.section != null ? (orderMap[b.section] != null ? orderMap[b.section] : 99) : 99;
+      return ai - bi;
+    });
+  }
 
   const totalScore = snapshot.reduce((sum, q) => sum + q.score, 0);
 
@@ -164,7 +273,7 @@ async function submitExam(userId, recordId, answers) {
   if (record.status !== 'doing') throw new BusinessError('考试已结束');
 
   // 计时校验
-  const [paper] = await db.query('SELECT duration, pass_score FROM exam_papers WHERE id = ?', [record.paper_id]);
+  const [paper] = await db.query('SELECT duration, pass_score, result_visibility, result_released FROM exam_papers WHERE id = ?', [record.paper_id]);
   const elapsed = (Date.now() - new Date(record.server_time).getTime()) / 60000;
   if (elapsed > paper.duration + 1) {
     await db.execute("UPDATE exam_records SET status = 'timeout', end_time = NOW() WHERE id = ?", [recordId]);
@@ -212,6 +321,11 @@ async function submitExam(userId, recordId, answers) {
   );
 
   logger.info('交卷判分', { module: 'EXAM', userId, recordId, score });
+
+  // 成绩展示控制: manual 且未公布 → 掩码返回(库内照常判分)
+  if (paper.result_visibility === 'manual' && !paper.result_released) {
+    return { score: null, totalScore: record.total_score, isPass: null, details: [], resultPending: true };
+  }
 
   return { score, totalScore: record.total_score, isPass, details };
 }

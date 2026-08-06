@@ -134,6 +134,113 @@ async function main() {
   check('旧卷已归档', oldAfter[0].status === 'archived', `旧卷status=${oldAfter[0].status}`);
   check('版本递增', cloneRes.version === beforeVersion + 1, `${beforeVersion}→${cloneRes.version}`);
 
+  // ===== 10. v1.2 随机抽题(draw_rules) =====
+  console.log('\n[10] v1.2 随机抽题');
+  const [uA] = await db.query('SELECT id FROM users ORDER BY id ASC LIMIT 1');
+  const [uB] = await db.query('SELECT id FROM users WHERE id != ? ORDER BY id ASC LIMIT 1', [uA.id]);
+  const uidA = uA.id, uidB = uB.id;
+  const drawPaper = await paperService.create({
+    title: '__随机抽题卷__', duration: 30, passScore: 60,
+    maxAttempts: 3, scopeType: 'all',
+    drawRules: [
+      { type: 'single', categoryId: 0, count: 5, score: 2 },
+      { type: 'multiple', categoryId: 0, count: 3, score: 4 },
+      { type: 'judge', categoryId: 0, count: 4, score: 2 },
+    ], createdBy: 1,
+  });
+  await paperService.publish(drawPaper.id);
+  const drawA = await examService.startExam(uidA, drawPaper.id);
+  const drawB = await examService.startExam(uidB, drawPaper.id);
+  const cnt = (snap, t) => snap.filter(q => q.type === t).length;
+  check('随机抽题按规则抽题(单5/多3/判4)',
+    cnt(drawA.snapshot, 'single') === 5 && cnt(drawA.snapshot, 'multiple') === 3 && cnt(drawA.snapshot, 'judge') === 4,
+    `单${cnt(drawA.snapshot,'single')}/多${cnt(drawA.snapshot,'multiple')}/判${cnt(drawA.snapshot,'judge')}`);
+  const idsA = drawA.snapshot.map(q => q.id).sort().join(',');
+  const idsB = drawB.snapshot.map(q => q.id).sort().join(',');
+  check('随机抽题: 不同考生题目不同', idsA !== idsB);
+  const drawA2 = await examService.startExam(uidA, drawPaper.id);
+  const idsA2 = drawA2.snapshot.map(q => q.id).sort().join(',');
+  check('随机抽题: 同一考生断线重进快照一致', idsA === idsA2);
+  const [dpRow] = await db.query('SELECT total_score FROM exam_papers WHERE id = ?', [drawPaper.id]);
+  check('随机抽题: total_score 自动=Σ(count×score)', dpRow.total_score === 5 * 2 + 3 * 4 + 4 * 2, `total=${dpRow.total_score}`);
+
+  // ===== 11. v1.2 乱序判分正确性 =====
+  console.log('\n[11] 乱序判分正确性');
+  const someIds = (await db.query('SELECT id FROM exam_questions ORDER BY id ASC LIMIT 12')).map(q => q.id);
+  const shufflePaper = await paperService.create({
+    title: '__乱序卷__', duration: 30, passScore: 60,
+    totalScore: 100, maxAttempts: 3, scopeType: 'all',
+    shuffleQuestions: true, shuffleOptions: true,
+    questionIds: someIds, createdBy: 1,
+  });
+  await paperService.publish(shufflePaper.id);
+  const shExam = await examService.startExam(uidB, shufflePaper.id);
+  const shAnswers = {};
+  shExam.snapshot.forEach(q => { shAnswers[String(q.id)] = q.answer; });
+  const shRes = await examService.submitExam(uidB, shExam.recordId, shAnswers);
+  check('乱序后按快照答案判分满分', shRes.score === shRes.totalScore, `score=${shRes.score}/${shRes.totalScore}`);
+  check('乱序快照 options 结构正常', shExam.snapshot.every(q => Array.isArray(q.options) && q.options.length >= 2));
+
+  // ===== 12. v1.2 成绩展示控制(manual 掩码) =====
+  console.log('\n[12] 成绩展示控制 manual');
+  const manualPaper = await paperService.create({
+    title: '__manual卷__', duration: 30, passScore: 60,
+    totalScore: 100, maxAttempts: 3, scopeType: 'all',
+    resultVisibility: 'manual', questionIds: someIds.slice(0, 5), createdBy: 1,
+  });
+  await paperService.publish(manualPaper.id);
+  const mExam = await examService.startExam(uidA, manualPaper.id);
+  const mAnswers = {};
+  mExam.snapshot.forEach(q => { mAnswers[String(q.id)] = q.answer; });
+  const mRes = await examService.submitExam(uidA, mExam.recordId, mAnswers);
+  check('manual 未公布: 交卷响应掩码', mRes.resultPending === true && mRes.score === null, `pending=${mRes.resultPending}`);
+  let detailDenied = false;
+  try { await recordService.detail(mExam.recordId, uidA); } catch (e) { detailDenied = e.code === 3008 || /未公布/.test(e.message || ''); }
+  check('manual 未公布: detail 抛 3008', detailDenied);
+  const listBefore = await examService.examList(uidA);
+  const manualItem = listBefore.find(x => x.paperId === manualPaper.id);
+  check('manual 未公布: examList 掩码', manualItem && manualItem.resultPending === true && manualItem.score === null);
+  await paperService.releaseResult(manualPaper.id);
+  const mDetailAfter = await recordService.detail(mExam.recordId, uidA);
+  check('manual 公布后: detail 可见满分成绩', mDetailAfter.score === mDetailAfter.totalScore, `score=${mDetailAfter.score}`);
+
+  // ===== 13. v1.2 范围扩展(user/role) =====
+  console.log('\n[13] 范围扩展');
+  const scopeUserPaper = { scope_type: 'user', scope_users: JSON.stringify([uidA]), scope_departments: null, scope_roles: null };
+  check('范围 user: 目标用户在范围内', await examService.checkScope(uidA, scopeUserPaper));
+  check('范围 user: 非目标用户被拒', !(await examService.checkScope(uidB, scopeUserPaper)));
+  const scopeRolePaper = { scope_type: 'role', scope_roles: JSON.stringify(['employee']), scope_departments: null, scope_users: null };
+  const [empU] = await db.query("SELECT id, role FROM users WHERE role = 'employee' ORDER BY id ASC LIMIT 1");
+  const [adminU] = await db.query("SELECT id, role FROM users WHERE role IN ('admin','superadmin') ORDER BY id ASC LIMIT 1");
+  check('范围 role: employee 在范围内', await examService.checkScope(empU.id, scopeRolePaper));
+  check('范围 role: admin 被拒', adminU ? !(await examService.checkScope(adminU.id, scopeRolePaper)) : true);
+
+  // ===== 14. v1.2 发布通知 + 催考 =====
+  console.log('\n[14] 发布通知/催考');
+  await db.execute("DELETE FROM messages WHERE type = 'exam'");
+  const notifyPaper = await paperService.create({
+    title: '__通知卷__', duration: 30, passScore: 60, totalScore: 100,
+    maxAttempts: 3, scopeType: 'all', questionIds: someIds.slice(0, 3), createdBy: 1,
+  });
+  await db.execute('UPDATE exam_papers SET scope_type = ?, scope_users = ? WHERE id = ?', ['user', JSON.stringify([uidA]), notifyPaper.id]);
+  const pubRes = await paperService.publish(notifyPaper.id);
+  const [msgCnt] = await db.query("SELECT COUNT(*) AS cnt FROM messages WHERE type = 'exam' AND (title LIKE '%通知卷%' OR description LIKE '%通知卷%' OR content LIKE '%通知卷%')");
+  check('发布后范围内用户收到站内信', pubRes.notified >= 1 && msgCnt.cnt >= 1, `notified=${pubRes.notified}, msg=${msgCnt.cnt}`);
+  const remind1 = await paperService.remind(notifyPaper.id);
+  check('催考提醒未完成用户(1人)', remind1.remindedCount === 1, `reminded=${remind1.remindedCount}`);
+  const npExam = await examService.startExam(uidA, notifyPaper.id);
+  const npAns = {};
+  npExam.snapshot.forEach(q => { npAns[String(q.id)] = q.answer; });
+  await examService.submitExam(uidA, npExam.recordId, npAns);
+  const remind2 = await paperService.remind(notifyPaper.id);
+  check('完成后催考为 0', remind2.remindedCount === 0, `reminded=${remind2.remindedCount}`);
+
+  // ===== 15. v1.2 导出 CSV =====
+  console.log('\n[15] 导出 CSV');
+  const exp = await recordService.exportRecords({ paperId: tp.id });
+  check('导出含 BOM + 表头', exp.csv.charCodeAt(0) === 0xFEFF && exp.csv.includes('姓名') && exp.csv.includes('部门'), `len=${exp.csv.length}`);
+  check('导出含文件名', !!exp.filename && exp.filename.endsWith('.csv'), exp.filename);
+
   if (typeof db.oaPool?.end === 'function') await db.oaPool.end();
   console.log(`\n==== 测试结果: 通过 ${pass} / 失败 ${fail} ====`);
   process.exit(fail > 0 ? 1 : 0);

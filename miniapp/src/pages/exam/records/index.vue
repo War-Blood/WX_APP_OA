@@ -6,12 +6,13 @@
         <view v-for="item in list" :key="item.id" class="card" @tap="goResult(item)">
           <view class="card-head">
             <text class="c-title">{{ item.paperTitle || (item.mode === 'practice' ? '模拟练习' : '考试') }}</text>
-            <view class="c-tag" :style="{ color: statusColor(item.status) }">{{ statusLabel(item.status) }}</view>
+            <view class="c-tag" :style="{ color: item.resultPending ? '#D97706' : statusColor(item.status) }">{{ item.resultPending ? '待公布' : statusLabel(item.status) }}</view>
           </view>
           <view class="card-body">
             <text class="c-info">{{ fmtDate(item.startTime) }}</text>
             <text class="c-info">{{ item.mode === 'practice' ? '练习' : '考试' }}</text>
-            <text v-if="item.score != null" class="c-info" :style="{ color: item.isPass ? '#22C55E' : '#EF4444', fontWeight: '600' }">{{ item.score }}分</text>
+            <text v-if="item.resultPending" class="c-info" style="color:#D97706">成绩待公布</text>
+            <text v-else-if="item.score != null" class="c-info" :style="{ color: item.isPass ? '#22C55E' : '#EF4444', fontWeight: '600' }">{{ item.score }}分</text>
           </view>
         </view>
       </view>

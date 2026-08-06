@@ -450,6 +450,55 @@ async function initDatabase() {
       }
     }
 
+    // ──── v1.2 答题模块字段扩展(幂等迁移:缺列则 ALTER) ────
+    async function columnExists(conn, table, column) {
+      const [rows] = await conn.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+        [table, column]
+      );
+      return rows[0].cnt > 0;
+    }
+
+    const v12Columns = [
+      ['exam_questions', 'shuffle_options', "`shuffle_options` TINYINT(1) DEFAULT 0 COMMENT '本题目选项是否随机排列'"],
+      ['exam_papers', 'scope_users', "`scope_users` JSON DEFAULT NULL COMMENT '指定用户范围 [userId...]'"],
+      ['exam_papers', 'scope_roles', "`scope_roles` JSON DEFAULT NULL COMMENT '指定角色范围 [role...]'"],
+      ['exam_papers', 'draw_rules', "`draw_rules` JSON DEFAULT NULL COMMENT '随机抽题规则 [{\"type\":\"single\",\"count\":10,\"score\":2}] 空=手动选题'"],
+      ['exam_papers', 'shuffle_questions', "`shuffle_questions` TINYINT(1) DEFAULT 0 COMMENT '题目顺序随机'"],
+      ['exam_papers', 'shuffle_options', "`shuffle_options` TINYINT(1) DEFAULT 0 COMMENT '选项顺序随机(与单题开关取或)'"],
+      ['exam_papers', 'sections', "`sections` JSON DEFAULT NULL COMMENT '试卷内分组 [{\"name\":\"单选部分\",\"questionIds\":[1,2,3]}]'"],
+      ['exam_papers', 'result_visibility', "`result_visibility` ENUM('immediate','manual') DEFAULT 'immediate' COMMENT '成绩展示:交卷立即/公布后'"],
+      ['exam_papers', 'result_released', "`result_released` TINYINT(1) DEFAULT 0 COMMENT 'manual模式下管理员已公布成绩'"],
+    ];
+
+    for (const [table, column, ddl] of v12Columns) {
+      try {
+        if (!(await columnExists(connection, table, column))) {
+          await connection.execute(`ALTER TABLE \`${table}\` ADD COLUMN ${ddl}`);
+          console.log(`  ✅ 迁移 ${table}.${column}`);
+        }
+      } catch (err) {
+        console.error(`  ❌ 迁移 ${table}.${column} 失败: ${err.message}`);
+      }
+    }
+
+    // scope_type 枚举扩展(all/department → 四值),幂等:仅当缺少 'user' 时 MODIFY
+    try {
+      const [st] = await connection.execute(
+        `SELECT COLUMN_TYPE FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = 'exam_papers' AND column_name = 'scope_type'`
+      );
+      if (st[0] && !st[0].COLUMN_TYPE.includes('user')) {
+        await connection.execute(
+          "ALTER TABLE `exam_papers` MODIFY COLUMN `scope_type` ENUM('all','department','user','role') DEFAULT 'all' COMMENT '参加范围类型'"
+        );
+        console.log('  ✅ 迁移 exam_papers.scope_type 四值枚举');
+      }
+    } catch (err) {
+      console.error(`  ❌ 迁移 exam_papers.scope_type 失败: ${err.message}`);
+    }
+
     console.log('✅ 数据库初始化完成！');
   } catch (err) {
     console.error('❌ 数据库初始化失败:', err.message);

@@ -31,6 +31,8 @@ router.post('/papers/update', ...adminAuth, paperController.update);
 router.post('/papers/delete', ...adminAuth, paperController.remove);
 router.post('/papers/publish', ...adminAuth, paperController.publish);
 router.post('/papers/clone', ...adminAuth, paperController.clone);
+router.post('/papers/release-result', ...adminAuth, paperController.releaseResult);
+router.post('/papers/remind', ...adminAuth, paperController.remind);
 
 // ===== 考试（登录用户） =====
 router.post('/exam/list', authenticate, examController.examList);
@@ -48,5 +50,6 @@ router.post('/records/my', authenticate, recordController.myRecords);
 router.post('/records/all', ...adminAuth, recordController.allRecords);
 router.post('/records/stats', ...adminAuth, recordController.stats);
 router.post('/records/detail', authenticate, recordController.detail);
+router.post('/records/export', ...adminAuth, recordController.exportRecords);
 
 module.exports = router;

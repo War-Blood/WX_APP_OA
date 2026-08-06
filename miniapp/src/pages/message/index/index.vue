@@ -63,7 +63,7 @@ const isRefreshing = ref(false)
 const filteredList = computed(() => {
   if (activeTab.value === 'notification') {
     return messageList.value.filter((m) =>
-      ['notification', 'approval', 'report', 'task'].includes(m.type)
+      ['notification', 'approval', 'report', 'task', 'exam'].includes(m.type)
     )
   }
   return messageList.value.filter((m) => m.type === activeTab.value)
@@ -107,6 +107,7 @@ function getIconBg(type) {
   const map = {
     approval: '#EDF2FF', report: '#F0FDF4', system: '#F3E8FF',
     announcement: '#F3E8FF', task: '#FFF3E1', reminder: '#EDF2FF', notification: '#EDF2FF',
+    exam: '#F0FDF4',
   }
   return map[type] || '#F5F5F5'
 }
@@ -117,6 +118,7 @@ function getIconSrc(type) {
     system: '/static/icons/feat-bell.svg', announcement: '/static/icons/feat-bell.svg',
     task: '/static/icons/quick-check.svg', reminder: '/static/icons/feat-clipboard.svg',
     notification: '/static/icons/quick-bell.svg',
+    exam: '/static/icons/quick-check.svg',
   }
   return map[type] || '/static/icons/feat-bell.svg'
 }
@@ -131,6 +133,11 @@ async function goToDetail(item) {
   try {
     if (!item.isRead) { await messageApi.markRead(item.id); item.isRead = true }
   } catch { /* ignore */ }
+  // 考试通知/催考 → 直接跳答题模块考试列表
+  if (item.type === 'exam') {
+    uni.navigateTo({ url: '/pages/exam/index/index' })
+    return
+  }
   uni.navigateTo({ url: `/pages/message/detail?id=${item.id}` })
 }
 </script>

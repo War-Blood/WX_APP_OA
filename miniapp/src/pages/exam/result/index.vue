@@ -2,7 +2,13 @@
   <view class="page">
     <nav-bar title="考试结果" :showBack="true" />
     <scroll-view class="content" scroll-y>
-      <view class="score-area">
+      <view class="score-area" v-if="pending">
+        <text class="score-num">--</text>
+        <text class="score-label"></text>
+        <view class="pass-tag" style="background:#FEF3C7;color:#D97706"><text>⏳ 已交卷 · 待公布</text></view>
+        <view class="stat-card"><text class="stat-label">成绩公布后可查看分数与逐题解析</text></view>
+      </view>
+      <view v-else class="score-area">
         <template v-if="isPractice">
           <text class="score-num">{{ correctCount }}</text>
           <text class="score-label">题正确</text>
@@ -53,6 +59,7 @@ const recordId = ref('')
 const mode = ref('')
 const score = ref(0); const totalScore = ref(0); const isPass = ref(false)
 const elapsed = ref(0); const details = ref([]); const loading = ref(false)
+const pending = ref(false)
 
 const isPractice = computed(() => mode.value === 'practice')
 const correctCount = computed(() => details.value.filter(d => d.correct).length)
@@ -66,6 +73,7 @@ function goRecords() { uni.navigateTo({ url: '/pages/exam/records/index' }) }
 onLoad((q) => {
   recordId.value = q?.recordId || ''
   mode.value = q?.mode || ''
+  pending.value = q?.pending === '1'
   // URL 参数兜底（无 recordId 时）
   score.value = Number(q?.score) || 0
   totalScore.value = Number(q?.totalScore) || 0
@@ -82,7 +90,7 @@ onLoad((q) => {
 })
 
 onMounted(async () => {
-  if (!recordId.value || mode.value === 'practice') return
+  if (!recordId.value || mode.value === 'practice' || pending.value) return
   loading.value = true
   try {
     const res = await examApi.getRecordDetail(recordId.value)
@@ -95,8 +103,10 @@ onMounted(async () => {
     if (d.startTime && d.endTime) {
       elapsed.value = Math.round((new Date(d.endTime) - new Date(d.startTime)) / 1000)
     }
-  } catch {
-    showError('加载详情失败')
+  } catch (e) {
+    // 成绩展示控制:未公布(3008) → 等待公布态;其余报错
+    if (e && e.message && e.message.includes('未公布')) pending.value = true
+    else showError('加载详情失败')
   } finally {
     loading.value = false
   }

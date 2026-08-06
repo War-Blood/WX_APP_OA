@@ -1,10 +1,11 @@
 'use strict';
 
 const db = require('../../../common/config/database');
-const { NotFoundError } = require('../../../common/utils/errors');
+const { NotFoundError, BusinessError } = require('../../../common/utils/errors');
+const { ErrorCode } = require('../../../common/utils/constants');
 
 /**
- * 考试记录服务 — 个人/全员/统计/详情
+ * 考试记录服务 — 个人/全员/统计/详情/导出
  */
 
 async function myRecords(userId, { page = 1, pageSize = 20 }) {
@@ -13,7 +14,8 @@ async function myRecords(userId, { page = 1, pageSize = 20 }) {
     'SELECT COUNT(*) AS total FROM exam_records WHERE user_id = ?', [userId]
   );
   const rows = await db.query(
-    `SELECT r.*, p.title AS paperTitle FROM exam_records r
+    `SELECT r.*, p.title AS paperTitle, p.result_visibility, p.result_released
+     FROM exam_records r
      LEFT JOIN exam_papers p ON r.paper_id = p.id
      WHERE r.user_id = ?
      ORDER BY r.created_at DESC LIMIT ? OFFSET ?`,
@@ -38,10 +40,11 @@ async function allRecords({ keyword, paperId, status, page = 1, pageSize = 20 })
     `SELECT COUNT(*) AS total FROM exam_records r JOIN users u ON r.user_id = u.id ${where}`, params
   );
   const rows = await db.query(
-    `SELECT r.*, p.title AS paperTitle, u.nickname AS userName
+    `SELECT r.*, p.title AS paperTitle, u.nickname AS userName, d.name AS departmentName
      FROM exam_records r
      LEFT JOIN exam_papers p ON r.paper_id = p.id
      JOIN users u ON r.user_id = u.id
+     LEFT JOIN departments d ON u.department_id = d.id AND d.deleted_at IS NULL
      ${where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?`,
     [...params, pageSize, offset]
   );
@@ -81,13 +84,19 @@ async function stats(paperId) {
 }
 
 function formatRow(r) {
+  // 成绩展示控制: manual 且未公布 → 员工侧掩码(admin 端点不带这些字段,自然不过滤)
+  const resultPending = r.result_visibility === 'manual' && !r.result_released;
   return {
     id: r.id, userId: r.user_id, paperId: r.paper_id,
-    paperTitle: r.paperTitle || '', userName: r.userName || '',
-    mode: r.mode, score: r.score, totalScore: r.total_score,
-    isPass: r.is_pass, warnCount: r.warn_count,
+    paperTitle: r.paperTitle || '', userName: r.userName || '', departmentName: r.departmentName || '',
+    mode: r.mode,
+    score: resultPending ? null : r.score,
+    totalScore: r.total_score,
+    isPass: resultPending ? null : r.is_pass,
+    warnCount: r.warn_count,
     startTime: r.start_time, endTime: r.end_time, status: r.status,
     paperVersion: r.paper_version,
+    resultPending,
   };
 }
 
@@ -97,13 +106,18 @@ function formatRow(r) {
  */
 async function detail(recordId, userId) {
   const [record] = await db.query(
-    `SELECT r.*, p.title AS paperTitle, p.pass_score AS passScore
+    `SELECT r.*, p.title AS paperTitle, p.pass_score AS passScore, p.result_visibility, p.result_released
      FROM exam_records r
      LEFT JOIN exam_papers p ON r.paper_id = p.id
      WHERE r.id = ? AND r.user_id = ?`,
     [recordId, userId]
   );
   if (!record) throw new NotFoundError('考试记录不存在');
+
+  // 成绩展示控制: manual 且未公布 → 3008
+  if (record.result_visibility === 'manual' && !record.result_released) {
+    throw new BusinessError('成绩未公布,暂不可查看', null, ErrorCode.EXAM_RESULT_NOT_RELEASED);
+  }
 
   const snapshot = typeof record.question_snapshot === 'string' ? JSON.parse(record.question_snapshot) : record.question_snapshot;
   const answers = typeof record.answers === 'string' ? JSON.parse(record.answers || '{}') : (record.answers || {});
@@ -136,6 +150,7 @@ async function detail(recordId, userId) {
       questionId: q.id, type: q.type, title: q.title,
       options: q.options, userAnswer, rightAnswer: q.answer,
       analysis: q.analysis, correct, earnedPoints, totalPoints: q.score,
+      section: q.section || null,
     };
   });
 
@@ -149,4 +164,49 @@ async function detail(recordId, userId) {
   };
 }
 
-module.exports = { myRecords, allRecords, stats, detail };
+/** CSV 字段转义(逗号/引号/换行) */
+function csvField(v) {
+  const s = String(v == null ? '' : v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+/**
+ * 导出考试成绩 CSV(utf-8 BOM,Excel 可直接打开)
+ */
+async function exportRecords({ paperId, keyword }) {
+  const conditions = [];
+  const params = [];
+  if (paperId) { conditions.push('r.paper_id = ?'); params.push(paperId); }
+  if (keyword) {
+    conditions.push('(u.nickname LIKE ? OR u.user_name LIKE ?)');
+    params.push(`%${keyword}%`, `%${keyword}%`);
+  }
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+
+  const rows = await db.query(
+    `SELECT r.*, p.title AS paperTitle, u.nickname AS userName, d.name AS departmentName
+     FROM exam_records r
+     LEFT JOIN exam_papers p ON r.paper_id = p.id
+     JOIN users u ON r.user_id = u.id
+     LEFT JOIN departments d ON u.department_id = d.id AND d.deleted_at IS NULL
+     ${where} ORDER BY r.created_at DESC`,
+    params
+  );
+
+  const statusMap = { doing: '进行中', submitted: '已提交', timeout: '已超时', cheated: '作弊' };
+  const headers = ['姓名', '部门', '试卷', '分数', '用时(秒)', '状态', '交卷时间'];
+  const lines = rows.map(r => {
+    const elapsed = (r.start_time && r.end_time)
+      ? Math.round((new Date(r.end_time) - new Date(r.start_time)) / 1000)
+      : '';
+    return [
+      csvField(r.userName), csvField(r.departmentName), csvField(r.paperTitle),
+      r.score != null ? r.score : '', elapsed,
+      csvField(statusMap[r.status] || r.status), r.end_time || '',
+    ].join(',');
+  });
+  const csv = '﻿' + [headers.join(','), ...lines].join('\n');
+  return { filename: `exam-records-${new Date().toISOString().slice(0, 10)}.csv`, csv };
+}
+
+module.exports = { myRecords, allRecords, stats, detail, exportRecords };

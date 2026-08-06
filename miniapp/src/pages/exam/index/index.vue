@@ -44,7 +44,10 @@
             <text>⏱ {{ item.duration }}分钟</text>
             <text>🎯 合格线：{{ item.passScore }}分</text>
           </view>
-          <view v-if="item.hasSubmitted" class="exam-result">
+          <view v-if="item.hasSubmitted && item.resultPending" class="exam-result">
+            <text style="color:#D97706">⏳ 成绩待公布</text>
+          </view>
+          <view v-else-if="item.hasSubmitted" class="exam-result">
             <text :style="{ color: item.isPass ? '#22C55E' : '#EF4444' }">{{ item.score }}分 {{ item.isPass ? '✅ 已通过' : '❌ 未通过' }}</text>
           </view>
           <view class="exam-actions">

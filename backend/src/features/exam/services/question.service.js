@@ -34,10 +34,11 @@ async function create(data) {
   if (!data.answer) throw new ValidationError('正确答案不能为空');
 
   const result = await db.execute(
-    `INSERT INTO exam_questions (category_id, type, title, options, answer, analysis, score, score_mode, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+    `INSERT INTO exam_questions (category_id, type, title, options, answer, analysis, score, score_mode, shuffle_options, status, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
     [data.categoryId || null, data.type || 'single', data.title, JSON.stringify(data.options),
-     data.answer, data.analysis || null, data.score || 2, data.scoreMode || 'exact', data.createdBy]
+     data.answer, data.analysis || null, data.score || 2, data.scoreMode || 'exact',
+     data.shuffleOptions ? 1 : 0, data.createdBy]
   );
   return { id: result[0].insertId };
 }
@@ -55,6 +56,7 @@ async function update(id, data) {
   if (data.analysis !== undefined) { updates.push('analysis = ?'); params.push(data.analysis); }
   if (data.score !== undefined) { updates.push('score = ?'); params.push(data.score); }
   if (data.scoreMode !== undefined) { updates.push('score_mode = ?'); params.push(data.scoreMode); }
+  if (data.shuffleOptions !== undefined) { updates.push('shuffle_options = ?'); params.push(data.shuffleOptions ? 1 : 0); }
   if (data.categoryId !== undefined) { updates.push('category_id = ?'); params.push(data.categoryId); }
   if (data.status !== undefined) { updates.push('status = ?'); params.push(data.status); }
 
@@ -90,10 +92,11 @@ async function batchImport(questions, createdBy) {
       if (!validTypes.includes(q.type)) throw new Error(`题型字段无效: ${q.type}`);
 
       await db.execute(
-        `INSERT INTO exam_questions (category_id, type, title, options, answer, analysis, score, score_mode, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO exam_questions (category_id, type, title, options, answer, analysis, score, score_mode, shuffle_options, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [q.categoryId || null, q.type, q.title, JSON.stringify(q.options),
-         q.answer, q.analysis || null, q.score || 2, q.scoreMode || 'exact', createdBy]
+         q.answer, q.analysis || null, q.score || 2, q.scoreMode || 'exact',
+         q.shuffleOptions ? 1 : 0, createdBy]
       );
       success++;
     } catch (e) {
