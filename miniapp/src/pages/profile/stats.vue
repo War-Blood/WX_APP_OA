@@ -270,6 +270,7 @@
             <view class="wt-row wt-head">
               <text class="wt-c wt-name">姓名</text>
               <text class="wt-c wt-val wt-supp">补</text>
+              <text class="wt-c wt-val wt-office">公</text>
               <text v-for="l in wtShort" :key="l" class="wt-c wt-val">{{ l }}</text>
               <text class="wt-c wt-val wt-total">计</text>
             </view>
@@ -277,12 +278,14 @@
             <view class="wt-row wt-summary">
               <text class="wt-c wt-name">汇总</text>
               <text class="wt-c wt-val wt-supp">{{ wtSummary.supplement }}</text>
+              <text class="wt-c wt-val wt-office">{{ wtSummary.office }}</text>
               <text v-for="l in wtLabels" :key="l" class="wt-c wt-val">{{ wtSummary.workTypes[l] || 0 }}</text>
               <text class="wt-c wt-val wt-total">{{ wtSummary.total }}</text>
             </view>
             <view v-for="w in workTypeData" :key="w.userName" class="wt-row" @tap="openDrill(w)">
               <text class="wt-c wt-name">{{ w.userName }}</text>
               <text class="wt-c wt-val wt-supp">{{ w.supplementCount || 0 }}</text>
+              <text class="wt-c wt-val wt-office">{{ w.officeCount || 0 }}</text>
               <text v-for="l in wtLabels" :key="l" class="wt-c wt-val" :style="{ background: wtCellBg(w.workTypes[l], wtMax(l)) }">{{ w.workTypes[l] || 0 }}</text>
               <text class="wt-c wt-val wt-total">{{ w.total }}</text>
             </view>
@@ -493,11 +496,12 @@ function wtMax(k) { return Math.max(1, ...workTypeData.value.map(w => w.workType
 function wtCellBg(v, max) { if (!v) return 'transparent'; const p = v / max; return p <= .25 ? '#E8F5E9' : p <= .5 ? '#A5D6A7' : '#66BB6A' }
 // 汇总行：各列合计 + 补录合计 + 总计
 const wtSummary = computed(() => {
-  const s = { workTypes: {}, supplement: 0, total: 0 }
+  const s = { workTypes: {}, supplement: 0, office: 0, total: 0 }
   wtLabels.forEach(l => { s.workTypes[l] = 0 })
   workTypeData.value.forEach(w => {
     wtLabels.forEach(l => { s.workTypes[l] += w.workTypes[l] || 0 })
     s.supplement += w.supplementCount || 0
+    s.office += w.officeCount || 0
     s.total += w.total || 0
   })
   return s
@@ -835,6 +839,7 @@ onMounted(async () => {
 .wt-c { padding:10rpx 6rpx; font-size:20rpx; text-align:center; display:flex; align-items:center; justify-content:center; }
 .wt-name { width:100rpx; flex-shrink:0; font-weight:500; color:$text-primary; justify-content:flex-start; padding-left:12rpx; }
 .wt-supp { color:#F59E0B; font-weight:600; }
+.wt-office { color:#22C55E; font-weight:600; }
 .wt-val { width:52rpx; flex-shrink:0; border-radius:4rpx; margin:1rpx; }
 .wt-total { font-weight:700; color:$primary-color; }
 .wt-summary { background:#F0F7FF; font-weight:600; }

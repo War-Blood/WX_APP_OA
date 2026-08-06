@@ -46,7 +46,10 @@ async function loadReports() {
     if (startDate.value) params.startDate = startDate.value
     if (endDate.value) params.endDate = endDate.value
     const res = await getReportList(params as Parameters<typeof getReportList>[0])
-    list.value = (res.list || []) as unknown as Record<string, unknown>[]
+    // 防御性过滤：仅展示工作日报（office），兜底旧后端忽略 reportType 返回全量的情况
+    list.value = ((res.list || []) as unknown[]).filter(
+      (r) => (r as Record<string, unknown>).reportType === 'office'
+    ) as unknown as Record<string, unknown>[]
     total.value = res.total || 0
   } catch {
     list.value = []

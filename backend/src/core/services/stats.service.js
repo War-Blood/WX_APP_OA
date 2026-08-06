@@ -884,19 +884,19 @@ async function getProjectProgress(month) {
 /**
  * 人员工作类型分布（当月 pivot 表）
  * @param {string} month - 月份 YYYY-MM
- * @returns {Promise<Object>} { month, workers: [{ userName, workerCode, workTypes, total }] }
+ * @returns {Promise<Object>} { month, workers: [{ userName, workerCode, workTypes, total, supplementCount, officeCount }] }
  */
 async function getWorkerWorkTypes(month) {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
 
-  // 从当月报告反查所有涉及的用户（排除管理员，含离职/非作业人员）
+  // 从当月报告反查所有涉及的用户（排除管理员，含离职/非作业人员；含只填工作日报者）
   const activeWorkers = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
      FROM users u
      INNER JOIN daily_reports dr ON u.id = dr.user_id
-     WHERE dr.status = 'approved' AND dr.report_type != 'office'
+     WHERE dr.status = 'approved'
        AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
        AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')
      UNION
@@ -955,6 +955,19 @@ async function getWorkerWorkTypes(month) {
   );
   const supplementMap = {};
   supplementRows.forEach(r => { supplementMap[r.user_id] = Number(r.cnt); });
+
+  // 当月工作日报（office）的去重天数统计：user_id → 去重天数
+  const officeRows = await db.query(
+    `SELECT user_id, COUNT(DISTINCT report_date) AS cnt
+     FROM daily_reports
+     WHERE status = 'approved' AND report_type = 'office'
+       AND DATE_FORMAT(report_date, '%Y-%m') = ?
+       AND deleted_at IS NULL
+     GROUP BY user_id`,
+    [month]
+  );
+  const officeMap = {};
+  officeRows.forEach(r => { officeMap[r.user_id] = Number(r.cnt); });
 
   // 名字→用户ID 查找表
   const nameToUid = {};
@@ -1036,11 +1049,12 @@ async function getWorkerWorkTypes(month) {
       workTypes: workTypesObj,
       total,
       supplementCount: supplementMap[w.id] || 0,
+      officeCount: officeMap[w.id] || 0,
     };
   });
 
-  // 排除当月0记录的作业人员
-  const filtered = workers.filter(w => w.total > 0);
+  // 排除当月0记录（含无工作类型但填过工作日报的保留）
+  const filtered = workers.filter(w => w.total > 0 || w.officeCount > 0);
   filtered.sort((a, b) => b.total - a.total);
 
   return { month, workers: filtered };

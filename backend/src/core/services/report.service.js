@@ -1256,8 +1256,11 @@ async function exportStatusBoardCSV(month, restDaysInput) {
       // Leave empty when no report (no auto-fill)
       rowData.push(displayDate, displayProject, displayStatus);
 
-      // Overtime: rest day + has report = overtime
-      if (rest && info) { const kid = w._ext ? w.user_name : w.id; overtime[kid] = (overtime[kid] || 0) + 1; }
+      // Overtime: rest day + 工作类日志 = 加班（请假/待工/调休不计入，考勤 PRD 860-881）
+      const OVERTIME_TYPES = new Set(['工作（陆）', '工作（海）', '在途']);
+      const otStatus = String(info ? info.status : '').trim();
+      const otNormalized = (otStatus === '工作' || otStatus === '作业') ? '工作（陆）' : otStatus; // 兼容旧短名
+      if (rest && info && OVERTIME_TYPES.has(otNormalized)) { const kid = w._ext ? w.user_name : w.id; overtime[kid] = (overtime[kid] || 0) + 1; }
     });
 
     const dataRow = ws1.addRow(rowData);

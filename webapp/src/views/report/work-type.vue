@@ -9,13 +9,14 @@ const workTypeList = ref<WorkerWorkTypeItem[]>([])
 const workTypeMonth = ref(currentMonthInBeijing())
 const WT_LABELS = ['工作（陆）','工作（海）','待工','在途','请假']
 
-// 汇总行：各列合计 + 补录合计 + 总计
+// 汇总行：各列合计 + 补录合计 + 工作日报合计 + 总计
 const wtSummary = computed(() => {
-  const s: Record<string, number> = { supplement: 0, total: 0 }
+  const s: Record<string, number> = { supplement: 0, office: 0, total: 0 }
   WT_LABELS.forEach(l => { s[l] = 0 })
   workTypeList.value.forEach(w => {
     WT_LABELS.forEach(l => { s[l] += (w as any).workTypes?.[l] || 0 })
     s.supplement += w.supplementCount || 0
+    s.office += w.officeCount || 0
     s.total += w.total || 0
   })
   return s
@@ -84,6 +85,7 @@ onMounted(loadWorkTypes)
           <tr class="wt-summary">
             <td class="wt-sum-cell wt-sum-name">汇总</td>
             <td class="wt-sum-cell wt-sum-supp">{{ wtSummary.supplement }}</td>
+            <td class="wt-sum-cell wt-sum-office">{{ wtSummary.office }}</td>
             <td v-for="wt in WT_LABELS" :key="wt" class="wt-sum-cell">{{ wtSummary[wt] }}</td>
             <td class="wt-sum-cell wt-sum-total">{{ wtSummary.total }}</td>
           </tr>
@@ -92,6 +94,11 @@ onMounted(loadWorkTypes)
         <el-table-column label="补" width="60" align="center">
           <template #default="{ row }">
             <span class="wt-supp">{{ (row as any).supplementCount || 0 }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="公" width="60" align="center">
+          <template #default="{ row }">
+            <span class="wt-office">{{ (row as WorkerWorkTypeItem).officeCount || 0 }}</span>
           </template>
         </el-table-column>
         <el-table-column v-for="wt in WT_LABELS" :key="wt" :label="wt.replace('工作（','').replace('）','')" width="76" align="center">
@@ -136,11 +143,18 @@ onMounted(loadWorkTypes)
 
   .wt-sum-supp { color: #F59E0B; }
 
+  .wt-sum-office { color: #22C55E; }
+
   .wt-sum-total { color: #2B6DE8; font-weight: 700; }
 }
 
 .wt-supp {
   color: #F59E0B;
+  font-weight: 600;
+}
+
+.wt-office {
+  color: #22C55E;
   font-weight: 600;
 }
 

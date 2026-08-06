@@ -431,6 +431,7 @@ export interface WorkerWorkTypeItem {
   workTypes: Record<string, number>
   total: number
   supplementCount?: number
+  officeCount?: number
 }
 
 export interface WorkerWorkTypesResponse {
