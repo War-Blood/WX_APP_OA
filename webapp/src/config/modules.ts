@@ -92,14 +92,15 @@ export const modules: ModuleConfig[] = [
   {
     key: 'exam',
     icon: 'Edit',
-    title: '考试管理',
+    title: '答题管理',
     path: '/exam',
     roles: ['admin', 'superadmin'],
     children: [
+      { title: '分类管理', path: '/exam/categories' },
       { title: '题库管理', path: '/exam/questions' },
-      { title: '试卷管理', path: '/exam/papers' },
-      { title: '考试记录', path: '/exam/records' },
-      { title: '成绩统计', path: '/exam/stats' },
+      { title: '成绩记录', path: '/exam/records' },
+      { title: '答题统计', path: '/exam/stats' },
+      { title: '答题设置', path: '/exam/settings' },
     ],
   },
   {

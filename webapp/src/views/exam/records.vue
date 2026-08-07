@@ -3,15 +3,17 @@
     <el-card>
       <template #header>
         <div class="toolbar">
-          <span class="title">考试记录</span>
+          <span class="title">成绩记录</span>
           <div class="actions">
             <el-input v-model="keyword" placeholder="搜索考生" clearable style="width:200px" @clear="loadData" @keyup.enter="loadData" />
-            <el-select v-model="filterPaper" placeholder="按试卷" clearable style="width:180px" @change="loadData">
-              <el-option v-for="p in paperOptions" :key="p.id" :label="p.title" :value="p.id" />
+            <el-select v-model="filterCategory" placeholder="按分类" clearable style="width:180px" @change="loadData">
+              <el-option v-for="c in categoryOptions" :key="c.id" :label="c.name" :value="c.id" />
+            </el-select>
+            <el-select v-model="filterMode" placeholder="模式" clearable style="width:130px" @change="loadData">
+              <el-option label="正式考试" value="exam" /><el-option label="模拟考试" value="mock" />
             </el-select>
             <el-select v-model="filterStatus" placeholder="状态" clearable style="width:110px" @change="loadData">
-              <el-option label="已提交" value="submitted" /><el-option label="进行中" value="doing" />
-              <el-option label="已超时" value="timeout" /><el-option label="作弊" value="cheated" />
+              <el-option label="已提交" value="submitted" /><el-option label="进行中" value="doing" /><el-option label="已超时" value="timeout" />
             </el-select>
             <el-button @click="loadData">搜索</el-button>
             <el-button type="primary" @click="handleExport" :loading="exporting">导出</el-button>
@@ -21,38 +23,77 @@
       <el-table :data="tableData" v-loading="loading" stripe>
         <el-table-column prop="userName" label="考生" width="100" />
         <el-table-column prop="departmentName" label="部门" width="110" />
-        <el-table-column prop="paperTitle" label="试卷" min-width="150" />
-        <el-table-column label="模式" width="70"><template #default="{ row }"><el-tag size="small" :type="row.mode==='exam'?'primary':'info'">{{ row.mode==='exam'?'考试':'练习' }}</el-tag></template></el-table-column>
-        <el-table-column label="分数" width="70" align="center"><template #default="{ row }">{{ row.resultPending ? '待公布' : (row.score ?? '-') }}</template></el-table-column>
-        <el-table-column label="合格" width="70" align="center"><template #default="{ row }">{{ row.isPass ? '✅' : row.isPass===0 ? '❌' : '-' }}</template></el-table-column>
-        <el-table-column prop="warnCount" label="截屏" width="60" align="center" />
-        <el-table-column label="状态" width="80"><template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ row.resultPending ? '待公布' : statusLabel(row.status) }}</el-tag></template></el-table-column>
-        <el-table-column label="时间" width="160"><template #default="{ row }">{{ row.startTime?.slice(0,16)?.replace('T',' ') }}</template></el-table-column>
+        <el-table-column prop="categoryName" label="分类" min-width="140" show-overflow-tooltip />
+        <el-table-column label="模式" width="90"><template #default="{ row }"><el-tag size="small" :type="row.mode==='exam'?'primary':'warning'">{{ modeLabel(row.mode) }}</el-tag></template></el-table-column>
+        <el-table-column label="分数" width="90" align="center"><template #default="{ row }">{{ row.score ?? '-' }}/{{ row.totalScore }}</template></el-table-column>
+        <el-table-column prop="useTime" label="用时(秒)" width="90" align="center" />
+        <el-table-column label="状态" width="80"><template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
+        <el-table-column label="交卷时间" width="160"><template #default="{ row }">{{ row.endTime?.slice(0,16)?.replace('T',' ') }}</template></el-table-column>
+        <el-table-column label="操作" width="80" fixed="right"><template #default="{ row }">
+          <el-button size="small" link @click="openDetail(row)">详情</el-button>
+        </template></el-table-column>
       </el-table>
       <el-pagination v-model:current-page="page" :page-size="20" :total="total" layout="total,prev,pager,next" background style="margin-top:16px;justify-content:flex-end" @current-change="loadData" />
     </el-card>
+
+    <!-- 记录详情弹窗 -->
+    <el-dialog v-model="detailVisible" :title="`答题详情：${current?.userName || ''} — ${current?.categoryName || ''}`" width="640px" top="6vh">
+      <template v-if="currentDetail">
+        <el-descriptions :column="3" border size="small">
+          <el-descriptions-item label="得分">{{ currentDetail.score ?? '-' }}/{{ currentDetail.totalScore }}</el-descriptions-item>
+          <el-descriptions-item label="用时">{{ currentDetail.useTime }}秒</el-descriptions-item>
+          <el-descriptions-item label="状态">{{ statusLabel(currentDetail.status) }}</el-descriptions-item>
+        </el-descriptions>
+        <el-divider />
+        <el-collapse>
+          <el-collapse-item v-for="d in currentDetail.details" :key="d.questionId" :name="d.questionId">
+            <template #title>
+              <span :style="{ color: d.correct ? '#16a34a' : '#dc2626' }">{{ d.correct ? '✅' : '❌' }}</span>
+              <span style="margin-left:8px">{{ d.title }}</span>
+            </template>
+            <div>你的答案：<b>{{ d.userAnswer || '未作答' }}</b></div>
+            <div>正确答案：<b>{{ d.rightAnswer }}</b></div>
+            <div v-if="d.analysis">解析：{{ d.analysis }}</div>
+          </el-collapse-item>
+        </el-collapse>
+      </template>
+      <template #footer><el-button @click="detailVisible=false">关闭</el-button></template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { toast } from '@/utils/toast'
-import type { ExamRecord, PaperRow } from '@/api/exam'
-import { getRecordList, getPaperList, exportRecords } from '@/api/exam'
+import type { RecordRow, RecordDetail, ExamCategory } from '@/api/exam'
+import { getRecordList, getRecordDetail, exportRecords, getCategoryList } from '@/api/exam'
 
 const loading = ref(false)
 const exporting = ref(false)
-const tableData = ref<ExamRecord[]>([])
+const tableData = ref<RecordRow[]>([])
 const total = ref(0)
 const page = ref(1)
 const keyword = ref('')
-const filterPaper = ref<number | null>(null)
+const filterCategory = ref<number | null>(null)
+const filterMode = ref<string | null>(null)
 const filterStatus = ref<string | null>(null)
-const paperOptions = ref<PaperRow[]>([])
+const categoryOptions = ref<{ id: number; name: string }[]>([])
 
-const statusType = (s: string): '' | 'success' | 'warning' | 'danger' | 'primary' =>
-  ({ submitted: 'success', doing: 'primary', timeout: 'warning', cheated: 'danger' } as Record<string, '' | 'success' | 'warning' | 'danger' | 'primary'>)[s] || ''
-const statusLabel = (s: string): string => ({ submitted: '已提交', doing: '进行中', timeout: '已超时', cheated: '作弊' })[s] || s
+const detailVisible = ref(false)
+const current = ref<RecordRow | null>(null)
+const currentDetail = ref<RecordDetail | null>(null)
+
+const modeLabel = (s: string): string => ({ practice: '练习', exam: '正式考试', mock: '模拟考试' })[s] || s
+const statusType = (s: string): '' | 'success' | 'warning' | 'primary' =>
+  ({ submitted: 'success', doing: 'primary', timeout: 'warning' } as Record<string, '' | 'success' | 'warning' | 'primary'>)[s] || ''
+const statusLabel = (s: string): string => ({ submitted: '已提交', doing: '进行中', timeout: '已超时' })[s] || s
+
+function flattenCategories(nodes: ExamCategory[], out: { id: number; name: string }[]) {
+  nodes.forEach(n => {
+    out.push({ id: n.id, name: n.path || n.name })
+    if (n.children && n.children.length) flattenCategories(n.children, out)
+  })
+}
 
 async function loadData() {
   loading.value = true
@@ -60,7 +101,8 @@ async function loadData() {
     const res = await getRecordList({
       page: page.value, pageSize: 20,
       keyword: keyword.value || undefined,
-      paperId: filterPaper.value || undefined,
+      categoryId: filterCategory.value || undefined,
+      mode: filterMode.value || undefined,
       status: filterStatus.value || undefined,
     })
     tableData.value = res.list || []
@@ -69,19 +111,26 @@ async function loadData() {
   finally { loading.value = false }
 }
 
-// 导出成绩 CSV(带 BOM,Excel 直接打开)
+async function openDetail(row: RecordRow) {
+  current.value = row
+  detailVisible.value = true
+  try {
+    currentDetail.value = await getRecordDetail(row.id)
+  } catch { toast.error('详情加载失败') }
+}
+
 async function handleExport() {
   exporting.value = true
   try {
     const res = await exportRecords({
-      paperId: filterPaper.value || undefined,
+      categoryId: filterCategory.value || undefined,
       keyword: keyword.value || undefined,
     })
     const blob = new Blob([res.csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = res.filename || 'exam-records.csv'
+    a.download = res.filename || 'answer-records.csv'
     a.click()
     URL.revokeObjectURL(url)
     toast.success('导出成功')
@@ -92,8 +141,9 @@ async function handleExport() {
 onMounted(async () => {
   loadData()
   try {
-    const res = await getPaperList({ pageSize: 99 })
-    paperOptions.value = res.list || []
+    const cats = await getCategoryList()
+    categoryOptions.value = []
+    flattenCategories(cats, categoryOptions.value)
   } catch { /* */ }
 })
 </script>
