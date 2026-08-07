@@ -201,13 +201,13 @@ async function startLearn({ userId, categoryId, type, mode = 'random', count, ba
     return { snapshot };
   }
 
-  // 练习模式: 建临时记录(提交后删除), 快照不含答案
+  // 练习模式: 建临时记录(提交后删除), 库内存完整快照供判分, 返回给客户端的不含答案
   const safeSnapshot = snapshot.map(({ answer, ...q }) => q);
-  const totalScore = safeSnapshot.reduce((s, q) => s + q.score, 0);
+  const totalScore = snapshot.reduce((s, q) => s + q.score, 0);
   const result = await db.execute(
     `INSERT INTO exam_records (user_id, category_id, mode, question_snapshot, total_score, start_time, status)
      VALUES (?, ?, 'practice', ?, ?, NOW(), 'doing')`,
-    [userId, categoryId || 0, JSON.stringify(safeSnapshot), totalScore]
+    [userId, categoryId || 0, JSON.stringify(snapshot), totalScore]
   );
   return { recordId: result[0].insertId, snapshot: safeSnapshot };
 }
@@ -258,10 +258,11 @@ async function startTimed(userId, categoryId, mode) {
     const remainingSeconds = Math.max(0, category.time * 60 - Math.floor(elapsedMs / 1000));
     if (remainingSeconds > 0) {
       const snapshot = typeof existing.question_snapshot === 'string' ? JSON.parse(existing.question_snapshot) : existing.question_snapshot;
+      const safeSnapshot = snapshot.map(({ answer, ...q }) => q);
       const savedAnswers = existing.answers ? (typeof existing.answers === 'string' ? JSON.parse(existing.answers) : existing.answers) : {};
       logger.info('恢复答题', { module: 'ANSWER', userId, categoryId, mode, recordId: existing.id, remainingSeconds });
       return {
-        recordId: existing.id, snapshot, serverTime: existing.server_time, duration: category.time,
+        recordId: existing.id, snapshot: safeSnapshot, serverTime: existing.server_time, duration: category.time,
         remainingSeconds, savedAnswers, resumed: true,
       };
     }
@@ -289,6 +290,7 @@ async function startTimed(userId, categoryId, mode) {
     return { id: q.id, type: q.type, title: q.title, options, answer, analysis: q.analysis, score: q.score, scoreMode: q.score_mode };
   });
   const totalScore = snapshot.reduce((s, q) => s + q.score, 0);
+  const safeSnapshot = snapshot.map(({ answer, ...q }) => q);
 
   const result = await db.execute(
     `INSERT INTO exam_records (user_id, category_id, mode, question_snapshot, total_score, server_time, start_time, status)
@@ -299,7 +301,7 @@ async function startTimed(userId, categoryId, mode) {
   logger.info('开始答题', { module: 'ANSWER', userId, categoryId, mode });
 
   return {
-    recordId: result[0].insertId, snapshot, serverTime: new Date().toISOString(), duration: category.time,
+    recordId: result[0].insertId, snapshot: safeSnapshot, serverTime: new Date().toISOString(), duration: category.time,
     remainingSeconds: category.time * 60, savedAnswers: {}, resumed: false,
   };
 }
@@ -390,5 +392,5 @@ async function scanTimeoutExams() {
 }
 
 module.exports = {
-  startLearn, submitLearn, startTimed, submitTimed, saveProgress, scanTimeoutExams, gradeRecord,
+  startLearn, submitLearn, startTimed, submitTimed, saveProgress, scanTimeoutExams, gradeRecord, gradeSnapshot,
 };
