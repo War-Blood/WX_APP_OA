@@ -535,23 +535,29 @@ async function initDatabase() {
       console.error(`  ❌ 迁移 exam_records.paper_id 失败: ${err.message}`);
     }
 
-    // 2) 试卷模型整体删除（v2.0 无考卷/发放）
+    // 2) 旧版 exam_papers（v1.x 考卷, 含 max_screenshot_warns/result_visibility）→ 删除; v2.1 新建表保留
     try {
-      await connection.execute('DROP TABLE IF EXISTS `exam_papers`');
-      console.log('  ✅ 删除旧表 exam_papers（考卷模型废弃）');
+      const [oldPaper] = await connection.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = 'exam_papers' AND column_name = 'max_screenshot_warns'`
+      );
+      if (oldPaper[0].cnt > 0) {
+        await connection.execute('DROP TABLE IF EXISTS `exam_papers`');
+        console.log('  ✅ 删除旧版 exam_papers（v1.x 考卷, v2.1 重建）');
+      }
     } catch (err) {
-      console.error(`  ❌ 删除 exam_papers 失败: ${err.message}`);
+      console.error(`  ❌ 检查/删除旧 exam_papers 失败: ${err.message}`);
     }
 
-    // 3) 旧 exam_records（含 paper_id）→ 整表重建为 v2.0 schema（DROP 后必须重建, CREATE IF NOT EXISTS 循环早于本步骤）
+    // 3) 旧版 exam_records（v1.x, 含 is_pass/paper_version）→ DROP 后重建 v2.0 schema; v2.1 paper_id 不触发
     try {
       const [oldRecord] = await connection.execute(
         `SELECT COUNT(*) AS cnt FROM information_schema.columns
-         WHERE table_schema = DATABASE() AND table_name = 'exam_records' AND column_name = 'paper_id'`
+         WHERE table_schema = DATABASE() AND table_name = 'exam_records' AND column_name = 'is_pass'`
       );
       if (oldRecord[0].cnt > 0) {
         await connection.execute('DROP TABLE IF EXISTS `exam_records`');
-        console.log('  ✅ 删除旧 exam_records（paper_id schema）');
+        console.log('  ✅ 删除旧版 exam_records（is_pass schema）');
       }
       await connection.execute(
         `CREATE TABLE IF NOT EXISTS \`exam_records\` (
