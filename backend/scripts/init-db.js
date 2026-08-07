@@ -501,7 +501,7 @@ async function initDatabase() {
       console.error(`  ❌ 删除 exam_papers 失败: ${err.message}`);
     }
 
-    // 3) 旧 exam_records（含 paper_id）→ 整表重建为 v2.0 schema（CREATE IF NOT EXISTS 之上）
+    // 3) 旧 exam_records（含 paper_id）→ 整表重建为 v2.0 schema（DROP 后必须重建, CREATE IF NOT EXISTS 循环早于本步骤）
     try {
       const [oldRecord] = await connection.execute(
         `SELECT COUNT(*) AS cnt FROM information_schema.columns
@@ -509,8 +509,32 @@ async function initDatabase() {
       );
       if (oldRecord[0].cnt > 0) {
         await connection.execute('DROP TABLE IF EXISTS `exam_records`');
-        console.log('  ✅ 重建 exam_records（旧 paper_id schema → category_id + mode 三值）');
+        console.log('  ✅ 删除旧 exam_records（paper_id schema）');
       }
+      await connection.execute(
+        `CREATE TABLE IF NOT EXISTS \`exam_records\` (
+          \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+          \`user_id\` INT UNSIGNED NOT NULL COMMENT '用户ID (OA users.id)',
+          \`category_id\` INT UNSIGNED NOT NULL COMMENT '分类ID',
+          \`mode\` ENUM('practice','exam','mock') NOT NULL DEFAULT 'practice' COMMENT '模式: 练习/正式考试/模拟考试',
+          \`answers\` JSON DEFAULT NULL COMMENT '答题结果 {"1":"A"}',
+          \`question_snapshot\` JSON NOT NULL COMMENT '题目快照冻结',
+          \`score\` INT DEFAULT NULL COMMENT '得分',
+          \`total_score\` INT NOT NULL COMMENT '总分',
+          \`use_time\` INT DEFAULT 0 COMMENT '用时(秒)',
+          \`status\` ENUM('doing','submitted','timeout') DEFAULT 'doing' COMMENT '状态',
+          \`server_time\` DATETIME DEFAULT NULL COMMENT '服务器计时基准',
+          \`start_time\` DATETIME NOT NULL COMMENT '开始时间',
+          \`end_time\` DATETIME DEFAULT NULL COMMENT '结束时间',
+          \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+          PRIMARY KEY (\`id\`),
+          KEY \`idx_user\` (\`user_id\`),
+          KEY \`idx_category\` (\`category_id\`),
+          KEY \`idx_status\` (\`status\`),
+          KEY \`idx_start_time\` (\`start_time\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块答题记录表'`
+      );
+      console.log('  ✅ 重建 exam_records（category_id + mode 三值 schema）');
     } catch (err) {
       console.error(`  ❌ 重建 exam_records 失败: ${err.message}`);
     }

@@ -48,7 +48,7 @@ async function create(data) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
     [data.categoryId || null, data.type || 'single', data.title, JSON.stringify(data.options),
       data.answer, data.analysis || null, data.score || 2, data.scoreMode || 'exact',
-      data.shuffleOptions ? 1 : 0, data.createdBy]
+      data.shuffleOptions ? 1 : 0, data.createdBy || null]
   );
   return { id: result[0].insertId };
 }
@@ -123,7 +123,7 @@ async function batchImport(questions, createdBy) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [q.categoryId || null, q.type, q.title, JSON.stringify(q.options),
           q.answer, q.analysis || null, q.score || 2, q.scoreMode || 'exact',
-          q.shuffleOptions ? 1 : 0, createdBy]
+          q.shuffleOptions ? 1 : 0, createdBy || null]
       );
       success++;
     } catch (e) {

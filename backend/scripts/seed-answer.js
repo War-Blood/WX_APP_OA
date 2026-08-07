@@ -12,7 +12,7 @@ const questionService = require('../src/features/exam/services/question.service'
  */
 
 async function seed() {
-  const seedPath = path.join(__dirname, '../sql/exam_seed_low_voltage.json');
+  const seedPath = path.join(__dirname, '../../sql/exam_seed_low_voltage.json');
   const questions = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
 
   // 幂等检查
