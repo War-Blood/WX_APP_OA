@@ -3,72 +3,70 @@
 ## ER 图
 
 ```
-exam_categories (分类树)        exam_questions (题库)
-┌──────────────┐               ┌──────────────────┐
-│ id (PK)      │◄──┐           │ id (PK)          │
-│ parent_id    │   │ 1:N       │ category_id (FK) │──► exam_categories.id
-│ name         │   └───────────│ type (单选/多选/判断)│
-│ path         │               │ title            │
-│ sort_order   │               │ options (JSON)   │
-└──────────────┘               │ answer           │
-                               │ analysis         │
-                               │ score            │
-                               │ score_mode       │
-                               │ shuffle_options  │
-                               │ status           │
-                               │ created_by       │──► users.id
-                               └──────────────────┘
+exam_categories (分类, 支持二级)     exam_questions (题库)
+┌──────────────────┐               ┌──────────────────┐
+│ id (PK)          │◄──┐           │ id (PK)          │
+│ parent_id        │   │ 1:N       │ category_id (FK) │──► exam_categories.id
+│ name             │   └───────────│ type (单选/多选/判断)│
+│ cover            │               │ title            │
+│ question_num     │               │ options (JSON)   │
+│ time             │               │ answer           │
+│ path / sort_order│               │ analysis         │
+└──────────────────┘               │ score / score_mode│
+                                   │ status           │
+                                   │ created_by ──► users.id
+                                   └──────────────────┘
 
-exam_papers (试卷)              exam_records (考试记录)
-┌──────────────────┐           ┌──────────────────────┐
-│ id (PK)          │           │ id (PK)              │
-│ title            │◄──┐       │ user_id (FK)         │──► users.id
-│ description      │   │ 1:N   │ paper_id (FK)        │──► exam_papers.id
-│ duration         │   └───────│ paper_version        │
-│ pass_score       │           │ mode (练习/考试)      │
-│ total_score      │           │ answers (JSON)       │
-│ max_attempts     │           │ question_snapshot(JSON)│
-│ max_screenshot_warns│        │ score                │
-│ scope_type(all/dept/user/  │ │ total_score          │
-│   role)                    │ │ is_pass              │
-│ scope_departments(JSON)    │ │ warn_count           │
-│ scope_users (JSON)         │ │ server_time          │
-│ scope_roles (JSON)         │ │ start_time           │
-│ draw_rules(JSON) 抽题规则   │ │ end_time             │
-│ shuffle_questions/options  │ │ status(doing/提交/超时/作弊)│
-│ sections(JSON) 分组        │ │ created_at           │
-│ result_visibility/released │ │                      │
-│ question_ids (JSON)        │ │                      │
-│ status (草稿/发布/归档)    │ │                      │
-│ version                    │ │                      │
-│ created_by       │──► users.id│                      │
-└──────────────────┘           └──────────────────────┘
+exam_records (答题记录, 复用)         exam_settings (答题设置)
+┌──────────────────────┐           ┌──────────────────┐
+│ id (PK)              │           │ id (PK)          │
+│ user_id (FK)──►users │           │ setting_key (UNIQUE)│
+│ category_id (FK)     │           │ setting_value    │
+│ mode(练习/模拟/考试)  │           │ description      │
+│ answers (JSON)       │           └──────────────────┘
+│ question_snapshot    │
+│ score / total_score  │           exam_wrong_questions (错题)
+│ use_time             │           ┌──────────────────┐
+│ status(doing/提交/超时)│           │ id, user_id      │
+│ server_time/start/end│           │ question_id      │
+└──────────────────────┘           │ wrong_count      │
+                                   └──────────────────┘
+                                   exam_favorites (收藏)
+                                   ┌──────────────────┐
+                                   │ id, user_id      │
+                                   │ question_id      │
+                                   └──────────────────┘
 ```
 
 ## 完整建表 DDL
 
 ```sql
--- 题库分类表
-CREATE TABLE exam_categories (
+-- 1. 分类表（dati questionMenu；v2.0 扩展字段）
+CREATE TABLE IF NOT EXISTS exam_categories (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  parent_id INT UNSIGNED DEFAULT 0 COMMENT '父级ID, 0=顶级',
+  parent_id INT UNSIGNED DEFAULT 0 COMMENT '父级ID, 0=顶级, 支持二级',
   name VARCHAR(50) NOT NULL,
+  cover VARCHAR(500) DEFAULT NULL COMMENT '封面图URL (dati questionMenu.cover)',
+  question_num INT DEFAULT 0 COMMENT '显示题量, 实际按题库统计',
+  time INT DEFAULT 10 COMMENT '建议答题时长(分钟) (dati questionMenu.time)',
   path VARCHAR(200) COMMENT '路径 如 安全/生产安全',
   sort_order INT DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_parent (parent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='题库分类';
 
--- 题库表
-CREATE TABLE exam_questions (
+-- 2. 题库表（dati questions；v1.0 结构已满足，v2.0 保留）
+CREATE TABLE IF NOT EXISTS exam_questions (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   category_id INT UNSIGNED COMMENT '分类ID',
   type ENUM('single','multiple','judge') NOT NULL DEFAULT 'single',
   title TEXT NOT NULL COMMENT '题干',
   options JSON NOT NULL COMMENT '[{"key":"A","text":"..."}]',
-  answer VARCHAR(20) NOT NULL COMMENT '多选逗号分隔',
+  answer VARCHAR(20) NOT NULL COMMENT '多选逗号分隔, 如 B,C',
   analysis TEXT COMMENT '解析',
   score INT NOT NULL DEFAULT 2 COMMENT '分值',
-  score_mode ENUM('exact','partial') DEFAULT 'exact',
+  score_mode ENUM('exact','partial') DEFAULT 'exact' COMMENT '多选判分: 全对/漏选部分分',
   shuffle_options TINYINT(1) DEFAULT 0 COMMENT '本题目选项是否随机排列',
   status ENUM('active','disabled') DEFAULT 'active',
   created_by INT UNSIGNED,
@@ -79,103 +77,91 @@ CREATE TABLE exam_questions (
   INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='考试题库';
 
--- 试卷表
-CREATE TABLE exam_papers (
+-- 3. 答题记录表（dati history；v2.0 重建: 去 paper_id/防作弊字段）
+CREATE TABLE IF NOT EXISTS exam_records (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(200) NOT NULL,
-  description TEXT,
-  duration INT NOT NULL DEFAULT 60 COMMENT '考试时长(分钟)',
-  pass_score INT NOT NULL DEFAULT 60,
-  total_score INT NOT NULL DEFAULT 100,
-  max_attempts INT DEFAULT 1 COMMENT '0=无限',
-  max_screenshot_warns INT DEFAULT 2,
-  scope_type ENUM('all','department','user','role') DEFAULT 'all',
-  scope_departments JSON COMMENT '[1,2,3]',
-  scope_users JSON COMMENT '[userId...] 指定用户范围',
-  scope_roles JSON COMMENT '[role...] 指定角色范围',
-  draw_rules JSON COMMENT '随机抽题规则 [{"type":"single","categoryId":0,"count":10,"score":2}] 空=手动选题',
-  shuffle_questions TINYINT(1) DEFAULT 0 COMMENT '题目顺序随机',
-  shuffle_options TINYINT(1) DEFAULT 0 COMMENT '选项顺序随机(与单题开关取或)',
-  sections JSON COMMENT '[{"name":"单选部分","questionIds":[1,2,3]}] 试卷内分组,可选',
-  result_visibility ENUM('immediate','manual') DEFAULT 'immediate' COMMENT '成绩展示:交卷立即/公布后',
-  result_released TINYINT(1) DEFAULT 0 COMMENT 'manual模式下管理员已公布成绩',
-  start_time DATETIME COMMENT '考试窗口开始时间(北京时间)',
-  end_time DATETIME COMMENT '考试窗口结束时间(到点强制交卷)',
-  question_ids JSON NOT NULL,
-  status ENUM('draft','published','archived') DEFAULT 'draft',
-  version INT DEFAULT 1,
-  created_by INT UNSIGNED,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_status (status),
-  INDEX idx_created_by (created_by)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='考试试卷';
-
--- 考试记录表
-CREATE TABLE exam_records (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id INT UNSIGNED NOT NULL,
-  paper_id INT UNSIGNED NOT NULL,
-  paper_version INT,
-  mode ENUM('practice','exam') NOT NULL DEFAULT 'practice',
-  answers JSON COMMENT '{"1":"A"}',
-  question_snapshot JSON NOT NULL,
+  user_id INT UNSIGNED NOT NULL COMMENT 'OA 用户',
+  category_id INT UNSIGNED NOT NULL COMMENT '分类ID (dati history.menuId)',
+  mode ENUM('practice','exam','mock') NOT NULL DEFAULT 'practice',
+  answers JSON COMMENT '{"1":"A","2":"B,C"}',
+  question_snapshot JSON NOT NULL COMMENT '题目快照冻结',
   score INT DEFAULT NULL,
   total_score INT NOT NULL,
-  is_pass TINYINT(1) DEFAULT NULL,
-  warn_count INT DEFAULT 0,
+  use_time INT DEFAULT 0 COMMENT '用时(秒) (dati history.useTime)',
+  status ENUM('doing','submitted','timeout') DEFAULT 'doing',
   server_time DATETIME COMMENT '服务器计时基准',
   start_time DATETIME NOT NULL,
-  end_time DATETIME,
-  status ENUM('doing','submitted','timeout','cheated') DEFAULT 'doing',
-  UNIQUE KEY uk_user_paper_doing (user_id, paper_id),
+  end_time DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_user (user_id),
-  INDEX idx_paper (paper_id),
+  INDEX idx_category (category_id),
   INDEX idx_status (status),
   INDEX idx_start_time (start_time),
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='考试记录';
+  KEY uk_user_category_doing (user_id, category_id, mode, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='答题记录';
+
+-- 4. 答题设置表（dati setting）
+CREATE TABLE IF NOT EXISTS exam_settings (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  setting_key VARCHAR(50) NOT NULL UNIQUE COMMENT 'use_learn / check_user',
+  setting_value VARCHAR(255) NOT NULL,
+  description VARCHAR(500) DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='答题设置';
+
+-- 5. 错题本（dati 本地 storage 改服务端持久化）
+CREATE TABLE IF NOT EXISTS exam_wrong_questions (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  question_id INT UNSIGNED NOT NULL,
+  wrong_count INT DEFAULT 1,
+  last_wrong_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_question (user_id, question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='错题本';
+
+-- 6. 收藏（dati 本地 storage 改服务端持久化）
+CREATE TABLE IF NOT EXISTS exam_favorites (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  question_id INT UNSIGNED NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_question (user_id, question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='题目收藏';
+
+-- 设置表种子数据
+INSERT IGNORE INTO exam_settings (setting_key, setting_value, description) VALUES
+  ('use_learn', '1', '是否开放练习/背题模式 (1=开 0=关)'),
+  ('check_user', '1', '是否仅登录用户可答题 (OA 恒有用户, 默认开)');
 ```
 
 ## 索引策略
 
 | 表 | 索引 | 用途 |
 |----|------|------|
-| exam_categories | `idx_parent` | 分类树查询（推进阶段补） |
-| exam_questions | `idx_category` | 按分类筛选 |
-| exam_questions | `idx_status` | 只查 active 题目 |
-| exam_papers | `idx_status` | 考试列表只查 published |
-| exam_records | `idx_user` | 查我的考试记录 |
-| exam_records | `idx_paper` | 按试卷统计 |
-| exam_records | `uk_user_paper_doing` | 防并发重复、恢复考试 |
-| exam_records | `idx_start_time` | 定时扫 doing 僵尸记录 |
+| exam_categories | `idx_parent` | 分类树查询 |
+| exam_questions | `idx_category` / `idx_status` | 按分类/启用状态筛选 |
+| exam_records | `idx_user` / `idx_category` / `idx_status` | 我的记录 / 按分类统计 / 超时扫描 |
+| exam_records | `uk_user_category_doing` | 防并发重复开始（同分类同模式仅一条 doing） |
+| exam_settings | `setting_key` (UNIQUE) | 键值读取 |
+| exam_wrong_questions / exam_favorites | `uk_user_question` | 去重 upsert |
 
-## 迁移脚本
+## 迁移说明（v2.0）
 
-```sql
--- 执行路径: mysql -u root -p wx_app_oa < sql/v3.0_exam.sql
--- 或通过 PM2: npm run migrate
--- 待办: 并入 backend/scripts/init-db.js(推进阶段 G 项)
-```
+| 旧表 | 处置 |
+|------|------|
+| exam_categories | **保留数据**，`ALTER` 增加 `cover / question_num / time` 三列 |
+| exam_questions | **保留数据**（低压电工题库种子复用），列结构不变 |
+| exam_papers | **DROP**（试卷模型整体删除） |
+| exam_records | **DROP 重建**（schema 从 paper_id 改为 category_id + mode，去掉防作弊字段） |
+| — | 新增 `exam_settings / exam_wrong_questions / exam_favorites` |
 
-## 设计确认与错题本（2026-08-05 调研后）
+> 执行路径：并入 `backend/scripts/init-db.js`（建表 + 幂等列迁移），生产部署 `npm run migrate` 或重启时 init-db 幂等执行。
 
-- **表结构确认**:4 张表与 GitHub 参考项目(学之思等)同构,且 `question_snapshot` 快照 / `version` 版本字段更优,**无需为对齐参考而改表**。
-- **错题本(P1)**:不新增表,从 `exam_records.answers` + `question_snapshot` 推导 `correct=false` 的题目,关联题库解析展示。
-- **exam_categories**:表已建但无 CRUD,**分类树管理为 P0 遗留缺口**(推进阶段补 API/UI)。
-- **建表待办**:`sql/v3.0_exam.sql` 尚未并入 `init-db.js`,推进阶段需合入标准初始化流程。
+## 设计决策
 
-## 考卷/题目/发放字段扩展（2026-08-06 问卷星借鉴）
-
-> 全部为新增字段,`question_ids` 保留全量 id 作兼容;现有数据不受影响。推进阶段由 `sql/v3.0_exam.sql` + `init-db.js` 一并迁移。
-
-| 表 | 新增字段 | 说明 |
-|----|---------|------|
-| exam_questions | `shuffle_options` | 每题选项随机开关 |
-| exam_papers | `draw_rules` | 随机抽题规则,非空时忽略手动选题 |
-| exam_papers | `shuffle_questions` / `shuffle_options` | 试卷级乱序开关 |
-| exam_papers | `sections` | 试卷内分组,可选;答题端按分组渲染 |
-| exam_papers | `result_visibility` / `result_released` | 成绩展示控制(立即/公布后) |
-| exam_papers | `scope_users` / `scope_roles` | 发放范围扩展;`scope_type` 扩为四枚举 |
-
-> **设计决策**:①`draw_rules` 非空时开始考试按规则随机抽题并冻结进 `question_snapshot`(同一考生重进复用,不同考生不同卷);②乱序在**组装快照时**执行,判分基于快照内 answer,不受乱序影响;③`manual` 成绩展示仅掩码返回(库内照常判分),`result_released=1` 后对员工可见。
+1. **快照冻结**：开始考试/模拟/练习时，把抽到的题目（不含 answer）冻结进 `question_snapshot`，判分基于快照内 answer，改题库不影响进行中的答卷。
+2. **练习记录不持久化**：练习提交后**删除**对应 record（沿用 `需求修改/1.md` 第 1 条决策，避免数据库膨胀）；考试/模拟记录保留。
+3. **错题/收藏走服务端**：答错题在 submit 时 upsert 进 `exam_wrong_questions`，练习（不落记录）也能归集错题。
+4. **二级分类抽题**：按父分类抽题时聚合该分类子树下全部题目（`category_id IN (self + children)`）。

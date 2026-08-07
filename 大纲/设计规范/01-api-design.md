@@ -25,7 +25,7 @@
 ## 路由注册
 
 ```js
-// backend/src/app.js
+// backend/src/app.js —— 答题模块（v2.0 合并 kesixin/dati）
 const examRoutes = require('./features/exam/routes/exam.routes');
 app.use('/api/exam', examRoutes);
 ```
@@ -48,7 +48,7 @@ backend/src/features/<module>/
 | 2200-2299 | Review |
 | 2300-2399 | Worker |
 | 2800-2899 | Attendance |
-| 3000-3099 | Exam |
+| 3000-3099 | 答题模块（ANSWER_*，原 Exam 更名） |
 
 新模块按 `千位递增` 规则分配范围。
 

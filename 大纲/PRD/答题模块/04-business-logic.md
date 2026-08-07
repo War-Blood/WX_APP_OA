@@ -1,222 +1,147 @@
 # 04 — 业务逻辑
 
-## 考试状态机
+## 状态机
 
 ```
-                  ┌─ 开始考试 ──→ [ doing ]
-                  │                  │
-                  │       ┌──────────┼──────────┐
-                  │       ↓          ↓          ↓
-                  │   交卷提交    超时未交    截屏超限
-                  │       │          │          │
-                  │  [submitted] [timeout]  [cheated]
-                  │
-              练习模式 ──→ [ doing ] ──→ [ submitted ] (无超时/无作弊)
+练习 (learn):  不持久化记录（submit 后删除）
+  开始 ──抽题──► 作答 ──提交──► 判分 ──► 成绩/错题归集 ──► 结束(记录删除)
+
+考试/模拟 (exam/mock):  记录持久化
+  start ──► doing ──(save-progress)──► doing
+              │
+              ├── submit ──► submitted ──► 成绩/错题归集
+              └── 超时扫描(每5min) ──► timeout
 ```
 
-## 核心规则
+记录状态 `exam_records.status`：`doing` → `submitted` | `timeout`。
 
-### 1. 进入/恢复考试
+## 业务规则
 
-```
-1. 校验 paper.status = 'published'
-2. 校验考试窗口(北京时间):
-   - start_time 未到 → 拒绝"考试尚未开始"
-   - end_time 已过 → 拒绝"考试已结束"
-3. 校验参加范围:
-   - scope_type = 'all' → 放行
-   - scope_type = 'department' → user.department_id ∈ scope_departments
-4. 断线恢复: 已有 doing 记录且未超时(server_time+duration > now)且未过 end_time
-   → 返回 { recordId, snapshot, serverTime, duration, remainingSeconds, savedAnswers }
-   (不新建记录、不消耗次数;savedAnswers 由 save-answers 保存)
-   若 doing 已超时或已过窗口 → 置 status='timeout',继续走新建流程
-5. 检查 max_attempts:
-   SELECT COUNT(*) FROM exam_records
-   WHERE user_id=? AND paper_id=? AND status IN ('submitted','timeout','cheated')
-   如果已达到 max_attempts → 返回 3006
-6. 组装快照:
-   SELECT * FROM exam_questions WHERE id IN (paper.question_ids)
-   序列化为 question_snapshot JSON（冻结题目数据）
-7. INSERT INTO exam_records (user_id, paper_id, paper_version, mode='exam',
-   question_snapshot, server_time=NOW(), start_time=NOW(), status='doing')
-```
-
-### 2. 交卷判分
+### R1 抽题规则
 
 ```
-1. 校验 record.status = 'doing'
-2. 校验 NOW() < server_time + INTERVAL duration MINUTE（超时拒收）
-3. 遍历 answers，基于 question_snapshot 逐题判分：
-   - single/judge: answer === userAnswer → score, else 0
-   - multiple + exact: userAnswer 完全匹配 answer → score, else 0
-   - multiple + partial:
-     无错误选项且选对了N个 → score × (N / 总正确数)
-     有错误选项 → 0
-4. UPDATE score, is_pass=(score >= paper.pass_score), end_time=NOW(), status='submitted'
+入参: categoryId, mode('order'|'random'|'special'|'type'), type?, count?, backMemorize?
+1. 取分类子树: children = SELECT id FROM exam_categories WHERE parent_id = categoryId
+   题目范围 = category_id IN (categoryId + children)
+2. 候选池 = SELECT * FROM exam_questions
+   WHERE status='active' [AND type=?] [AND category_id IN (...)]
+3. 抽题:
+   - order    → ORDER BY id LIMIT count（顺序）
+   - random   → ORDER BY RAND() LIMIT count（随机，考试/模拟默认）
+   - special  → 按分类子树顺序取题（专项）
+   - type     → 按 type 过滤后 ORDER BY RAND() LIMIT count（题型）
+4. count 缺省 = 分类.question_num（无则 20）；count > 候选池则取全部
+5. 组装快照:
+   - 每题 { id, type, title, options, score, scoreMode }
+   - backMemorize=1（背题模式）→ 额外带 answer；否则 answer 隐藏
+   - 考试/模拟 → 快照写入 exam_records.question_snapshot（判分基于快照内 answer）
+   - 练习 → 快照仅返回到前端，不落库（记录会删除）
+6. shuffle_options=1 的题目 → 选项打乱，answer 键随打乱重映射
 ```
 
-### 3. 模拟练习判分
+### R2 判分规则
 
 ```
-1. 不校验时长
-2. 逐题比对答案，返回对错 + 解析
-3. status 始终 submitted
+对每题:
+- single / judge: userAnswer === answer → 正确
+- multiple:
+  - score_mode='exact'   → 用户选项集合与答案集合完全一致才正确
+  - score_mode='partial' → 全对满分；漏选(无错误项) 得 题分×(选中正确数/总正确数)；有错误项 0 分
+- 未作答 → 0 分
+score = Σ(每题得分)；total_score = Σ(每题满分)
+use_time = 交卷时间 - server_time（秒）
 ```
 
-### 4. 截屏警告
+### R3 超时判定
 
 ```
-1. POST /exam/exam/warn { recordId }
-2. UPDATE warn_count = warn_count + 1
-3. 若 warn_count >= paper.max_screenshot_warns:
-   UPDATE status='cheated', end_time=NOW(), score=0, is_pass=0
-   返回 { forceEnd: true }
+服务端计时基准 server_time = start 时服务器北京时间
+考试/模拟时长 = 分类.time（分钟）
+- submit 时校验: NOW() > DATE_ADD(server_time, INTERVAL time MINUTE) → 强制 timeout，按已答判分
+- 定时任务(每5min): UPDATE exam_records SET status='timeout'
+    WHERE status='doing' AND mode IN ('exam','mock')
+      AND NOW() > DATE_ADD(server_time, INTERVAL (SELECT time FROM exam_categories WHERE id=category_id) MINUTE)
 ```
 
-### 5. 超时自动交卷(已实现)
-
-定时任务（每 5 分钟扫描,exam.task.scanTimeoutExams）：
-```
-1) 个人计时超时:
-UPDATE exam_records SET status='timeout', end_time=NOW()
-WHERE status='doing' AND NOW() > server_time + INTERVAL (
-  SELECT duration FROM exam_papers WHERE id = exam_records.paper_id
-) MINUTE
-2) 考试窗口结束强制交卷:
-UPDATE exam_records r JOIN exam_papers p ON r.paper_id=p.id
-SET r.status='timeout', r.end_time=NOW()
-WHERE r.status='doing' AND r.mode='exam'
-  AND p.end_time IS NOT NULL AND NOW() > p.end_time
-```
-
-### 6. 已发布试卷编辑限制
+### R4 错题归集
 
 ```
-papers/update:
-  if paper.status = 'published' and 请求含 question_ids:
-    → 拒绝 3007 "已发布试卷不可编辑题目"
-  else if paper.status = 'published' and 请求不含 question_ids:
-    → 仅允许更新非题目字段（如 max_attempts, scope, startTime, endTime 等）
+submit 判分后，对 correct=false 的每题:
+INSERT INTO exam_wrong_questions (user_id, question_id, wrong_count)
+VALUES (?, ?, 1)
+ON DUPLICATE KEY UPDATE wrong_count = wrong_count + 1, last_wrong_at = NOW()
+（练习/考试/模拟均归集；背题模式作答不计错题）
 ```
 
-### 9. 保存答题进度(断线续答)
+### R5 排行 SQL
 
 ```
-POST /exam/exam/save-answers { recordId, answers }
-1. 校验 record.status = 'doing' 且属于本人
-2. UPDATE exam_records SET answers = JSON(answers) WHERE id = recordId
-3. 前端在答题变化(防抖 2s)、离开页面(onHide/onUnload)、退出确认时调用;
-   startExam 恢复时从 answers 解析回 savedAnswers
+SELECT user_id, MAX(score) AS best_score, MIN(use_time) AS best_time
+FROM exam_records
+WHERE mode IN ('exam','mock') AND status='submitted' AND category_id=?
+GROUP BY user_id
+ORDER BY best_score DESC, best_time ASC
+LIMIT 50
+-- 关联 users 表展示姓名/部门
 ```
 
-### 10. 随机抽题（考卷设置，2026-08-06 问卷星借鉴）
+### R6 练习记录删除策略（沿用 `需求修改/1.md` 第 1 条）
 
 ```
-1. papers/create|update 时校验: draw_rules 非空 ⇒ question_ids 置空(二者互斥)
-2. exam/start 规则1 组装快照时, 若 paper.draw_rules 非空:
-   a. 遍历规则 [{type, categoryId, count, score}]:
-      SELECT id FROM exam_questions
-      WHERE status='active' AND type=?
-        AND (categoryId=0 OR category_id IN (分类子树))
-      ORDER BY RAND() LIMIT count
-   b. 每条规则取到 count 题, 题分按规则 score 覆盖题目原 score
-   c. 全部规则题目合并 → 组装 question_snapshot(冻结, 同一 record 复用)
-3. 断线恢复重进: 已有 doing 记录直接返回快照, 不重新抽题(同一考生题目固定)
-4. 不同考生各自抽题 ⇒ 不同卷(防作弊)
+submitLearn: 判分 + 错题归集后，DELETE FROM exam_records WHERE id = recordId AND mode='practice'
+→ 练习不产生记录，避免数据库膨胀；考试/模拟记录保留
 ```
 
-### 11. 题目+选项乱序（考卷设置）
+### R7 防并发开始
 
 ```
-组装快照时(rule 1 步骤6 / rule 10):
-1. shuffle_questions=1 → 题目顺序 Fisher-Yates 打乱
-2. shuffle_options=1 或 单题 shuffle_options=1(取或) → 每题 options 数组打乱,
-   同步重排 answer 键(如原 answer='C', 打乱后 C 移到第2位 → 快照 answer 记录实际位置键)
-3. 判分(rule 2) 基于快照内 answer 判定, 乱序不影响正确性
+startExam / startMock: 唯一键 uk_user_category_doing(user_id, category_id, mode, status='doing')
+  已有 doing → 断线恢复（返回 remainingSeconds + savedAnswers）
+  无 → 新建记录（唯一键防并发重复插入）
 ```
 
-### 12. 成绩展示掩码（考卷设置）
+### R8 断线续答
 
 ```
-1. result_visibility='immediate'(默认): 交卷后立即返回成绩+逐题详情(现状)
-2. result_visibility='manual':
-   - 交卷仍正常判分落库(score/is_pass 照存)
-   - 员工侧查询(records/my、records/detail、exam/start、exam/list):
-     result_released=0 → 掩码返回 { score:null, isPass:null, details:[] , resultPending:true }
-     未公布时 records/detail 返回 3008
-   - 管理员 POST /papers/release-result { id } → UPDATE exam_papers SET result_released=1
-     之后员工侧可见成绩
-3. admin 端点(records/all/stats/export) 不受掩码限制
+save-progress { recordId, answers }:
+  校验 record.status='doing' 且属于本人 → UPDATE answers
+前端在答题变化(防抖 2s)、onHide/onUnload、退出确认时调用；startExam 恢复时从 answers 解析回 savedAnswers
 ```
 
-### 13. 发布通知 + 一键催考（考卷发放）
-
-```
-1. papers/publish 成功后:
-   SELECT user_id FROM users WHERE 在 scope 范围内(同规则14)
-   → 逐条 INSERT INTO messages (receiver_id, type='exam', title='新考试通知',
-     description='您有新的考试：{title}', content='考试时间/时长/合格线', ...)
-2. papers/remind { id }:
-   未交卷 = 范围内 user 中不存在 (record.status IN ('doing','submitted','timeout','cheated') 且 paper_id=id)
-   → 向这些 user 发站内信'请尽快完成考试 {title}'
-   → 返回 { remindedCount }
-3. 消息发送失败不影响主流程(复用 attendance/trip.service sendMessage 模式, try-catch)
-```
-
-### 14.5 试卷内分组（题目设置，sections）
-
-```
-1. 手动选题模式: Web 选题区可建分组, 题目归入 sections [{name, questionIds}]
-   (未分组题目归"默认"; draw_rules 随机抽题模式下分组按题型自然成组, 不额外配置)
-2. 组装快照时: 每题附带 section 名, question_snapshot 按 sections 顺序排序
-3. 答题端渲染: 按分组顺序显示分组标题 + 组内题目; 判分不受分组影响
-```
-
-### 14. 发放范围扩展校验（考卷发放）
-
-```
-exam/start 规则1 步骤3 扩展:
-  scope_type='all'      → 放行
-  scope_type='department' → user.department_id ∈ scope_departments
-  scope_type='user'      → user.id ∈ scope_users
-  scope_type='role'      → user.role ∈ scope_roles
-```
-
-### 7. 试卷克隆（修改已发布试卷时）⚠ P0 遗留缺口 G3（未实现）
-
-```
-若需修改已发布试卷的题目:
-1. 将旧卷 status='archived'
-2. 创建新卷: { ...same fields, version=old.version+1, status='draft', question_ids: new_ids }
-```
-
-### 8. 防并发重复答题
-
-由 `exam_records.uk_user_paper_doing` 唯一键 + 开始考试前的僵尸清理（规则1 步骤3）共同保证：
-- 同用户同一试卷同时只存在一条 doing 记录
-- 快速双击开始 → 第二次 INSERT 撞唯一键失败 → 返回已有 doing 记录
-
-> 实施状态:规则 1/2/3/4/6/8 已实现;规则 5(G2)、7(G3)为 P0 遗留缺口,推进阶段补齐;规则 10-14 为 v1.2 问卷星借鉴设计(2026-08-06 新增,未实现)。
-
-## 参加范围校验伪代码（含 user/role 扩展）
+## 伪代码（exam.service 核心）
 
 ```js
-// exam.service.js
-async function checkScope(userId, paper) {
-  if (paper.scope_type === 'all') return true;
-  const [user] = await db.query(
-    'SELECT department_id, role FROM users WHERE id = ?', [userId]
-  );
-  const parse = (v) => (typeof v === 'string' ? JSON.parse(v) : v || []);
-  if (paper.scope_type === 'department') {
-    return parse(paper.scope_departments).includes(user.department_id);
+// 开始正式考试
+async function startExam(userId, { categoryId }) {
+  const category = await getCategory(categoryId);          // 不存在 → 3001
+  const existing = await findDoing(userId, categoryId, 'exam');
+  if (existing) {
+    // 断线恢复: 不新建记录, 返回已冻结快照 + 剩余时间 + 已答
+    return { recordId: existing.id, snapshot: existing.snapshot,
+             remainingSeconds, savedAnswers: existing.answers };
   }
-  if (paper.scope_type === 'user') {
-    return parse(paper.scope_users).includes(userId);
-  }
-  if (paper.scope_type === 'role') {
-    return parse(paper.scope_roles).includes(user.role);
-  }
-  return true; // 兼容无 scope 的旧数据
+  const questions = await drawQuestions(categoryId, category.question_num, 'random');
+  const snapshot = freeze(questions, { includeAnswer: false });
+  const recordId = await insertRecord(userId, categoryId, 'exam', snapshot, { serverTime: now() });
+  return { recordId, snapshot, duration: category.time, serverTime: now() };
+}
+
+// 交卷
+async function submitExam(userId, recordId, answers) {
+  const record = await getRecord(recordId);                // 校验归属 user_id
+  if (record.status !== 'doing') return { ...已有结果 };    // 防重复交卷
+  const details = await grade(record.question_snapshot, answers);
+  const timeout = now() > dateAdd(record.server_time, category.time);
+  const status = timeout ? 'timeout' : 'submitted';
+  await upsertWrongQuestions(userId, details.filter(d => !d.correct));
+  await updateRecord(recordId, { score, totalScore, useTime, status, endTime: now() });
+  return { recordId, score, totalScore, details };
 }
 ```
+
+## 关键实现约定
+
+- 时间统一用项目 `beijingDate` 工具（UTC+8），入库 `DATETIME`。
+- SQL 全部参数化（mysql2 prepared statements），禁止拼接。
+- 控制器 Joi 校验：`categoryId` 必填 int、`answers` 为对象、`count` 1-200、`mode` 枚举。
+- 权限：分类/题库 CRUD、全员记录、导出、统计、设置更新 → `[authenticate, requireRole('admin','superadmin')]`；其余 `authenticate`。
