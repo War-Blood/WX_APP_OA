@@ -119,6 +119,74 @@ export interface SettingRow {
   value: string
 }
 
+export interface DrawRule {
+  type: 'single' | 'multiple' | 'judge'
+  categoryId: number
+  count: number
+  score: number
+}
+
+export interface PaperRow {
+  id: number
+  title: string
+  description?: string
+  duration: number
+  pass_score: number
+  total_score: number
+  max_attempts?: number
+  scope_type?: 'all' | 'department' | 'user' | 'role'
+  scope_departments?: number[] | string
+  scope_users?: number[] | string
+  scope_roles?: string[] | string
+  draw_rules?: DrawRule[] | string
+  shuffle_questions?: number
+  shuffle_options?: number
+  question_ids?: number[] | string
+  start_time?: string
+  end_time?: string
+  status?: string
+  version?: number
+}
+
+export interface Paper {
+  id?: number
+  title: string
+  description?: string
+  duration: number
+  passScore: number
+  totalScore: number
+  maxAttempts?: number
+  scopeType?: 'all' | 'department' | 'user' | 'role'
+  scopeDepartments?: number[]
+  scopeUsers?: number[]
+  scopeRoles?: string[]
+  drawRules?: DrawRule[]
+  shuffleQuestions?: boolean
+  shuffleOptions?: boolean
+  questionIds: number[]
+  startTime?: string
+  endTime?: string
+}
+
+export interface AvailablePaper {
+  paperId: number
+  title: string
+  description?: string
+  duration: number
+  passScore: number
+  totalScore: number
+  maxAttempts: number
+  startTime?: string
+  endTime?: string
+  attemptsUsed: number
+  attemptsLimit: number
+  canTake: boolean
+  recordId?: number | null
+  myStatus?: string | null
+  myScore?: number | null
+  myPass?: number | null
+}
+
 // ===== 分类 =====
 export function getCategoryList(): Promise<ExamCategory[]> {
   return request.post('/exam/categories/list')
@@ -161,3 +229,12 @@ export function getStatsOverview(params: { categoryId?: number } = {}): Promise<
 // ===== 答题设置 =====
 export function getSettings(): Promise<Record<string, string>> { return request.post('/exam/settings/get') }
 export function updateSettings(settings: SettingRow[]): Promise<{ updated: boolean }> { return request.post('/exam/settings/update', { settings }) }
+
+// ===== 试卷（企业内部考核） =====
+export function getPaperList(params: { page?: number; pageSize?: number; status?: string }): Promise<PagedResult<PaperRow>> {
+  return request.post('/exam/papers/list', params)
+}
+export function createPaper(data: Paper): Promise<{ id: number }> { return request.post('/exam/papers/create', data) }
+export function updatePaper(data: Partial<Paper> & { id: number }): Promise<{ updated: boolean }> { return request.post('/exam/papers/update', data) }
+export function deletePaper(id: number): Promise<{ deleted: boolean }> { return request.post('/exam/papers/delete', { id }) }
+export function publishPaper(id: number): Promise<{ published: boolean }> { return request.post('/exam/papers/publish', { id }) }

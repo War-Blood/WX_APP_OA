@@ -223,6 +223,12 @@ const router = createRouter({
               meta: { title: '题库管理' }
             },
             {
+              path: 'papers',
+              name: 'ExamPapers',
+              component: () => import('@/views/exam/papers.vue'),
+              meta: { title: '试卷管理' }
+            },
+            {
               path: 'records',
               name: 'ExamRecords',
               component: () => import('@/views/exam/records.vue'),
