@@ -9,6 +9,7 @@ const db = require('../src/common/config/database');
 const categoryService = require('../src/features/exam/services/category.service');
 const questionService = require('../src/features/exam/services/question.service');
 const examService = require('../src/features/exam/services/exam.service');
+const paperService = require('../src/features/exam/services/paper.service');
 const recordService = require('../src/features/exam/services/record.service');
 const rankService = require('../src/features/exam/services/rank.service');
 const wrongService = require('../src/features/exam/services/wrong.service');
@@ -83,6 +84,31 @@ async function main() {
   const examRes = await examService.submitTimed(userId, exam.recordId, answers3, 'exam');
   check('考试交卷', examRes.status === 'submitted');
 
+  // 5.5 试卷制正式考试(企业内部考核 P0)
+  console.log('\n[5.5] 试卷制考试');
+  const { id: paperId } = await paperService.create({
+    title: '__test_paper', duration: 10, passScore: 60, maxAttempts: 2,
+    scopeType: 'all', questionIds: [q1.id, q2.id, q3.id], createdBy: userId,
+  });
+  await paperService.publish(paperId);
+  const availableList = await paperService.available(userId);
+  check('可参加列表含试卷', availableList.some(p => p.paperId === paperId && p.canTake === true));
+  const paperExam = await examService.startPaperExam(userId, paperId);
+  check('按卷开始考试', paperExam.snapshot.length === 3 && paperExam.duration === 10);
+  const paperAnswers = {};
+  paperExam.snapshot.forEach((q) => { paperAnswers[q.id] = q.options[0].key; });
+  const paperRes = await examService.submitTimed(userId, paperExam.recordId, paperAnswers, 'exam');
+  check('按卷交卷判分', paperRes.status === 'submitted' && paperRes.score >= 0);
+  const p2 = await examService.startPaperExam(userId, paperId);
+  const p2Res = await examService.submitTimed(userId, p2.recordId, paperAnswers, 'exam');
+  check('第二次可考(次数内)', p2Res.status === 'submitted');
+  try {
+    await examService.startPaperExam(userId, paperId);
+    check('第三次达上限被拒', false);
+  } catch (e) {
+    check('第三次达上限被拒', true);
+  }
+
   // 6. 记录/详情/排行
   console.log('\n[6] 记录/排行');
   const my = await recordService.myRecords(userId, { page: 1, pageSize: 10 });
@@ -122,6 +148,10 @@ async function main() {
   await db.execute('DELETE FROM exam_questions WHERE category_id IN (?, ?)', [catId, catChildId]);
   await db.execute('DELETE FROM exam_categories WHERE id IN (?, ?)', [catChildId, catId]);
   await db.execute("DELETE FROM exam_wrong_questions WHERE user_id = ? AND question_id IN (?, ?, ?)", [userId, q1.id, q2.id, q3.id]);
+  if (paperId) {
+    await db.execute('DELETE FROM exam_records WHERE paper_id = ?', [paperId]);
+    await db.execute('DELETE FROM exam_papers WHERE id = ?', [paperId]);
+  }
   console.log('  ✅ 测试数据已清理');
 
   console.log(`\n结果: ${passCount} 通过, ${failCount} 失败`);

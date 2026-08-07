@@ -4,6 +4,7 @@ const db = require('../../../common/config/database');
 const { BusinessError, NotFoundError } = require('../../../common/utils/errors');
 const { ErrorCode } = require('../../../common/utils/constants');
 const logger = require('../../../common/utils/logger');
+const paperService = require('./paper.service');
 
 /**
  * 答题流程服务 — 练习/模拟/正式考试 抽题+判分+错题归集+断线续答+超时扫描
@@ -307,6 +308,133 @@ async function startTimed(userId, categoryId, mode) {
 }
 
 /**
+ * 解析 JSON 字段(string|array → array/对象)
+ * @param {*} v - 原值
+ * @returns {*} 解析后值
+ */
+function parseJson(v) {
+  if (typeof v === 'string') { try { return JSON.parse(v); } catch (e) { return v; } }
+  return v;
+}
+
+/**
+ * 开始试卷制正式考试（企业内部考核）: 发布/窗口/范围/次数/断线恢复/随机抽题+乱序
+ * @param {number} userId - 用户ID
+ * @param {number} paperId - 试卷ID
+ * @returns {Promise<Object>} 开始/恢复结果
+ */
+async function startPaperExam(userId, paperId) {
+  const [paper] = await db.query('SELECT * FROM exam_papers WHERE id = ?', [paperId]);
+  if (!paper) throw new BusinessError('试卷不存在', null, ErrorCode.ANSWER_PAPER_NOT_FOUND);
+  if (paper.status !== 'published') throw new BusinessError('试卷未发布', null, ErrorCode.ANSWER_PAPER_NOT_PUBLISHED);
+
+  const now = Date.now();
+  if (paper.start_time && now < new Date(paper.start_time).getTime()) {
+    throw new BusinessError('考试尚未开始', null, ErrorCode.ANSWER_NOT_IN_WINDOW);
+  }
+  if (paper.end_time && now >= new Date(paper.end_time).getTime()) {
+    throw new BusinessError('考试已结束', null, ErrorCode.ANSWER_NOT_IN_WINDOW);
+  }
+  if (!(await paperService.checkScope(userId, paper))) {
+    throw new BusinessError('您不在本次考试参加范围内', null, ErrorCode.ANSWER_SCOPE_DENIED);
+  }
+
+  // 断线恢复: 已有 doing 不新建、不计次
+  const [existing] = await db.query(
+    "SELECT * FROM exam_records WHERE user_id = ? AND paper_id = ? AND mode = 'exam' AND status = 'doing' ORDER BY id DESC LIMIT 1",
+    [userId, paperId]
+  );
+  if (existing) {
+    const elapsedMs = now - new Date(existing.server_time).getTime();
+    const remainingSeconds = Math.max(0, paper.duration * 60 - Math.floor(elapsedMs / 1000));
+    if (remainingSeconds > 0) {
+      const snapshot = parseJson(existing.question_snapshot);
+      const safeSnapshot = snapshot.map(({ answer, ...q }) => q);
+      const savedAnswers = existing.answers ? parseJson(existing.answers) : {};
+      logger.info('恢复考试', { module: 'ANSWER', userId, paperId, recordId: existing.id, remainingSeconds });
+      return {
+        recordId: existing.id, snapshot: safeSnapshot, serverTime: existing.server_time, duration: paper.duration,
+        remainingSeconds, savedAnswers, resumed: true,
+      };
+    }
+    await db.execute("UPDATE exam_records SET status = 'timeout', end_time = NOW() WHERE id = ?", [existing.id]);
+  }
+
+  // 次数限制(已提交/超时计次; 断线恢复不计)
+  if (paper.max_attempts > 0) {
+    const [count] = await db.query(
+      "SELECT COUNT(*) AS cnt FROM exam_records WHERE user_id = ? AND paper_id = ? AND status IN ('submitted','timeout')",
+      [userId, paperId]
+    );
+    if (count.cnt >= paper.max_attempts) {
+      throw new BusinessError('已达最大考试次数', null, ErrorCode.ANSWER_MAX_ATTEMPTS);
+    }
+  }
+
+  // 组卷: draw_rules(随机) 或 question_ids(手动选题)
+  const drawRules = parseArr(paper.draw_rules);
+  let questions;
+  if (drawRules.length) {
+    const drawn = [];
+    for (const rule of drawRules) {
+      const count = Math.min(Number(rule.count) || 0, 200);
+      if (count <= 0) continue;
+      const conds = ["status = 'active'"];
+      const params = [];
+      if (rule.type) { conds.push('type = ?'); params.push(rule.type); }
+      if (rule.categoryId) {
+        const subtree = await getCategorySubtreeIds(rule.categoryId);
+        conds.push(`category_id IN (${subtree.map(() => '?').join(',')})`);
+        params.push(...subtree);
+      }
+      const rows = await db.query(
+        `SELECT id, type, title, options, answer, analysis, score, score_mode, shuffle_options FROM exam_questions WHERE ${conds.join(' AND ')} ORDER BY RAND() LIMIT ?`,
+        [...params, count]
+      );
+      rows.forEach((q) => { if (rule.score) q.score = rule.score; });
+      drawn.push(...rows);
+    }
+    questions = drawn;
+  } else {
+    const ids = parseArr(paper.question_ids);
+    if (!ids.length) throw new BusinessError('试卷未配置题目', null, ErrorCode.ANSWER_PAPER_NOT_PUBLISHED);
+    questions = await db.query(
+      `SELECT id, type, title, options, answer, analysis, score, score_mode, shuffle_options FROM exam_questions WHERE id IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+  }
+
+  // 组装快照(含答案供判分) + 选项/题目乱序
+  let snapshot = questions.map((q) => {
+    let options = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
+    let answer = q.answer;
+    if ((paper.shuffle_options || q.shuffle_options) && Array.isArray(options) && options.length > 1) {
+      const shuffled = shuffleOptions(options, answer);
+      options = shuffled.options;
+      answer = shuffled.answer;
+    }
+    return { id: q.id, type: q.type, title: q.title, options, answer, analysis: q.analysis, score: q.score, scoreMode: q.score_mode };
+  });
+  if (paper.shuffle_questions) snapshot = shuffleArray(snapshot);
+
+  const totalScore = snapshot.reduce((s, q) => s + q.score, 0);
+  const safeSnapshot = snapshot.map(({ answer, ...q }) => q);
+
+  const result = await db.execute(
+    `INSERT INTO exam_records (user_id, paper_id, category_id, mode, question_snapshot, total_score, server_time, start_time, status)
+     VALUES (?, ?, 0, 'exam', ?, ?, NOW(), NOW(), 'doing')`,
+    [userId, paperId, JSON.stringify(snapshot), totalScore]
+  );
+
+  logger.info('开始考试', { module: 'ANSWER', userId, paperId });
+
+  return {
+    recordId: result[0].insertId, snapshot: safeSnapshot, serverTime: new Date().toISOString(), duration: paper.duration,
+    remainingSeconds: paper.duration * 60, savedAnswers: {}, resumed: false,
+  };
+}
+
+/**
  * 保存答题进度(断线续答)
  * @param {number} userId - 用户ID
  * @param {number} recordId - 记录ID
@@ -347,11 +475,18 @@ async function submitTimed(userId, recordId, answers, mode) {
   const snapshot = typeof record.question_snapshot === 'string' ? JSON.parse(record.question_snapshot) : record.question_snapshot;
   const { score, details } = gradeSnapshot(snapshot, answers || {});
 
-  // 服务端超时校验
-  const category = await getCategoryOrThrow(record.category_id);
+  // 服务端超时校验(时长: 试卷制取 exam_papers.duration, 分类制取分类.time)
+  let durationMin;
+  if (record.paper_id) {
+    const [paper] = await db.query('SELECT duration FROM exam_papers WHERE id = ?', [record.paper_id]);
+    durationMin = paper ? paper.duration : 60;
+  } else {
+    const category = await getCategoryOrThrow(record.category_id);
+    durationMin = category.time;
+  }
   const elapsedSec = Math.round((Date.now() - new Date(record.server_time).getTime()) / 1000);
-  const status = elapsedSec > category.time * 60 + 5 ? 'timeout' : 'submitted';
-  const useTime = Math.min(elapsedSec, category.time * 60);
+  const status = elapsedSec > durationMin * 60 + 5 ? 'timeout' : 'submitted';
+  const useTime = Math.min(elapsedSec, durationMin * 60);
 
   await upsertWrongQuestions(userId, details.filter((d) => !d.correct).map((d) => d.questionId));
   await db.execute(
@@ -376,15 +511,17 @@ function gradeRecord(record) {
 }
 
 /**
- * 超时扫描(定时任务): doing 且超过分类时长 → timeout
+ * 超时扫描(定时任务): doing 且超过时长(试卷 duration 或分类 time) → timeout
  * @returns {Promise<number>} 更新行数
  */
 async function scanTimeoutExams() {
   const result = await db.execute(
     `UPDATE exam_records r
+     LEFT JOIN exam_papers p ON r.paper_id = p.id
      SET r.status = 'timeout', r.end_time = NOW()
      WHERE r.status = 'doing' AND r.mode IN ('exam','mock')
-       AND NOW() > DATE_ADD(r.server_time, INTERVAL (SELECT c.time FROM exam_categories c WHERE c.id = r.category_id) MINUTE)`
+       AND NOW() > DATE_ADD(r.server_time, INTERVAL COALESCE(p.duration,
+         (SELECT c.time FROM exam_categories c WHERE c.id = r.category_id), 60) MINUTE)`
   );
   const affected = result[0].affectedRows || 0;
   if (affected > 0) logger.info('超时扫描', { module: 'ANSWER', affected });
@@ -392,5 +529,5 @@ async function scanTimeoutExams() {
 }
 
 module.exports = {
-  startLearn, submitLearn, startTimed, submitTimed, saveProgress, scanTimeoutExams, gradeRecord, gradeSnapshot,
+  startLearn, submitLearn, startTimed, startPaperExam, submitTimed, saveProgress, scanTimeoutExams, gradeRecord, gradeSnapshot,
 };

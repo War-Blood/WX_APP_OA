@@ -43,11 +43,11 @@ async function submitMock(req, res, next) {
   } catch (err) { next(err); }
 }
 
-/** 开始正式考试 */
+/** 开始正式考试（试卷制） */
 async function startExam(req, res, next) {
   try {
-    const { categoryId } = req.body;
-    const result = await examService.startTimed(req.user.userId, categoryId, 'exam');
+    const { paperId } = req.body;
+    const result = await examService.startPaperExam(req.user.userId, paperId);
     res.json(success(result));
   } catch (err) { next(err); }
 }

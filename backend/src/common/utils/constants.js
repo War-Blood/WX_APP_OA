@@ -133,6 +133,11 @@ const ErrorCode = {
   ANSWER_TIME_UP: 3005,                // 答题已超时
   ANSWER_SETTING_INVALID: 3006,        // 答题设置参数非法
   ANSWER_BATCH_IMPORT_ERROR: 3007,     // 批量导入数据格式错误
+  ANSWER_PAPER_NOT_FOUND: 3008,        // 试卷不存在
+  ANSWER_PAPER_NOT_PUBLISHED: 3009,    // 试卷未发布
+  ANSWER_SCOPE_DENIED: 3010,           // 不在发放范围
+  ANSWER_MAX_ATTEMPTS: 3011,           // 已达最大考试次数
+  ANSWER_NOT_IN_WINDOW: 3012,          // 不在考试窗口内
 
   // ──── 通用兜底（逐步废弃，新代码禁止使用）────
   /** @deprecated 请使用具体模块错误码，仅用于尚未迁移的旧代码 */

@@ -20,9 +20,10 @@ async function myRecords(userId, { page = 1, pageSize = 20 }) {
     "SELECT COUNT(*) AS total FROM exam_records WHERE user_id = ? AND mode IN ('exam','mock')", [userId]
   );
   const rows = await db.query(
-    `SELECT r.*, c.name AS categoryName
+    `SELECT r.*, c.name AS categoryName, p.title AS paperTitle
      FROM exam_records r
      LEFT JOIN exam_categories c ON r.category_id = c.id
+     LEFT JOIN exam_papers p ON r.paper_id = p.id
      WHERE r.user_id = ? AND r.mode IN ('exam','mock')
      ORDER BY r.created_at DESC LIMIT ? OFFSET ?`,
     [userId, pageSize, offset]
@@ -51,10 +52,11 @@ async function allRecords({ keyword, categoryId, mode, page = 1, pageSize = 20 }
     `SELECT COUNT(*) AS total FROM exam_records r JOIN users u ON r.user_id = u.id ${where}`, params
   );
   const rows = await db.query(
-    `SELECT r.*, c.name AS categoryName, u.nickname AS userName, d.name AS departmentName
+    `SELECT r.*, c.name AS categoryName, p.title AS paperTitle, u.nickname AS userName, d.name AS departmentName
      FROM exam_records r
      JOIN users u ON r.user_id = u.id
      LEFT JOIN exam_categories c ON r.category_id = c.id
+     LEFT JOIN exam_papers p ON r.paper_id = p.id
      LEFT JOIN departments d ON u.department_id = d.id AND d.deleted_at IS NULL
      ${where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?`,
     [...params, pageSize, offset]
@@ -70,9 +72,10 @@ async function allRecords({ keyword, categoryId, mode, page = 1, pageSize = 20 }
  */
 async function detail(recordId, userId) {
   const [record] = await db.query(
-    `SELECT r.*, c.name AS categoryName
+    `SELECT r.*, c.name AS categoryName, p.title AS paperTitle
      FROM exam_records r
      LEFT JOIN exam_categories c ON r.category_id = c.id
+     LEFT JOIN exam_papers p ON r.paper_id = p.id
      WHERE r.id = ? AND r.user_id = ?`,
     [recordId, userId]
   );
@@ -80,6 +83,7 @@ async function detail(recordId, userId) {
   const { score, totalScore, details } = examService.gradeRecord(record);
   return {
     recordId: record.id, categoryId: record.category_id, categoryName: record.categoryName || '',
+    paperId: record.paper_id, paperTitle: record.paperTitle || '',
     mode: record.mode, score, totalScore, useTime: record.use_time,
     status: record.status, startTime: record.start_time, endTime: record.end_time,
     details,
@@ -126,8 +130,8 @@ async function overview({ categoryId } = {}) {
 /** 格式化单条记录 */
 function formatRow(r) {
   return {
-    id: r.id, userId: r.user_id, categoryId: r.category_id,
-    categoryName: r.categoryName || '', userName: r.userName || '', departmentName: r.departmentName || '',
+    id: r.id, userId: r.user_id, categoryId: r.category_id, categoryName: r.categoryName || '',
+    paperId: r.paper_id, paperTitle: r.paperTitle || '', userName: r.userName || '', departmentName: r.departmentName || '',
     mode: r.mode, score: r.score, totalScore: r.total_score, useTime: r.use_time,
     status: r.status, startTime: r.start_time, endTime: r.end_time, createdAt: r.created_at,
   };

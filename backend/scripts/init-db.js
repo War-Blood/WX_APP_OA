@@ -425,6 +425,36 @@ CREATE TABLE IF NOT EXISTS \`exam_favorites\` (
   UNIQUE KEY \`uk_user_question\` (\`user_id\`,\`question_id\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块收藏表';
 
+-- ============================================
+-- 20. 答题模块试卷表（v2.1 新增: 企业内部考核组卷/发放）
+-- ============================================
+CREATE TABLE IF NOT EXISTS \`exam_papers\` (
+  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  \`title\` VARCHAR(200) NOT NULL COMMENT '试卷名称',
+  \`description\` TEXT DEFAULT NULL COMMENT '试卷说明',
+  \`duration\` INT NOT NULL DEFAULT 60 COMMENT '考试时长(分钟)',
+  \`pass_score\` INT NOT NULL DEFAULT 60 COMMENT '合格分',
+  \`total_score\` INT NOT NULL DEFAULT 100 COMMENT '总分',
+  \`max_attempts\` INT DEFAULT 1 COMMENT '每人可考次数, 0=不限',
+  \`scope_type\` ENUM('all','department','user','role') DEFAULT 'all' COMMENT '发放范围',
+  \`scope_departments\` JSON DEFAULT NULL COMMENT '指定部门 [deptId...]',
+  \`scope_users\` JSON DEFAULT NULL COMMENT '指定人员 [userId...]',
+  \`scope_roles\` JSON DEFAULT NULL COMMENT '指定角色 [role...]',
+  \`draw_rules\` JSON DEFAULT NULL COMMENT '随机抽题规则 [{"type":"single","categoryId":0,"count":10,"score":2}]',
+  \`shuffle_questions\` TINYINT(1) DEFAULT 0 COMMENT '题目顺序随机',
+  \`shuffle_options\` TINYINT(1) DEFAULT 0 COMMENT '选项顺序随机',
+  \`question_ids\` JSON DEFAULT NULL COMMENT '手动选题ID数组 [id...]',
+  \`start_time\` DATETIME DEFAULT NULL COMMENT '考试窗口开始(北京时间)',
+  \`end_time\` DATETIME DEFAULT NULL COMMENT '考试窗口结束(到点强制交卷)',
+  \`status\` ENUM('draft','published','archived') DEFAULT 'draft' COMMENT '状态',
+  \`version\` INT DEFAULT 1 COMMENT '版本号',
+  \`created_by\` INT UNSIGNED DEFAULT NULL COMMENT '创建人',
+  \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (\`id\`),
+  KEY \`idx_status\` (\`status\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块试卷表';
+
 `;
 
 /**
@@ -491,6 +521,18 @@ async function initDatabase() {
       } catch (err) {
         console.error(`  ❌ 迁移 exam_categories.${column} 失败: ${err.message}`);
       }
+    }
+
+    // 1.5) exam_records 增加 paper_id（试卷制考试, 幂等）
+    try {
+      if (!(await columnExists(connection, 'exam_records', 'paper_id'))) {
+        await connection.execute(
+          "ALTER TABLE `exam_records` ADD COLUMN `paper_id` INT UNSIGNED DEFAULT NULL COMMENT '试卷ID (练习/背题为空)' AFTER `category_id`, ADD KEY `idx_paper` (`paper_id`)"
+        );
+        console.log('  ✅ 迁移 exam_records.paper_id');
+      }
+    } catch (err) {
+      console.error(`  ❌ 迁移 exam_records.paper_id 失败: ${err.message}`);
     }
 
     // 2) 试卷模型整体删除（v2.0 无考卷/发放）

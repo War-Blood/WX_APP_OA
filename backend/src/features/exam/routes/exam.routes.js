@@ -6,6 +6,7 @@ const { authenticate, requireRole } = require('../../../common/middleware/auth')
 const categoryController = require('../controllers/category.controller');
 const questionController = require('../controllers/question.controller');
 const examController = require('../controllers/exam.controller');
+const paperController = require('../controllers/paper.controller');
 const recordController = require('../controllers/record.controller');
 const wrongController = require('../controllers/wrong.controller');
 const favoriteController = require('../controllers/favorite.controller');
@@ -34,7 +35,15 @@ router.post('/learn/submit', authenticate, examController.submitLearn);
 router.post('/mock/start', authenticate, examController.startMock);
 router.post('/mock/submit', authenticate, examController.submitMock);
 
-// ===== 正式考试 =====
+// ===== 试卷管理（管理员） =====
+router.post('/papers/list', ...adminAuth, paperController.list);
+router.post('/papers/create', ...adminAuth, paperController.create);
+router.post('/papers/update', ...adminAuth, paperController.update);
+router.post('/papers/delete', ...adminAuth, paperController.remove);
+router.post('/papers/publish', ...adminAuth, paperController.publish);
+
+// ===== 正式考试（试卷制, 用户可参加列表 + 开始） =====
+router.post('/papers/available', authenticate, paperController.available);
 router.post('/exam/start', authenticate, examController.startExam);
 router.post('/exam/submit', authenticate, examController.submitExam);
 router.post('/exam/save-progress', authenticate, examController.saveProgress);
