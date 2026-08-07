@@ -320,15 +320,19 @@ CREATE TABLE IF NOT EXISTS \`system_config\` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
 
 -- ============================================
--- 14. 答题模块分类表
+-- 14. 答题模块分类表（v2.0: 合并 dati questionMenu 扩展字段）
 -- ============================================
 CREATE TABLE IF NOT EXISTS \`exam_categories\` (
   \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
-  \`parent_id\` INT UNSIGNED DEFAULT 0 COMMENT '父级ID, 0=顶级',
+  \`parent_id\` INT UNSIGNED DEFAULT 0 COMMENT '父级ID, 0=顶级, 支持二级',
   \`name\` VARCHAR(50) NOT NULL COMMENT '分类名称',
+  \`cover\` VARCHAR(500) DEFAULT NULL COMMENT '封面图URL (dati questionMenu.cover)',
+  \`question_num\` INT DEFAULT 0 COMMENT '显示题量, 实际按题库统计',
+  \`time\` INT DEFAULT 10 COMMENT '建议答题时长(分钟) (dati questionMenu.time)',
   \`path\` VARCHAR(200) DEFAULT NULL COMMENT '路径 如 安全/生产安全',
   \`sort_order\` INT DEFAULT 0 COMMENT '排序序号',
   \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (\`id\`),
   KEY \`idx_parent\` (\`parent_id\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块分类表';
@@ -357,58 +361,69 @@ CREATE TABLE IF NOT EXISTS \`exam_questions\` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块题库表';
 
 -- ============================================
--- 16. 答题模块试卷表
--- ============================================
-CREATE TABLE IF NOT EXISTS \`exam_papers\` (
-  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
-  \`title\` VARCHAR(200) NOT NULL COMMENT '试卷名称',
-  \`description\` TEXT DEFAULT NULL COMMENT '试卷说明',
-  \`duration\` INT NOT NULL DEFAULT 60 COMMENT '考试时长(分钟)',
-  \`pass_score\` INT NOT NULL DEFAULT 60 COMMENT '合格分数',
-  \`total_score\` INT NOT NULL DEFAULT 100 COMMENT '总分',
-  \`max_attempts\` INT DEFAULT 1 COMMENT '最大考试次数(0=无限)',
-  \`max_screenshot_warns\` INT DEFAULT 2 COMMENT '截屏警告上限',
-  \`scope_type\` ENUM('all','department') DEFAULT 'all' COMMENT '参加范围类型',
-  \`scope_departments\` JSON DEFAULT NULL COMMENT '参加部门 [1,2,3]',
-  \`start_time\` DATETIME DEFAULT NULL COMMENT '考试窗口开始时间(北京时间)',
-  \`end_time\` DATETIME DEFAULT NULL COMMENT '考试窗口结束时间(到点强制交卷)',
-  \`question_ids\` JSON NOT NULL COMMENT '题目ID列表',
-  \`status\` ENUM('draft','published','archived') DEFAULT 'draft' COMMENT '状态',
-  \`version\` INT DEFAULT 1 COMMENT '版本号',
-  \`created_by\` INT UNSIGNED DEFAULT NULL COMMENT '创建人',
-  \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (\`id\`),
-  KEY \`idx_status\` (\`status\`),
-  KEY \`idx_created_by\` (\`created_by\`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块试卷表';
-
--- ============================================
--- 17. 答题模块答题记录表
+-- 16. 答题模块答题记录表（v2.0 重建: category_id + mode 三值, 去防作弊字段）
 -- ============================================
 CREATE TABLE IF NOT EXISTS \`exam_records\` (
   \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
-  \`user_id\` INT UNSIGNED NOT NULL COMMENT '用户ID',
-  \`paper_id\` INT UNSIGNED NOT NULL COMMENT '试卷ID(练习为0)',
-  \`paper_version\` INT DEFAULT NULL COMMENT '试卷版本',
-  \`mode\` ENUM('practice','exam') NOT NULL DEFAULT 'practice' COMMENT '模式',
-  \`answers\` JSON DEFAULT NULL COMMENT '答题结果 {"1":"A"}',
-  \`question_snapshot\` JSON NOT NULL COMMENT '题目快照',
+  \`user_id\` INT UNSIGNED NOT NULL COMMENT '用户ID (OA users.id)',
+  \`category_id\` INT UNSIGNED NOT NULL COMMENT '分类ID (dati history.menuId)',
+  \`mode\` ENUM('practice','exam','mock') NOT NULL DEFAULT 'practice' COMMENT '模式: 练习/正式考试/模拟考试',
+  \`answers\` JSON DEFAULT NULL COMMENT '答题结果 {"1":"A","2":"B,C"}',
+  \`question_snapshot\` JSON NOT NULL COMMENT '题目快照冻结',
   \`score\` INT DEFAULT NULL COMMENT '得分',
   \`total_score\` INT NOT NULL COMMENT '总分',
-  \`is_pass\` TINYINT(1) DEFAULT NULL COMMENT '是否合格',
-  \`warn_count\` INT DEFAULT 0 COMMENT '截屏警告次数',
+  \`use_time\` INT DEFAULT 0 COMMENT '用时(秒) (dati history.useTime)',
+  \`status\` ENUM('doing','submitted','timeout') DEFAULT 'doing' COMMENT '状态',
   \`server_time\` DATETIME DEFAULT NULL COMMENT '服务器计时基准',
   \`start_time\` DATETIME NOT NULL COMMENT '开始时间',
   \`end_time\` DATETIME DEFAULT NULL COMMENT '结束时间',
-  \`status\` ENUM('doing','submitted','timeout','cheated') DEFAULT 'doing' COMMENT '状态',
   \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (\`id\`),
   KEY \`idx_user\` (\`user_id\`),
-  KEY \`idx_paper\` (\`paper_id\`),
+  KEY \`idx_category\` (\`category_id\`),
   KEY \`idx_status\` (\`status\`),
   KEY \`idx_start_time\` (\`start_time\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块答题记录表';
+
+-- ============================================
+-- 17. 答题模块答题设置表（v2.0 新增, dati setting）
+-- ============================================
+CREATE TABLE IF NOT EXISTS \`exam_settings\` (
+  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  \`setting_key\` VARCHAR(50) NOT NULL COMMENT '配置键 (use_learn / check_user)',
+  \`setting_value\` VARCHAR(255) NOT NULL COMMENT '配置值',
+  \`description\` VARCHAR(500) DEFAULT NULL COMMENT '配置说明',
+  \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`uk_setting_key\` (\`setting_key\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块答题设置表';
+
+-- ============================================
+-- 18. 答题模块错题本表（v2.0 新增, 服务端持久化）
+-- ============================================
+CREATE TABLE IF NOT EXISTS \`exam_wrong_questions\` (
+  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  \`user_id\` INT UNSIGNED NOT NULL COMMENT '用户ID',
+  \`question_id\` INT UNSIGNED NOT NULL COMMENT '题目ID',
+  \`wrong_count\` INT DEFAULT 1 COMMENT '答错次数',
+  \`last_wrong_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '最近答错时间',
+  \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`uk_user_question\` (\`user_id\`,\`question_id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块错题本表';
+
+-- ============================================
+-- 19. 答题模块收藏表（v2.0 新增, 服务端持久化）
+-- ============================================
+CREATE TABLE IF NOT EXISTS \`exam_favorites\` (
+  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  \`user_id\` INT UNSIGNED NOT NULL COMMENT '用户ID',
+  \`question_id\` INT UNSIGNED NOT NULL COMMENT '题目ID',
+  \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`uk_user_question\` (\`user_id\`,\`question_id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块收藏表';
 
 `;
 
@@ -450,7 +465,7 @@ async function initDatabase() {
       }
     }
 
-    // ──── v1.2 答题模块字段扩展(幂等迁移:缺列则 ALTER) ────
+    // ──── v2.0 答题模块迁移（合并 kesixin/dati 重建,幂等） ────
     async function columnExists(conn, table, column) {
       const [rows] = await conn.execute(
         `SELECT COUNT(*) AS cnt FROM information_schema.columns
@@ -460,43 +475,56 @@ async function initDatabase() {
       return rows[0].cnt > 0;
     }
 
-    const v12Columns = [
-      ['exam_questions', 'shuffle_options', "`shuffle_options` TINYINT(1) DEFAULT 0 COMMENT '本题目选项是否随机排列'"],
-      ['exam_papers', 'scope_users', "`scope_users` JSON DEFAULT NULL COMMENT '指定用户范围 [userId...]'"],
-      ['exam_papers', 'scope_roles', "`scope_roles` JSON DEFAULT NULL COMMENT '指定角色范围 [role...]'"],
-      ['exam_papers', 'draw_rules', "`draw_rules` JSON DEFAULT NULL COMMENT '随机抽题规则 [{\"type\":\"single\",\"count\":10,\"score\":2}] 空=手动选题'"],
-      ['exam_papers', 'shuffle_questions', "`shuffle_questions` TINYINT(1) DEFAULT 0 COMMENT '题目顺序随机'"],
-      ['exam_papers', 'shuffle_options', "`shuffle_options` TINYINT(1) DEFAULT 0 COMMENT '选项顺序随机(与单题开关取或)'"],
-      ['exam_papers', 'sections', "`sections` JSON DEFAULT NULL COMMENT '试卷内分组 [{\"name\":\"单选部分\",\"questionIds\":[1,2,3]}]'"],
-      ['exam_papers', 'result_visibility', "`result_visibility` ENUM('immediate','manual') DEFAULT 'immediate' COMMENT '成绩展示:交卷立即/公布后'"],
-      ['exam_papers', 'result_released', "`result_released` TINYINT(1) DEFAULT 0 COMMENT 'manual模式下管理员已公布成绩'"],
+    // 1) exam_categories 增加 dati 字段（缺列则 ALTER,保留既有分类/题库数据）
+    const categoryV2Columns = [
+      ['cover', "`cover` VARCHAR(500) DEFAULT NULL COMMENT '封面图URL'"],
+      ['question_num', "`question_num` INT DEFAULT 0 COMMENT '显示题量'"],
+      ['time', "`time` INT DEFAULT 10 COMMENT '建议答题时长(分钟)'"],
+      ['updated_at', "`updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'"],
     ];
-
-    for (const [table, column, ddl] of v12Columns) {
+    for (const [column, ddl] of categoryV2Columns) {
       try {
-        if (!(await columnExists(connection, table, column))) {
-          await connection.execute(`ALTER TABLE \`${table}\` ADD COLUMN ${ddl}`);
-          console.log(`  ✅ 迁移 ${table}.${column}`);
+        if (!(await columnExists(connection, 'exam_categories', column))) {
+          await connection.execute(`ALTER TABLE \`exam_categories\` ADD COLUMN ${ddl}`);
+          console.log(`  ✅ 迁移 exam_categories.${column}`);
         }
       } catch (err) {
-        console.error(`  ❌ 迁移 ${table}.${column} 失败: ${err.message}`);
+        console.error(`  ❌ 迁移 exam_categories.${column} 失败: ${err.message}`);
       }
     }
 
-    // scope_type 枚举扩展(all/department → 四值),幂等:仅当缺少 'user' 时 MODIFY
+    // 2) 试卷模型整体删除（v2.0 无考卷/发放）
     try {
-      const [st] = await connection.execute(
-        `SELECT COLUMN_TYPE FROM information_schema.columns
-         WHERE table_schema = DATABASE() AND table_name = 'exam_papers' AND column_name = 'scope_type'`
+      await connection.execute('DROP TABLE IF EXISTS `exam_papers`');
+      console.log('  ✅ 删除旧表 exam_papers（考卷模型废弃）');
+    } catch (err) {
+      console.error(`  ❌ 删除 exam_papers 失败: ${err.message}`);
+    }
+
+    // 3) 旧 exam_records（含 paper_id）→ 整表重建为 v2.0 schema（CREATE IF NOT EXISTS 之上）
+    try {
+      const [oldRecord] = await connection.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = 'exam_records' AND column_name = 'paper_id'`
       );
-      if (st[0] && !st[0].COLUMN_TYPE.includes('user')) {
-        await connection.execute(
-          "ALTER TABLE `exam_papers` MODIFY COLUMN `scope_type` ENUM('all','department','user','role') DEFAULT 'all' COMMENT '参加范围类型'"
-        );
-        console.log('  ✅ 迁移 exam_papers.scope_type 四值枚举');
+      if (oldRecord[0].cnt > 0) {
+        await connection.execute('DROP TABLE IF EXISTS `exam_records`');
+        console.log('  ✅ 重建 exam_records（旧 paper_id schema → category_id + mode 三值）');
       }
     } catch (err) {
-      console.error(`  ❌ 迁移 exam_papers.scope_type 失败: ${err.message}`);
+      console.error(`  ❌ 重建 exam_records 失败: ${err.message}`);
+    }
+
+    // 4) 答题设置种子数据（幂等）
+    try {
+      await connection.execute(
+        `INSERT IGNORE INTO exam_settings (setting_key, setting_value, description) VALUES
+         ('use_learn', '1', '是否开放练习/背题模式 (1=开 0=关)'),
+         ('check_user', '1', '是否仅登录用户可答题 (OA 恒有用户, 默认开)')`
+      );
+      console.log('  ✅ 答题设置种子数据就绪');
+    } catch (err) {
+      console.error(`  ❌ 答题设置种子失败: ${err.message}`);
     }
 
     console.log('✅ 数据库初始化完成！');

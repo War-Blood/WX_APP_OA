@@ -3,22 +3,28 @@
 const questionService = require('../services/question.service');
 const { success, paginated } = require('../../../common/utils/response');
 
+/**
+ * 题库管理控制器
+ */
+
+/** 题库列表 */
 async function list(req, res, next) {
   try {
-    const { categoryId, type, keyword, page = 1, pageSize = 20 } = req.body;
-    const result = await questionService.list({ categoryId, type, keyword, page: Number(page), pageSize: Number(pageSize) });
+    const { page = 1, pageSize = 20, categoryId, type, keyword } = req.body;
+    const result = await questionService.list({ categoryId, type, keyword, page, pageSize });
     res.json(paginated(result.list, result.total, Number(page), Number(pageSize)));
   } catch (err) { next(err); }
 }
 
+/** 新增题目 */
 async function create(req, res, next) {
   try {
-    const data = { ...req.body, createdBy: req.user.userId };
-    const result = await questionService.create(data);
-    res.json(success(result));
+    const result = await questionService.create({ ...req.body, createdBy: req.user.userId });
+    res.json(success(result, '题目已创建'));
   } catch (err) { next(err); }
 }
 
+/** 编辑题目 */
 async function update(req, res, next) {
   try {
     const { id, ...data } = req.body;
@@ -27,6 +33,7 @@ async function update(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/** 删除题目 */
 async function remove(req, res, next) {
   try {
     const { id } = req.body;
@@ -35,11 +42,12 @@ async function remove(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/** 批量导入 */
 async function batchImport(req, res, next) {
   try {
     const { questions } = req.body;
     const result = await questionService.batchImport(questions, req.user.userId);
-    res.json(success(result));
+    res.json(success(result, `成功 ${result.success} 条，失败 ${result.failed} 条`));
   } catch (err) { next(err); }
 }
 

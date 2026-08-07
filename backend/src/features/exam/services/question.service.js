@@ -5,9 +5,14 @@ const { BusinessError, ValidationError } = require('../../../common/utils/errors
 const { ErrorCode } = require('../../../common/utils/constants');
 
 /**
- * 题库管理服务
+ * 题库管理服务 — 列表/创建/更新/删除/批量导入
  */
 
+/**
+ * 题库列表(分类/题型/关键词筛选 + 分页)
+ * @param {Object} opts - { categoryId?, type?, keyword?, page?, pageSize? }
+ * @returns {Promise<Object>} { list, total }
+ */
 async function list({ categoryId, type, keyword, page = 1, pageSize = 20 }) {
   const conditions = [];
   const params = [];
@@ -26,6 +31,11 @@ async function list({ categoryId, type, keyword, page = 1, pageSize = 20 }) {
   return { list: rows, total };
 }
 
+/**
+ * 新增题目
+ * @param {Object} data - { categoryId, type, title, options, answer, analysis?, score?, scoreMode?, shuffleOptions?, createdBy }
+ * @returns {Promise<Object>} { id }
+ */
 async function create(data) {
   if (!data.title) throw new ValidationError('题干不能为空');
   if (!data.options || !Array.isArray(data.options) || data.options.length < 2) {
@@ -37,15 +47,21 @@ async function create(data) {
     `INSERT INTO exam_questions (category_id, type, title, options, answer, analysis, score, score_mode, shuffle_options, status, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
     [data.categoryId || null, data.type || 'single', data.title, JSON.stringify(data.options),
-     data.answer, data.analysis || null, data.score || 2, data.scoreMode || 'exact',
-     data.shuffleOptions ? 1 : 0, data.createdBy]
+      data.answer, data.analysis || null, data.score || 2, data.scoreMode || 'exact',
+      data.shuffleOptions ? 1 : 0, data.createdBy]
   );
   return { id: result[0].insertId };
 }
 
+/**
+ * 编辑题目
+ * @param {number} id - 题目ID
+ * @param {Object} data - 可更新字段
+ * @returns {Promise<Object>} { updated }
+ */
 async function update(id, data) {
   const [row] = await db.query('SELECT id FROM exam_questions WHERE id = ?', [id]);
-  if (!row) throw new BusinessError('题目不存在', null, ErrorCode.EXAM_QUESTION_NOT_FOUND);
+  if (!row) throw new BusinessError('题目不存在', null, ErrorCode.ANSWER_QUESTION_NOT_FOUND);
 
   const updates = [];
   const params = [];
@@ -66,13 +82,24 @@ async function update(id, data) {
   return { updated: true };
 }
 
+/**
+ * 删除题目
+ * @param {number} id - 题目ID
+ * @returns {Promise<Object>} { deleted }
+ */
 async function remove(id) {
   const [row] = await db.query('SELECT id FROM exam_questions WHERE id = ?', [id]);
-  if (!row) throw new BusinessError('题目不存在', null, ErrorCode.EXAM_QUESTION_NOT_FOUND);
+  if (!row) throw new BusinessError('题目不存在', null, ErrorCode.ANSWER_QUESTION_NOT_FOUND);
   await db.execute('DELETE FROM exam_questions WHERE id = ?', [id]);
   return { deleted: true };
 }
 
+/**
+ * 批量导入题目(部分成功策略)
+ * @param {Array} questions - 题目数组
+ * @param {number} createdBy - 创建人ID
+ * @returns {Promise<Object>} { success, failed, errors }
+ */
 async function batchImport(questions, createdBy) {
   if (!Array.isArray(questions) || !questions.length) {
     throw new ValidationError('导入数据不能为空');
@@ -80,6 +107,7 @@ async function batchImport(questions, createdBy) {
 
   let success = 0;
   const errors = [];
+  const validTypes = ['single', 'multiple', 'judge'];
 
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
@@ -87,16 +115,15 @@ async function batchImport(questions, createdBy) {
       if (!q.title || !q.options || !q.answer) {
         throw new Error('必填字段缺失');
       }
-      if (q.options.length < 2) throw new Error('至少需要2个选项');
-      const validTypes = ['single', 'multiple', 'judge'];
+      if (!Array.isArray(q.options) || q.options.length < 2) throw new Error('至少需要2个选项');
       if (!validTypes.includes(q.type)) throw new Error(`题型字段无效: ${q.type}`);
 
       await db.execute(
         `INSERT INTO exam_questions (category_id, type, title, options, answer, analysis, score, score_mode, shuffle_options, created_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [q.categoryId || null, q.type, q.title, JSON.stringify(q.options),
-         q.answer, q.analysis || null, q.score || 2, q.scoreMode || 'exact',
-         q.shuffleOptions ? 1 : 0, createdBy]
+          q.answer, q.analysis || null, q.score || 2, q.scoreMode || 'exact',
+          q.shuffleOptions ? 1 : 0, createdBy]
       );
       success++;
     } catch (e) {

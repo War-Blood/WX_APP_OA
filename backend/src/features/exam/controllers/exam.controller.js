@@ -3,59 +3,71 @@
 const examService = require('../services/exam.service');
 const { success } = require('../../../common/utils/response');
 
-async function examList(req, res, next) {
+/**
+ * 答题流程控制器 — 练习/模拟/正式考试
+ */
+
+/** 开始练习(含背题模式) */
+async function startLearn(req, res, next) {
   try {
-    const result = await examService.examList(req.user.userId);
+    const { categoryId, type, mode, count, backMemorize } = req.body;
+    const result = await examService.startLearn({ userId: req.user.userId, categoryId, type, mode, count, backMemorize });
     res.json(success(result));
   } catch (err) { next(err); }
 }
 
-async function start(req, res, next) {
-  try {
-    const { paperId } = req.body;
-    const result = await examService.startExam(req.user.userId, paperId);
-    res.json(success(result));
-  } catch (err) { next(err); }
-}
-
-async function submit(req, res, next) {
-  try {
-    const { recordId, answers } = req.body;
-    const result = await examService.submitExam(req.user.userId, recordId, answers || {});
-    res.json(success(result));
-  } catch (err) { next(err); }
-}
-
-async function reportWarn(req, res, next) {
-  try {
-    const { recordId } = req.body;
-    const result = await examService.reportWarn(req.user.userId, recordId);
-    res.json(success(result));
-  } catch (err) { next(err); }
-}
-
-async function saveAnswers(req, res, next) {
+/** 提交练习 */
+async function submitLearn(req, res, next) {
   try {
     const { recordId, answers } = req.body;
-    const result = await examService.saveAnswers(req.user.userId, recordId, answers || {});
+    const result = await examService.submitLearn(req.user.userId, recordId, answers || {});
     res.json(success(result));
   } catch (err) { next(err); }
 }
 
-async function startPractice(req, res, next) {
+/** 开始模拟考试 */
+async function startMock(req, res, next) {
   try {
-    const { categoryId, type, count } = req.body;
-    const result = await examService.startPractice({ userId: req.user.userId, categoryId, type, count });
+    const { categoryId } = req.body;
+    const result = await examService.startTimed(req.user.userId, categoryId, 'mock');
     res.json(success(result));
   } catch (err) { next(err); }
 }
 
-async function submitPractice(req, res, next) {
+/** 交卷(模拟考试) */
+async function submitMock(req, res, next) {
   try {
     const { recordId, answers } = req.body;
-    const result = await examService.submitPractice(req.user.userId, recordId, answers || {});
+    const result = await examService.submitTimed(req.user.userId, recordId, answers || {}, 'mock');
     res.json(success(result));
   } catch (err) { next(err); }
 }
 
-module.exports = { examList, start, submit, saveAnswers, reportWarn, startPractice, submitPractice };
+/** 开始正式考试 */
+async function startExam(req, res, next) {
+  try {
+    const { categoryId } = req.body;
+    const result = await examService.startTimed(req.user.userId, categoryId, 'exam');
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+/** 交卷(正式考试) */
+async function submitExam(req, res, next) {
+  try {
+    const { recordId, answers } = req.body;
+    const result = await examService.submitTimed(req.user.userId, recordId, answers || {}, 'exam');
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+/** 保存进度(断线续答) */
+async function saveProgress(req, res, next) {
+  try {
+    const { recordId, answers } = req.body;
+    const result = await examService.saveProgress(req.user.userId, recordId, answers || {});
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+module.exports = { startLearn, submitLearn, startMock, submitMock, startExam, submitExam, saveProgress };

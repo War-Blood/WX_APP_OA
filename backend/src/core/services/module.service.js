@@ -21,7 +21,7 @@ const DEFAULT_MODULES = [
   { key: 'user',          name: '人事',     icon: 'User',         route: '/user',                                visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 13 },
   { key: 'project',       name: '项目',     icon: 'FolderOpened', route: '/project',                             visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 14 },
   { key: 'attendance',    name: '考勤',     icon: 'Calendar',     route: '/attendance',                         visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 15 },
-  { key: 'exam',          name: '考试管理', icon: 'Edit',         route: '/exam',                               visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 16 },
+  { key: 'exam',          name: '答题管理', icon: 'Edit',         route: '/exam',                               visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 16 },
   { key: 'compliance',    name: '合规',     icon: 'Verified',     route: '/compliance',                         visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 17 },
   { key: 'settings',      name: '设置',     icon: 'Setting',      route: '/settings',                            visible: true,  platforms: ['web'],           roles: ['superadmin'], sort: 18 },
   { key: 'announcement',  name: '公告管理', icon: 'Bell',         route: '/announcement',                      visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 19 },

@@ -3,6 +3,11 @@
 const categoryService = require('../services/category.service');
 const { success } = require('../../../common/utils/response');
 
+/**
+ * 分类管理控制器
+ */
+
+/** 分类树列表 */
 async function list(req, res, next) {
   try {
     const result = await categoryService.list();
@@ -10,6 +15,7 @@ async function list(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/** 新增分类 */
 async function create(req, res, next) {
   try {
     const result = await categoryService.create(req.body);
@@ -17,6 +23,7 @@ async function create(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/** 编辑分类 */
 async function update(req, res, next) {
   try {
     const { id, ...data } = req.body;
@@ -25,6 +32,7 @@ async function update(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/** 删除分类 */
 async function remove(req, res, next) {
   try {
     const { id } = req.body;
