@@ -296,15 +296,39 @@
     {
       "path": "pages/exam/index/index",
       "style": {
-        "navigationBarTitleText": "答题模块",
+        "navigationBarTitleText": "答题中心",
         "navigationStyle": "custom",
         "componentPlaceholder": { "nav-bar": "view" }
       }
     },
     {
-      "path": "pages/exam/practice/index",
+      "path": "pages/exam/category/index",
       "style": {
-        "navigationBarTitleText": "模拟练习",
+        "navigationBarTitleText": "选择题库",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/exam/learn/index",
+      "style": {
+        "navigationBarTitleText": "练习设置",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/exam/dati/index",
+      "style": {
+        "navigationBarTitleText": "答题",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/exam/moniq/index",
+      "style": {
+        "navigationBarTitleText": "模拟考试",
         "navigationStyle": "custom",
         "componentPlaceholder": { "nav-bar": "view" }
       }
@@ -320,17 +344,41 @@
       }
     },
     {
-      "path": "pages/exam/result/index",
+      "path": "pages/exam/examResult/index",
       "style": {
-        "navigationBarTitleText": "考试结果",
+        "navigationBarTitleText": "答题结果",
         "navigationStyle": "custom",
         "componentPlaceholder": { "nav-bar": "view" }
       }
     },
     {
-      "path": "pages/exam/records/index",
+      "path": "pages/exam/wrong/index",
       "style": {
-        "navigationBarTitleText": "考试记录",
+        "navigationBarTitleText": "错题本",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/exam/errorStar/index",
+      "style": {
+        "navigationBarTitleText": "我的收藏",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/exam/rank/index",
+      "style": {
+        "navigationBarTitleText": "排行榜",
+        "navigationStyle": "custom",
+        "componentPlaceholder": { "nav-bar": "view" }
+      }
+    },
+    {
+      "path": "pages/exam/record/index",
+      "style": {
+        "navigationBarTitleText": "答题记录",
         "navigationStyle": "custom",
         "componentPlaceholder": { "nav-bar": "view" }
       }

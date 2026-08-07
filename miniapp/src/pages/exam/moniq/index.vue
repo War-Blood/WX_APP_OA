@@ -1,6 +1,6 @@
 <template>
   <view class="page">
-    <nav-bar title="正式考试" :showBack="true" />
+    <nav-bar title="模拟考试" :showBack="true" />
     <view class="top-bar">
       <text class="countdown" :class="{ urgent: remaining <= 60 }">{{ formatTime(remaining) }}</text>
       <text class="top-progress">{{ current + 1 }}/{{ questions.length }}</text>
@@ -23,7 +23,6 @@
       <view class="btn-submit danger" @tap="confirmSubmit"><text>交卷</text></view>
     </view>
 
-    <!-- 答题卡浮层 -->
     <view v-if="cardVisible" class="mask" @tap="cardVisible = false">
       <view class="card-panel" @tap.stop>
         <view class="panel-title">答题卡</view>
@@ -85,7 +84,7 @@ function jumpTo(i) {
 async function start() {
   loading.value = true
   try {
-    const res = await examApi.examStart(categoryId.value)
+    const res = await examApi.mockStart(categoryId.value)
     questions.value = res.data?.snapshot || []
     answers.value = res.data?.savedAnswers || {}
     recordId.value = res.data?.recordId
@@ -121,7 +120,7 @@ async function submit() {
   clearInterval(timer)
   clearTimeout(saveTimer)
   try {
-    const res = await examApi.examSubmit(recordId.value, answers.value)
+    const res = await examApi.mockSubmit(recordId.value, answers.value)
     uni.redirectTo({ url: `/pages/exam/examResult/index?recordId=${recordId.value}` })
   } catch (err) {
     submitted.value = false
