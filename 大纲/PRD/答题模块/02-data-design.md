@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS exam_records (
   INDEX idx_category (category_id),
   INDEX idx_status (status),
   INDEX idx_start_time (start_time),
-  KEY uk_user_category_doing (user_id, category_id, mode, status)
+  KEY idx_user_category_mode (user_id, category_id, mode)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='答题记录';
 
 -- 4. 答题设置表（dati setting）
@@ -143,7 +143,7 @@ INSERT IGNORE INTO exam_settings (setting_key, setting_value, description) VALUE
 | exam_categories | `idx_parent` | 分类树查询 |
 | exam_questions | `idx_category` / `idx_status` | 按分类/启用状态筛选 |
 | exam_records | `idx_user` / `idx_category` / `idx_status` | 我的记录 / 按分类统计 / 超时扫描 |
-| exam_records | `uk_user_category_doing` | 防并发重复开始（同分类同模式仅一条 doing） |
+| exam_records | `idx_user_category_mode` | 我的记录/断线恢复查询；防并发开始由应用层"先查 doing 再插"保证 |
 | exam_settings | `setting_key` (UNIQUE) | 键值读取 |
 | exam_wrong_questions / exam_favorites | `uk_user_question` | 去重 upsert |
 
