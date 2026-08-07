@@ -19,8 +19,9 @@ export const examApi = {
   mockStart: (categoryId) => post('/api/exam/mock/start', { categoryId }),
   mockSubmit: (recordId, answers) => post('/api/exam/mock/submit', { recordId, answers }),
 
-  // 正式考试 (dati: exam)
-  examStart: (categoryId) => post('/api/exam/exam/start', { categoryId }),
+  // 正式考试 (试卷制: 企业内部考核)
+  getAvailablePapers: () => post('/api/exam/papers/available'),
+  examStart: (paperId) => post('/api/exam/exam/start', { paperId }),
   examSubmit: (recordId, answers) => post('/api/exam/exam/submit', { recordId, answers }),
   saveProgress: (recordId, answers) => post('/api/exam/exam/save-progress', { recordId, answers }),
 

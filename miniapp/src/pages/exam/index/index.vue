@@ -10,7 +10,7 @@
         <view class="grid-item" @tap="goCategory('moniq')">
           <text class="icon">⏱</text><text class="name">模拟考试</text>
         </view>
-        <view class="grid-item" @tap="goCategory('exam')">
+        <view class="grid-item" @tap="goExam()">
           <text class="icon">📝</text><text class="name">正式考试</text>
         </view>
         <view class="grid-item" @tap="goCategory('rank')">
@@ -82,6 +82,10 @@ function goCategory(mode, categoryId) {
 
 function go(page) {
   uni.navigateTo({ url: page })
+}
+
+function goExam() {
+  uni.navigateTo({ url: '/pages/exam/exam/index' })
 }
 
 onShow(load)
