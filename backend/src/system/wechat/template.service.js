@@ -83,6 +83,11 @@ async function sendSubscribeMessage(userId, { time, tip, status }) {
     const res = await axios.post(url, payload);
 
     if (res.data.errcode === 0) {
+      // 一次性订阅: 发送成功即消费该次授权, 置 cancelled 以引导用户下次重新订阅
+      await db.execute(
+        'UPDATE user_subscriptions SET status = "cancelled", updated_at = NOW() WHERE user_id = ? AND template_id = ?',
+        [userId, config.wx.subscribeTemplateId]
+      );
       return { success: true };
     }
 
