@@ -16,7 +16,8 @@
           <switch :checked="settings.system" @change="toggleLocal('system')" color="#2B6DE8" />
         </view>
       </view>
-      <view class="tip">日报提醒为微信一次性订阅：授权一次可收到一条服务通知，发送后需重新开启。</view>
+      <view class="tip">日报提醒为微信一次性订阅：授权一次可收到一条服务通知；勾选"总是保持以上选择，不再询问"后不再弹窗，之后在小程序内点一下即续订。</view>
+      <view class="tip-link" @tap="goOpenSetting">订阅消息修改 / 关闭 → 小程序设置 ›</view>
     </view>
   </view>
 </template>
@@ -46,6 +47,13 @@ onShow(async () => {
 function toggleLocal(key) {
   settings.value[key] = !settings.value[key]
   uni.setStorageSync('notificationSettings', JSON.stringify(settings.value))
+}
+
+// 打开小程序设置页(用户可在其中修改订阅消息授权)
+function goOpenSetting() {
+  uni.openSetting({
+    fail: () => uni.showToast({ title: '请在微信右上角…→设置中修改', icon: 'none' }),
+  })
 }
 
 async function toggleReport(e) {
@@ -80,4 +88,5 @@ async function toggleReport(e) {
 .last { border-bottom: none; }
 .label { font-size: 28rpx; color: #333; }
 .tip { margin-top: 20rpx; padding: 0 8rpx; font-size: 24rpx; color: #909399; line-height: 1.6; }
+.tip-link { margin-top: 16rpx; padding: 20rpx 8rpx; font-size: 26rpx; color: #2B6DE8; }
 </style>
