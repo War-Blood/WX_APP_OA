@@ -96,6 +96,7 @@ import NavBar from '@/components/nav-bar/nav-bar.vue'
 import TabBar from '@/components/tab-bar/tab-bar.vue'
 import { statsApi } from '@/services/modules/stats'
 import { messageApi } from '@/services/modules/message'
+import { renewDailyReminder } from '@/utils/subscribe'
 import { APP_NAME } from '@/config/version'
 
 const userStore = useUserStore()
@@ -244,9 +245,16 @@ function goToStat(stat) {
     uni.navigateTo({ url: '/pages/employee/missing-dates/index' })
     return
   }
-  if (stat.route) uni.navigateTo({ url: stat.route })
+  if (stat.route) {
+    if (stat.route.includes('report-edit')) renewDailyReminder()
+    uni.navigateTo({ url: stat.route })
+  }
 }
-function goToFeature(route) { if (route) uni.navigateTo({ url: route }) }
+function goToFeature(route) {
+  if (!route) return
+  if (route.includes('report-edit')) renewDailyReminder()
+  uni.navigateTo({ url: route })
+}
 function goToActivity(item) {
   const map = { approval: '/pages/approval/index/index', report: userStore.isAdmin ? '/pages/admin/review-list/index' : '/pages/employee/report-history/index' }
   if (map[item.type]) uni.navigateTo({ url: map[item.type] })

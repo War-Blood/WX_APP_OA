@@ -83,6 +83,7 @@ import { useUserStore } from '@/stores/user'
 import { statsApi } from '@/services/modules/stats'
 import { messageApi } from '@/services/modules/message'
 import { authApi } from '@/services/modules/auth'
+import { renewDailyReminder } from '@/utils/subscribe'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import TabBar from '@/components/tab-bar/tab-bar.vue'
 import { APP_NAME, APP_VERSION } from '@/config/version'
@@ -182,6 +183,7 @@ async function loadStats() {
 }
 function goToStat(stat) {
   if (stat.route) {
+    if (stat.route.includes('report-edit')) renewDailyReminder()
     uni.navigateTo({ url: stat.route })
   } else {
     showError('功能待开发')
