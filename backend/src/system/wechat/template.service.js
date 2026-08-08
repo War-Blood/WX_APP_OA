@@ -48,7 +48,7 @@ async function hasSubscription(userId) {
 
 /**
  * 发送微信订阅消息
- * 模板关键词：时间(time1)、温馨提示(thing2)、填写状态(phrase3)
+ * 模板关键词：时间(time1)、温馨提示(thing2)、填写状态(phrase25)
  */
 async function sendSubscribeMessage(userId, { time, tip, status }) {
   try {
@@ -75,7 +75,7 @@ async function sendSubscribeMessage(userId, { time, tip, status }) {
       data: {
         time1: { value: time },
         thing2: { value: tip },
-        phrase3: { value: status }
+        phrase25: { value: status }
       },
       miniprogram_state: process.env.NODE_ENV === 'production' ? 'formal' : 'developer'
     };

@@ -455,6 +455,20 @@ CREATE TABLE IF NOT EXISTS \`exam_papers\` (
   KEY \`idx_status\` (\`status\`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='答题模块试卷表';
 
+-- ============================================
+-- 21. 微信订阅消息授权记录表（日报提醒）
+-- ============================================
+CREATE TABLE IF NOT EXISTS \`user_subscriptions\` (
+  \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  \`user_id\` INT UNSIGNED NOT NULL COMMENT '用户ID',
+  \`template_id\` VARCHAR(64) NOT NULL COMMENT '订阅模板ID',
+  \`status\` ENUM('active','cancelled') DEFAULT 'active' COMMENT '订阅状态(一次性订阅发送后被消费/取消)',
+  \`subscribed_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '订阅时间',
+  \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`uk_user_template\` (\`user_id\`,\`template_id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='微信订阅消息授权记录';
+
 `;
 
 /**
