@@ -29,16 +29,6 @@
       @refresherrefresh="onRefresh"
       @scrolltolower="onLoadMore"
     >
-      <!-- 日报提醒订阅入口 -->
-      <view class="remind-banner" @tap="handleSubscribeTap">
-        <text class="remind-icon">📢</text>
-        <view class="remind-text">
-          <text class="remind-title">{{ subscribeOn ? '日报提醒已开启' : '开启日报提醒' }}</text>
-          <text class="remind-sub">{{ subscribeOn ? '每日23:00推送未提交提醒，可在小程序设置中修改' : '每日23:00推送未提交提醒（勾选"总是保持"后不再弹窗）' }}</text>
-        </view>
-        <text class="remind-arrow">{{ subscribeOn ? '✓' : '›' }}</text>
-      </view>
-
       <!-- Quick actions: 4-icon grid -->
       <view class="quick-card">
         <view class="section-title-row">
@@ -142,34 +132,7 @@ const quickActions = computed(() => {
     })
 })
 
-const SUBSCRIBE_TEMPLATE_ID = 'VHg7c_RAaB1hu772YDtQllDOSDelBUR20h_PtDLxgKc'
-const subscribeOn = ref(false)
-
-// 检测订阅状态(回显按钮)
-async function checkSubscribeStatus() {
-  try {
-    const res = await statsApi.getSubscribeStatus()
-    subscribeOn.value = !!res.data?.subscribed
-  } catch { /* */ }
-}
-
-// 点击开启/续订日报提醒(勾选"总是保持以上选择"后静默续订, 不再弹窗)
-async function handleSubscribeTap() {
-  try {
-    const res = await uni.requestSubscribeMessage({ tmplIds: [SUBSCRIBE_TEMPLATE_ID] })
-    if (res[SUBSCRIBE_TEMPLATE_ID] === 'accept') {
-      await statsApi.recordSubscribe([SUBSCRIBE_TEMPLATE_ID]).catch(() => {})
-      subscribeOn.value = true
-      uni.showToast({ title: '已开启日报提醒', icon: 'success' })
-    } else {
-      uni.showToast({ title: '未开启订阅', icon: 'none' })
-    }
-  } catch (err) {
-    // 用户可能频繁触发或版本不支持
-    if (err.errMsg && err.errMsg.includes('cancel')) return
-    uni.showToast({ title: '当前版本不支持', icon: 'none' })
-  }
-}
+// 日报提醒订阅续订已收敛到公出日志入口(utils/subscribe.js renewDailyReminder)
 
 const activities = ref([])
 const unreadCount = ref(0)
@@ -178,7 +141,7 @@ const isLoadingMore = ref(false)
 const noMoreData = ref(false)
 const isRefreshing = ref(false)
 
-onMounted(() => { userStore.refreshProfile(); loadPageData(); checkSubscribeStatus() })
+onMounted(() => { userStore.refreshProfile(); loadPageData() })
 
 async function loadPageData() {
   try {
@@ -291,14 +254,6 @@ function goToActivity(item) {
 
 /* Scrollable content */
 .content { flex: 1; overflow-y: auto; background: #F5F5F5; }
-
-/* 日报提醒订阅入口 */
-.remind-banner { display: flex; align-items: center; gap: 20rpx; margin: 20rpx 24rpx; padding: 24rpx; background: #EDF2FF; border-radius: 16rpx; }
-.remind-icon { font-size: 40rpx; }
-.remind-text { flex: 1; display: flex; flex-direction: column; gap: 6rpx; }
-.remind-title { font-size: 28rpx; font-weight: 600; color: #2B6DE8; }
-.remind-sub { font-size: 22rpx; color: #606266; line-height: 1.5; }
-.remind-arrow { font-size: 32rpx; color: #2B6DE8; }
 
 /* Quick actions card: white, full width */
 .quick-card { background: #FFFFFF; padding-bottom: 48rpx; }
