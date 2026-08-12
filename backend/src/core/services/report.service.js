@@ -983,7 +983,13 @@ async function getWorkerStats({ keyword }) {
   // 范围内用户姓名集合（用于 workers 文本过滤）
   const where = ['deleted_at IS NULL', "role NOT IN ('admin','superadmin')"];
   const params = [];
-  if (fieldOnly) where.push('is_field_worker = 1');
+  if (fieldOnly) where.push(`(
+    EXISTS (SELECT 1 FROM daily_reports fw1 WHERE fw1.user_id = users.id AND fw1.status = 'approved'
+            AND fw1.report_type != 'office' AND fw1.report_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY))
+    OR EXISTS (SELECT 1 FROM attendance_leave_requests fw2 WHERE fw2.applicant_id = users.id
+               AND fw2.request_type = 'biz_trip' AND fw2.status = 'in_progress')
+    OR EXISTS (SELECT 1 FROM biz_trip_status fw3 WHERE fw3.user_id = users.id AND fw3.status = 'active')
+  )`);
   if (deptIds && deptIds.length > 0) {
     where.push(`department_id IN (${deptIds.map(() => '?').join(',')})`);
     params.push(...deptIds);

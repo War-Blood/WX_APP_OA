@@ -401,6 +401,24 @@ async function getViewFilter(view) {
 }
 
 /**
+ * 现场作业人员判定 SQL（通过出差状态识别，不依赖花名册 is_field_worker）：
+ * 近30天有 approved 公出日志 OR 当前有进行中考勤出差 OR 有 active 合规出差
+ * @param {string} alias - 用户表别名（无别名传表名 'users'）
+ * @returns {string}
+ */
+function buildFieldWorkerSql(alias) {
+  return `(
+    EXISTS (SELECT 1 FROM daily_reports fw1
+            WHERE fw1.user_id = ${alias}.id AND fw1.status = 'approved' AND fw1.report_type != 'office'
+              AND fw1.report_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY))
+    OR EXISTS (SELECT 1 FROM attendance_leave_requests fw2
+               WHERE fw2.applicant_id = ${alias}.id AND fw2.request_type = 'biz_trip' AND fw2.status = 'in_progress')
+    OR EXISTS (SELECT 1 FROM biz_trip_status fw3
+               WHERE fw3.user_id = ${alias}.id AND fw3.status = 'active')
+  )`;
+}
+
+/**
  * 全员当日状态（管理层看板）
  * @param {string} dateStr - 日期 (YYYY-MM-DD)，默认今天
  * @returns {Promise<Object>}
@@ -411,7 +429,7 @@ async function getDailyStatus(dateStr) {
   // 视图筛选（view=daily）：部门子树 + 仅现场作业 + 工作类型
   const { hasDept, deptParams, fieldOnly, workType } = await getViewFilter('daily');
   const userScopeSql =
-    (fieldOnly ? ' AND u.is_field_worker = 1' : '') +
+    (fieldOnly ? ` AND ${buildFieldWorkerSql('u')}` : '') +
     (hasDept ? ` AND u.department_id IN (${deptParams.map(() => '?').join(',')})` : '');
   const workTypeSql = workType ? ' AND dr.today_work_type = ?' : '';
 
@@ -769,7 +787,7 @@ async function getDailyCounts(month) {
     `SELECT id, entry_date, nickname, user_name FROM users
      WHERE worker_status = 'active' AND status = 'active'
        AND deleted_at IS NULL AND role NOT IN ('admin', 'superadmin')
-       ${fieldOnly ? 'AND is_field_worker = 1' : ''}${hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : ''}`,
+       ${fieldOnly ? `AND ${buildFieldWorkerSql('users')}` : ''}${hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : ''}`,
     deptParams
   );
 
@@ -975,7 +993,7 @@ async function getWorkerWorkTypes(month) {
   // 视图筛选（view=worktypes）：部门子树 + 仅现场作业 + 工作类型
   const { hasDept, deptParams, fieldOnly, workType } = await getViewFilter('worktypes');
   const userScopeSql =
-    (fieldOnly ? ' AND u.is_field_worker = 1' : '') +
+    (fieldOnly ? ` AND ${buildFieldWorkerSql('u')}` : '') +
     (hasDept ? ` AND u.department_id IN (${deptParams.map(() => '?').join(',')})` : '');
   const workTypeSql = workType ? ' AND today_work_type = ?' : '';
   const activeWorkers = await db.query(
@@ -1064,7 +1082,7 @@ async function getWorkerWorkTypes(month) {
   // 使只出现在 workers 文本列、无 daily_report_workers 行的代填人员也能被恢复（修复数据缺失）
   const scopeWhere = ['u.deleted_at IS NULL', "u.role NOT IN ('admin','superadmin')"];
   const scopeParams = [];
-  if (fieldOnly) scopeWhere.push('u.is_field_worker = 1');
+  if (fieldOnly) scopeWhere.push(buildFieldWorkerSql('u'));
   if (hasDept) {
     scopeWhere.push(`u.department_id IN (${deptParams.map(() => '?').join(',')})`);
     scopeParams.push(...deptParams);
@@ -1254,7 +1272,7 @@ async function getAreaDistribution(date) {
   // 视图筛选（view=area）：部门子树 + 仅现场作业 + 区域/省份
   const { hasDept, deptParams, fieldOnly, province } = await getViewFilter('area');
   const userScopeSql =
-    (fieldOnly ? ' AND is_field_worker = 1' : '') +
+    (fieldOnly ? ` AND ${buildFieldWorkerSql('users')}` : '') +
     (hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : '');
   const provinceSql = province ? ' AND dr.area LIKE ?' : '';
 
@@ -1398,7 +1416,7 @@ async function getProvinceWorkers(province, date) {
   // 视图筛选（view=area）：部门子树 + 仅现场作业
   const { hasDept, deptParams, fieldOnly } = await getViewFilter('area');
   const userScopeSql =
-    (fieldOnly ? ' AND is_field_worker = 1' : '') +
+    (fieldOnly ? ` AND ${buildFieldWorkerSql('users')}` : '') +
     (hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : '');
 
   // 与 getAreaDistribution 保持一致，默认北京时间昨日，支持传 date
@@ -1532,7 +1550,7 @@ async function getUserMonthlyLogs(userId, month) {
   // 范围守卫：公出统计仅展示范围内（部门子树 + 现场作业）人员，范围外返回空
   const { hasDept, deptParams, fieldOnly } = await getViewFilter('workers');
   const inScopeCheck = await db.query(
-    `SELECT id FROM users WHERE id = ?${fieldOnly ? ' AND is_field_worker = 1' : ''}
+    `SELECT id FROM users WHERE id = ?${fieldOnly ? ` AND ${buildFieldWorkerSql('users')}` : ''}
       ${hasDept ? `AND department_id IN (${deptParams.map(() => '?').join(',')})` : ''}`,
     [userId, ...deptParams]
   );
