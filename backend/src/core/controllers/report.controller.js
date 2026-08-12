@@ -265,8 +265,8 @@ async function update(req, res, next) {
       }
     }
 
-    // todayWorkType 归一化 + 枚举校验
-    if (updateData.todayWorkType) {
+    // todayWorkType 归一化 + 枚举校验（工作日报 office 无工作类型，跳过）
+    if (updateData.todayWorkType && updateData.reportType !== 'office') {
       // 旧版简称归一化（与 stats.service.js 的 wtNormalize 保持一致）
       if (updateData.todayWorkType === '工作' || updateData.todayWorkType === '作业') {
         updateData.todayWorkType = '工作（陆）';

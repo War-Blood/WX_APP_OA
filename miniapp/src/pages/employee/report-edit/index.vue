@@ -1153,17 +1153,7 @@ async function handleSubmit() {
   } catch (err) {
     // 先关 loading 再给反馈：若先 showError 后 hideLoading，微信会立刻关掉刚显示的 toast
     uni.hideLoading()
-    if (err && err.code === 2002) {
-      // 重复提交等阻断性错误用持久弹窗，原因完整可读
-      uni.showModal({
-        title: '提交失败',
-        content: err.message || '该日期已提交日报',
-        showCancel: false,
-        confirmText: '我知道了'
-      })
-    } else {
-      showError((err && err.message) || '提交失败')
-    }
+    showError((err && err.message) || '提交失败')
   }
 }
 </script>

@@ -67,9 +67,7 @@ async function realRequest(config) {
             resolve(responseData)
           } else {
             showError(responseData.message || '请求失败')
-            const err = new Error(responseData.message || '请求失败')
-            err.code = responseData.code
-            reject(err)
+            reject(new Error(responseData.message || '请求失败'))
           }
         } else {
           showError(`服务器错误: ${statusCode}`)
