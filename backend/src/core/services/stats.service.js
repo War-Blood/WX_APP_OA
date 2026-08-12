@@ -499,31 +499,29 @@ async function buildUserFilter(view, viewParams, alias) {
   // 该统计页的唯一视图条件（旧固定字段自动迁移为 conditions）
   const viewRow = await statsViewService.getViewByStatKey(view);
   const rawFilter = (viewRow && viewRow.filter) || {};
-  const conditions = Array.isArray(rawFilter.conditions) && rawFilter.conditions.length
+  const viewConditions = Array.isArray(rawFilter.conditions) && rawFilter.conditions.length
     ? rawFilter.conditions
     : migrateLegacyFilter(rawFilter);
-  const cond = buildConditionsSql(conditions, alias);
-  const clauses = [...cond.clauses];
-  const params = [...cond.params];
 
-  // RLS 数据范围（固定角色策略：admin→全部 / bm→本部门及下属 / employee→本部门）
-  let userDeptId = null;
+  // 视图限制（RLS 数据范围）也作为筛选条件加入，与视图条件统一经 buildConditionsSql 生效
+  const conditions = [...viewConditions];
   if (scopeType !== 'all' && userId) {
     const rows = await db.query('SELECT department_id FROM users WHERE id = ?', [userId]);
-    userDeptId = rows.length ? rows[0].department_id : null;
-  }
-  if (scopeType === 'department' && userDeptId) {
-    clauses.push(`${alias}.department_id = ?`);
-    params.push(userDeptId);
-  } else if (scopeType === 'department_and_children' && userDeptId) {
-    const deptIds = await resolveDeptSubtreeIds(userDeptId);
-    if (deptIds && deptIds.length) {
-      clauses.push(`${alias}.department_id IN (${deptIds.map(() => '?').join(',')})`);
-      params.push(...deptIds);
+    const userDeptId = rows.length ? rows[0].department_id : null;
+    if (userDeptId) {
+      if (scopeType === 'department') {
+        // employee → 本部门
+        conditions.push({ field: 'department_id', op: 'eq', value: userDeptId });
+      } else if (scopeType === 'department_and_children') {
+        // bm → 本部门及下属
+        const deptIds = await resolveDeptSubtreeIds(userDeptId);
+        if (deptIds && deptIds.length) conditions.push({ field: 'department_id', op: 'in', value: deptIds });
+      }
     }
   }
 
-  return { clauses, params };
+  const cond = buildConditionsSql(conditions, alias);
+  return { clauses: cond.clauses, params: cond.params };
 }
 
 /**
