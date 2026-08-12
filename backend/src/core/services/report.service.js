@@ -276,6 +276,33 @@ async function listDeleted({ page = 1, pageSize = 20 }) {
   return { list: rows, total };
 }
 
+/**
+ * 彻底删除回收站中的日报（不可恢复）
+ * 仅允许删除已软删除（deleted_at IS NOT NULL）的记录；事务内清理关联表后硬删。
+ * @param {number} id - 日报 ID
+ * @returns {Promise<void>}
+ */
+async function purgeReport(id) {
+  return db.transaction(async (conn) => {
+    // 1. 校验：仅回收站（软删）记录可彻底删除
+    const rows = await conn.query(
+      'SELECT id FROM daily_reports WHERE id = ? AND deleted_at IS NOT NULL', [id]
+    );
+    if (rows.length === 0) {
+      throw new NotFoundError('回收站中未找到该记录');
+    }
+
+    // 2. 清理关联表（均无 FK 级联）
+    await conn.execute('DELETE FROM daily_report_workers WHERE report_id = ?', [id]);
+    await conn.execute('DELETE FROM review_records WHERE report_id = ?', [id]);
+    await conn.execute('DELETE FROM wecom_sheet_records WHERE daily_report_id = ?', [id]);
+    await conn.execute('DELETE FROM report_compliance WHERE report_id = ?', [id]);
+
+    // 3. 彻底删除日报
+    await conn.execute('DELETE FROM daily_reports WHERE id = ?', [id]);
+  });
+}
+
 // ==============================
 // 管理员编辑公出日志
 // ==============================
@@ -1593,4 +1620,5 @@ module.exports = {
   getPendingReviews,
   supplementReview,
   getTeamLogs,
+  purgeReport,
 };

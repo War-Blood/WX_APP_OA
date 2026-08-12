@@ -92,6 +92,11 @@ export function restoreReport(id: string): Promise<void> {
   return request.post('/report/restore', { id })
 }
 
+/** 彻底删除回收站中的日报（不可恢复） */
+export function purgeReport(id: string): Promise<void> {
+  return request.post('/report/purge', { id })
+}
+
 /** 回收站列表 */
 export function getDeletedReports(params: {
   page?: number; pageSize?: number

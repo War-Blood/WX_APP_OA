@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
 import { toast } from '@/utils/toast'
-import { getDeletedReports, restoreReport } from '@/api/report'
+import { getDeletedReports, restoreReport, purgeReport } from '@/api/report'
 
 interface TrashItem {
   id: string
@@ -47,6 +48,27 @@ async function handleRestore(id: string) {
   }
 }
 
+async function handlePurge(id: string) {
+  try {
+    await ElMessageBox.confirm('彻底删除后不可恢复，确定永久删除该条日志？', '危险操作', {
+      type: 'warning',
+      confirmButtonText: '彻底删除',
+      cancelButtonText: '取消',
+      confirmButtonClass: 'el-button--danger'
+    })
+  } catch {
+    return // 用户取消
+  }
+  try {
+    await purgeReport(id)
+    toast.success('已彻底删除')
+    emit('restored')
+    loadTrash()
+  } catch {
+    toast.error('删除失败')
+  }
+}
+
 function handlePageChange(page: number) {
   trashPage.value = page
   loadTrash()
@@ -68,9 +90,10 @@ onMounted(loadTrash)
     <el-table-column prop="deleted_at" label="删除时间" width="160">
       <template #default="{ row }">{{ row.deleted_at?.slice(0, 16).replace('T', ' ') }}</template>
     </el-table-column>
-    <el-table-column label="操作" width="100" align="center">
+    <el-table-column label="操作" width="170" align="center">
       <template #default="{ row }">
         <el-button size="small" type="primary" @click="handleRestore(row.id)">恢复</el-button>
+        <el-button size="small" type="danger" @click="handlePurge(row.id)">彻底删除</el-button>
       </template>
     </el-table-column>
   </el-table>

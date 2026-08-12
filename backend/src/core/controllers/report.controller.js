@@ -636,6 +636,23 @@ async function listDeleted(req, res, next) {
   }
 }
 
+/**
+ * 彻底删除回收站中的日报（仅管理员）
+ * POST /api/report/purge
+ */
+async function purgeReport(req, res, next) {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      throw new ValidationError('id 不能为空');
+    }
+    await reportService.purgeReport(id);
+    res.json(success(null, '已彻底删除'));
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function schedulePreview(req, res, next) {
   try {
     const { month } = req.body;
@@ -654,6 +671,7 @@ module.exports = {
   deleteReport,
   restoreReport,
   listDeleted,
+  purgeReport,
   update,
   checkDuplicate,
   todayStatus,

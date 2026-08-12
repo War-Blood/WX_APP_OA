@@ -41,6 +41,9 @@ router.post('/restore', authenticate, reportController.restoreReport);
 // POST /api/report/deleted-list — 回收站列表（仅管理员）
 router.post('/deleted-list', ...adminAuth, reportController.listDeleted);
 
+// POST /api/report/purge — 彻底删除回收站记录（仅管理员，不可恢复）
+router.post('/purge', ...adminAuth, reportController.purgeReport);
+
 // POST /api/report/update — 管理员编辑公出日志（仅 admin+）
 router.post('/update', ...adminAuth, reportController.update);
 
