@@ -446,8 +446,8 @@ async function submit(data, userId) {
     ? supplementDate
     : reportDate;
 
-  // 1. 检查是否已被代填（非草稿、非请假时检查）
-  if (!isDraft && !isLeave) {
+  // 1. 检查是否已被代填（非草稿、非请假、非工作日报时检查；工作日报无作业人员概念，同事公出日志不构成代填）
+  if (!isDraft && !isLeave && reportType !== 'office') {
     const subCheck = await db.query(
       `SELECT dr.id AS reportId, u.nickname AS submitterName
        FROM daily_report_workers drw
@@ -496,9 +496,9 @@ async function submit(data, userId) {
 
   // 4. 插入 daily_reports（使用事务包裹 + 代填关联表写入）
   const reportId = await db.transaction(async (conn) => {
-    // 4a. 检查当日是否已有自己的日报
+    // 4a. 检查当日是否已有自己的日报（含软删行：已删除的记录允许重新提交，恢复后覆盖，避免撞 uk_user_date）
     const [existing] = await conn.query(
-      'SELECT id, status, today_work_type FROM daily_reports WHERE user_id = ? AND report_date = ? AND deleted_at IS NULL',
+      'SELECT id, status, today_work_type, deleted_at FROM daily_reports WHERE user_id = ? AND report_date = ?',
       [userId, effectiveReportDate]
     );
 
@@ -547,20 +547,20 @@ async function submit(data, userId) {
       const existingWorkType = existing[0].today_work_type;
 
       if (isDraft) {
-        // 草稿模式：总是更新已有记录
+        // 草稿模式：总是更新已有记录（含软删行恢复）
         const columns = Object.keys(fields).map(key => `${key} = ?`).join(', ');
         const values = Object.values(fields);
         await conn.execute(
-          `UPDATE daily_reports SET ${columns}, updated_at = NOW() WHERE id = ?`,
+          `UPDATE daily_reports SET ${columns}, deleted_at = NULL, updated_at = NOW() WHERE id = ?`,
           [...values, existing[0].id]
         );
         resultReportId = existing[0].id;
-      } else if (existingStatus === 'draft' || existingWorkType === '请假') {
-        // 已有草稿或自动生成的请假记录，覆盖
+      } else if (existingStatus === 'draft' || existingWorkType === '请假' || existing[0].deleted_at != null) {
+        // 已有草稿 / 自动生成的请假记录 / 已删除记录（允许重新提交），恢复并覆盖
         const columns = Object.keys(fields).map(key => `${key} = ?`).join(', ');
         const values = Object.values(fields);
         await conn.execute(
-          `UPDATE daily_reports SET ${columns}, updated_at = NOW() WHERE id = ?`,
+          `UPDATE daily_reports SET ${columns}, deleted_at = NULL, updated_at = NOW() WHERE id = ?`,
           [...values, existing[0].id]
         );
         resultReportId = existing[0].id;

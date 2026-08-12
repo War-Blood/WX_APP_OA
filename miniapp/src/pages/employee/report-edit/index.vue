@@ -92,7 +92,7 @@
             <text class="form-label">作业人员 <text class="required">*</text></text>
             <view class="worker-trigger" @tap="showWorkerPicker = true">
               <text v-if="selectedWorkerIds.length === 0" class="worker-placeholder">选择作业人员（可多选）</text>
-              <text v-else class="worker-placeholder" style="color:#333;">
+              <text v-else class="worker-placeholder worker-placeholder--selected">
                 已选 {{ selectedWorkerIds.length }} 人
               </text>
               <text class="picker-arrow">›</text>
@@ -119,7 +119,7 @@
               <text class="form-label">项目名称 <text class="required">*</text></text>
               <view class="worker-trigger" @tap="showProjectPicker = true">
                 <text v-if="!formData.project" class="worker-placeholder">选择项目（可搜索）</text>
-                <text v-else style="font-size:28rpx;color:#333;">{{ formData.project }}</text>
+                <text v-else class="picker-value">{{ formData.project }}</text>
                 <text class="picker-arrow">›</text>
               </view>
             </view>
@@ -179,7 +179,7 @@
               <text class="form-label">作业人员 <text class="required">*</text></text>
               <view class="worker-trigger" @tap="showWorkerPicker = true">
                 <text v-if="selectedWorkerIds.length === 0" class="worker-placeholder">选择作业人员（可多选）</text>
-                <text v-else class="worker-placeholder" style="color:#333;">
+                <text v-else class="worker-placeholder worker-placeholder--selected">
                   已选 {{ selectedWorkerIds.length }} 人
                 </text>
                 <text class="picker-arrow">›</text>
@@ -201,7 +201,7 @@
               <text class="form-label">机型</text>
               <view class="worker-trigger" @tap="showMachineInput = true">
                 <text v-if="machineModels.length === 0" class="worker-placeholder">点击添加机型（可多选）</text>
-                <text v-else class="worker-placeholder" style="color:#333;">已选 {{ machineModels.length }} 个机型</text>
+                <text v-else class="worker-placeholder worker-placeholder--selected">已选 {{ machineModels.length }} 个机型</text>
                 <text class="picker-arrow">+</text>
               </view>
               <!-- 已选机型标签 -->
@@ -342,7 +342,7 @@
               maxlength="2000"
               @input="onTodayWorkInput"
             />
-            <text class="word-count" style="position:static;text-align:right;display:block;">{{ todayWorkLength }}/2000</text>
+            <text class="word-count word-count-static">{{ todayWorkLength }}/2000</text>
           </view>
         </view>
         <view class="section-card">
@@ -419,7 +419,7 @@
             <text class="popup-item-text">{{ p }}</text>
           </view>
           <view v-if="projectSearchKeyword && !filteredProjects.includes(projectSearchKeyword)" class="popup-item" @tap="selectProject(projectSearchKeyword)">
-            <text class="popup-item-text" style="color:#2B6DE8;">+ 新增 "{{ projectSearchKeyword }}"</text>
+            <text class="popup-item-text popup-item-text--primary">+ 新增 "{{ projectSearchKeyword }}"</text>
           </view>
           <view v-if="filteredProjects.length === 0 && !projectSearchKeyword" class="popup-empty">
             <text class="popup-empty-text">暂无项目数据，可输入新项目名称</text>
@@ -430,7 +430,7 @@
 
     <!-- 机型输入弹窗（多选 tags） -->
     <view v-if="showMachineInput" class="popup-mask" @tap="showMachineInput = false">
-      <view class="popup-panel" @tap.stop style="max-height:50vh;">
+      <view class="popup-panel popup-panel--short" @tap.stop>
         <view class="popup-header">
           <text class="popup-title">添加机型</text>
           <text class="popup-close" @tap="showMachineInput = false">完成</text>
@@ -447,7 +447,7 @@
           </view>
         </view>
         <!-- 历史建议 -->
-        <scroll-view v-if="filteredMachineSuggestions.length > 0" class="popup-list" scroll-y style="max-height:360rpx;">
+        <scroll-view v-if="filteredMachineSuggestions.length > 0" class="popup-list popup-list--short" scroll-y>
           <view
             v-for="m in filteredMachineSuggestions"
             :key="m"
@@ -457,7 +457,7 @@
             <text class="popup-item-text">{{ m }}</text>
           </view>
         </scroll-view>
-        <view v-else class="popup-empty" style="padding:32rpx;">
+        <view v-else class="popup-empty popup-empty--compact">
           <text class="popup-empty-text">输入新机型名称后点"添加"或按回车</text>
         </view>
       </view>
@@ -518,6 +518,8 @@ const projectSearchKeyword = ref('')
 const projectList = ref([])
 const machineInputText = ref('')
 const machineModels = ref([])
+// 提交成功后置位，防止 onUnload/onHide 的 autoSaveDraft 把已提交表单重新写回草稿
+const justSubmitted = ref(false)
 
 const formData = ref({
   project: '',
@@ -690,8 +692,6 @@ async function checkTodayStatus() {
   showSubstituteMsg.value = false
   substituteInfo.value = null
 
-  if (currentTab.value === 'office') return // 公司日报不检测
-
   // 补公出日志：补录日期为空时不检测（避免用今天日期误导用户）
   if (currentTab.value === 'biz_trip_supplement' && !formData.value.supplementDate) return
 
@@ -705,8 +705,10 @@ async function checkTodayStatus() {
       reportDate: effectiveDate
     })
     const data = res.data || {}
+    const isOffice = currentTab.value === 'office'
 
-    if (res.code === 2001 || data.status === 'substituted') {
+    // 工作日报（office）无作业人员概念、不可被代填；substituted 视为需要填写
+    if (!isOffice && (res.code === 2001 || data.status === 'substituted')) {
       // 被代填 → 显示代填黄色条
       showSubstituteMsg.value = true
       substituteInfo.value = data
@@ -714,16 +716,13 @@ async function checkTodayStatus() {
     }
 
     if (data.status === 'submitted') {
-      setTodayStatusBar('submitted',
-        '今日公出日志已提交',
-        '您已完成今日的公出日志填写',
-        '查看日志',
-        () => {
-          if (data.reportId) {
-            uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + data.reportId })
-          }
+      const title = isOffice ? `${effectiveDate} 工作日报已提交` : '今日公出日志已提交'
+      const desc = isOffice ? '已完成该日期的工作日报填写' : '您已完成今日的公出日志填写'
+      setTodayStatusBar('submitted', title, desc, '查看日志', () => {
+        if (data.reportId) {
+          uni.navigateTo({ url: '/pages/employee/report-detail/index?id=' + data.reportId })
         }
-      )
+      })
     } else if (data.status === 'draft') {
       setTodayStatusBar('draft',
         '您有未完成的草稿',
@@ -734,7 +733,7 @@ async function checkTodayStatus() {
     } else {
       // none — 需要填写
       setTodayStatusBar('none',
-        '今日需提交公出日志',
+        isOffice ? '请填写该日期工作日报' : '今日需提交公出日志',
         '请在下方填写今日工作内容后提交',
         '',
         null
@@ -823,6 +822,7 @@ watch(
   () => {
     clearTimeout(saveTimer)
     saveTimer = setTimeout(() => {
+      if (justSubmitted.value) return
       const draft = {
         currentTab: currentTab.value,
         reportDate: reportDate.value,
@@ -841,6 +841,7 @@ watch(
 )
 
 function autoSaveDraft() {
+  if (justSubmitted.value) return
   if (!formData.value.project && !formData.value.todayWork && !formData.value.workContent
       && !formData.value.tomorrowPlan && !formData.value.issues && !formData.value.coordination) return
   const draft = {
@@ -866,9 +867,9 @@ function switchTab(key) {
   if (key === 'office') {
     selectedWorkType.value = ''
     selectedWorkerIds.value = []
-    // 公司日报不显示状态栏
-    todayStatusBar.value.visible = false
+    // 工作日报同样显示「已提交」状态提示条，防止重复提交
     showSubstituteMsg.value = false
+    checkTodayStatus()
   } else {
     // 公出/补公出默认选第一个工作类型
     if (!selectedWorkType.value) selectedWorkType.value = workTypes[0]
@@ -1123,8 +1124,9 @@ async function handleSubmit() {
       return
     }
 
-    // 清除草稿
+    // 清除草稿；置位防 navigateBack 的 onUnload/onHide 再次保存
     uni.removeStorageSync('report_auto_draft')
+    justSubmitted.value = true
 
     // 保存关联方历史
     if (formData.value.relatedParty) {
@@ -1148,9 +1150,20 @@ async function handleSubmit() {
     const msg = currentTab.value === 'biz_trip_supplement' ? '已提交，等待管理员审核' : '提交成功'
     showSuccess(msg)
     setTimeout(() => uni.navigateBack(), 1500)
-  } catch {
+  } catch (err) {
+    // 先关 loading 再给反馈：若先 showError 后 hideLoading，微信会立刻关掉刚显示的 toast
     uni.hideLoading()
-    // request.js 已在非 0/2001 code 时做了 showToast + reject，此处仅关 loading
+    if (err && err.code === 2002) {
+      // 重复提交等阻断性错误用持久弹窗，原因完整可读
+      uni.showModal({
+        title: '提交失败',
+        content: err.message || '该日期已提交日报',
+        showCancel: false,
+        confirmText: '我知道了'
+      })
+    } else {
+      showError((err && err.message) || '提交失败')
+    }
   }
 }
 </script>
@@ -1171,7 +1184,7 @@ async function handleSubmit() {
 }
 .nav-draft-text {
   font-size: 26rpx;
-  color: #2B6DE8;
+  color: $primary-color;
 }
 
 /* 代填提示 */
@@ -1207,7 +1220,7 @@ async function handleSubmit() {
   gap: 4rpx;
 }
 .status-title {
-  font-size: 28rpx;
+  font-size: $font-base;
   font-weight: 600;
 }
 .status-info .status-title { color: #1565C0; }
@@ -1229,7 +1242,7 @@ async function handleSubmit() {
 .status-success .status-action { background: #2E7D32; }
 .status-action-text {
   font-size: 24rpx;
-  color: #FFFFFF;
+  color: $bg-white;
 }
 
 .substitute-bar {
@@ -1253,7 +1266,7 @@ async function handleSubmit() {
   gap: 4rpx;
 }
 .substitute-title {
-  font-size: 28rpx;
+  font-size: $font-base;
   font-weight: 600;
   color: #F57F17;
 }
@@ -1269,15 +1282,15 @@ async function handleSubmit() {
 }
 .substitute-action-text {
   font-size: 24rpx;
-  color: #FFFFFF;
+  color: $bg-white;
 }
 
 /* 类型 Tab */
 .type-tab-bar {
   display: flex;
   margin: 16rpx 24rpx;
-  background: #FFFFFF;
-  border-radius: 12rpx;
+  background: $bg-card;
+  border-radius: $radius-base;
   padding: 6rpx;
 }
 .type-tab-item {
@@ -1288,15 +1301,15 @@ async function handleSubmit() {
   transition: background 0.2s;
 }
 .type-tab-active {
-  background: #2B6DE8;
+  background: $primary-color;
 }
 .type-tab-text {
   font-size: 26rpx;
-  color: #666666;
+  color: $text-regular;
   font-weight: 500;
 }
 .type-tab-active .type-tab-text {
-  color: #FFFFFF;
+  color: $bg-white;
 }
 
 /* 内容滚动 */
@@ -1324,7 +1337,7 @@ async function handleSubmit() {
 }
 
 .required {
-  color: #EF4444;
+  color: $danger-color;
 }
 
 .form-group {
@@ -1353,9 +1366,9 @@ async function handleSubmit() {
 .form-input {
   height: 72rpx;
   padding: 0 20rpx;
-  background: #F7F8FA;
-  border-radius: 12rpx;
-  font-size: 28rpx;
+  background: $bg-form;
+  border-radius: $radius-base;
+  font-size: $font-base;
   color: $text-primary;
   box-sizing: border-box;
   width: 100%;
@@ -1379,23 +1392,23 @@ async function handleSubmit() {
 .form-picker {
   height: 72rpx;
   padding: 0 20rpx;
-  background: #F7F8FA;
-  border-radius: 12rpx;
+  background: $bg-form;
+  border-radius: $radius-base;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
 .picker-value {
-  font-size: 28rpx;
+  font-size: $font-base;
   color: $text-primary;
 }
 .picker-placeholder {
   color: $text-secondary;
 }
 .picker-icon {
-  font-size: 28rpx;
-  color: #999999;
+  font-size: $font-base;
+  color: $text-secondary;
   line-height: 1;
 }
 
@@ -1406,9 +1419,9 @@ async function handleSubmit() {
 .form-textarea {
   min-height: 144rpx;
   padding: 16rpx 20rpx;
-  background: #F7F8FA;
-  border-radius: 12rpx;
-  font-size: 28rpx;
+  background: $bg-form;
+  border-radius: $radius-base;
+  font-size: $font-base;
   color: $text-primary;
   line-height: 40rpx;
   box-sizing: border-box;
@@ -1422,8 +1435,13 @@ async function handleSubmit() {
   position: absolute;
   bottom: 12rpx;
   right: 16rpx;
-  font-size: 22rpx;
+  font-size: $font-xs;
   color: $text-secondary;
+}
+.word-count-static {
+  position: static;
+  text-align: right;
+  display: block;
 }
 
 /* 搜索下拉 */
@@ -1432,8 +1450,8 @@ async function handleSubmit() {
   left: 0;
   right: 0;
   top: 100%;
-  background: #FFFFFF;
-  border-radius: 12rpx;
+  background: $bg-card;
+  border-radius: $radius-base;
   box-shadow: 0 4rpx 24rpx rgba(0,0,0,0.1);
   max-height: 320rpx;
   overflow-y: auto;
@@ -1441,12 +1459,12 @@ async function handleSubmit() {
 }
 .search-dropdown-item {
   padding: 20rpx 24rpx;
-  font-size: 28rpx;
-  color: #333;
-  border-bottom: 1rpx solid #F0F0F0;
+  font-size: $font-base;
+  color: $text-primary;
+  border-bottom: 1rpx solid $border-light;
 }
 .search-dropdown-item:active {
-  background: #F7F8FA;
+  background: $bg-form;
 }
 
 /* 作业人员 */
@@ -1455,13 +1473,16 @@ async function handleSubmit() {
   align-items: center;
   justify-content: space-between;
   padding: 24rpx;
-  background: #F7F8FA;
-  border-radius: 12rpx;
+  background: $bg-form;
+  border-radius: $radius-base;
   min-height: 72rpx;
 }
 .worker-placeholder {
-  font-size: 28rpx;
-  color: #C0C4CC;
+  font-size: $font-base;
+  color: $text-placeholder;
+}
+.worker-placeholder--selected {
+  color: $text-primary;
 }
 .picker-row {
   display: flex;
@@ -1480,8 +1501,8 @@ async function handleSubmit() {
 .locate-btn {
   width: 64rpx;
   height: 72rpx;
-  background: #F7F8FA;
-  border-radius: 12rpx;
+  background: $bg-form;
+  border-radius: $radius-base;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1509,16 +1530,16 @@ async function handleSubmit() {
   align-items: center;
   gap: 8rpx;
   padding: 6rpx 16rpx;
-  background: #EDF2FF;
+  background: $primary-bg;
   border-radius: 8rpx;
 }
 .worker-tag-text {
   font-size: 24rpx;
-  color: #2B6DE8;
+  color: $primary-color;
 }
 .worker-tag-close {
-  font-size: 28rpx;
-  color: #2B6DE8;
+  font-size: $font-base;
+  color: $primary-color;
   padding: 0 4rpx;
 }
 
@@ -1531,7 +1552,7 @@ async function handleSubmit() {
 }
 .notice-text {
   font-size: 24rpx;
-  color: #F59E0B;
+  color: $warning-color;
 }
 
 /* 弹窗（项目选择） */
@@ -1546,10 +1567,13 @@ async function handleSubmit() {
 .popup-panel {
   width: 100%;
   max-height: 70vh;
-  background: #FFFFFF;
+  background: $bg-card;
   border-radius: 32rpx 32rpx 0 0;
   display: flex;
   flex-direction: column;
+}
+.popup-panel--short {
+  max-height: 50vh;
 }
 .popup-header {
   display: flex;
@@ -1557,8 +1581,8 @@ async function handleSubmit() {
   justify-content: space-between;
   padding: 32rpx 32rpx 16rpx;
 }
-.popup-title { font-size: 32rpx; font-weight: 600; color: #333; }
-.popup-close { font-size: 28rpx; color: #999; }
+.popup-title { font-size: 32rpx; font-weight: 600; color: $text-primary; }
+.popup-close { font-size: $font-base; color: $text-secondary; }
 .popup-search {
   display: flex;
   align-items: center;
@@ -1569,36 +1593,39 @@ async function handleSubmit() {
   flex: 1;
   height: 72rpx;
   padding: 0 20rpx;
-  background: #F7F8FA;
-  border-radius: 12rpx;
-  font-size: 28rpx;
+  background: $bg-form;
+  border-radius: $radius-base;
+  font-size: $font-base;
   box-sizing: border-box;
 }
 .popup-add-btn {
   flex-shrink: 0;
   height: 72rpx;
   padding: 0 28rpx;
-  background: #2B6DE8;
-  border-radius: 12rpx;
+  background: $primary-color;
+  border-radius: $radius-base;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .popup-add-btn-text {
   font-size: 26rpx;
-  color: #fff;
+  color: $bg-white;
   font-weight: 500;
 }
 .popup-list { max-height: 500rpx; padding: 0 32rpx; }
+.popup-list--short { max-height: 360rpx; }
 .popup-item {
   padding: 24rpx 16rpx;
-  border-bottom: 1rpx solid #F0F0F0;
+  border-bottom: 1rpx solid $border-light;
 }
-.popup-item-text { font-size: 28rpx; color: #333; }
-.popup-item-active { background: #EDF2FF; border-radius: 8rpx; }
-.popup-item-active .popup-item-text { color: #2B6DE8; font-weight: 500; }
+.popup-item-text { font-size: $font-base; color: $text-primary; }
+.popup-item-text--primary { color: $primary-color; }
+.popup-item-active { background: $primary-bg; border-radius: $radius-sm; }
+.popup-item-active .popup-item-text { color: $primary-color; font-weight: 500; }
 .popup-empty { padding: 40rpx; text-align: center; }
-.popup-empty-text { font-size: 26rpx; color: #999; }
+.popup-empty--compact { padding: 32rpx; }
+.popup-empty-text { font-size: 26rpx; color: $text-secondary; }
 
 .bottom-placeholder {
   height: 60rpx;
@@ -1625,7 +1652,7 @@ async function handleSubmit() {
   background: linear-gradient(135deg, $primary-color, $primary-light);
   font-size: 32rpx;
   font-weight: 600;
-  color: #FFFFFF;
+  color: $bg-white;
   letter-spacing: 2rpx;
 }
 .btn-submit:active {
