@@ -113,6 +113,12 @@ async function submit(req, res, next) {
       }
     }
 
+    // 工作日报（office）：项目名称/工作类型默认值（标识为公司日报）
+    if (reportType === 'office') {
+      if (!data.project) data.project = '公司日报';
+      if (!data.todayWorkType) data.todayWorkType = '公司';
+    }
+
     const isLeave = data.todayWorkType === '请假';
 
     // 请假：project 默认填类型名，跳过 project/area 必填校验
