@@ -17,7 +17,10 @@ export interface FilterField {
 }
 
 export interface StatsViewFilter {
+  /** 下层：动态筛选条件 */
   conditions?: FilterCondition[]
+  /** 上层：视图可见性（角色 → 数据范围 all/department/department_and_children/self） */
+  visibility?: Record<string, string>
 }
 
 export interface ScopeRule {
@@ -44,6 +47,7 @@ export function getFilterFields(): Promise<FilterField[]> {
 export function createStatsView(data: {
   statKey: string
   conditions: FilterCondition[]
+  visibility?: Record<string, string>
 }): Promise<void> {
   return request.post('/stats/views', data)
 }

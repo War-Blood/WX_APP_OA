@@ -38,15 +38,35 @@ function sanitizeConditions(conditions) {
     .map(c => ({ field: c.field, op: c.op, value: c.value }));
 }
 
+/** 默认可见性策略（上层 RLS 默认值） */
+const DEFAULT_VISIBILITY = {
+  employee: 'department',
+  bm: 'department_and_children',
+  admin: 'all',
+  superadmin: 'all',
+};
+
+/** 校验视图可见性（角色 → 数据范围）；缺省角色补默认 */
+function sanitizeVisibility(visibility) {
+  const v = { ...DEFAULT_VISIBILITY };
+  if (visibility && typeof visibility === 'object') {
+    for (const [role, scope] of Object.entries(visibility)) {
+      if (VALID_SCOPES.includes(scope)) v[role] = scope;
+    }
+  }
+  return v;
+}
+
 /**
  * 保存某统计页的唯一视图（每 stat_key 仅一条，UPSERT 覆盖）
- * @param {{statKey: string, conditions: Array}} data
+ * filter_json: { visibility: {角色→范围}, conditions: [...] }
+ * @param {{statKey: string, conditions: Array, visibility: Object}} data
  * @param {number} userId
  */
-async function upsertView({ statKey, conditions }, userId) {
+async function upsertView({ statKey, conditions, visibility }, userId) {
   if (!statKey) throw new ValidationError('statKey 必填');
   if (!VALID_KEYS.includes(statKey)) throw new ValidationError('无效的统计页标识');
-  const safe = { conditions: sanitizeConditions(conditions) };
+  const safe = { conditions: sanitizeConditions(conditions), visibility: sanitizeVisibility(visibility) };
   await db.execute(
     `INSERT INTO stats_views (stat_key, filter_json, created_by) VALUES (?, ?, ?)
      ON DUPLICATE KEY UPDATE filter_json = VALUES(filter_json), updated_at = NOW()`,

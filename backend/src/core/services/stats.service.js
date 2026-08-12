@@ -494,26 +494,25 @@ function migrateLegacyFilter(filter) {
 async function buildUserFilter(view, viewParams, alias) {
   const role = (viewParams && viewParams.role) || 'employee';
   const userId = viewParams && viewParams.userId;
-  const scopeType = statsViewService.getRoleScope(role);
 
-  // 该统计页的唯一视图条件（旧固定字段自动迁移为 conditions）
+  // 该统计页的唯一视图（上层可见性 + 下层条件）
   const viewRow = await statsViewService.getViewByStatKey(view);
   const rawFilter = (viewRow && viewRow.filter) || {};
+  const visibility = (rawFilter.visibility && typeof rawFilter.visibility === 'object') ? rawFilter.visibility : {};
+  const scopeType = visibility[role] || statsViewService.getRoleScope(role);
   const viewConditions = Array.isArray(rawFilter.conditions) && rawFilter.conditions.length
     ? rawFilter.conditions
     : migrateLegacyFilter(rawFilter);
 
-  // 视图限制（RLS 数据范围）也作为筛选条件加入，与视图条件统一经 buildConditionsSql 生效
+  // 上层（视图可见性 RLS）+ 下层（条件）统一作为条件经 buildConditionsSql 生效
   const conditions = [...viewConditions];
-  if (scopeType !== 'all' && userId) {
+  if (scopeType !== 'all' && userId && scopeType !== 'self') {
     const rows = await db.query('SELECT department_id FROM users WHERE id = ?', [userId]);
     const userDeptId = rows.length ? rows[0].department_id : null;
     if (userDeptId) {
       if (scopeType === 'department') {
-        // employee → 本部门
         conditions.push({ field: 'department_id', op: 'eq', value: userDeptId });
       } else if (scopeType === 'department_and_children') {
-        // bm → 本部门及下属
         const deptIds = await resolveDeptSubtreeIds(userDeptId);
         if (deptIds && deptIds.length) conditions.push({ field: 'department_id', op: 'in', value: deptIds });
       }
@@ -521,6 +520,13 @@ async function buildUserFilter(view, viewParams, alias) {
   }
 
   const cond = buildConditionsSql(conditions, alias);
+
+  // self 范围：追加用户 id = 本人（独立于字段注册表）
+  if (scopeType === 'self' && userId) {
+    cond.clauses.push(`${alias}.id = ?`);
+    cond.params.push(userId);
+  }
+
   return { clauses: cond.clauses, params: cond.params };
 }
 

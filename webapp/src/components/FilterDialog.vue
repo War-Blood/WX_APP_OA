@@ -17,6 +17,23 @@ const fields = ref<FilterField[]>([])
 const deptTree = ref<DepartmentItem[]>([])
 const treeProps = { label: 'name', children: 'children' }
 const conditions = ref<FilterCondition[]>([])
+// 上层：视图可见性（角色 → 数据范围）
+const visibility = ref<Record<string, string>>({
+  employee: 'department',
+  bm: 'department_and_children',
+  admin: 'all',
+})
+const SCOPE_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'department', label: '本部门' },
+  { value: 'department_and_children', label: '本部门及下属' },
+  { value: 'self', label: '仅本人' },
+]
+const VISIBILITY_ROLES = [
+  { value: 'employee', label: '普通员工' },
+  { value: 'bm', label: '部门领导' },
+  { value: 'admin', label: '管理员' },
+]
 
 const OP_OPTIONS = [
   { value: 'eq', label: '等于' },
@@ -37,7 +54,17 @@ function open() {
   getFilterFields().then(list => { fields.value = list }).catch(() => { fields.value = [] })
   getDepartmentTree().then(d => { deptTree.value = d }).catch(() => { deptTree.value = [] })
   getStatsView(props.statKey).then(res => {
-    conditions.value = ((res && res.filter && res.filter.conditions) || []).map(c => ({ ...c }))
+    const filter = (res && res.filter) || {}
+    conditions.value = (filter.conditions || []).map(c => ({ ...c }))
+    if (filter.visibility && typeof filter.visibility === 'object') {
+      visibility.value = {
+        employee: filter.visibility.employee || 'department',
+        bm: filter.visibility.bm || 'department_and_children',
+        admin: filter.visibility.admin || 'all',
+      }
+    } else {
+      visibility.value = { employee: 'department', bm: 'department_and_children', admin: 'all' }
+    }
   }).catch(() => { conditions.value = [] })
 }
 
@@ -55,12 +82,27 @@ function changeField(i: number, field: string) {
 }
 
 function apply() {
-  emit('apply', { conditions: conditions.value.filter(c => c.field) })
+  emit('apply', { conditions: conditions.value.filter(c => c.field), visibility: { ...visibility.value } })
 }
 </script>
 
 <template>
-  <el-dialog :model-value="modelValue" title="筛选（构建条件）" width="640px" @open="open" @update:model-value="emit('update:modelValue', $event)">
+  <el-dialog :model-value="modelValue" title="筛选（视图可见性 + 条件）" width="680px" @open="open" @update:model-value="emit('update:modelValue', $event)">
+    <!-- 上层：视图可见性（各角色数据范围） -->
+    <div class="vis-section">
+      <div class="sec-title">视图可见性（各角色数据范围）</div>
+      <div class="vis-rows">
+        <div v-for="r in VISIBILITY_ROLES" :key="r.value" class="vis-row">
+          <span class="vis-role">{{ r.label }}</span>
+          <el-select :model-value="visibility[r.value]" style="width: 180px" @update:model-value="visibility[r.value] = $event">
+            <el-option v-for="o in SCOPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+          </el-select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 下层：条件 -->
+    <div class="sec-title">条件</div>
     <div class="cond-rows">
       <div v-for="(c, i) in conditions" :key="i" class="cond-row">
         <el-select :model-value="c.field" style="width: 150px" @update:model-value="(v: string) => changeField(i, v)">
@@ -139,6 +181,11 @@ function apply() {
 </template>
 
 <style scoped>
+.sec-title { font-size: 13px; font-weight: 600; color: #303133; margin: 8px 0; }
+.vis-section { margin-bottom: 12px; }
+.vis-rows { display: flex; flex-direction: column; gap: 8px; }
+.vis-row { display: flex; align-items: center; gap: 12px; }
+.vis-role { width: 90px; font-size: 13px; color: #606266; }
 .cond-rows { display: flex; flex-direction: column; gap: 8px; }
 .cond-row { display: flex; align-items: center; gap: 8px; }
 </style>
