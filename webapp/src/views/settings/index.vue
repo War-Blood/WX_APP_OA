@@ -19,8 +19,30 @@ const defaultConfigs: ConfigItem[] = [
   { key: 'session_timeout', value: '480', group: 'security', description: '会话超时（分钟）' },
   { key: 'report_remind_time', value: '17:00', group: 'notification', description: '日报提醒时间' },
   { key: 'wechat_template_remind', value: '', group: 'notification', description: '微信提醒模板ID' },
-  { key: 'stats_personnel_scope', value: '23', group: 'stats', description: '公出统计人员范围部门（含子部门）' },
 ]
+
+// ===== 公出统计每视图筛选 =====
+interface ViewFilter {
+  view: string
+  label: string
+  hasWorkType: boolean
+  hasProvince: boolean
+  deptId: number | null
+  fieldOnly: number
+  workType: string
+  province: string
+}
+
+const viewFilterMeta: Array<Pick<ViewFilter, 'view' | 'label' | 'hasWorkType' | 'hasProvince'>> = [
+  { view: 'daily', label: '全员当日', hasWorkType: true, hasProvince: false },
+  { view: 'worktypes', label: '人员分布', hasWorkType: true, hasProvince: false },
+  { view: 'area', label: '区域分布', hasWorkType: false, hasProvince: true },
+  { view: 'calendar', label: '提交日历', hasWorkType: false, hasProvince: false },
+  { view: 'workers', label: '人员明细', hasWorkType: false, hasProvince: false },
+]
+
+const viewFilters = ref<ViewFilter[]>(viewFilterMeta.map(m => ({ ...m, deptId: 23, fieldOnly: 1, workType: '', province: '' })))
+const workTypeOptions = ['工作（陆）', '工作（海）', '待工', '在途']
 
 async function loadConfig() {
   loading.value = true
@@ -30,6 +52,19 @@ async function loadConfig() {
       const found = data.find((d: ConfigItem) => d.key === def.key)
       return found ? { ...def, ...found, value: found.value || def.value } : def
     })
+    // 加载每视图筛选 JSON
+    for (const vf of viewFilters.value) {
+      const cfg = data.find((d: ConfigItem) => d.key === `stats_filter_${vf.view}`)
+      if (cfg && cfg.value) {
+        try {
+          const parsed = JSON.parse(cfg.value)
+          vf.deptId = parsed.deptId != null && parsed.deptId !== '' ? Number(parsed.deptId) : 23
+          vf.fieldOnly = (parsed.fieldOnly === 0 || parsed.fieldOnly === false || parsed.fieldOnly === '0') ? 0 : 1
+          vf.workType = parsed.workType || ''
+          vf.province = parsed.province || ''
+        } catch { /* 保持默认 */ }
+      }
+    }
   } catch { configs.value = [...defaultConfigs] }
   finally { loading.value = false }
 }
@@ -48,7 +83,16 @@ async function saveConfig() {
 
   saving.value = true
   try {
-    await updateSystemConfig(configs.value.map(c => ({ key: c.key, value: c.value, group: c.group, description: c.description })))
+    const payload: ConfigItem[] = configs.value.map(c => ({ key: c.key, value: c.value, group: c.group, description: c.description }))
+    viewFilters.value.forEach(vf => {
+      payload.push({
+        key: `stats_filter_${vf.view}`,
+        value: JSON.stringify({ deptId: vf.deptId ?? null, fieldOnly: vf.fieldOnly ? 1 : 0, workType: vf.workType || '', province: vf.province || '' }),
+        group: 'stats',
+        description: `公出统计-${vf.label} 筛选(JSON)`,
+      })
+    })
+    await updateSystemConfig(payload)
     toast.success('配置已保存')
     loadConfig()
   } catch {
@@ -106,24 +150,55 @@ onMounted(() => {
     <div v-loading="loading">
       <div v-for="g in groups" :key="g.key" class="config-group">
         <h4 class="group-title">{{ g.label }}</h4>
-        <el-form label-width="140px">
+        <template v-if="g.key === 'stats'">
+          <div v-for="vf in viewFilters" :key="vf.view" class="view-filter-card">
+            <h5 class="view-filter-title">{{ vf.label }}</h5>
+            <el-form label-width="110px">
+              <el-form-item label="部门范围">
+                <el-tree-select
+                  :model-value="vf.deptId ? String(vf.deptId) : ''"
+                  :data="deptTree"
+                  :props="treeProps"
+                  node-key="id"
+                  value-key="id"
+                  clearable
+                  check-strictly
+                  :render-after-expand="false"
+                  placeholder="选择部门（含其全部子部门，空=不限）"
+                  style="width: 320px"
+                  @update:model-value="vf.deptId = $event ? Number($event) : null"
+                />
+              </el-form-item>
+              <el-form-item label="仅现场作业">
+                <el-switch :model-value="!!vf.fieldOnly" @update:model-value="vf.fieldOnly = $event ? 1 : 0" />
+              </el-form-item>
+              <el-form-item v-if="vf.hasWorkType" label="工作类型">
+                <el-select
+                  :model-value="vf.workType || ''"
+                  clearable
+                  placeholder="全部"
+                  style="width: 220px"
+                  @update:model-value="vf.workType = $event || ''"
+                >
+                  <el-option v-for="o in workTypeOptions" :key="o" :label="o" :value="o" />
+                </el-select>
+              </el-form-item>
+              <el-form-item v-if="vf.hasProvince" label="区域/省份">
+                <el-input
+                  :model-value="vf.province"
+                  placeholder="如：广东"
+                  clearable
+                  style="width: 220px"
+                  @update:model-value="vf.province = $event || ''"
+                />
+              </el-form-item>
+            </el-form>
+          </div>
+        </template>
+        <el-form v-else label-width="140px">
           <el-form-item v-for="c in groupedConfigs(g.key)" :key="c.key" :label="c.description || c.key">
-            <el-tree-select
-              v-if="c.key === 'stats_personnel_scope'"
-              :model-value="String(c.value || '')"
-              :data="deptTree"
-              :props="treeProps"
-              node-key="id"
-              value-key="id"
-              clearable
-              check-strictly
-              :render-after-expand="false"
-              placeholder="选择部门（含其全部子部门）"
-              style="width: 320px"
-              @update:model-value="c.value = String($event ?? '')"
-            />
             <el-input-number
-              v-else-if="isNumericConfig(c.key)"
+              v-if="isNumericConfig(c.key)"
               :model-value="Number(c.value) || 0"
               :min="1"
               :max="99999"
@@ -154,5 +229,8 @@ onMounted(() => {
 .config-group { margin-bottom: 24px; padding: 20px; background: #fff; border-radius: 8px; border: 1px solid #ebeef5;
   .group-title { margin: 0 0 16px 0; padding-bottom: 12px; border-bottom: 1px solid #ebeef5; font-size: 16px; color: #303133; }
   .el-form-item { margin-bottom: 16px; }
+  .view-filter-card { margin-bottom: 16px; padding: 12px 16px; border: 1px solid #ebeef5; border-radius: 8px; background: #fafbfc;
+    .view-filter-title { margin: 0 0 12px 0; font-size: 14px; color: #303133; }
+  }
 }
 </style>

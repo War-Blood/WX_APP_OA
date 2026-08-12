@@ -339,18 +339,11 @@ async function getMonthlySummary(userId, month) {
 // ==============================
 
 /**
- * 解析公出统计人员范围部门（system_config.stats_personnel_scope）
- * 返回该部门及其全部子部门 id 数组；未配置/无效时返回 null（不限部门）
+ * 解析部门子树 id（含自身）
+ * @param {number} rootId - 根部门 id
  * @returns {Promise<Array<number>|null>}
  */
-async function resolveStatsScopeDeptIds() {
-  const rows = await db.query(
-    "SELECT config_value FROM system_config WHERE config_key = 'stats_personnel_scope' LIMIT 1"
-  );
-  const raw = rows.length > 0 ? String(rows[0].config_value || '').trim() : '';
-  if (!/^\d+$/.test(raw)) return null;
-  const rootId = Number(raw);
-
+async function resolveDeptSubtreeIds(rootId) {
   const all = await db.query('SELECT id, parent_id FROM departments WHERE deleted_at IS NULL');
   const childrenMap = new Map();
   for (const d of all) {
@@ -372,12 +365,39 @@ async function resolveStatsScopeDeptIds() {
 }
 
 /**
- * 获取公出统计人员范围（现场作业人员 + 部门子树）
- * @returns {Promise<{hasScope: boolean, deptIds: Array<number>|null, deptParams: Array<number>}>}
+ * 读取公出统计视图筛选配置（system_config.stats_filter_<view>，JSON）
+ * @param {string} view - daily/worktypes/area/calendar/workers
+ * @returns {Promise<{hasDept: boolean, deptIds: Array<number>|null, deptParams: Array<number>, fieldOnly: boolean, workType: string, province: string}>}
  */
-async function getPersonnelScope() {
-  const deptIds = await resolveStatsScopeDeptIds();
-  return { hasScope: !!deptIds, deptIds: deptIds || null, deptParams: deptIds || [] };
+async function getViewFilter(view) {
+  const rows = await db.query(
+    'SELECT config_value FROM system_config WHERE config_key = ? LIMIT 1',
+    [`stats_filter_${view}`]
+  );
+  let cfg = {};
+  if (rows.length > 0) {
+    try { cfg = JSON.parse(rows[0].config_value || '{}'); } catch { cfg = {}; }
+  }
+
+  // deptId 缺省：视图配置 > 旧全局 stats_personnel_scope > 23(浙江贝良)
+  let deptIdRaw = cfg.deptId != null && cfg.deptId !== '' ? cfg.deptId : null;
+  if (!deptIdRaw) {
+    const legacy = await db.query(
+      "SELECT config_value FROM system_config WHERE config_key = 'stats_personnel_scope' LIMIT 1"
+    );
+    deptIdRaw = legacy.length > 0 ? legacy[0].config_value : null;
+  }
+  const deptId = /^\d+$/.test(String(deptIdRaw || '')) ? Number(deptIdRaw) : null;
+  const deptIds = deptId ? await resolveDeptSubtreeIds(deptId) : null;
+
+  return {
+    hasDept: !!deptIds,
+    deptIds: deptIds || null,
+    deptParams: deptIds || [],
+    fieldOnly: !(cfg.fieldOnly === 0 || cfg.fieldOnly === false || cfg.fieldOnly === '0'),
+    workType: String(cfg.workType || '').trim(),
+    province: String(cfg.province || '').trim(),
+  };
 }
 
 /**
@@ -388,29 +408,30 @@ async function getPersonnelScope() {
 async function getDailyStatus(dateStr) {
   const date = dateStr || formatDate(new Date());
 
-  // 公出统计人员范围：现场作业人员 + 部门子树（system_config.stats_personnel_scope）
-  const { hasScope, deptParams } = await getPersonnelScope();
-  const scopeSql = hasScope
-    ? ` AND u.is_field_worker = 1 AND u.department_id IN (${deptParams.map(() => '?').join(',')})`
-    : ' AND u.is_field_worker = 1';
+  // 视图筛选（view=daily）：部门子树 + 仅现场作业 + 工作类型
+  const { hasDept, deptParams, fieldOnly, workType } = await getViewFilter('daily');
+  const userScopeSql =
+    (fieldOnly ? ' AND u.is_field_worker = 1' : '') +
+    (hasDept ? ` AND u.department_id IN (${deptParams.map(() => '?').join(',')})` : '');
+  const workTypeSql = workType ? ' AND dr.today_work_type = ?' : '';
 
-  // 从当日报告反查涉及的人员（排除管理员与非现场作业人员；公出统计仅展示现场作业人员）
+  // 从当日报告反查涉及的人员（排除管理员；按视图筛选展示范围）
   const today = formatDate(new Date());
   const allUserRows = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
      FROM users u
      INNER JOIN daily_reports dr ON u.id = dr.user_id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${scopeSql}
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}${workTypeSql}
      UNION
      SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
      FROM users u
      INNER JOIN daily_report_workers drw ON u.id = drw.worker_uid
      INNER JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${scopeSql}
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}${workTypeSql}
      ORDER BY id ASC`,
-    [date, ...deptParams, date, ...deptParams]
+    [date, ...deptParams, ...(workType ? [workType] : []), date, ...deptParams, ...(workType ? [workType] : [])]
   );
   const workers = allUserRows;
 
@@ -425,7 +446,7 @@ async function getDailyStatus(dateStr) {
        AND DATE(alr.trip_started_at) <= ?
        AND (alr.trip_ended_at IS NULL OR alr.trip_ended_at >= ?)
      WHERE u.worker_status = 'active' AND u.deleted_at IS NULL
-       AND u.status = 'active'${scopeSql}
+       AND u.status = 'active'${userScopeSql}
      ORDER BY u.id ASC`,
     [ds, ds, ...deptParams]
   );
@@ -438,7 +459,7 @@ async function getDailyStatus(dateStr) {
      INNER JOIN attendance_leave_requests alr ON alr.applicant_id = u.id
        AND alr.request_type = 'leave' AND alr.status = 'active'
        AND alr.start_date <= ? AND alr.end_date >= ?
-     WHERE u.worker_status = 'active' AND u.deleted_at IS NULL${scopeSql}
+     WHERE u.worker_status = 'active' AND u.deleted_at IS NULL${userScopeSql}
      ORDER BY u.id ASC`,
     [ds, ds, ...deptParams]
   );
@@ -736,13 +757,13 @@ async function getDailyCounts(month) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
 
-  // 当月所有在职作业人员（含入场日期，用于按日判断是否在岗；公出统计仅展示现场作业人员）
-  const { hasScope, deptParams } = await getPersonnelScope();
+  // 当月所有在职作业人员（含入场日期，用于按日判断是否在岗；按视图筛选）
+  const { hasDept, deptParams, fieldOnly } = await getViewFilter('calendar');
   const activeUsers = await db.query(
     `SELECT id, entry_date, nickname, user_name FROM users
      WHERE worker_status = 'active' AND status = 'active'
        AND deleted_at IS NULL AND role NOT IN ('admin', 'superadmin')
-       AND is_field_worker = 1${hasScope ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : ''}`,
+       ${fieldOnly ? 'AND is_field_worker = 1' : ''}${hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : ''}`,
     deptParams
   );
 
@@ -945,18 +966,19 @@ async function getWorkerWorkTypes(month) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
 
-  // 从当月报告反查所有涉及的用户（排除管理员与非现场作业人员；公出统计仅展示现场作业人员）
-  const { hasScope, deptParams } = await getPersonnelScope();
-  const scopeSql = hasScope
-    ? ` AND u.is_field_worker = 1 AND u.department_id IN (${deptParams.map(() => '?').join(',')})`
-    : ' AND u.is_field_worker = 1';
+  // 视图筛选（view=worktypes）：部门子树 + 仅现场作业 + 工作类型
+  const { hasDept, deptParams, fieldOnly, workType } = await getViewFilter('worktypes');
+  const userScopeSql =
+    (fieldOnly ? ' AND u.is_field_worker = 1' : '') +
+    (hasDept ? ` AND u.department_id IN (${deptParams.map(() => '?').join(',')})` : '');
+  const workTypeSql = workType ? ' AND today_work_type = ?' : '';
   const activeWorkers = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
      FROM users u
      INNER JOIN daily_reports dr ON u.id = dr.user_id
      WHERE dr.status = 'approved'
        AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${scopeSql}
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}
      UNION
      SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
      FROM users u
@@ -964,7 +986,7 @@ async function getWorkerWorkTypes(month) {
      INNER JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${scopeSql}
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}
      ORDER BY id ASC`,
     [month, ...deptParams, month, ...deptParams]
   );
@@ -974,9 +996,9 @@ async function getWorkerWorkTypes(month) {
     `SELECT user_id, today_work_type, COUNT(DISTINCT report_date) AS cnt
      FROM daily_reports
      WHERE status = 'approved' AND report_type != 'office'
-       AND DATE_FORMAT(report_date, '%Y-%m') = ?
+       AND DATE_FORMAT(report_date, '%Y-%m') = ?${workTypeSql}
      GROUP BY user_id, today_work_type`,
-    [month]
+    [month, ...(workType ? [workType] : [])]
   );
 
   // 当月被代填的工作类型分布（正式关联表，按日期去重）
@@ -985,9 +1007,9 @@ async function getWorkerWorkTypes(month) {
      FROM daily_report_workers drw
      JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
-       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?${workTypeSql}
      GROUP BY drw.worker_uid, dr.today_work_type`,
-    [month]
+    [month, ...(workType ? [workType] : [])]
   );
 
   // 兜底：从 workers 文本字段解析（daily_report_workers 为空时）
@@ -997,8 +1019,8 @@ async function getWorkerWorkTypes(month) {
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.workers IS NOT NULL AND dr.workers != ''
        AND dr.user_id != 0
-       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?`,
-    [month]
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?${workTypeSql}`,
+    [month, ...(workType ? [workType] : [])]
   );
 
   // 当月补录（补公出）的去重天数统计：user_id → 去重天数
@@ -1204,11 +1226,12 @@ async function getAreaDistribution(date) {
   // 仅统计昨日数据（默认北京时间昨日，支持传 date 查看任意日）
   const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getYesterdayCST();
 
-  // 公出统计人员范围：现场作业人员 + 部门子树
-  const { hasScope, deptParams } = await getPersonnelScope();
-  const userScopeSql = hasScope
-    ? ` AND is_field_worker = 1 AND department_id IN (${deptParams.map(() => '?').join(',')})`
-    : ' AND is_field_worker = 1';
+  // 视图筛选（view=area）：部门子树 + 仅现场作业 + 区域/省份
+  const { hasDept, deptParams, fieldOnly, province } = await getViewFilter('area');
+  const userScopeSql =
+    (fieldOnly ? ' AND is_field_worker = 1' : '') +
+    (hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : '');
+  const provinceSql = province ? ' AND dr.area LIKE ?' : '';
 
   // 1. 查昨日所有报告（含区域和 workers 文本）
   const reports = await db.query(
@@ -1216,8 +1239,8 @@ async function getAreaDistribution(date) {
      FROM daily_reports dr
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
-       AND dr.report_date = ?`,
-    [targetDate]
+       AND dr.report_date = ?${provinceSql}`,
+    [targetDate, ...(province ? [`${province}%`] : [])]
   );
 
   // 2. 查昨日关联表代填关系
@@ -1227,8 +1250,8 @@ async function getAreaDistribution(date) {
      JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
-       AND dr.report_date = ?`,
-    [targetDate]
+       AND dr.report_date = ?${provinceSql}`,
+    [targetDate, ...(province ? [`${province}%`] : [])]
   );
 
   // 3. 收集所有涉及的 userId（提交人 + 代填人），构建 uid→info
@@ -1349,11 +1372,11 @@ async function getProvinceWorkers(province, date) {
   const provinceFull = normalizeProvinceName(province);
   if (!provinceFull) throw new BusinessError('无法识别的省份');
 
-  // 公出统计人员范围：现场作业人员 + 部门子树
-  const { hasScope, deptParams } = await getPersonnelScope();
-  const userScopeSql = hasScope
-    ? ` AND is_field_worker = 1 AND department_id IN (${deptParams.map(() => '?').join(',')})`
-    : ' AND is_field_worker = 1';
+  // 视图筛选（view=area）：部门子树 + 仅现场作业
+  const { hasDept, deptParams, fieldOnly } = await getViewFilter('area');
+  const userScopeSql =
+    (fieldOnly ? ' AND is_field_worker = 1' : '') +
+    (hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : '');
 
   // 与 getAreaDistribution 保持一致，默认北京时间昨日，支持传 date
   const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getYesterdayCST();
@@ -1483,11 +1506,11 @@ async function getUserMonthlyLogs(userId, month) {
   if (userRows.length === 0) throw new BusinessError('用户不存在');
   const userName = userRows[0].nickname || userRows[0].user_name || '';
 
-  // 范围守卫：公出统计仅展示范围内（现场作业 + 部门子树）人员，范围外返回空
-  const { hasScope, deptParams } = await getPersonnelScope();
+  // 范围守卫：公出统计仅展示范围内（部门子树 + 现场作业）人员，范围外返回空
+  const { hasDept, deptParams, fieldOnly } = await getViewFilter('workers');
   const inScopeCheck = await db.query(
-    `SELECT id FROM users WHERE id = ? AND is_field_worker = 1
-      ${hasScope ? `AND department_id IN (${deptParams.map(() => '?').join(',')})` : ''}`,
+    `SELECT id FROM users WHERE id = ?${fieldOnly ? ' AND is_field_worker = 1' : ''}
+      ${hasDept ? `AND department_id IN (${deptParams.map(() => '?').join(',')})` : ''}`,
     [userId, ...deptParams]
   );
   if (inScopeCheck.length === 0) return { userId, month, logs: [] };
