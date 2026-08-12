@@ -41,10 +41,24 @@ async function endBizTrip(req, res, next) {
       return res.status(400).json({ code: 1001, message: '缺少结束日期', data: null });
     }
 
+    // 查出该合规记录对应的用户，用于同步考勤出差
+    const rows = await db.query('SELECT user_id FROM biz_trip_status WHERE id = ?', [id]);
+    const userId = rows.length > 0 ? rows[0].user_id : null;
+
     await db.query(
       `UPDATE biz_trip_status SET end_date = ?, status = 'completed', updated_at = NOW() WHERE id = ?`,
       [endDate, id]
     );
+
+    // 同步结束该用户进行中的考勤出差（若有），保持两表一致
+    if (userId) {
+      await db.query(
+        `UPDATE attendance_leave_requests
+         SET trip_ended_at = ?, status = 'ended'
+         WHERE applicant_id = ? AND request_type = 'biz_trip' AND status = 'in_progress'`,
+        [`${endDate} 23:59:59`, userId]
+      );
+    }
 
     res.json({ code: 0, message: '出差已结束', data: null });
   } catch (err) {

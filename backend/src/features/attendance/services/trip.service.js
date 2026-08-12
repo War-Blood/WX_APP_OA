@@ -91,6 +91,13 @@ async function endTrip({ applicantId, requestId, reason, endDate }) {
     [reason || null, trip.id]
   );
 
+  // 同步结束合规出差记录（biz_trip_status），保持两表一致，防止「合规记录出差中」残留
+  await db.execute(
+    `UPDATE biz_trip_status SET end_date = ?, status = 'completed', updated_at = NOW()
+     WHERE user_id = ? AND status = 'active'`,
+    [toDateStr(tripEnd), applicantId]
+  );
+
   // 发送消息通知
   const missingText = missingDates.length > 0 ? `，未提交 ${missingDates.length} 天` : '';
   await sendMessage(applicantId, '出差已结束', `共 ${tripDays} 天${missingText}`, reason || '');
@@ -332,6 +339,7 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
   const ids = rows.map(r => r.id);
   const tripMap = {};
   const complianceMap = {};
+  const endedTripMap = {}; // 用户最近一条已结束的考勤出差（用于残留判定）
   if (ids.length > 0) {
     const trips = await db.query(
       `SELECT id, applicant_id, trip_started_at, reason, source
@@ -352,12 +360,34 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
     compliances.forEach(c => {
       if (!complianceMap[c.user_id]) complianceMap[c.user_id] = c;
     });
+
+    const endedTrips = await db.query(
+      `SELECT applicant_id, trip_started_at, trip_ended_at
+       FROM attendance_leave_requests
+       WHERE applicant_id IN (${ids.map(() => '?').join(',')})
+         AND request_type = 'biz_trip' AND status = 'ended'
+       ORDER BY trip_started_at DESC`,
+      ids
+    );
+    endedTrips.forEach(t => {
+      if (!endedTripMap[t.applicant_id]) endedTripMap[t.applicant_id] = t;
+    });
   }
 
   const list = rows.map(row => {
     const trip = tripMap[row.id];
     const compliance = complianceMap[row.id];
-    const tripStatus = trip ? 'in_progress' : (compliance ? 'compliance_only' : 'none');
+    let tripStatus = trip ? 'in_progress' : (compliance ? 'compliance_only' : 'none');
+    // 残留守卫：无进行中考勤出差，但合规记录的开始日期被已结束考勤出差覆盖 → 合规记录为残留，不显示「出差中」
+    if (!trip && compliance) {
+      const endedTrip = endedTripMap[row.id];
+      if (endedTrip) {
+        const cs = String(compliance.start_date).slice(0, 10);
+        const es = endedTrip.trip_started_at ? String(endedTrip.trip_started_at).slice(0, 10) : '';
+        const ee = endedTrip.trip_ended_at ? String(endedTrip.trip_ended_at).slice(0, 10) : '';
+        if (cs >= es && cs <= ee) tripStatus = 'none';
+      }
+    }
     return {
       userId: row.id,
       userName: row.nickname || row.user_name || '',
