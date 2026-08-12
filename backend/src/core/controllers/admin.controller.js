@@ -5,7 +5,7 @@ const workerService = require('../services/worker.service');
 const moduleService = require('../services/module.service');
 const inviteService = require('../services/invite.service');
 const { success, paginated } = require('../../common/utils/response');
-const { ValidationError } = require('../../common/utils/errors');
+const { ValidationError, AuthError } = require('../../common/utils/errors');
 
 /**
  * POST /api/admin/users
@@ -408,6 +408,10 @@ async function updateSettings(req, res, next) {
   try {
     const { configs } = req.body;
     if (!configs || !Array.isArray(configs)) throw new ValidationError('configs 必须为数组');
+    // 安全策略组（登录尝试/锁定/密码/会话超时）仅 superadmin 可改，admin 只能改其它组
+    if (req.user.role !== 'superadmin' && configs.some(c => c.group === 'security')) {
+      throw new AuthError('仅超级管理员可修改安全策略');
+    }
     const result = await adminService.updateSystemConfig(configs);
     res.json(success(result, '配置已保存'));
   } catch (err) {

@@ -258,7 +258,7 @@ const router = createRouter({
           path: 'settings',
           name: 'Settings',
           component: () => import('@/views/settings/index.vue'),
-          meta: { title: '系统设置', icon: 'Setting', roles: ['superadmin'] }
+          meta: { title: '系统设置', icon: 'Setting', roles: ['admin', 'superadmin'] }
         },
         {
           path: 'logs',

@@ -3,10 +3,12 @@ import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { getSystemConfig, updateSystemConfig, type ConfigItem } from '@/api/settings'
+import { getDepartmentTree, type DepartmentItem } from '@/api/org'
 
 const loading = ref(false)
 const saving = ref(false)
 const configs = ref<ConfigItem[]>([])
+const deptTree = ref<DepartmentItem[]>([])
 
 const defaultConfigs: ConfigItem[] = [
   { key: 'company_name', value: '', group: 'enterprise', description: '企业名称' },
@@ -17,6 +19,7 @@ const defaultConfigs: ConfigItem[] = [
   { key: 'session_timeout', value: '480', group: 'security', description: '会话超时（分钟）' },
   { key: 'report_remind_time', value: '17:00', group: 'notification', description: '日报提醒时间' },
   { key: 'wechat_template_remind', value: '', group: 'notification', description: '微信提醒模板ID' },
+  { key: 'stats_personnel_scope', value: '23', group: 'stats', description: '公出统计人员范围部门（含子部门）' },
 ]
 
 async function loadConfig() {
@@ -58,6 +61,7 @@ const groups = [
   { key: 'enterprise', label: '企业信息' },
   { key: 'security', label: '安全策略' },
   { key: 'notification', label: '通知设置' },
+  { key: 'stats', label: '公出统计' },
 ]
 
 function groupedConfigs(group: string) { return configs.value.filter(c => c.group === group) }
@@ -85,7 +89,12 @@ function validateConfigs() {
   return true
 }
 
-onMounted(() => { loadConfig() })
+const treeProps = { label: 'name', children: 'children' }
+
+onMounted(() => {
+  loadConfig()
+  getDepartmentTree().then(d => { deptTree.value = d }).catch(() => { deptTree.value = [] })
+})
 </script>
 
 <template>
@@ -99,8 +108,22 @@ onMounted(() => { loadConfig() })
         <h4 class="group-title">{{ g.label }}</h4>
         <el-form label-width="140px">
           <el-form-item v-for="c in groupedConfigs(g.key)" :key="c.key" :label="c.description || c.key">
+            <el-tree-select
+              v-if="c.key === 'stats_personnel_scope'"
+              :model-value="String(c.value || '')"
+              :data="deptTree"
+              :props="treeProps"
+              node-key="id"
+              value-key="id"
+              clearable
+              check-strictly
+              :render-after-expand="false"
+              placeholder="选择部门（含其全部子部门）"
+              style="width: 320px"
+              @update:model-value="c.value = String($event ?? '')"
+            />
             <el-input-number
-              v-if="isNumericConfig(c.key)"
+              v-else-if="isNumericConfig(c.key)"
               :model-value="Number(c.value) || 0"
               :min="1"
               :max="99999"

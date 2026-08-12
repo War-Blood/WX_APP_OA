@@ -128,7 +128,7 @@ export const modules: ModuleConfig[] = [
     icon: 'Setting',
     title: '设置',
     path: '/settings',
-    roles: ['superadmin'],
+    roles: ['admin', 'superadmin'],
     children: [
       { title: '模块管理', path: '/modules' },
       { title: '系统设置', path: '/settings' },

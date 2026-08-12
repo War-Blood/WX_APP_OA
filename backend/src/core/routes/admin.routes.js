@@ -85,10 +85,10 @@ router.post('/admin/workers', authenticate, adminController.workers);
 router.post('/admin/modules', authenticate, adminController.modules);
 
 // ==============================
-// 系统设置 — 仅 superadmin
+// 系统设置 — admin+（安全策略组仅 superadmin 可改，见 updateSettings 守卫）
 // ==============================
-router.get('/admin/settings',  ...superAuth, adminController.getSettings);
-router.put('/admin/settings',  ...superAuth, adminController.updateSettings);
+router.get('/admin/settings',  ...adminAuth, adminController.getSettings);
+router.put('/admin/settings',  ...adminAuth, adminController.updateSettings);
 
 // ==============================
 // CDK 邀请码管理 — admin+
