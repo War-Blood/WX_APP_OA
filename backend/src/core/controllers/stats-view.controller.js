@@ -92,4 +92,14 @@ async function remove(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { create, list, get, update, lock, unlock, remove };
+/**
+ * 动态获取可筛选字段（登录）
+ * GET /api/stats/views/fields
+ */
+async function fields(req, res, next) {
+  try {
+    res.json(success(statsViewService.getFilterFields()));
+  } catch (err) { next(err); }
+}
+
+module.exports = { create, list, get, update, lock, unlock, remove, fields };

@@ -1,12 +1,23 @@
 import request from '@/utils/request'
 
+export interface FilterCondition {
+  field: string
+  op: string
+  value: string | number | boolean | (string | number)[] | null
+}
+
+export interface FilterField {
+  field: string
+  table: string
+  column: string
+  type: string
+  input: string
+  label: string
+  options?: string[]
+}
+
 export interface StatsViewFilter {
-  deptId?: number | null
-  fieldOnly?: number
-  workType?: string
-  province?: string
-  date?: string
-  month?: string
+  conditions?: FilterCondition[]
 }
 
 export interface ScopeRule {
@@ -22,6 +33,11 @@ export interface StatsView {
   isLocked: boolean
   visibleRoles?: string[]
   scopeRules?: ScopeRule[]
+}
+
+/** 动态获取可筛选字段 */
+export function getFilterFields(): Promise<FilterField[]> {
+  return request.get('/stats/views/fields')
 }
 
 /** 创建视图（admin+） */

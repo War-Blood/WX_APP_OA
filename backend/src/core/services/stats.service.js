@@ -420,11 +420,76 @@ function buildFieldWorkerSql(alias) {
 }
 
 /**
- * 构造统计查询的用户筛选（视图 or 全局配置 + 数据范围 RLS）
+ * 单条件 → SQL 片段
+ * @returns {string}
+ */
+function buildOpSql(column, op, value, params) {
+  const arr = Array.isArray(value) ? value : [];
+  switch (op) {
+    case 'eq': params.push(value); return `${column} = ?`;
+    case 'ne': params.push(value); return `${column} != ?`;
+    case 'in': params.push(...arr); return `${column} IN (${arr.map(() => '?').join(',')})`;
+    case 'not_in': params.push(...arr); return `${column} NOT IN (${arr.map(() => '?').join(',')})`;
+    case 'like': params.push(`%${value}%`); return `${column} LIKE ?`;
+    case 'gte': params.push(value); return `${column} >= ?`;
+    case 'lte': params.push(value); return `${column} <= ?`;
+    case 'between': params.push(...arr); return `${column} BETWEEN ? AND ?`;
+    case 'is_null': return value ? `${column} IS NULL` : `${column} IS NOT NULL`;
+    default: return '1 = 1';
+  }
+}
+
+/**
+ * 动态条件列表 → SQL 条件（WPS 式，基于数据库字段注册表）
+ * users 表字段直接过滤；daily_reports 表字段用 EXISTS（用户存在匹配日报）
+ * @param {Array} conditions - [{field, op, value}]
+ * @param {string} usersAlias - 用户表别名
+ * @returns {{clauses: string[], params: Array}}
+ */
+function buildConditionsSql(conditions, usersAlias) {
+  const clauses = [];
+  const params = [];
+  for (const c of conditions || []) {
+    const def = statsViewService.FILTER_FIELDS[c.field];
+    if (!def) continue;
+    // 仅现场：特殊处理为出差状态识别（不依赖花名册标识）
+    if (c.field === 'is_field_worker') {
+      const fwSql = buildFieldWorkerSql(usersAlias);
+      const truthy = c.op === 'eq' && (c.value === 1 || c.value === true || c.value === '1');
+      clauses.push(truthy ? fwSql : `NOT ${fwSql}`);
+      continue;
+    }
+    if (def.table === 'users') {
+      clauses.push(buildOpSql(`${usersAlias}.${def.column}`, c.op, c.value, params));
+    } else {
+      const inner = buildOpSql(`fdr.${def.column}`, c.op, c.value, params);
+      clauses.push(`EXISTS (SELECT 1 FROM daily_reports fdr WHERE fdr.user_id = ${usersAlias}.id AND ${inner})`);
+    }
+  }
+  return { clauses, params };
+}
+
+/**
+ * 旧固定字段 filter_json → 动态 conditions
+ */
+function migrateLegacyFilter(filter) {
+  const conditions = [];
+  const deptId = /^\d+$/.test(String(filter.deptId ?? '')) ? Number(filter.deptId) : null;
+  if (deptId) conditions.push({ field: 'department_id', op: 'in', value: [deptId] });
+  if (filter.fieldOnly !== 0 && filter.fieldOnly !== false && filter.fieldOnly !== '0') {
+    conditions.push({ field: 'is_field_worker', op: 'eq', value: 1 });
+  }
+  if (String(filter.workType || '').trim()) conditions.push({ field: 'today_work_type', op: 'eq', value: filter.workType });
+  if (String(filter.province || '').trim()) conditions.push({ field: 'area', op: 'like', value: filter.province });
+  return conditions;
+}
+
+/**
+ * 构造统计查询的用户筛选（动态条件 + 数据范围 RLS）
  * @param {string} view - 视图标识 daily/worktypes/area/calendar/workers
- * @param {Object} [viewParams] - { viewId, role, userId } 来自请求
+ * @param {Object} [viewParams] - { viewId, filter, role, userId }
  * @param {string} alias - 用户表别名（无别名传 'users'）
- * @returns {Promise<{clauses: string[], params: Array, workType: string, province: string, hasDept: boolean}>}
+ * @returns {Promise<{clauses: string[], params: Array}>}
  */
 async function buildUserFilter(view, viewParams, alias) {
   const clauses = [];
@@ -435,7 +500,6 @@ async function buildUserFilter(view, viewParams, alias) {
   let reqUserId = null;
 
   if (viewParams && viewParams.filter) {
-    // 临时筛选覆盖（前端「应用」，不保存为视图）
     filter = viewParams.filter;
     scopeType = viewParams.scopeType || 'all';
     if (viewParams.userId) reqUserId = viewParams.userId;
@@ -451,11 +515,15 @@ async function buildUserFilter(view, viewParams, alias) {
     scopeType = 'all';
   }
 
-  // 视图部门范围（子树）
-  const viewDeptId = /^\d+$/.test(String(filter.deptId ?? '')) ? Number(filter.deptId) : null;
-  const viewDeptIds = viewDeptId ? await resolveDeptSubtreeIds(viewDeptId) : null;
+  // 动态条件（或迁移旧固定字段）
+  const conditions = Array.isArray(filter.conditions) && filter.conditions.length
+    ? filter.conditions
+    : migrateLegacyFilter(filter);
+  const cond = buildConditionsSql(conditions, alias);
+  clauses.push(...cond.clauses);
+  params.push(...cond.params);
 
-  // RLS 数据范围（硬约束，与视图筛选取交集）
+  // RLS 数据范围（硬约束，权限边界）
   let rlsDeptIds = null;
   let rlsExact = null;
   let rlsSelf = false;
@@ -463,9 +531,7 @@ async function buildUserFilter(view, viewParams, alias) {
   if (scopeType === 'department_and_children' && userDeptId) rlsDeptIds = await resolveDeptSubtreeIds(userDeptId);
   if (scopeType === 'self') rlsSelf = true;
 
-  // 合并部门条件（交集）
   const deptSets = [];
-  if (viewDeptIds) deptSets.push(viewDeptIds);
   if (rlsDeptIds) deptSets.push(rlsDeptIds);
   if (rlsExact) deptSets.push([rlsExact]);
   if (deptSets.length > 0) {
@@ -480,18 +546,7 @@ async function buildUserFilter(view, viewParams, alias) {
   }
   if (rlsSelf) { clauses.push(`${alias}.id = ?`); params.push(reqUserId); }
 
-  // 仅现场（出差状态识别）
-  if (filter.fieldOnly !== 0 && filter.fieldOnly !== false && filter.fieldOnly !== '0') {
-    clauses.push(buildFieldWorkerSql(alias));
-  }
-
-  return {
-    clauses,
-    params,
-    workType: String(filter.workType || '').trim(),
-    province: String(filter.province || '').trim(),
-    hasDept: deptSets.length > 0,
-  };
+  return { clauses, params };
 }
 
 /**

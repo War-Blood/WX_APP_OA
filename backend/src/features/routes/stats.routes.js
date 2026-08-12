@@ -72,6 +72,9 @@ router.post('/stats/user-monthly-logs', authenticate, statsController.userMonthl
 // POST /api/stats/views — 创建视图（admin+）
 router.post('/stats/views', ...adminAuth, statsViewController.create);
 
+// GET /api/stats/views/fields — 动态获取可筛选字段（登录）
+router.get('/stats/views/fields', authenticate, statsViewController.fields);
+
 // GET /api/stats/views — 当前角色可见视图列表（登录）
 router.get('/stats/views', authenticate, statsViewController.list);
 

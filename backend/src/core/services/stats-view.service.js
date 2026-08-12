@@ -5,8 +5,37 @@ const { NotFoundError, ForbiddenError, ValidationError } = require('../../common
 
 const VALID_KEYS = ['daily', 'worktypes', 'area', 'calendar', 'workers'];
 const VALID_SCOPES = ['all', 'department', 'department_and_children', 'self'];
+const VALID_OPS = ['eq', 'ne', 'in', 'not_in', 'like', 'gte', 'lte', 'between', 'is_null'];
+
+/**
+ * 可筛选字段注册表（来自真实数据库列，WPS 式动态筛选）
+ * table: users/daily_reports；input: dept_tree/switch/select/text/date/number；type: int/bool/string/date
+ */
+const FILTER_FIELDS = {
+  department_id:   { table: 'users',         column: 'department_id',   type: 'int',    input: 'dept_tree', label: '部门' },
+  is_field_worker: { table: 'users',         column: 'is_field_worker', type: 'bool',   input: 'switch',    label: '仅现场作业' },
+  worker_status:   { table: 'users',         column: 'worker_status',   type: 'string', input: 'select',    label: '在职状态', options: ['active'] },
+  role:            { table: 'users',         column: 'role',            type: 'string', input: 'select',    label: '角色', options: ['employee', 'bm', 'admin', 'superadmin'] },
+  user_name:       { table: 'users',         column: 'user_name',       type: 'string', input: 'text',      label: '姓名' },
+  report_date:     { table: 'daily_reports', column: 'report_date',     type: 'date',   input: 'date',      label: '日期' },
+  report_type:     { table: 'daily_reports', column: 'report_type',     type: 'string', input: 'select',    label: '日志类型', options: ['biz_trip', 'biz_trip_supplement', 'office', 'leave'] },
+  status:          { table: 'daily_reports', column: 'status',          type: 'string', input: 'select',    label: '状态', options: ['approved', 'pending_review', 'draft', 'submitted'] },
+  today_work_type: { table: 'daily_reports', column: 'today_work_type', type: 'string', input: 'select',    label: '工作类型', options: ['工作（陆）', '工作（海）', '待工', '在途'] },
+  area:            { table: 'daily_reports', column: 'area',            type: 'string', input: 'text',      label: '区域' },
+  project:         { table: 'daily_reports', column: 'project',         type: 'string', input: 'text',      label: '项目' },
+  submitter_name:  { table: 'daily_reports', column: 'submitter_name',  type: 'string', input: 'text',      label: '提交人' },
+  timeliness:      { table: 'daily_reports', column: 'timeliness',      type: 'string', input: 'select',    label: '及时性', options: ['on_time', 'delayed', 'missing'] },
+};
 
 function isAdmin(role) { return role === 'admin' || role === 'superadmin'; }
+
+/** 校验动态条件列表；非法条件过滤/抛错 */
+function sanitizeConditions(conditions) {
+  if (!Array.isArray(conditions)) return [];
+  return conditions
+    .filter(c => c && FILTER_FIELDS[c.field] && VALID_OPS.includes(c.op))
+    .map(c => ({ field: c.field, op: c.op, value: c.value }));
+}
 
 function parseJson(str) {
   try { return JSON.parse(str || '{}'); } catch { return {}; }
@@ -21,11 +50,12 @@ function parseJson(str) {
 async function createView({ name, statKey, filter, isLocked, visibleRoles, scopeRules }, userId) {
   if (!name || !statKey) throw new ValidationError('视图名称与统计页必填');
   if (!VALID_KEYS.includes(statKey)) throw new ValidationError('无效的统计页标识');
+  const safeFilter = { conditions: sanitizeConditions(filter && filter.conditions) };
 
   return db.transaction(async (conn) => {
     const result = await conn.execute(
       'INSERT INTO stats_views (name, stat_key, filter_json, is_locked, created_by) VALUES (?, ?, ?, ?, ?)',
-      [name, statKey, JSON.stringify(filter || {}), isLocked ? 1 : 0, userId]
+      [name, statKey, JSON.stringify(safeFilter), isLocked ? 1 : 0, userId]
     );
     const viewId = result[0].insertId;
 
@@ -103,7 +133,10 @@ async function updateView(id, { name, filter, isLocked, visibleRoles, scopeRules
 
   return db.transaction(async (conn) => {
     if (name) await conn.execute('UPDATE stats_views SET name = ? WHERE id = ?', [name, id]);
-    if (filter) await conn.execute('UPDATE stats_views SET filter_json = ? WHERE id = ?', [JSON.stringify(filter), id]);
+    if (filter) {
+      const safeFilter = { conditions: sanitizeConditions(filter.conditions) };
+      await conn.execute('UPDATE stats_views SET filter_json = ? WHERE id = ?', [JSON.stringify(safeFilter), id]);
+    }
     if (isLocked !== undefined) await conn.execute('UPDATE stats_views SET is_locked = ? WHERE id = ?', [isLocked ? 1 : 0, id]);
     if (visibleRoles) {
       await conn.execute('DELETE FROM stats_view_roles WHERE view_id = ?', [id]);
@@ -172,6 +205,15 @@ async function resolveViewForRequest(viewId, role, userId) {
   return { filter: parseJson(rows[0].filter_json), scopeType, userDeptId, userId };
 }
 
+/**
+ * 动态获取可筛选字段（WPS 式，基于数据库列注册表）
+ * @returns {Array<{field, table, column, type, input, label, options?}>}
+ */
+function getFilterFields() {
+  return Object.entries(FILTER_FIELDS).map(([field, def]) => ({ field, ...def }));
+}
+
 module.exports = {
   createView, listViews, getView, updateView, setLocked, deleteView, resolveViewForRequest,
+  FILTER_FIELDS, sanitizeConditions, getFilterFields,
 };
