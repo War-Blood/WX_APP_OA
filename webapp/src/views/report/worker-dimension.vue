@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { getWorkerStats } from '@/api/report'
+import StatsFilterBar from '@/components/StatsFilterBar.vue'
 
 const workerLoading = ref(true)
 const workerList = ref<{ name: string; total: number; monthCount: number; lastDate: string }[]>([])
@@ -29,6 +30,7 @@ onMounted(loadWorkers)
       <template #header>
         <div class="card-header">
           <span>按人员维度</span>
+          <StatsFilterBar view="workers" :show="{ dept: true, fieldOnly: true, workType: false, province: false }" @change="loadWorkers" />
           <el-button :icon="Refresh" size="small" text @click="loadWorkers">刷新</el-button>
         </div>
       </template>

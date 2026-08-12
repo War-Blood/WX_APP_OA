@@ -4,6 +4,7 @@ import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { getDailyCounts, type DailyCountItem } from '@/api/report'
 import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
+import StatsFilterBar from '@/components/StatsFilterBar.vue'
 
 const calLoading = ref(false)
 const calData = ref<DailyCountItem[]>([])
@@ -115,6 +116,7 @@ onUnmounted(() => {
         <div class="card-header">
           <span>提交日历</span>
           <div class="card-header-right">
+            <StatsFilterBar view="calendar" :show="{ dept: true, fieldOnly: true, workType: false, province: false }" @change="loadCalendar" />
             <el-button size="small" @click="prevCalendarMonth">‹</el-button>
             <span class="month-label">{{ calMonth }}</span>
             <el-button size="small" @click="nextCalendarMonth">›</el-button>

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { getWorkerWorkTypes, type WorkerWorkTypeItem } from '@/api/report'
 import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
+import StatsFilterBar from '@/components/StatsFilterBar.vue'
 
 const workTypeLoading = ref(false)
 const workTypeList = ref<WorkerWorkTypeItem[]>([])
@@ -72,6 +73,7 @@ onMounted(loadWorkTypes)
         <div class="card-header">
           <span>工作类型分布</span>
           <div class="card-header-right">
+            <StatsFilterBar view="worktypes" :show="{ dept: true, fieldOnly: true, workType: true, province: false }" @change="loadWorkTypes" />
             <el-button size="small" @click="prevWorkTypeMonth">‹</el-button>
             <span class="month-label">{{ workTypeMonth }}</span>
             <el-button size="small" @click="nextWorkTypeMonth">›</el-button>

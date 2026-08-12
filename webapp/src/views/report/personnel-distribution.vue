@@ -6,6 +6,7 @@ import {
   getAreaDistribution, getChinaGeoJson,
   type ProvinceItem, type ProvinceWorkerItem
 } from '@/api/report'
+import StatsFilterBar from '@/components/StatsFilterBar.vue'
 
 // 省份中心点经纬度（GeoJSON 全称 → [经度, 纬度]），用于气泡定位
 const PROVINCE_CENTER: Record<string, [number, number]> = {
@@ -305,6 +306,7 @@ onUnmounted(() => {
     <div class="map-toolbar">
       <span class="toolbar-title">人员分布图<small>按区域统计每日在外人员</small></span>
       <div class="toolbar-actions">
+        <StatsFilterBar view="area" :show="{ dept: true, fieldOnly: true, workType: false, province: true }" @change="loadMap" />
         <el-date-picker
           v-model="mapDate"
           type="date"

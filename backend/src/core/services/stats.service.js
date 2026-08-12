@@ -528,10 +528,16 @@ async function getDailyStatus(dateStr) {
   });
 
   // 兜底：从 workers 文本字段解析被代填人（daily_report_workers 表为空时的后备方案）
+  // 姓名映射从「范围内全部在职用户」构建（而非仅已有报告者），使 text-only 代填人员也能被恢复（修复数据缺失）
+  const allScopeUsers = await db.query(
+    `SELECT u.id, u.nickname, u.user_name FROM users u
+     WHERE u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}`,
+    deptParams
+  );
   const nameToUser = {};
-  workers.forEach(w => {
-    const name = (w.nickname || w.user_name || '').trim();
-    if (name) nameToUser[name] = { id: w.id, nickname: w.nickname || w.user_name };
+  allScopeUsers.forEach(w => {
+    if (w.nickname) nameToUser[w.nickname] = { id: w.id, nickname: w.nickname || w.user_name };
+    if (w.user_name) nameToUser[w.user_name] = { id: w.id, nickname: w.nickname || w.user_name };
   });
 
   reports.forEach(r => {
@@ -1001,13 +1007,18 @@ async function getWorkerWorkTypes(month) {
     [month, ...(workType ? [workType] : [])]
   );
 
-  // 当月被代填的工作类型分布（正式关联表，按日期去重）
+  // 当月被代填的工作类型分布（正式关联表，按日期去重；排除该人当天已自行提交的日期，防双计）
   const subReports = await db.query(
     `SELECT drw.worker_uid AS user_id, dr.today_work_type, COUNT(DISTINCT dr.report_date) AS cnt
      FROM daily_report_workers drw
      JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?${workTypeSql}
+       AND NOT EXISTS (
+         SELECT 1 FROM daily_reports mine
+         WHERE mine.user_id = drw.worker_uid AND mine.report_date = dr.report_date
+           AND mine.status = 'approved' AND mine.report_type != 'office'
+       )
      GROUP BY drw.worker_uid, dr.today_work_type`,
     [month, ...(workType ? [workType] : [])]
   );
@@ -1049,20 +1060,34 @@ async function getWorkerWorkTypes(month) {
   const officeMap = {};
   officeRows.forEach(r => { officeMap[r.user_id] = Number(r.cnt); });
 
-  // 名字→用户ID 查找表
+  // 名字→用户ID 查找表：从「范围内全部在职用户」构建（而非仅 activeWorkers），
+  // 使只出现在 workers 文本列、无 daily_report_workers 行的代填人员也能被恢复（修复数据缺失）
+  const scopeWhere = ['u.deleted_at IS NULL', "u.role NOT IN ('admin','superadmin')"];
+  const scopeParams = [];
+  if (fieldOnly) scopeWhere.push('u.is_field_worker = 1');
+  if (hasDept) {
+    scopeWhere.push(`u.department_id IN (${deptParams.map(() => '?').join(',')})`);
+    scopeParams.push(...deptParams);
+  }
+  const allScopeUsers = await db.query(
+    `SELECT u.id, u.nickname, u.user_name FROM users u WHERE ${scopeWhere.join(' AND ')}`,
+    scopeParams
+  );
   const nameToUid = {};
-  activeWorkers.forEach(w => {
-    const name = (w.nickname || w.user_name || '').trim();
-    if (name) nameToUid[name] = w.id;
+  allScopeUsers.forEach(w => {
+    if (w.nickname) nameToUid[w.nickname] = w.id;
+    if (w.user_name) nameToUid[w.user_name] = w.id;
   });
 
   // 构建 map: user_id → { workType: count }
   const typeMap = {};
-  // 旧数据兼容：部分历史记录的 today_work_type 存的是短名
+  // 旧数据兼容：部分历史记录的 today_work_type 存的是短名/自由文本
+  const wtKnown = ['工作（陆）', '工作（海）', '待工', '在途', '请假'];
   const wtNormalize = (wt) => {
     if (wt === '工作' || wt === '作业') return '工作（陆）'; // 旧版"工作"/"作业"→"工作（陆）"
     if (!wt) return '工作（陆）'; // 空工作类型默认按"工作（陆）"计
-    return wt;
+    if (wtKnown.includes(wt)) return wt;
+    return '工作（陆）'; // 非标准值兜底，避免 total=0 被过滤
   };
 
   const addCount = (uid, wt, n) => {
@@ -1260,6 +1285,8 @@ async function getAreaDistribution(date) {
   subs.forEach(s => allUids.add(s.user_id));
 
   const uidToInfo = {};
+  // 4. 构建 name→uid 映射（同时注册 nickname 与 user_name，避免 workers 文本用 user_name 时匹配丢失）
+  const nameToUid = {};
   if (allUids.size > 0) {
     const uidList = [...allUids];
     const userRows = await db.query(
@@ -1269,14 +1296,10 @@ async function getAreaDistribution(date) {
     );
     userRows.forEach(u => {
       uidToInfo[u.id] = { userName: u.nickname || u.user_name || '', workerCode: u.worker_code || '' };
+      if (u.nickname) nameToUid[u.nickname] = u.id;
+      if (u.user_name) nameToUid[u.user_name] = u.id;
     });
   }
-
-  // 4. 构建 name→uid 映射（基于已知用户）
-  const nameToUid = {};
-  Object.entries(uidToInfo).forEach(([uid, info]) => {
-    if (info.userName) nameToUid[info.userName] = Number(uid);
-  });
 
   // 5. 预扫描 workers 文本，收集未匹配的名字批量查 users 表
   const unknownNames = new Set();
@@ -1301,8 +1324,8 @@ async function getAreaDistribution(date) {
       if (!uidToInfo[u.id]) {
         uidToInfo[u.id] = { userName: u.nickname || u.user_name || '', workerCode: u.worker_code || '' };
       }
-      const n = (u.nickname || u.user_name || '').trim();
-      if (n && !nameToUid[n]) nameToUid[n] = u.id;
+      if (u.nickname) nameToUid[u.nickname] = u.id;
+      if (u.user_name) nameToUid[u.user_name] = u.id;
     });
   }
 
@@ -1381,7 +1404,7 @@ async function getProvinceWorkers(province, date) {
   // 与 getAreaDistribution 保持一致，默认北京时间昨日，支持传 date
   const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getYesterdayCST();
   const dateCondition = 'AND dr.report_date = ?';
-  const params = [`${provinceFull}-%`, targetDate];
+  const params = [`${provinceFull}%`, targetDate];
 
   // 1. 查该省昨日所有报告
   const reports = await db.query(
@@ -1453,8 +1476,8 @@ async function getProvinceWorkers(province, date) {
       if (!uidToInfo[u.id]) {
         uidToInfo[u.id] = { userName: u.nickname || u.user_name || '', workerCode: u.worker_code || '' };
       }
-      const n = (u.nickname || u.user_name || '').trim();
-      if (n && !nameToUid[n]) nameToUid[n] = u.id;
+      if (u.nickname) nameToUid[u.nickname] = u.id;
+      if (u.user_name) nameToUid[u.user_name] = u.id;
     });
   }
 

@@ -948,6 +948,53 @@ async function getWorkerList() {
  * 人员统计看板（全量返回，前端不分页）
  */
 async function getWorkerStats({ keyword }) {
+  // 读取视图筛选（workers）：部门子树 + 仅现场作业
+  const filterRows = await db.query(
+    "SELECT config_value FROM system_config WHERE config_key = 'stats_filter_workers' LIMIT 1"
+  );
+  let cfg = {};
+  if (filterRows.length > 0) {
+    try { cfg = JSON.parse(filterRows[0].config_value || '{}'); } catch { cfg = {}; }
+  }
+  const fieldOnly = !(cfg.fieldOnly === 0 || cfg.fieldOnly === false || cfg.fieldOnly === '0');
+  const deptId = /^\d+$/.test(String(cfg.deptId ?? '')) ? Number(cfg.deptId) : null;
+
+  // 部门子树（含自身）
+  let deptIds = null;
+  if (deptId) {
+    const all = await db.query('SELECT id, parent_id FROM departments WHERE deleted_at IS NULL');
+    const childrenMap = new Map();
+    for (const d of all) {
+      if (!childrenMap.has(d.parent_id)) childrenMap.set(d.parent_id, []);
+      childrenMap.get(d.parent_id).push(d.id);
+    }
+    deptIds = [];
+    const stack = [deptId];
+    const seen = new Set();
+    while (stack.length > 0) {
+      const id = stack.pop();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      deptIds.push(id);
+      for (const c of childrenMap.get(id) || []) stack.push(c);
+    }
+  }
+
+  // 范围内用户姓名集合（用于 workers 文本过滤）
+  const where = ['deleted_at IS NULL', "role NOT IN ('admin','superadmin')"];
+  const params = [];
+  if (fieldOnly) where.push('is_field_worker = 1');
+  if (deptIds && deptIds.length > 0) {
+    where.push(`department_id IN (${deptIds.map(() => '?').join(',')})`);
+    params.push(...deptIds);
+  }
+  const scopeUsers = await db.query(`SELECT id, nickname, user_name FROM users WHERE ${where.join(' AND ')}`, params);
+  const inScopeNames = new Set();
+  for (const u of scopeUsers) {
+    if (u.nickname) inScopeNames.add(u.nickname);
+    if (u.user_name) inScopeNames.add(u.user_name);
+  }
+
   const rawRows = await db.query(
     "SELECT workers, report_date FROM daily_reports WHERE workers IS NOT NULL AND workers != '' AND status = 'approved'"
   );
@@ -958,6 +1005,7 @@ async function getWorkerStats({ keyword }) {
     for (const name of names) {
       const trimmed = name.trim();
       if (!trimmed) continue;
+      if (!inScopeNames.has(trimmed)) continue; // 范围过滤：仅统计范围内人员
       if (!personMap[trimmed]) personMap[trimmed] = { total: 0, monthCount: 0, lastDate: null };
       personMap[trimmed].total++;
       if (new Date(row.report_date).getMonth() === new Date().getMonth()) personMap[trimmed].monthCount++;
