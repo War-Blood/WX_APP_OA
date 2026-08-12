@@ -113,9 +113,11 @@ async function submit(req, res, next) {
       }
     }
 
-    // 工作日报（office）：项目名称/工作类型默认值（标识为公司日报）
+    // 工作日报（office）：固定默认值（项目为公司日报；区域固定；无相关方；工作类型默认公司）
     if (reportType === 'office') {
-      if (!data.project) data.project = '公司日报';
+      data.project = '公司日报';
+      data.area = '浙江-温州-乐清';
+      data.relatedParty = '';
       if (!data.todayWorkType) data.todayWorkType = '公司';
     }
 

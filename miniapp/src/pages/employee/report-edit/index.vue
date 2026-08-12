@@ -867,8 +867,6 @@ function switchTab(key) {
   if (key === 'office') {
     selectedWorkType.value = ''
     selectedWorkerIds.value = []
-    // 工作日报无项目概念，清空防止带出公出草稿的项目名（后端默认写入「公司日报」）
-    formData.value.project = ''
     // 工作日报同样显示「已提交」状态提示条，防止重复提交
     showSubstituteMsg.value = false
     checkTodayStatus()
