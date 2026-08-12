@@ -6,6 +6,7 @@ const config = require('../../common/config/env');
 const logger = require('../../common/utils/logger');
 const { NotFoundError, BusinessError } = require('../../common/utils/errors');
 const { ErrorCode } = require('../../common/utils/constants');
+const { buildUserFilter } = require('./stats.service');
 
 /**
  * 日报服务 v2.0
@@ -947,54 +948,11 @@ async function getWorkerList() {
 /**
  * 人员统计看板（全量返回，前端不分页）
  */
-async function getWorkerStats({ keyword }) {
-  // 读取视图筛选（workers）：部门子树 + 仅现场作业
-  const filterRows = await db.query(
-    "SELECT config_value FROM system_config WHERE config_key = 'stats_filter_workers' LIMIT 1"
-  );
-  let cfg = {};
-  if (filterRows.length > 0) {
-    try { cfg = JSON.parse(filterRows[0].config_value || '{}'); } catch { cfg = {}; }
-  }
-  const fieldOnly = !(cfg.fieldOnly === 0 || cfg.fieldOnly === false || cfg.fieldOnly === '0');
-  const deptId = /^\d+$/.test(String(cfg.deptId ?? '')) ? Number(cfg.deptId) : null;
-
-  // 部门子树（含自身）
-  let deptIds = null;
-  if (deptId) {
-    const all = await db.query('SELECT id, parent_id FROM departments WHERE deleted_at IS NULL');
-    const childrenMap = new Map();
-    for (const d of all) {
-      if (!childrenMap.has(d.parent_id)) childrenMap.set(d.parent_id, []);
-      childrenMap.get(d.parent_id).push(d.id);
-    }
-    deptIds = [];
-    const stack = [deptId];
-    const seen = new Set();
-    while (stack.length > 0) {
-      const id = stack.pop();
-      if (seen.has(id)) continue;
-      seen.add(id);
-      deptIds.push(id);
-      for (const c of childrenMap.get(id) || []) stack.push(c);
-    }
-  }
-
-  // 范围内用户姓名集合（用于 workers 文本过滤）
-  const where = ['deleted_at IS NULL', "role NOT IN ('admin','superadmin')"];
-  const params = [];
-  if (fieldOnly) where.push(`(
-    EXISTS (SELECT 1 FROM daily_reports fw1 WHERE fw1.user_id = users.id AND fw1.status = 'approved'
-            AND fw1.report_type != 'office' AND fw1.report_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY))
-    OR EXISTS (SELECT 1 FROM attendance_leave_requests fw2 WHERE fw2.applicant_id = users.id
-               AND fw2.request_type = 'biz_trip' AND fw2.status = 'in_progress')
-    OR EXISTS (SELECT 1 FROM biz_trip_status fw3 WHERE fw3.user_id = users.id AND fw3.status = 'active')
-  )`);
-  if (deptIds && deptIds.length > 0) {
-    where.push(`department_id IN (${deptIds.map(() => '?').join(',')})`);
-    params.push(...deptIds);
-  }
-  const scopeUsers = await db.query(`SELECT id, nickname, user_name FROM users WHERE ${where.join(' AND ')}`, params);
+async function getWorkerStats({ keyword, viewId, role, userId }) {
+  // 范围内用户姓名集合（用于 workers 文本过滤；按视图筛选 + RLS）
+  const vf = await buildUserFilter('workers', { viewId, role, userId }, 'users');
+  const where = ['users.deleted_at IS NULL', "users.role NOT IN ('admin','superadmin')", ...vf.clauses];
+  const scopeUsers = await db.query(`SELECT id, nickname, user_name FROM users WHERE ${where.join(' AND ')}`, vf.params);
   const inScopeNames = new Set();
   for (const u of scopeUsers) {
     if (u.nickname) inScopeNames.add(u.nickname);

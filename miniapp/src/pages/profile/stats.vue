@@ -10,6 +10,14 @@
       </view>
     </view>
 
+    <!-- 视图选择器（admin，按统计页） -->
+    <view v-if="userStore.isAdmin && viewNames.length > 1" class="view-selector-bar">
+      <text class="view-selector-label">视图</text>
+      <picker :range="viewNames" :value="viewIndex" @change="onViewChange">
+        <view class="view-selector-value">{{ viewNames[viewIndex] }} ▾</view>
+      </picker>
+    </view>
+
     <!-- 个人统计 -->
     <scroll-view v-if="showTab('personal')" class="content-scroll" scroll-y :refresher-enabled="true" :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
       <view class="entry-bar">
@@ -386,9 +394,31 @@
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { reportApi } from '@/services/modules/report'
+import { statsViewApi } from '@/services/modules/stats-view'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
+
+// ============ 统计视图选择器 ============
+const viewList = ref([])
+const viewNames = computed(() => ['默认视图', ...viewList.value.map(v => v.name)])
+const viewIndex = ref(0)
+const currentViewId = computed(() => viewList.value[viewIndex.value - 1]?.id || null)
+
+async function loadViewList(statKey) {
+  if (!userStore.isAdmin) return
+  try {
+    const res = await statsViewApi.list(statKey)
+    viewList.value = (res.data || []).map(v => ({ id: v.id, name: v.name }))
+    viewIndex.value = 0
+  } catch { viewList.value = [] }
+}
+function onViewChange(e) {
+  viewIndex.value = e.detail.value
+  if (activeTab.value === 'daily') loadDailyStatus()
+  if (activeTab.value === 'calendar') loadCalendar()
+  if (activeTab.value === 'workers') { loadWorkTypes(); loadAreas() }
+}
 
 // ============ Tabs ============
 const tabs = [
@@ -409,6 +439,9 @@ function switchTab(k) {
   if (k === 'calendar' && !calData.value.length) loadCalendar()
   if (k === 'projects' && !projData.value.length) loadProjects()
   if (k === 'workers' && !workTypeData.value.length) { loadWorkTypes(); loadAreas() }
+  // 加载该统计页的可见视图（仅 admin）
+  const viewKey = k === 'daily' ? 'daily' : k === 'workers' ? 'worktypes' : k === 'calendar' ? 'calendar' : ''
+  if (viewKey) loadViewList(viewKey)
 }
 
 // ============ 工具函数 ============
@@ -615,7 +648,7 @@ function statusLabel(s) {
 async function loadDailyStatus() {
   dailyLoading.value = true
   try {
-    const res = await reportApi.getDailyStatus({ date: dailyDate.value })
+    const res = await reportApi.getDailyStatus({ date: dailyDate.value, viewId: currentViewId.value || undefined })
     if (res.code === 0 && res.data) dailyResponse.value = res.data
   } catch { dailyResponse.value = null }
   finally { dailyLoading.value = false }
@@ -694,7 +727,7 @@ async function loadTeamLogs() {
 }
 async function loadCalendar() {
   calLoading.value = true
-  try { const res = await reportApi.getDailyCounts(calMonth.value); if (res.code === 0 && res.data) calData.value = res.data.data || [] } catch { calData.value = [] }
+  try { const res = await reportApi.getDailyCounts(calMonth.value, currentViewId.value || undefined); if (res.code === 0 && res.data) calData.value = res.data.data || [] } catch { calData.value = [] }
   finally { calLoading.value = false }
 }
 async function loadProjects() {
@@ -703,10 +736,10 @@ async function loadProjects() {
   finally { projLoading.value = false }
 }
 async function loadWorkTypes() {
-  try { const res = await reportApi.getWorkerWorkTypes(workTypeMonth.value); if (res.code === 0 && res.data) workTypeData.value = res.data.workers || [] } catch { workTypeData.value = [] }
+  try { const res = await reportApi.getWorkerWorkTypes(workTypeMonth.value, currentViewId.value || undefined); if (res.code === 0 && res.data) workTypeData.value = res.data.workers || [] } catch { workTypeData.value = [] }
 }
 async function loadAreas() {
-  try { const res = await reportApi.getAreaDistribution(); if (res.code === 0 && res.data) areaData.value = res.data.provinces || [] } catch { areaData.value = [] }
+  try { const res = await reportApi.getAreaDistribution(undefined, currentViewId.value || undefined); if (res.code === 0 && res.data) areaData.value = res.data.provinces || [] } catch { areaData.value = [] }
 }
 
 async function onRefresh() {
@@ -740,6 +773,22 @@ onMounted(async () => {
 
 // ===== Tab =====
 .tab-bar { display:flex; background:#FFFFFF; flex-shrink:0; }
+.view-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 12rpx 24rpx;
+  background: #FFFFFF;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+.view-selector-label { font-size: 24rpx; color: #999999; }
+.view-selector-value {
+  font-size: 26rpx;
+  color: #2B6DE8;
+  padding: 8rpx 20rpx;
+  background: #EDF2FF;
+  border-radius: 8rpx;
+}
 .tab-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; height:88rpx; position:relative; }
 .tab-text { font-size:28rpx; color:$text-secondary; }
 .tab-text--active { color:$primary-color; font-weight:600; }

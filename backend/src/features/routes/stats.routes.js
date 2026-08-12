@@ -4,7 +4,10 @@ const express = require('express');
 const path = require('path');
 const router = express.Router();
 const statsController = require('../controllers/stats.controller');
-const { authenticate } = require('../../common/middleware/auth');
+const statsViewController = require('../../core/controllers/stats-view.controller');
+const { authenticate, requireRole } = require('../../common/middleware/auth');
+
+const adminAuth = [authenticate, requireRole('admin', 'superadmin')];
 
 const fs = require('fs');
 
@@ -61,5 +64,30 @@ router.post('/stats/province-workers', authenticate, statsController.provinceWor
 
 // POST /api/stats/user-monthly-logs — 用户月度公出日志明细
 router.post('/stats/user-monthly-logs', authenticate, statsController.userMonthlyLogs);
+
+// ==============================
+// 统计视图管理（admin+ 管理；登录可见列表）
+// ==============================
+
+// POST /api/stats/views — 创建视图（admin+）
+router.post('/stats/views', ...adminAuth, statsViewController.create);
+
+// GET /api/stats/views — 当前角色可见视图列表（登录）
+router.get('/stats/views', authenticate, statsViewController.list);
+
+// GET /api/stats/views/:id — 视图详情（登录，不可见 403）
+router.get('/stats/views/:id', authenticate, statsViewController.get);
+
+// PUT /api/stats/views/:id — 更新视图（admin+，锁定需先解锁）
+router.put('/stats/views/:id', ...adminAuth, statsViewController.update);
+
+// POST /api/stats/views/:id/lock — 锁定视图（admin+）
+router.post('/stats/views/:id/lock', ...adminAuth, statsViewController.lock);
+
+// POST /api/stats/views/:id/unlock — 解锁视图（admin+）
+router.post('/stats/views/:id/unlock', ...adminAuth, statsViewController.unlock);
+
+// DELETE /api/stats/views/:id — 删除视图（admin+）
+router.delete('/stats/views/:id', ...adminAuth, statsViewController.remove);
 
 module.exports = router;

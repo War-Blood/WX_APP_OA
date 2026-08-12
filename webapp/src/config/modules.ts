@@ -65,6 +65,7 @@ export const modules: ModuleConfig[] = [
       { title: '项目进展', path: '/report/project', group: '公出统计' },
       { title: '人员工作类型', path: '/report/worktype', group: '公出统计' },
       { title: '人员明细', path: '/report/workers', group: '公出统计' },
+      { title: '视图管理', path: '/report/views', group: '公出统计', roles: ['admin', 'superadmin'] },
       { title: '当日状态', path: '/report/daily-status', roles: ['admin', 'superadmin'] },
       { title: '月度占比', path: '/report/monthly-summary' },
     ],

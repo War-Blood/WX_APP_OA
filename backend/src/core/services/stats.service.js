@@ -2,6 +2,7 @@
 
 const db = require('../../common/config/database');
 const { BusinessError } = require('../../common/utils/errors');
+const statsViewService = require('./stats-view.service');
 
 /**
  * 统计服务 — 三种 scope 统计 + 月度占比 + 当日全员状态
@@ -419,19 +420,94 @@ function buildFieldWorkerSql(alias) {
 }
 
 /**
+ * 构造统计查询的用户筛选（视图 or 全局配置 + 数据范围 RLS）
+ * @param {string} view - 视图标识 daily/worktypes/area/calendar/workers
+ * @param {Object} [viewParams] - { viewId, role, userId } 来自请求
+ * @param {string} alias - 用户表别名（无别名传 'users'）
+ * @returns {Promise<{clauses: string[], params: Array, workType: string, province: string, hasDept: boolean}>}
+ */
+async function buildUserFilter(view, viewParams, alias) {
+  const clauses = [];
+  const params = [];
+  let filter = {};
+  let scopeType = 'all';
+  let userDeptId = null;
+  let reqUserId = null;
+
+  if (viewParams && viewParams.filter) {
+    // 临时筛选覆盖（前端「应用」，不保存为视图）
+    filter = viewParams.filter;
+    scopeType = viewParams.scopeType || 'all';
+    if (viewParams.userId) reqUserId = viewParams.userId;
+  } else if (viewParams && viewParams.viewId) {
+    const resolved = await statsViewService.resolveViewForRequest(viewParams.viewId, viewParams.role, viewParams.userId);
+    filter = resolved.filter || {};
+    scopeType = resolved.scopeType;
+    userDeptId = resolved.userDeptId;
+    reqUserId = resolved.userId;
+  } else {
+    const vf = await getViewFilter(view);
+    filter = { deptId: vf.deptIds ? vf.deptIds[0] : null, fieldOnly: vf.fieldOnly, workType: vf.workType, province: vf.province };
+    scopeType = 'all';
+  }
+
+  // 视图部门范围（子树）
+  const viewDeptId = /^\d+$/.test(String(filter.deptId ?? '')) ? Number(filter.deptId) : null;
+  const viewDeptIds = viewDeptId ? await resolveDeptSubtreeIds(viewDeptId) : null;
+
+  // RLS 数据范围（硬约束，与视图筛选取交集）
+  let rlsDeptIds = null;
+  let rlsExact = null;
+  let rlsSelf = false;
+  if (scopeType === 'department' && userDeptId) rlsExact = userDeptId;
+  if (scopeType === 'department_and_children' && userDeptId) rlsDeptIds = await resolveDeptSubtreeIds(userDeptId);
+  if (scopeType === 'self') rlsSelf = true;
+
+  // 合并部门条件（交集）
+  const deptSets = [];
+  if (viewDeptIds) deptSets.push(viewDeptIds);
+  if (rlsDeptIds) deptSets.push(rlsDeptIds);
+  if (rlsExact) deptSets.push([rlsExact]);
+  if (deptSets.length > 0) {
+    let intersection = deptSets[0];
+    for (const s of deptSets.slice(1)) intersection = intersection.filter(d => s.includes(d));
+    if (intersection.length > 0) {
+      clauses.push(`${alias}.department_id IN (${intersection.map(() => '?').join(',')})`);
+      params.push(...intersection);
+    } else {
+      clauses.push('1 = 0'); // 空交集：无结果
+    }
+  }
+  if (rlsSelf) { clauses.push(`${alias}.id = ?`); params.push(reqUserId); }
+
+  // 仅现场（出差状态识别）
+  if (filter.fieldOnly !== 0 && filter.fieldOnly !== false && filter.fieldOnly !== '0') {
+    clauses.push(buildFieldWorkerSql(alias));
+  }
+
+  return {
+    clauses,
+    params,
+    workType: String(filter.workType || '').trim(),
+    province: String(filter.province || '').trim(),
+    hasDept: deptSets.length > 0,
+  };
+}
+
+/**
  * 全员当日状态（管理层看板）
  * @param {string} dateStr - 日期 (YYYY-MM-DD)，默认今天
  * @returns {Promise<Object>}
  */
-async function getDailyStatus(dateStr) {
+async function getDailyStatus(dateStr, viewParams) {
   const date = dateStr || formatDate(new Date());
 
-  // 视图筛选（view=daily）：部门子树 + 仅现场作业 + 工作类型
-  const { hasDept, deptParams, fieldOnly, workType } = await getViewFilter('daily');
-  const userScopeSql =
-    (fieldOnly ? ` AND ${buildFieldWorkerSql('u')}` : '') +
-    (hasDept ? ` AND u.department_id IN (${deptParams.map(() => '?').join(',')})` : '');
-  const workTypeSql = workType ? ' AND dr.today_work_type = ?' : '';
+  // 视图筛选（view=daily）+ 数据范围 RLS
+  const vf = await buildUserFilter('daily', viewParams, 'u');
+  const userScopeSql = vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : '';
+  const workTypeSql = vf.workType ? ' AND dr.today_work_type = ?' : '';
+  const deptParams = vf.params;
+  const workType = vf.workType;
 
   // 从当日报告反查涉及的人员（排除管理员；按视图筛选展示范围）
   const today = formatDate(new Date());
@@ -666,7 +742,7 @@ async function getDailyStatus(dateStr) {
  * @param {string} [date] - 目标日 N（YYYY-MM-DD），默认明日
  * @returns {Promise<Object>} { date, totalWorkers, summary, workers }
  */
-async function getTomorrowStatus(date) {
+async function getTomorrowStatus(date, viewParams) {
   // 目标日 N（明日视图选中日）
   const targetDate = date || (() => {
     const t = new Date();
@@ -680,7 +756,7 @@ async function getTomorrowStatus(date) {
   const prevDate = formatDate(d);
 
   // 与今日状态保持同一人员口径：取 N-1 日“全员当日状态”展示的人员集合
-  const dailyStatus = await getDailyStatus(prevDate);
+  const dailyStatus = await getDailyStatus(prevDate, viewParams);
   const dailyWorkers = dailyStatus.workers || [];
 
   // N-1 日日报中填写的明日工作类型（本人提交，含工作日报）
@@ -776,19 +852,19 @@ function formatDateTime(d) {
  * @param {string} month - 月份 (YYYY-MM)
  * @returns {Promise<Object>} { month, data: [{ date, submitted, total }] }
  */
-async function getDailyCounts(month) {
+async function getDailyCounts(month, viewParams) {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
 
-  // 当月所有在职作业人员（含入场日期，用于按日判断是否在岗；按视图筛选）
-  const { hasDept, deptParams, fieldOnly } = await getViewFilter('calendar');
+  // 当月所有在职作业人员（含入场日期，用于按日判断是否在岗；按视图筛选 + RLS）
+  const vf = await buildUserFilter('calendar', viewParams, 'users');
   const activeUsers = await db.query(
     `SELECT id, entry_date, nickname, user_name FROM users
      WHERE worker_status = 'active' AND status = 'active'
        AND deleted_at IS NULL AND role NOT IN ('admin', 'superadmin')
-       ${fieldOnly ? `AND ${buildFieldWorkerSql('users')}` : ''}${hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : ''}`,
-    deptParams
+       ${vf.clauses.length ? `AND ${vf.clauses.join(' AND ')}` : ''}`,
+    vf.params
   );
 
   // 当月所有出差记录（用于判定每天在出差=公出的人员）
@@ -985,17 +1061,17 @@ async function getProjectProgress(month) {
  * @param {string} month - 月份 YYYY-MM
  * @returns {Promise<Object>} { month, workers: [{ userName, workerCode, workTypes, total, supplementCount, officeCount }] }
  */
-async function getWorkerWorkTypes(month) {
+async function getWorkerWorkTypes(month, viewParams) {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
 
-  // 视图筛选（view=worktypes）：部门子树 + 仅现场作业 + 工作类型
-  const { hasDept, deptParams, fieldOnly, workType } = await getViewFilter('worktypes');
-  const userScopeSql =
-    (fieldOnly ? ` AND ${buildFieldWorkerSql('u')}` : '') +
-    (hasDept ? ` AND u.department_id IN (${deptParams.map(() => '?').join(',')})` : '');
-  const workTypeSql = workType ? ' AND today_work_type = ?' : '';
+  // 视图筛选（view=worktypes）+ 数据范围 RLS
+  const vf = await buildUserFilter('worktypes', viewParams, 'u');
+  const userScopeSql = vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : '';
+  const workTypeSql = vf.workType ? ' AND today_work_type = ?' : '';
+  const deptParams = vf.params;
+  const workType = vf.workType;
   const activeWorkers = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
      FROM users u
@@ -1080,16 +1156,10 @@ async function getWorkerWorkTypes(month) {
 
   // 名字→用户ID 查找表：从「范围内全部在职用户」构建（而非仅 activeWorkers），
   // 使只出现在 workers 文本列、无 daily_report_workers 行的代填人员也能被恢复（修复数据缺失）
-  const scopeWhere = ['u.deleted_at IS NULL', "u.role NOT IN ('admin','superadmin')"];
-  const scopeParams = [];
-  if (fieldOnly) scopeWhere.push(buildFieldWorkerSql('u'));
-  if (hasDept) {
-    scopeWhere.push(`u.department_id IN (${deptParams.map(() => '?').join(',')})`);
-    scopeParams.push(...deptParams);
-  }
+  const scopeWhere = ['u.deleted_at IS NULL', "u.role NOT IN ('admin','superadmin')", ...vf.clauses];
   const allScopeUsers = await db.query(
     `SELECT u.id, u.nickname, u.user_name FROM users u WHERE ${scopeWhere.join(' AND ')}`,
-    scopeParams
+    vf.params
   );
   const nameToUid = {};
   allScopeUsers.forEach(w => {
@@ -1265,16 +1335,16 @@ function getYesterdayCST() {
  * @param {string} [date] - 可选日期 YYYY-MM-DD，默认北京时间昨日
  * @returns {Promise<Object>} { date, provinces: [{ name, count, projects, workers }] }
  */
-async function getAreaDistribution(date) {
+async function getAreaDistribution(date, viewParams) {
   // 仅统计昨日数据（默认北京时间昨日，支持传 date 查看任意日）
   const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getYesterdayCST();
 
-  // 视图筛选（view=area）：部门子树 + 仅现场作业 + 区域/省份
-  const { hasDept, deptParams, fieldOnly, province } = await getViewFilter('area');
-  const userScopeSql =
-    (fieldOnly ? ` AND ${buildFieldWorkerSql('users')}` : '') +
-    (hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : '');
-  const provinceSql = province ? ' AND dr.area LIKE ?' : '';
+  // 视图筛选（view=area）+ 数据范围 RLS + 区域/省份
+  const vf = await buildUserFilter('area', viewParams, 'users');
+  const userScopeSql = vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : '';
+  const provinceSql = vf.province ? ' AND dr.area LIKE ?' : '';
+  const deptParams = vf.params;
+  const province = vf.province;
 
   // 1. 查昨日所有报告（含区域和 workers 文本）
   const reports = await db.query(
@@ -1406,18 +1476,17 @@ async function getAreaDistribution(date) {
  * @param {string} [month] - 可选月份筛选
  * @returns {Promise<Object>} { province, workers: [...] }
  */
-async function getProvinceWorkers(province, date) {
+async function getProvinceWorkers(province, date, viewParams) {
   if (!province) throw new BusinessError('province 必填');
 
   // 归一化省份名（兼容简称/全称/脏数据）
   const provinceFull = normalizeProvinceName(province);
   if (!provinceFull) throw new BusinessError('无法识别的省份');
 
-  // 视图筛选（view=area）：部门子树 + 仅现场作业
-  const { hasDept, deptParams, fieldOnly } = await getViewFilter('area');
-  const userScopeSql =
-    (fieldOnly ? ` AND ${buildFieldWorkerSql('users')}` : '') +
-    (hasDept ? ` AND department_id IN (${deptParams.map(() => '?').join(',')})` : '');
+  // 视图筛选（view=area）+ 数据范围 RLS
+  const vf = await buildUserFilter('area', viewParams, 'users');
+  const userScopeSql = vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : '';
+  const deptParams = vf.params;
 
   // 与 getAreaDistribution 保持一致，默认北京时间昨日，支持传 date
   const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getYesterdayCST();
@@ -1535,7 +1604,7 @@ async function getProvinceWorkers(province, date) {
  * @param {string} month - 月份，格式 'YYYY-MM'
  * @returns {Promise<{logs: Array}>}
  */
-async function getUserMonthlyLogs(userId, month) {
+async function getUserMonthlyLogs(userId, month, viewParams) {
   if (!userId) throw new BusinessError('userId 必填');
   if (!month || !/^\d{4}-\d{2}$/.test(month)) throw new BusinessError('month 格式错误，需 YYYY-MM');
 
@@ -1547,12 +1616,11 @@ async function getUserMonthlyLogs(userId, month) {
   if (userRows.length === 0) throw new BusinessError('用户不存在');
   const userName = userRows[0].nickname || userRows[0].user_name || '';
 
-  // 范围守卫：公出统计仅展示范围内（部门子树 + 现场作业）人员，范围外返回空
-  const { hasDept, deptParams, fieldOnly } = await getViewFilter('workers');
+  // 范围守卫：按视图筛选 + RLS 校验目标用户可见，范围外返回空
+  const vf = await buildUserFilter('workers', viewParams, 'users');
   const inScopeCheck = await db.query(
-    `SELECT id FROM users WHERE id = ?${fieldOnly ? ` AND ${buildFieldWorkerSql('users')}` : ''}
-      ${hasDept ? `AND department_id IN (${deptParams.map(() => '?').join(',')})` : ''}`,
-    [userId, ...deptParams]
+    `SELECT users.id FROM users WHERE users.id = ?${vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : ''}`,
+    [userId, ...vf.params]
   );
   if (inScopeCheck.length === 0) return { userId, month, logs: [] };
 
@@ -1604,4 +1672,4 @@ async function getUserMonthlyLogs(userId, month) {
   };
 }
 
-module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getTomorrowStatus, getDailyCounts, getProjectProgress, getWorkerWorkTypes, getAreaDistribution, getProvinceWorkers, getUserMonthlyLogs };
+module.exports = { getStats, getUserStats, getAllStats, getProjectStats, getMonthlySummary, getDailyStatus, getTomorrowStatus, getDailyCounts, getProjectProgress, getWorkerWorkTypes, getAreaDistribution, getProvinceWorkers, getUserMonthlyLogs, buildUserFilter };

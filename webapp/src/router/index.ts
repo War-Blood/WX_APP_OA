@@ -121,6 +121,12 @@ const router = createRouter({
               meta: { title: '人员明细' }
             },
             {
+              path: 'views',
+              name: 'ReportStatsViews',
+              component: () => import('@/views/report/StatsViewManage.vue'),
+              meta: { title: '统计视图管理', roles: ['admin', 'superadmin'] }
+            },
+            {
               path: 'daily-status',
               name: 'ReportDailyStatus',
               component: () => import('@/views/report/daily-status.vue'),

@@ -150,7 +150,7 @@ export interface WorkerStatItem {
 }
 
 /** 人员统计看板（全量返回，不分页） */
-export function getWorkerStats(params: { keyword?: string }): Promise<{ total: number; list: WorkerStatItem[] }> {
+export function getWorkerStats(params: { keyword?: string; viewId?: number }): Promise<{ total: number; list: WorkerStatItem[] }> {
   return request.post('/report/workerStats', params)
 }
 
@@ -403,8 +403,8 @@ export interface DailyCountsResponse {
 }
 
 /** 月度每日提交人次 */
-export function getDailyCounts(month: string): Promise<DailyCountsResponse> {
-  return request.post('/stats/daily-counts', { month })
+export function getDailyCounts(month: string, viewId?: number): Promise<DailyCountsResponse> {
+  return request.post('/stats/daily-counts', { month, viewId })
 }
 
 /** 项目进展项 */
@@ -445,8 +445,8 @@ export interface WorkerWorkTypesResponse {
 }
 
 /** 人员工作类型分布 */
-export function getWorkerWorkTypes(month: string): Promise<WorkerWorkTypesResponse> {
-  return request.post('/stats/worker-work-types', { month })
+export function getWorkerWorkTypes(month: string, viewId?: number): Promise<WorkerWorkTypesResponse> {
+  return request.post('/stats/worker-work-types', { month, viewId })
 }
 
 // ===== M4: 中国地图区域分布 =====
@@ -464,8 +464,8 @@ export interface AreaDistributionResponse {
 }
 
 /** 省份人员分布 */
-export function getAreaDistribution(date?: string): Promise<AreaDistributionResponse> {
-  return request.post('/stats/area-distribution', { date })
+export function getAreaDistribution(date?: string, viewId?: number): Promise<AreaDistributionResponse> {
+  return request.post('/stats/area-distribution', { date, viewId })
 }
 
 export interface ProvinceWorkerItem {

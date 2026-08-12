@@ -449,7 +449,8 @@ async function stats(req, res, next) {
 async function dailyStatus(req, res, next) {
   try {
     const { date } = req.body;
-    const result = await statsService.getDailyStatus(date);
+    const viewParams = { viewId: req.body.viewId, filter: req.body.filter, role: req.user.role, userId: req.user.userId };
+    const result = await statsService.getDailyStatus(date, viewParams);
     res.json(success(result));
   } catch (err) {
     next(err);
@@ -463,7 +464,8 @@ async function dailyStatus(req, res, next) {
 async function tomorrowStatus(req, res, next) {
   try {
     const { date } = req.body;
-    const result = await statsService.getTomorrowStatus(date);
+    const viewParams = { viewId: req.body.viewId, filter: req.body.filter, role: req.user.role, userId: req.user.userId };
+    const result = await statsService.getTomorrowStatus(date, viewParams);
     res.json(success(result));
   } catch (err) {
     next(err);
@@ -542,7 +544,7 @@ async function workerList(req, res, next) {
 async function workerStats(req, res, next) {
   try {
     const { keyword } = req.body;
-    const result = await reportService.getWorkerStats({ keyword });
+    const result = await reportService.getWorkerStats({ keyword, viewId: req.body.viewId, role: req.user.role, userId: req.user.userId });
     res.json(success({ list: result.list, total: result.total }));
   } catch (err) { next(err); }
 }
