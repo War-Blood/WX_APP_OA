@@ -449,7 +449,7 @@ async function stats(req, res, next) {
 async function dailyStatus(req, res, next) {
   try {
     const { date } = req.body;
-    const viewParams = { viewId: req.body.viewId, filter: req.body.filter, role: req.user.role, userId: req.user.userId };
+    const viewParams = { role: req.user.role, userId: req.user.userId };
     const result = await statsService.getDailyStatus(date, viewParams);
     res.json(success(result));
   } catch (err) {
@@ -464,7 +464,7 @@ async function dailyStatus(req, res, next) {
 async function tomorrowStatus(req, res, next) {
   try {
     const { date } = req.body;
-    const viewParams = { viewId: req.body.viewId, filter: req.body.filter, role: req.user.role, userId: req.user.userId };
+    const viewParams = { role: req.user.role, userId: req.user.userId };
     const result = await statsService.getTomorrowStatus(date, viewParams);
     res.json(success(result));
   } catch (err) {

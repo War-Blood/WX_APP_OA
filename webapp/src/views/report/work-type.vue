@@ -4,21 +4,17 @@ import { Refresh } from '@element-plus/icons-vue'
 import { getWorkerWorkTypes, type WorkerWorkTypeItem } from '@/api/report'
 import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
 import type { StatsViewFilter } from '@/api/statsView'
-import ViewSelector from '@/components/ViewSelector.vue'
+import { createStatsView } from '@/api/statsView'
 import FilterDialog from '@/components/FilterDialog.vue'
-import SaveViewDialog from '@/components/SaveViewDialog.vue'
 import { useUserStore } from '@/stores/user'
+import { toast } from '@/utils/toast'
 
 const userStore = useUserStore()
 const workTypeLoading = ref(false)
 const workTypeList = ref<WorkerWorkTypeItem[]>([])
 const workTypeMonth = ref(currentMonthInBeijing())
 const WT_LABELS = ['工作（陆）','工作（海）','待工','在途','请假']
-const currentViewId = ref<number | null>(null)
 const showFilter = ref(false)
-const showSave = ref(false)
-const saveFilter = ref<StatsViewFilter>({})
-const tempFilter = ref<StatsViewFilter>({})
 
 // 汇总行：各列合计 + 补录合计 + 工作日报合计 + 总计
 const wtSummary = computed(() => {
@@ -36,7 +32,7 @@ const wtSummary = computed(() => {
 async function loadWorkTypes() {
   workTypeLoading.value = true
   try {
-    const res = await getWorkerWorkTypes(workTypeMonth.value, currentViewId.value ?? undefined)
+    const res = await getWorkerWorkTypes(workTypeMonth.value)
     workTypeList.value = res.workers
   } catch {
     workTypeList.value = []
@@ -45,18 +41,16 @@ async function loadWorkTypes() {
   }
 }
 
-function onViewChange(viewId: number | null) {
-  currentViewId.value = viewId
+// 「应用」即保存为该统计页的唯一视图（UPSERT），随后刷新
+async function onFilterApply(filter: StatsViewFilter) {
+  try {
+    await createStatsView({ statKey: 'worktypes', conditions: filter.conditions || [] })
+    toast.success('视图已保存')
+  } catch {
+    toast.error('保存失败')
+  }
+  showFilter.value = false
   loadWorkTypes()
-}
-function onFilterApply(filter: StatsViewFilter) {
-  tempFilter.value = filter
-  currentViewId.value = null
-  loadWorkTypes()
-}
-function onFilterSave(filter: StatsViewFilter) {
-  saveFilter.value = filter
-  showSave.value = true
 }
 
 function prevWorkTypeMonth() {
@@ -97,7 +91,6 @@ onMounted(loadWorkTypes)
         <div class="card-header">
           <span>工作类型分布</span>
           <div class="card-header-right">
-            <ViewSelector stat-key="worktypes" @change="onViewChange" />
             <el-button v-if="userStore.isAdmin" size="small" @click="showFilter = true">筛选</el-button>
             <el-button size="small" @click="prevWorkTypeMonth">‹</el-button>
             <span class="month-label">{{ workTypeMonth }}</span>
@@ -146,8 +139,7 @@ onMounted(loadWorkTypes)
         </el-table-column>
       </el-table>
     </el-card>
-    <FilterDialog v-model="showFilter" stat-key="worktypes" :filter="tempFilter" @apply="onFilterApply" @save="onFilterSave" />
-    <SaveViewDialog v-model="showSave" stat-key="worktypes" :filter="saveFilter" @saved="loadWorkTypes" />
+    <FilterDialog v-model="showFilter" stat-key="worktypes" @apply="onFilterApply" />
   </div>
 </template>
 

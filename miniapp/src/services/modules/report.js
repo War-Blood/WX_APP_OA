@@ -67,8 +67,8 @@ export const reportApi = {
   },
 
   // M2: 日历热力图 + 项目进展
-  getDailyCounts(month, viewId) {
-    return post('/api/stats/daily-counts', { month, viewId })
+  getDailyCounts(month) {
+    return post('/api/stats/daily-counts', { month })
   },
 
   getProjectProgress(month) {
@@ -76,13 +76,13 @@ export const reportApi = {
   },
 
   // M3: 人员工作类型分布
-  getWorkerWorkTypes(month, viewId) {
-    return post('/api/stats/worker-work-types', { month, viewId })
+  getWorkerWorkTypes(month) {
+    return post('/api/stats/worker-work-types', { month })
   },
 
   // M4: 区域分布
-  getAreaDistribution(month, viewId) {
-    return post('/api/stats/area-distribution', { month, viewId })
+  getAreaDistribution(month) {
+    return post('/api/stats/area-distribution', { month })
   },
 
   // 用户月度公出日志明细

@@ -95,7 +95,7 @@ async function reportStats(req, res, next) {
 async function dailyCounts(req, res, next) {
   try {
     const { month } = req.body;
-    const viewParams = { viewId: req.body.viewId, filter: req.body.filter, role: req.user.role, userId: req.user.userId };
+    const viewParams = { role: req.user.role, userId: req.user.userId };
     const result = await coreStatsService.getDailyCounts(month, viewParams);
     res.json(success(result));
   } catch (err) { next(err); }
@@ -120,7 +120,7 @@ async function projectProgress(req, res, next) {
 async function workerWorkTypes(req, res, next) {
   try {
     const { month } = req.body;
-    const viewParams = { viewId: req.body.viewId, filter: req.body.filter, role: req.user.role, userId: req.user.userId };
+    const viewParams = { role: req.user.role, userId: req.user.userId };
     const result = await coreStatsService.getWorkerWorkTypes(month, viewParams);
     res.json(success(result));
   } catch (err) { next(err); }
@@ -133,7 +133,7 @@ async function workerWorkTypes(req, res, next) {
 async function areaDistribution(req, res, next) {
   try {
     const { date } = req.body;
-    const viewParams = { viewId: req.body.viewId, filter: req.body.filter, role: req.user.role, userId: req.user.userId };
+    const viewParams = { role: req.user.role, userId: req.user.userId };
     const result = await coreStatsService.getAreaDistribution(date, viewParams);
     res.json(success(result));
   } catch (err) { next(err); }
@@ -146,7 +146,7 @@ async function areaDistribution(req, res, next) {
 async function provinceWorkers(req, res, next) {
   try {
     const { province, date } = req.body;
-    const viewParams = { viewId: req.body.viewId, filter: req.body.filter, role: req.user.role, userId: req.user.userId };
+    const viewParams = { role: req.user.role, userId: req.user.userId };
     const result = await coreStatsService.getProvinceWorkers(province, date, viewParams);
     res.json(success(result));
   } catch (err) { next(err); }
@@ -159,7 +159,7 @@ async function provinceWorkers(req, res, next) {
 async function userMonthlyLogs(req, res, next) {
   try {
     const { userId, month } = req.body;
-    const viewParams = { viewId: req.body.viewId, filter: req.body.filter, role: req.user.role, userId: req.user.userId };
+    const viewParams = { role: req.user.role, userId: req.user.userId };
     const result = await coreStatsService.getUserMonthlyLogs(userId, month, viewParams);
     res.json(success(result));
   } catch (err) { next(err); }

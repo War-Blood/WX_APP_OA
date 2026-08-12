@@ -66,31 +66,16 @@ router.post('/stats/province-workers', authenticate, statsController.provinceWor
 router.post('/stats/user-monthly-logs', authenticate, statsController.userMonthlyLogs);
 
 // ==============================
-// 统计视图管理（admin+ 管理；登录可见列表）
+// 统计视图（每统计页一个「筛选即视图」）
 // ==============================
-
-// POST /api/stats/views — 创建视图（admin+）
-router.post('/stats/views', ...adminAuth, statsViewController.create);
 
 // GET /api/stats/views/fields — 动态获取可筛选字段（登录）
 router.get('/stats/views/fields', authenticate, statsViewController.fields);
 
-// GET /api/stats/views — 当前角色可见视图列表（登录）
-router.get('/stats/views', authenticate, statsViewController.list);
+// GET /api/stats/views?statKey= — 获取某统计页的唯一视图（登录）
+router.get('/stats/views', authenticate, statsViewController.get);
 
-// GET /api/stats/views/:id — 视图详情（登录，不可见 403）
-router.get('/stats/views/:id', authenticate, statsViewController.get);
-
-// PUT /api/stats/views/:id — 更新视图（admin+，锁定需先解锁）
-router.put('/stats/views/:id', ...adminAuth, statsViewController.update);
-
-// POST /api/stats/views/:id/lock — 锁定视图（admin+）
-router.post('/stats/views/:id/lock', ...adminAuth, statsViewController.lock);
-
-// POST /api/stats/views/:id/unlock — 解锁视图（admin+）
-router.post('/stats/views/:id/unlock', ...adminAuth, statsViewController.unlock);
-
-// DELETE /api/stats/views/:id — 删除视图（admin+）
-router.delete('/stats/views/:id', ...adminAuth, statsViewController.remove);
+// POST /api/stats/views — 保存某统计页的唯一视图（UPSERT，admin+）
+router.post('/stats/views', ...adminAuth, statsViewController.save);
 
 module.exports = router;

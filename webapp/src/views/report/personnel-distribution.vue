@@ -7,10 +7,10 @@ import {
   type ProvinceItem, type ProvinceWorkerItem
 } from '@/api/report'
 import type { StatsViewFilter } from '@/api/statsView'
-import ViewSelector from '@/components/ViewSelector.vue'
+import { createStatsView } from '@/api/statsView'
 import FilterDialog from '@/components/FilterDialog.vue'
-import SaveViewDialog from '@/components/SaveViewDialog.vue'
 import { useUserStore } from '@/stores/user'
+import { toast } from '@/utils/toast'
 
 // 省份中心点经纬度（GeoJSON 全称 → [经度, 纬度]），用于气泡定位
 const PROVINCE_CENTER: Record<string, [number, number]> = {
@@ -66,11 +66,7 @@ function yesterdayStr() {
 }
 const mapDate = ref(yesterdayStr())
 const userStore = useUserStore()
-const currentViewId = ref<number | null>(null)
 const showFilter = ref(false)
-const showSave = ref(false)
-const saveFilter = ref<StatsViewFilter>({})
-const tempFilter = ref<StatsViewFilter>({})
 
 // 中国地图
 const mapLoading = ref(false)
@@ -85,7 +81,7 @@ let eventsBound = false
 async function loadMap() {
   mapLoading.value = true
   try {
-    const res = await getAreaDistribution(mapDate.value, currentViewId.value ?? undefined)
+    const res = await getAreaDistribution(mapDate.value)
     mapData.value = res.provinces
 
     // 名单与人数同源：直接用接口返回的 workers，不再逐省二次请求
@@ -110,18 +106,15 @@ async function loadMap() {
   }
 }
 
-function onViewChange(viewId: number | null) {
-  currentViewId.value = viewId
+async function onFilterApply(filter: StatsViewFilter) {
+  try {
+    await createStatsView({ statKey: 'area', conditions: filter.conditions || [] })
+    toast.success('视图已保存')
+  } catch {
+    toast.error('保存失败')
+  }
+  showFilter.value = false
   loadMap()
-}
-function onFilterApply(filter: StatsViewFilter) {
-  tempFilter.value = filter
-  currentViewId.value = null
-  loadMap()
-}
-function onFilterSave(filter: StatsViewFilter) {
-  saveFilter.value = filter
-  showSave.value = true
 }
 
 // 构造气泡数据：每个有人的省份一个点 [经度, 纬度, 人数]
@@ -330,7 +323,6 @@ onUnmounted(() => {
     <div class="map-toolbar">
       <span class="toolbar-title">人员分布图<small>按区域统计每日在外人员</small></span>
       <div class="toolbar-actions">
-        <ViewSelector stat-key="area" @change="onViewChange" />
         <el-button v-if="userStore.isAdmin" size="small" @click="showFilter = true">筛选</el-button>
         <el-date-picker
           v-model="mapDate"
@@ -345,8 +337,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <FilterDialog v-model="showFilter" stat-key="area" :filter="tempFilter" @apply="onFilterApply" @save="onFilterSave" />
-    <SaveViewDialog v-model="showSave" stat-key="area" :filter="saveFilter" @saved="loadMap" />
+    <FilterDialog v-model="showFilter" stat-key="area" @apply="onFilterApply" />
 
     <div class="map-body">
       <!-- 地图直接置于内容区，无嵌套边框；内部深色科技风 -->

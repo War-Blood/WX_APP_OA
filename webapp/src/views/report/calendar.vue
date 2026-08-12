@@ -5,10 +5,10 @@ import * as echarts from 'echarts'
 import { getDailyCounts, type DailyCountItem } from '@/api/report'
 import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
 import type { StatsViewFilter } from '@/api/statsView'
-import ViewSelector from '@/components/ViewSelector.vue'
+import { createStatsView } from '@/api/statsView'
 import FilterDialog from '@/components/FilterDialog.vue'
-import SaveViewDialog from '@/components/SaveViewDialog.vue'
 import { useUserStore } from '@/stores/user'
+import { toast } from '@/utils/toast'
 
 const userStore = useUserStore()
 const calLoading = ref(false)
@@ -16,16 +16,12 @@ const calData = ref<DailyCountItem[]>([])
 const calMonth = ref(currentMonthInBeijing())
 const calChartRef = ref<HTMLDivElement>()
 let calChart: echarts.ECharts | null = null
-const currentViewId = ref<number | null>(null)
 const showFilter = ref(false)
-const showSave = ref(false)
-const saveFilter = ref<StatsViewFilter>({})
-const tempFilter = ref<StatsViewFilter>({})
 
 async function loadCalendar() {
   calLoading.value = true
   try {
-    const res = await getDailyCounts(calMonth.value, currentViewId.value ?? undefined)
+    const res = await getDailyCounts(calMonth.value)
     calData.value = res.data
     await nextTick()
     renderCalendar()
@@ -102,18 +98,15 @@ function nextCalendarMonth() {
   loadCalendar()
 }
 
-function onViewChange(viewId: number | null) {
-  currentViewId.value = viewId
+async function onFilterApply(filter: StatsViewFilter) {
+  try {
+    await createStatsView({ statKey: 'calendar', conditions: filter.conditions || [] })
+    toast.success('视图已保存')
+  } catch {
+    toast.error('保存失败')
+  }
+  showFilter.value = false
   loadCalendar()
-}
-function onFilterApply(filter: StatsViewFilter) {
-  tempFilter.value = filter
-  currentViewId.value = null
-  loadCalendar()
-}
-function onFilterSave(filter: StatsViewFilter) {
-  saveFilter.value = filter
-  showSave.value = true
 }
 
 let resizeTimer: ReturnType<typeof setTimeout>
@@ -140,7 +133,6 @@ onUnmounted(() => {
         <div class="card-header">
           <span>提交日历</span>
           <div class="card-header-right">
-            <ViewSelector stat-key="calendar" @change="onViewChange" />
             <el-button v-if="userStore.isAdmin" size="small" @click="showFilter = true">筛选</el-button>
             <el-button size="small" @click="prevCalendarMonth">‹</el-button>
             <span class="month-label">{{ calMonth }}</span>
@@ -151,8 +143,7 @@ onUnmounted(() => {
       </template>
       <div ref="calChartRef" v-loading="calLoading" style="height:360px"></div>
     </el-card>
-    <FilterDialog v-model="showFilter" stat-key="calendar" :filter="tempFilter" @apply="onFilterApply" @save="onFilterSave" />
-    <SaveViewDialog v-model="showSave" stat-key="calendar" :filter="saveFilter" @saved="loadCalendar" />
+    <FilterDialog v-model="showFilter" stat-key="calendar" @apply="onFilterApply" />
   </div>
 </template>
 

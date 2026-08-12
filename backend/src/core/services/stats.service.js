@@ -485,66 +485,43 @@ function migrateLegacyFilter(filter) {
 }
 
 /**
- * 构造统计查询的用户筛选（动态条件 + 数据范围 RLS）
- * @param {string} view - 视图标识 daily/worktypes/area/calendar/workers
- * @param {Object} [viewParams] - { viewId, filter, role, userId }
+ * 构造统计查询的用户筛选：该统计页的唯一视图条件 + 固定角色 RLS
+ * @param {string} view - 统计页标识 daily/worktypes/area/calendar/workers
+ * @param {Object} [viewParams] - { role, userId }
  * @param {string} alias - 用户表别名（无别名传 'users'）
  * @returns {Promise<{clauses: string[], params: Array}>}
  */
 async function buildUserFilter(view, viewParams, alias) {
-  const clauses = [];
-  const params = [];
-  let filter = {};
-  let scopeType = 'all';
-  let userDeptId = null;
-  let reqUserId = null;
+  const role = (viewParams && viewParams.role) || 'employee';
+  const userId = viewParams && viewParams.userId;
+  const scopeType = statsViewService.getRoleScope(role);
 
-  if (viewParams && viewParams.filter) {
-    filter = viewParams.filter;
-    scopeType = viewParams.scopeType || 'all';
-    if (viewParams.userId) reqUserId = viewParams.userId;
-  } else if (viewParams && viewParams.viewId) {
-    const resolved = await statsViewService.resolveViewForRequest(viewParams.viewId, viewParams.role, viewParams.userId);
-    filter = resolved.filter || {};
-    scopeType = resolved.scopeType;
-    userDeptId = resolved.userDeptId;
-    reqUserId = resolved.userId;
-  } else {
-    const vf = await getViewFilter(view);
-    filter = { deptId: vf.deptIds ? vf.deptIds[0] : null, fieldOnly: vf.fieldOnly, workType: vf.workType, province: vf.province };
-    scopeType = 'all';
-  }
-
-  // 动态条件（或迁移旧固定字段）
-  const conditions = Array.isArray(filter.conditions) && filter.conditions.length
-    ? filter.conditions
-    : migrateLegacyFilter(filter);
+  // 该统计页的唯一视图条件（旧固定字段自动迁移为 conditions）
+  const viewRow = await statsViewService.getViewByStatKey(view);
+  const rawFilter = (viewRow && viewRow.filter) || {};
+  const conditions = Array.isArray(rawFilter.conditions) && rawFilter.conditions.length
+    ? rawFilter.conditions
+    : migrateLegacyFilter(rawFilter);
   const cond = buildConditionsSql(conditions, alias);
-  clauses.push(...cond.clauses);
-  params.push(...cond.params);
+  const clauses = [...cond.clauses];
+  const params = [...cond.params];
 
-  // RLS 数据范围（硬约束，权限边界）
-  let rlsDeptIds = null;
-  let rlsExact = null;
-  let rlsSelf = false;
-  if (scopeType === 'department' && userDeptId) rlsExact = userDeptId;
-  if (scopeType === 'department_and_children' && userDeptId) rlsDeptIds = await resolveDeptSubtreeIds(userDeptId);
-  if (scopeType === 'self') rlsSelf = true;
-
-  const deptSets = [];
-  if (rlsDeptIds) deptSets.push(rlsDeptIds);
-  if (rlsExact) deptSets.push([rlsExact]);
-  if (deptSets.length > 0) {
-    let intersection = deptSets[0];
-    for (const s of deptSets.slice(1)) intersection = intersection.filter(d => s.includes(d));
-    if (intersection.length > 0) {
-      clauses.push(`${alias}.department_id IN (${intersection.map(() => '?').join(',')})`);
-      params.push(...intersection);
-    } else {
-      clauses.push('1 = 0'); // 空交集：无结果
+  // RLS 数据范围（固定角色策略：admin→全部 / bm→本部门及下属 / employee→本部门）
+  let userDeptId = null;
+  if (scopeType !== 'all' && userId) {
+    const rows = await db.query('SELECT department_id FROM users WHERE id = ?', [userId]);
+    userDeptId = rows.length ? rows[0].department_id : null;
+  }
+  if (scopeType === 'department' && userDeptId) {
+    clauses.push(`${alias}.department_id = ?`);
+    params.push(userDeptId);
+  } else if (scopeType === 'department_and_children' && userDeptId) {
+    const deptIds = await resolveDeptSubtreeIds(userDeptId);
+    if (deptIds && deptIds.length) {
+      clauses.push(`${alias}.department_id IN (${deptIds.map(() => '?').join(',')})`);
+      params.push(...deptIds);
     }
   }
-  if (rlsSelf) { clauses.push(`${alias}.id = ?`); params.push(reqUserId); }
 
   return { clauses, params };
 }

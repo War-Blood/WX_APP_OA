@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { getDepartmentTree, type DepartmentItem } from '@/api/org'
-import { getFilterFields, type FilterCondition, type FilterField, type StatsViewFilter } from '@/api/statsView'
+import { getFilterFields, getStatsView, type FilterCondition, type FilterField, type StatsViewFilter } from '@/api/statsView'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   modelValue: boolean
   statKey: string
-  filter?: StatsViewFilter
-}>(), { filter: () => ({}) })
+}>()
 
 const emit = defineEmits<{
   'update:modelValue': [boolean]
   apply: [StatsViewFilter]
-  save: [StatsViewFilter]
 }>()
 
 const fields = ref<FilterField[]>([])
@@ -35,12 +33,12 @@ const OP_OPTIONS = [
 function fieldDef(field: string) { return fields.value.find(f => f.field === field) }
 
 function open() {
-  // 从后端动态获取字段注册表（WPS 式，基于数据库列）
-  getFilterFields().then(list => {
-    fields.value = list
-    conditions.value = (props.filter?.conditions || []).map(c => ({ ...c }))
-  }).catch(() => { conditions.value = [] })
+  // 从后端动态获取字段注册表 + 该页当前视图（WPS 式，基于数据库列）
+  getFilterFields().then(list => { fields.value = list }).catch(() => { fields.value = [] })
   getDepartmentTree().then(d => { deptTree.value = d }).catch(() => { deptTree.value = [] })
+  getStatsView(props.statKey).then(res => {
+    conditions.value = ((res && res.filter && res.filter.conditions) || []).map(c => ({ ...c }))
+  }).catch(() => { conditions.value = [] })
 }
 
 function addCondition() {
@@ -58,10 +56,6 @@ function changeField(i: number, field: string) {
 
 function apply() {
   emit('apply', { conditions: conditions.value.filter(c => c.field) })
-  emit('update:modelValue', false)
-}
-function save() {
-  emit('save', { conditions: conditions.value.filter(c => c.field) })
 }
 </script>
 
@@ -78,7 +72,7 @@ function save() {
         <!-- 值控件按字段类型动态渲染 -->
         <el-tree-select
           v-if="fieldDef(c.field)?.input === 'dept_tree'"
-          :model-value="c.value ? String(c.value) : ''"
+          :model-value="(c.value as number | undefined)"
           :data="deptTree"
           :props="treeProps"
           node-key="id" value-key="id" clearable check-strictly :render-after-expand="false"
@@ -139,8 +133,7 @@ function save() {
       <el-button v-if="fields.length" size="small" @click="addCondition">+ 添加条件</el-button>
     </div>
     <template #footer>
-      <el-button @click="save">保存为视图…</el-button>
-      <el-button type="primary" @click="apply">应用</el-button>
+      <el-button type="primary" @click="apply">应用并保存</el-button>
     </template>
   </el-dialog>
 </template>
