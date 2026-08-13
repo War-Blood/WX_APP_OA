@@ -79,6 +79,7 @@
       <!-- 今日模式:加载/空/列表 -->
       <view v-if="dailyMode === 'today'" class="daily-panel-wrap">
         <DailyStatusPanel
+          class="daily-panel-fill"
           :response="dailyResponse"
           :loading="dailyLoading"
           :show-total="true"
@@ -774,6 +775,8 @@ $tint-danger: #FFF0F0;
 // ===== 全员当日 =====
 .daily-tab { display:flex; flex-direction:column; flex:1; height:0; }
 .daily-panel-wrap { flex:1; height:0; min-height:0; display:flex; flex-direction:column; }
+// 自定义组件宿主参与 flex 高度链（uni-app 自定义组件在 flex 布局中的标准兼容，class 落到宿主节点）
+.daily-panel-fill { display:flex; flex-direction:column; flex:1; height:0; min-height:0; }
 .date-bar { display:flex; align-items:center; justify-content:center; gap:$spacing-sm; padding:$spacing-sm $spacing-base; background:$bg-card; flex-shrink:0; }
 .date-nav-btn { width:64rpx; height:64rpx; display:flex; align-items:center; justify-content:center; background:#F7F8FA; border-radius:$radius-base; }
 .date-nav-btn:active { background:#EBEDF0; }

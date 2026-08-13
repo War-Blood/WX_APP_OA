@@ -19,6 +19,7 @@
     <!-- 加载 / 列表 -->
     <view v-if="loading || response" class="daily-panel-wrap">
       <DailyStatusPanel
+        class="daily-panel-fill"
         :response="response"
         :loading="loading"
         :show-total="false"
@@ -190,5 +191,13 @@ onMounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+// 自定义组件宿主参与 flex 高度链（uni-app 自定义组件在 flex 布局中的标准兼容，class 落到宿主节点）
+.daily-panel-fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 0;
+  min-height: 0;
 }
 </style>
