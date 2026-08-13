@@ -108,7 +108,7 @@ async function loadMap() {
 
 async function onFilterApply(filter: StatsViewFilter) {
   try {
-    await createStatsView({ statKey: 'area', conditions: filter.conditions || [] })
+    await createStatsView({ statKey: 'area', conditions: filter.conditions || [], visibility: filter.visibility })
     toast.success('视图已保存')
   } catch {
     toast.error('保存失败')

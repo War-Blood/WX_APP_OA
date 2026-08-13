@@ -44,7 +44,7 @@ async function loadWorkTypes() {
 // 「应用」即保存为该统计页的唯一视图（UPSERT），随后刷新
 async function onFilterApply(filter: StatsViewFilter) {
   try {
-    await createStatsView({ statKey: 'worktypes', conditions: filter.conditions || [] })
+    await createStatsView({ statKey: 'worktypes', conditions: filter.conditions || [], visibility: filter.visibility })
     toast.success('视图已保存')
   } catch {
     toast.error('保存失败')

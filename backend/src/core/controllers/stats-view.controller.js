@@ -10,9 +10,9 @@ const { success } = require('../../common/utils/response');
  */
 async function save(req, res, next) {
   try {
-    const { statKey, conditions } = req.body;
+    const { statKey, conditions, visibility } = req.body;
     if (!statKey) throw new ValidationError('statKey 必填');
-    await statsViewService.upsertView({ statKey, conditions }, req.user.userId);
+    await statsViewService.upsertView({ statKey, conditions, visibility }, req.user.userId);
     res.json(success(null, '视图已保存'));
   } catch (err) { next(err); }
 }
