@@ -22,17 +22,20 @@ const visibility = ref<Record<string, string>>({
   employee: 'department',
   bm: 'department_and_children',
   admin: 'all',
+  leader: 'group',
 })
 const SCOPE_OPTIONS = [
   { value: 'all', label: '全部' },
   { value: 'department', label: '本部门' },
   { value: 'department_and_children', label: '本部门及下属' },
   { value: 'self', label: '仅本人' },
+  { value: 'group', label: '对应组员' },
 ]
 const VISIBILITY_ROLES = [
   { value: 'employee', label: '普通员工' },
   { value: 'bm', label: '部门领导' },
   { value: 'admin', label: '管理员' },
+  { value: 'leader', label: '组长' },
 ]
 
 const OP_OPTIONS = [
@@ -61,9 +64,10 @@ function open() {
         employee: filter.visibility.employee || 'department',
         bm: filter.visibility.bm || 'department_and_children',
         admin: filter.visibility.admin || 'all',
+        leader: filter.visibility.leader || 'group',
       }
     } else {
-      visibility.value = { employee: 'department', bm: 'department_and_children', admin: 'all' }
+      visibility.value = { employee: 'department', bm: 'department_and_children', admin: 'all', leader: 'group' }
     }
   }).catch(() => { conditions.value = [] })
 }
