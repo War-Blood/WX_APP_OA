@@ -256,6 +256,7 @@ agent_module: backend
 | 统一入口 | 所有统计接口先调 `buildUserFilter(view, {role,userId}, alias)` 生成用户范围条件，再拼接到主查询；返回 `{ clauses, params, conditions }` |
 | 视图存储 | `stats_views` 每统计页唯一一行；`filter_json.conditions`（动态条件）+ `filter_json.visibility`（角色→数据范围） |
 | RLS | admin/superadmin=`all`、bm=`department_and_children`、employee=`department`；`visibility[role]` 可覆盖；`self` 直接追加 `users.id = 本人` |
+| 组长角色 | `users.position='组长'` 的用户（非 admin/superadmin）优先取 `visibility.leader`（默认 `group`=对应组员，即组长所在部门成员）；`group` 与 `department` 同 SQL（本部门），为后续 leader_id 指定组长预留 |
 | 字段注册表 | `stats-view.service.js FILTER_FIELDS` 是唯一合法字段来源；`sanitizeConditions` 白名单过滤，非法条件丢弃 |
 | daily_reports 字段 | 用 `EXISTS (SELECT 1 FROM daily_reports fdr WHERE fdr.user_id = users.id AND ...)` 过滤用户 |
 | 仅现场 | `is_field_worker` 走 `buildFieldWorkerSql`（近30天 approved 公出日志 OR 进行中出差 OR active 合规出差），不读花名册标识 |

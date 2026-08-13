@@ -5,7 +5,7 @@ const { ValidationError } = require('../../common/utils/errors');
 
 const VALID_KEYS = ['daily', 'worktypes', 'area', 'calendar', 'workers'];
 const VALID_OPS = ['eq', 'ne', 'in', 'not_in', 'like', 'gte', 'lte', 'between', 'is_null'];
-const VALID_SCOPES = ['all', 'department', 'department_and_children', 'self'];
+const VALID_SCOPES = ['all', 'department', 'department_and_children', 'self', 'group'];
 
 /**
  * 可筛选字段注册表（来自真实数据库列，WPS 式动态筛选）
@@ -47,6 +47,8 @@ const DEFAULT_VISIBILITY = {
   bm: 'department_and_children',
   admin: 'all',
   superadmin: 'all',
+  // 组长（users.position='组长'）：默认看到对应组员（本部门成员）
+  leader: 'group',
 };
 
 /** 校验视图可见性（角色 → 数据范围）；缺省角色补默认 */

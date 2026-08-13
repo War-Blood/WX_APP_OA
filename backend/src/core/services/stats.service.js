@@ -504,23 +504,39 @@ async function buildUserFilter(view, viewParams, alias) {
   const viewRow = await statsViewService.getViewByStatKey(view);
   const rawFilter = (viewRow && viewRow.filter) || {};
   const visibility = (rawFilter.visibility && typeof rawFilter.visibility === 'object') ? rawFilter.visibility : {};
-  const scopeType = visibility[role] || statsViewService.getRoleScope(role);
+
+  // 当前用户信息：部门 + 是否组长（position='组长'）
+  let userDeptId = null;
+  let isLeader = false;
+  if (userId) {
+    const rows = await db.query('SELECT department_id, position FROM users WHERE id = ?', [userId]);
+    if (rows.length) {
+      userDeptId = rows[0].department_id;
+      isLeader = String(rows[0].position || '') === '组长';
+    }
+  }
+
+  // 数据范围优先级：组长身份（非管理员）> 角色可见性 > 角色默认
+  let scopeType = null;
+  if (isLeader && role !== 'admin' && role !== 'superadmin') scopeType = visibility.leader;
+  if (scopeType == null) scopeType = visibility[role];
+  if (scopeType == null) scopeType = statsViewService.getRoleScope(role);
+
   const viewConditions = Array.isArray(rawFilter.conditions) && rawFilter.conditions.length
     ? rawFilter.conditions
-    : migrateLegacyFilter(rawFilter);
+    : (['deptId', 'fieldOnly', 'workType', 'province'].some(k => rawFilter[k] !== undefined)
+        ? migrateLegacyFilter(rawFilter)
+        : []);
 
   // 上层（视图可见性 RLS）+ 下层（条件）统一作为条件经 buildConditionsSql 生效
   const conditions = await expandDeptConditions(viewConditions);
-  if (scopeType !== 'all' && userId && scopeType !== 'self') {
-    const rows = await db.query('SELECT department_id FROM users WHERE id = ?', [userId]);
-    const userDeptId = rows.length ? rows[0].department_id : null;
-    if (userDeptId) {
-      if (scopeType === 'department') {
-        conditions.push({ field: 'department_id', op: 'eq', value: userDeptId });
-      } else if (scopeType === 'department_and_children') {
-        const deptIds = await resolveDeptSubtreeIds(userDeptId);
-        if (deptIds && deptIds.length) conditions.push({ field: 'department_id', op: 'in', value: deptIds });
-      }
+  if (scopeType !== 'all' && userId && scopeType !== 'self' && userDeptId) {
+    if (scopeType === 'department' || scopeType === 'group') {
+      // department=本部门 / group=对应组员（组长所在部门成员）
+      conditions.push({ field: 'department_id', op: 'eq', value: userDeptId });
+    } else if (scopeType === 'department_and_children') {
+      const deptIds = await resolveDeptSubtreeIds(userDeptId);
+      if (deptIds && deptIds.length) conditions.push({ field: 'department_id', op: 'in', value: deptIds });
     }
   }
 
