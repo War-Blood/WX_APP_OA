@@ -157,6 +157,7 @@ agent_module: webapp
 
 - **FilterDialog.vue** 是 Web 端唯一筛选入口：`statKey` 对应后端 `daily/worktypes/area/calendar/workers`；条件/可见性通过 `api/statsView.ts` 保存到 `POST /api/stats/views`（admin+）
 - 可见性角色行固定为 普通员工/部门领导/管理员/组长（`leader`），组长默认范围 `group`=对应组员；`SCOPE_OPTIONS`/`VISIBILITY_ROLES` 与后端 `VALID_SCOPES`/`DEFAULT_VISIBILITY` 保持一致
+- FilterDialog 顶部导航栏（普通员工/部门领导/组长/管理员）切换当前角色的条件编辑；保存时 `roleConditions` 携带全部角色条件，与后端 `sanitizeRoleConditions` 对应
 - 字段列表必须来自 `GET /api/stats/views/fields`（后端 `FILTER_FIELDS` 注册表），**禁止**在前端硬编码筛选字段
 - `statsView.ts` 的类型定义（`FilterCondition`/`FilterField`/`StatsViewFilter`）与后端契约一一对应，改动需同步后端
 - 统计页属于 webapp-core-agent，公共层只提供组件/API，不写页面业务逻辑

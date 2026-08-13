@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { getDepartmentTree, type DepartmentItem } from '@/api/org'
 import { getFilterFields, getStatsView, type FilterCondition, type FilterField, type StatsViewFilter } from '@/api/statsView'
 
@@ -16,7 +16,16 @@ const emit = defineEmits<{
 const fields = ref<FilterField[]>([])
 const deptTree = ref<DepartmentItem[]>([])
 const treeProps = { label: 'name', children: 'children' }
-const conditions = ref<FilterCondition[]>([])
+// 按角色各自的筛选条件（导航栏切换角色分别配置）
+const ROLE_TABS = [
+  { value: 'employee', label: '普通员工' },
+  { value: 'bm', label: '部门领导' },
+  { value: 'leader', label: '组长' },
+  { value: 'admin', label: '管理员' },
+]
+const activeRole = ref('employee')
+const roleConditions = ref<Record<string, FilterCondition[]>>({ employee: [], bm: [], leader: [], admin: [], superadmin: [] })
+const conditions = computed(() => roleConditions.value[activeRole.value] || [])
 // 上层：视图可见性（角色 → 数据范围）
 const visibility = ref<Record<string, string>>({
   employee: 'department',
@@ -58,7 +67,12 @@ function open() {
   getDepartmentTree().then(d => { deptTree.value = d }).catch(() => { deptTree.value = [] })
   getStatsView(props.statKey).then(res => {
     const filter = (res && res.filter) || {}
-    conditions.value = (filter.conditions || []).map(c => ({ ...c }))
+    // 角色条件：新格式 roleConditions；旧格式回退用共享 conditions 初始化各角色
+    const rc = (filter.roleConditions && typeof filter.roleConditions === 'object') ? filter.roleConditions : {}
+    const fallback = (filter.conditions || []).map(c => ({ ...c }))
+    for (const r of ['employee', 'bm', 'leader', 'admin', 'superadmin']) {
+      roleConditions.value[r] = Array.isArray(rc[r]) ? rc[r].map(c => ({ ...c })) : fallback.map(c => ({ ...c }))
+    }
     if (filter.visibility && typeof filter.visibility === 'object') {
       visibility.value = {
         employee: filter.visibility.employee || 'department',
@@ -69,7 +83,9 @@ function open() {
     } else {
       visibility.value = { employee: 'department', bm: 'department_and_children', admin: 'all', leader: 'group' }
     }
-  }).catch(() => { conditions.value = [] })
+  }).catch(() => {
+    for (const r of ['employee', 'bm', 'leader', 'admin', 'superadmin']) roleConditions.value[r] = []
+  })
 }
 
 function addCondition() {
@@ -86,7 +102,14 @@ function changeField(i: number, field: string) {
 }
 
 function apply() {
-  emit('apply', { conditions: conditions.value.filter(c => c.field), visibility: { ...visibility.value } })
+  const clean = (list: FilterCondition[]) => (list || []).filter(c => c.field)
+  const cleaned: Record<string, FilterCondition[]> = {}
+  for (const r of ['employee', 'bm', 'leader', 'admin', 'superadmin']) cleaned[r] = clean(roleConditions.value[r] || [])
+  emit('apply', {
+    conditions: cleaned[activeRole.value],
+    roleConditions: cleaned,
+    visibility: { ...visibility.value },
+  })
 }
 </script>
 
@@ -105,8 +128,11 @@ function apply() {
       </div>
     </div>
 
-    <!-- 下层：条件 -->
-    <div class="sec-title">条件</div>
+    <!-- 下层：按角色切换的条件 -->
+    <div class="sec-title">条件（按角色切换）</div>
+    <el-radio-group v-model="activeRole" size="small" class="role-nav">
+      <el-radio-button v-for="r in ROLE_TABS" :key="r.value" :value="r.value">{{ r.label }}</el-radio-button>
+    </el-radio-group>
     <div class="cond-rows">
       <div v-for="(c, i) in conditions" :key="i" class="cond-row">
         <el-select :model-value="c.field" style="width: 150px" @update:model-value="(v: string) => changeField(i, v)">

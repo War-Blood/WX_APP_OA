@@ -29,7 +29,12 @@ async function loadWorkers() {
 
 async function onFilterApply(filter: StatsViewFilter) {
   try {
-    await createStatsView({ statKey: 'workers', conditions: filter.conditions || [], visibility: filter.visibility })
+    await createStatsView({
+      statKey: 'workers',
+      conditions: filter.conditions || [],
+      roleConditions: filter.roleConditions || {},
+      visibility: filter.visibility,
+    })
     toast.success('视图已保存')
   } catch {
     toast.error('保存失败')

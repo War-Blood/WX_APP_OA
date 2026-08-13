@@ -19,7 +19,9 @@ export interface FilterField {
 export interface StatsViewFilter {
   /** 下层：动态筛选条件 */
   conditions?: FilterCondition[]
-  /** 上层：视图可见性（角色 → 数据范围 all/department/department_and_children/self） */
+  /** 按角色各自的筛选条件（导航栏切换角色配置） */
+  roleConditions?: Record<string, FilterCondition[]>
+  /** 上层：视图可见性（角色 → 数据范围 all/department/department_and_children/self/group） */
   visibility?: Record<string, string>
 }
 
@@ -47,6 +49,7 @@ export function getFilterFields(): Promise<FilterField[]> {
 export function createStatsView(data: {
   statKey: string
   conditions: FilterCondition[]
+  roleConditions?: Record<string, FilterCondition[]>
   visibility?: Record<string, string>
 }): Promise<void> {
   return request.post('/stats/views', data)
