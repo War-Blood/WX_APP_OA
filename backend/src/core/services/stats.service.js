@@ -522,11 +522,19 @@ async function buildUserFilter(view, viewParams, alias) {
   if (scopeType == null) scopeType = visibility[role];
   if (scopeType == null) scopeType = statsViewService.getRoleScope(role);
 
-  const viewConditions = Array.isArray(rawFilter.conditions) && rawFilter.conditions.length
-    ? rawFilter.conditions
-    : (['deptId', 'fieldOnly', 'workType', 'province'].some(k => rawFilter[k] !== undefined)
-        ? migrateLegacyFilter(rawFilter)
-        : []);
+  // 按角色条件：不同角色各自独立筛选条件（组长优先取 leader 键）
+  const roleKey = (isLeader && role !== 'admin' && role !== 'superadmin') ? 'leader' : role;
+  const roleConds = (rawFilter.roleConditions && typeof rawFilter.roleConditions === 'object')
+    ? rawFilter.roleConditions
+    : {};
+  let viewConditions = [];
+  if (Object.prototype.hasOwnProperty.call(roleConds, roleKey) && Array.isArray(roleConds[roleKey])) {
+    viewConditions = roleConds[roleKey];
+  } else if (Array.isArray(rawFilter.conditions) && rawFilter.conditions.length) {
+    viewConditions = rawFilter.conditions;
+  } else if (['deptId', 'fieldOnly', 'workType', 'province'].some(k => rawFilter[k] !== undefined)) {
+    viewConditions = migrateLegacyFilter(rawFilter);
+  }
 
   // 上层（视图可见性 RLS）+ 下层（条件）统一作为条件经 buildConditionsSql 生效
   const conditions = await expandDeptConditions(viewConditions);

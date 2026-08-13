@@ -179,6 +179,7 @@ agent_module: backend
 | 字段注册表 | `stats-view.service.js` 的 `FILTER_FIELDS`（users/daily_reports 真实列），前端经 `GET /api/stats/views/fields` 动态获取 |
 | RLS 默认 | admin/superadmin=`all`、bm=`department_and_children`、employee=`department`；视图 `visibility` 可覆盖 |
 | 组长角色 | `visibility.leader` 控制组长（`position='组长'`）数据范围，默认 `group`=对应组员（本部门成员）；组长优先于其 role 范围，admin/superadmin 除外 |
+| 按角色条件 | `roleConditions.{employee,bm,leader,admin,superadmin}` 存各角色独立筛选条件；`buildUserFilter` 按身份选择（组长取 leader 键），缺省回退共享 conditions/旧字段迁移 |
 | 统一入口 | `buildUserFilter(view, {role,userId}, alias)` 生成用户范围条件（`clauses`+`params`+`conditions`），所有统计接口共用 |
 | daily_reports 字段 | 通过 `EXISTS` 子查询过滤用户（人员范围语义）；`is_field_worker` 按出差状态识别（近30天公出日志/进行中出差/active 合规出差） |
 | 区域视图特例 | `area` 条件除用户范围外，还要在报告级对 `dr.area` 再应用一次（保证"仅显示所选省份"） |

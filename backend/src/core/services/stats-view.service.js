@@ -6,6 +6,7 @@ const { ValidationError } = require('../../common/utils/errors');
 const VALID_KEYS = ['daily', 'worktypes', 'area', 'calendar', 'workers'];
 const VALID_OPS = ['eq', 'ne', 'in', 'not_in', 'like', 'gte', 'lte', 'between', 'is_null'];
 const VALID_SCOPES = ['all', 'department', 'department_and_children', 'self', 'group'];
+const ROLE_KEYS = ['employee', 'bm', 'admin', 'superadmin', 'leader'];
 
 /**
  * 可筛选字段注册表（来自真实数据库列，WPS 式动态筛选）
@@ -41,6 +42,17 @@ function sanitizeConditions(conditions) {
     .map(c => ({ field: c.field, op: c.op, value: c.value }));
 }
 
+/** 按角色条件（不同角色不同筛选条件）；只保留注册角色键 */
+function sanitizeRoleConditions(roleConditions) {
+  const out = {};
+  if (roleConditions && typeof roleConditions === 'object') {
+    for (const key of ROLE_KEYS) {
+      if (Array.isArray(roleConditions[key])) out[key] = sanitizeConditions(roleConditions[key]);
+    }
+  }
+  return out;
+}
+
 /** 默认可见性策略（上层 RLS 默认值） */
 const DEFAULT_VISIBILITY = {
   employee: 'department',
@@ -64,14 +76,18 @@ function sanitizeVisibility(visibility) {
 
 /**
  * 保存某统计页的唯一视图（每 stat_key 仅一条，UPSERT 覆盖）
- * filter_json: { visibility: {角色→范围}, conditions: [...] }
- * @param {{statKey: string, conditions: Array, visibility: Object}} data
+ * filter_json: { visibility: {角色→范围}, conditions: [...], roleConditions: {角色→[...]} }
+ * @param {{statKey: string, conditions: Array, roleConditions: Object, visibility: Object}} data
  * @param {number} userId
  */
-async function upsertView({ statKey, conditions, visibility }, userId) {
+async function upsertView({ statKey, conditions, roleConditions, visibility }, userId) {
   if (!statKey) throw new ValidationError('statKey 必填');
   if (!VALID_KEYS.includes(statKey)) throw new ValidationError('无效的统计页标识');
-  const safe = { conditions: sanitizeConditions(conditions), visibility: sanitizeVisibility(visibility) };
+  const safe = {
+    conditions: sanitizeConditions(conditions),
+    roleConditions: sanitizeRoleConditions(roleConditions),
+    visibility: sanitizeVisibility(visibility),
+  };
   await db.execute(
     `INSERT INTO stats_views (stat_key, filter_json, created_by) VALUES (?, ?, ?)
      ON DUPLICATE KEY UPDATE filter_json = VALUES(filter_json), updated_at = NOW()`,
@@ -161,5 +177,5 @@ function getFilterFields() {
 
 module.exports = {
   upsertView, getViewByStatKey, getRoleScope, getFilterFields,
-  FILTER_FIELDS, sanitizeConditions, logViewOp, listViewOps,
+  FILTER_FIELDS, sanitizeConditions, sanitizeRoleConditions, logViewOp, listViewOps,
 };
