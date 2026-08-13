@@ -11,23 +11,13 @@
         <view class="header-card">
           <view class="header-row">
             <text class="header-date">{{ report.date || report.reportDate }}</text>
-            <view class="status-badge" :style="{ background: getStatusBg(report) }">
-              <text class="status-badge-text" :style="{ color: getStatusColor(report) }">{{ getStatusText(report) }}</text>
-            </view>
+            <StatusTag :status="report.reportType === 'biz_trip_supplement' ? report.supplementStatus : report.status" />
           </view>
           <!-- 日志类型标签 -->
           <view class="header-tags">
-            <view class="type-tag" :style="{ background: getTypeBg(report.reportType) }">
-              <text class="type-tag-text" :style="{ color: getTypeColor(report.reportType) }">
-                {{ getTypeLabel(report.reportType) }}
-              </text>
-            </view>
+            <StatusTag :status="report.reportType" />
             <!-- 补公出审核状态 -->
-            <view v-if="report.reportType === 'biz_trip_supplement'" class="supplement-tag" :style="{ background: getSupplementBg(report.supplementStatus) }">
-              <text class="supplement-tag-text" :style="{ color: getSupplementColor(report.supplementStatus) }">
-                {{ getSupplementLabel(report.supplementStatus) }}
-              </text>
-            </view>
+            <StatusTag v-if="report.reportType === 'biz_trip_supplement'" :status="report.supplementStatus" />
           </view>
           <text class="header-meta">提交时间：{{ report.submitTime || report.time || report.createdAt || report.createTime || '' }}</text>
         </view>
@@ -37,11 +27,7 @@
           <text class="card-title">审核结果</text>
           <view class="field-row">
             <text class="field-label">审核状态</text>
-            <view class="status-badge" :style="{ background: getSupplementBg(report.supplementStatus) }">
-              <text class="status-badge-text" :style="{ color: getSupplementColor(report.supplementStatus) }">
-                {{ getSupplementLabel(report.supplementStatus) }}
-              </text>
-            </view>
+            <StatusTag :status="report.supplementStatus" />
           </view>
           <view v-if="report.supplementDate" class="field-row">
             <text class="field-label">补录日期</text>
@@ -182,9 +168,7 @@
           <text class="card-title">审核信息</text>
           <view class="field-row">
             <text class="field-label">审核状态</text>
-            <view class="status-badge" :style="{ background: getStatusBg(report) }">
-              <text class="status-badge-text" :style="{ color: getStatusColor(report) }">{{ getStatusText(report) }}</text>
-            </view>
+            <StatusTag :status="report.status" />
           </view>
           <view class="field-row">
             <text class="field-label">审核人</text>
@@ -227,6 +211,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
+import StatusTag from '@/components/status-tag/index.vue'
 import { reportApi } from '@/services/modules/report'
 import { showSuccess, showError, showToast } from '@/utils/toast'
 
@@ -268,63 +253,6 @@ const progressPercent = computed(() => {
   }
   return 0
 })
-
-// ===== 日志类型 =====
-function getTypeLabel(type) {
-  const map = { biz_trip: '公出日志', biz_trip_supplement: '补公出日志', office: '工作日报', leave: '请假单' }
-  return map[type] || type || '日报'
-}
-
-function getTypeBg(type) {
-  const map = { biz_trip: '#EDF2FF', biz_trip_supplement: '#FFF8E1', leave: '#FFEBEE' }
-  return map[type] || '#F5F5F5'
-}
-
-function getTypeColor(type) {
-  const map = { biz_trip: '#2B6DE8', biz_trip_supplement: '#F59E0B' }
-  return map[type] || '#999999'
-}
-
-// ===== 补公出审核状态 =====
-function getSupplementLabel(status) {
-  const map = { pending_review: '审核中', approved: '审核通过', delayed: '延迟标记', special: '通过(特殊)' }
-  return map[status] || status || '待审核'
-}
-
-function getSupplementBg(status) {
-  const map = { pending_review: '#FFF8E1', approved: '#EFFDF5', delayed: '#FFF0F0', special: '#EDF2FF' }
-  return map[status] || '#F5F5F5'
-}
-
-function getSupplementColor(status) {
-  const map = { pending_review: '#F59E0B', approved: '#22C55E', delayed: '#EF4444', special: '#2B6DE8' }
-  return map[status] || '#999999'
-}
-
-// ===== 通用状态 =====
-function getStatusText(report) {
-  if (report.reportType === 'biz_trip_supplement') {
-    return getSupplementLabel(report.supplementStatus)
-  }
-  const map = { approved: '已通过', pending: '待审核', rejected: '已驳回', draft: '草稿', submitted: '已提交', delayed: '延迟' }
-  return map[report.status] || report.status || '未知'
-}
-
-function getStatusBg(report) {
-  if (report.reportType === 'biz_trip_supplement') {
-    return getSupplementBg(report.supplementStatus)
-  }
-  const map = { approved: '#EFFDF5', pending: '#FFF8F0', rejected: '#FFF0F0', draft: '#F5F5F5', submitted: '#EDF2FF', delayed: '#FFF0F0' }
-  return map[report.status] || '#F5F5F5'
-}
-
-function getStatusColor(report) {
-  if (report.reportType === 'biz_trip_supplement') {
-    return getSupplementColor(report.supplementStatus)
-  }
-  const map = { approved: '#22C55E', pending: '#F59E0B', rejected: '#EF4444', draft: '#999999', submitted: '#2B6DE8', delayed: '#EF4444' }
-  return map[report.status] || '#999999'
-}
 
 async function goToRevise() {
   if (isSubmitting.value) return
@@ -371,10 +299,12 @@ async function handleSupplementReject() {
 </script>
 
 <style lang="scss" scoped>
+@import '@/uni.scss';
+
 .page {
   width: 100%;
   height: 100vh;
-  background: #F7F7F7;
+  background: $bg-color;
   display: flex;
   flex-direction: column;
 }
@@ -382,14 +312,14 @@ async function handleSupplementReject() {
 .content-scroll {
   flex: 1;
   height: 0;
-  padding: 24rpx;
+  padding: $spacing-base;
 }
 
 .header-card {
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 24rpx;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-base;
+  margin-bottom: $spacing-base;
 }
 
 .header-row {
@@ -399,9 +329,9 @@ async function handleSupplementReject() {
 }
 
 .header-date {
-  font-size: 32rpx;
+  font-size: $font-lg;
   font-weight: 600;
-  color: #333333;
+  color: $text-primary;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -415,68 +345,26 @@ async function handleSupplementReject() {
   margin-top: 12rpx;
 }
 
-.type-tag {
-  height: 36rpx;
-  padding: 0 14rpx;
-  border-radius: 6rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.type-tag-text {
-  font-size: 20rpx;
-  font-weight: 500;
-}
-
-.supplement-tag {
-  height: 36rpx;
-  padding: 0 14rpx;
-  border-radius: 6rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.supplement-tag-text {
-  font-size: 20rpx;
-  font-weight: 500;
-}
-
-.status-badge {
-  height: 40rpx;
-  padding: 0 16rpx;
-  border-radius: 8rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.status-badge-text {
-  font-size: 20rpx;
-  font-weight: 500;
-}
-
 .header-meta {
-  font-size: 24rpx;
-  color: #999999;
-  margin-top: 16rpx;
+  font-size: $font-sm;
+  color: $text-secondary;
+  margin-top: $spacing-sm;
   display: block;
 }
 
 .field-card,
 .content-card,
 .review-card {
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 24rpx;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-base;
+  margin-bottom: $spacing-base;
 }
 
 .card-title {
-  font-size: 28rpx;
+  font-size: $font-base;
   font-weight: 600;
-  color: #333333;
+  color: $text-primary;
   margin-bottom: 20rpx;
   display: block;
 }
@@ -489,12 +377,12 @@ async function handleSupplementReject() {
 }
 
 .field-row + .field-row {
-  border-top: 1rpx solid #F5F5F5;
+  border-top: 1rpx solid $border-light;
 }
 
 .field-label {
-  font-size: 24rpx;
-  color: #666666;
+  font-size: $font-sm;
+  color: $text-regular;
   flex-shrink: 0;
   max-width: 200rpx;
   overflow: hidden;
@@ -503,28 +391,28 @@ async function handleSupplementReject() {
 }
 
 .field-value {
-  font-size: 24rpx;
-  color: #333333;
+  font-size: $font-sm;
+  color: $text-primary;
   font-weight: 500;
   text-align: right;
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-left: 16rpx;
+  margin-left: $spacing-sm;
 }
 
 .field-value-accent {
-  color: #2B6DE8;
+  color: $primary-color;
 }
 
 .reject-text {
-  color: #EF4444;
+  color: $danger-color;
 }
 
 .card-text-content {
   font-size: 26rpx;
-  color: #333333;
+  color: $text-primary;
   line-height: 44rpx;
   word-break: break-all;
   overflow-wrap: break-word;
@@ -533,28 +421,28 @@ async function handleSupplementReject() {
 .card-progress {
   display: flex;
   align-items: center;
-  gap: 16rpx;
+  gap: $spacing-sm;
   margin-top: 20rpx;
 }
 
 .progress-bar-bg {
   flex: 1;
   height: 12rpx;
-  background: #EFF2F5;
+  background: $bg-form;
   border-radius: 6rpx;
   overflow: hidden;
 }
 
 .progress-bar-fill {
   height: 100%;
-  background: #22C55E;
+  background: $success-color;
   border-radius: 6rpx;
 }
 
 .progress-pct {
-  font-size: 24rpx;
+  font-size: $font-sm;
   font-weight: 600;
-  color: #22C55E;
+  color: $success-color;
   min-width: 72rpx;
   text-align: right;
 }
@@ -568,9 +456,9 @@ async function handleSupplementReject() {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 20rpx 24rpx;
+  padding: 20rpx $spacing-base;
   padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
-  background: #FFFFFF;
+  background: $bg-card;
   box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -580,18 +468,18 @@ async function handleSupplementReject() {
   align-items: center;
   justify-content: center;
   border-radius: 48rpx;
-  background: #FFFFFF;
-  border: 2rpx solid #EF4444;
+  background: $bg-card;
+  border: 2rpx solid $danger-color;
 }
 
 .btn-revise:active {
-  background: #FFF5F5;
+  background: #FFF0F0;
 }
 
 .btn-revise-text {
-  font-size: 32rpx;
+  font-size: $font-lg;
   font-weight: 600;
-  color: #EF4444;
+  color: $danger-color;
   letter-spacing: 2rpx;
 }
 
@@ -601,7 +489,7 @@ async function handleSupplementReject() {
 
 .supplement-bar {
   display: flex;
-  gap: 24rpx;
+  gap: $spacing-base;
 }
 
 .btn-reject {
@@ -611,18 +499,18 @@ async function handleSupplementReject() {
   align-items: center;
   justify-content: center;
   border-radius: 48rpx;
-  background: #FFFFFF;
-  border: 2rpx solid #EF4444;
+  background: $bg-card;
+  border: 2rpx solid $danger-color;
 }
 
 .btn-reject:active {
-  background: #FFF5F5;
+  background: #FFF0F0;
 }
 
 .btn-reject-text {
-  font-size: 32rpx;
+  font-size: $font-lg;
   font-weight: 600;
-  color: #EF4444;
+  color: $danger-color;
   letter-spacing: 2rpx;
 }
 
@@ -633,7 +521,7 @@ async function handleSupplementReject() {
   align-items: center;
   justify-content: center;
   border-radius: 48rpx;
-  background: linear-gradient(135deg, #2B6DE8, #4A8AF4);
+  background: linear-gradient(135deg, $primary-color, $primary-light);
 }
 
 .btn-approve:active {
@@ -641,7 +529,7 @@ async function handleSupplementReject() {
 }
 
 .btn-approve-text {
-  font-size: 32rpx;
+  font-size: $font-lg;
   font-weight: 600;
   color: #FFFFFF;
   letter-spacing: 2rpx;
@@ -655,8 +543,8 @@ async function handleSupplementReject() {
 }
 
 .loading-text {
-  font-size: 28rpx;
-  color: #999999;
+  font-size: $font-base;
+  color: $text-secondary;
 }
 
 .loading-overlay {

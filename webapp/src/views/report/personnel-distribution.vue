@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import {
@@ -11,6 +11,8 @@ import { createStatsView } from '@/api/statsView'
 import FilterDialog from '@/components/FilterDialog.vue'
 import { useUserStore } from '@/stores/user'
 import { toast } from '@/utils/toast'
+import { useECharts } from '@/composables/useECharts'
+import { CHART_COLORS } from '@/utils/chart'
 
 // 省份中心点经纬度（GeoJSON 全称 → [经度, 纬度]），用于气泡定位
 const PROVINCE_CENTER: Record<string, [number, number]> = {
@@ -73,8 +75,8 @@ const mapLoading = ref(false)
 const mapData = ref<ProvinceItem[]>([])
 // 省份 -> 人员名单（tooltip 使用，直接取自 area-distribution，与人数同源）
 const provinceWorkersMap = ref<Record<string, ProvinceWorkerItem[]>>({})
-const mapChartRef = ref<HTMLDivElement>()
-let mapChart: echarts.ECharts | null = null
+const mapChartRef = ref<HTMLElement>()
+const { setOption, instance } = useECharts(mapChartRef)
 let chinaGeoLoaded = false
 let eventsBound = false
 
@@ -97,8 +99,7 @@ async function loadMap() {
       chinaGeoLoaded = true
     }
 
-    await nextTick()
-    renderMap()
+    await renderMap()
   } catch {
     // ignore
   } finally {
@@ -138,40 +139,17 @@ function shortArea(area?: string | null) {
   return parts[1] || parts[0] || ''
 }
 
-function renderMap() {
-  if (!mapChartRef.value) return
-  if (!mapChart) {
-    mapChart = echarts.init(mapChartRef.value)
-  }
-  if (!eventsBound) {
-    // 点击省份：高亮并触发一次 tooltip（可选交互，不改变核心展示）
-    mapChart.on('click', (params: any) => {
-      const name = params?.name
-      if (!name) return
-      mapChart?.dispatchAction({
-        type: 'highlight',
-        seriesName: '人员分布',
-        name
-      })
-      mapChart?.dispatchAction({
-        type: 'showTip',
-        seriesName: '人员分布',
-        name
-      })
-    })
-    eventsBound = true
-  }
-
+async function renderMap() {
   const barData = buildBarData()
   const maxCount = Math.max(1, ...mapData.value.map(d => d.count))
 
-  mapChart.setOption({
+  await setOption({
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
       confine: true,
       backgroundColor: 'rgba(8, 22, 40, 0.92)',
-      borderColor: '#3a7bd5',
+      borderColor: CHART_COLORS.primary,
       borderWidth: 1,
       textStyle: { color: '#e8f4ff' },
       extraCssText: 'box-shadow:0 8px 24px rgba(0,0,0,0.35);border-radius:8px;padding:10px 12px;',
@@ -182,7 +160,7 @@ function renderMap() {
         else count = Number.isNaN(Number(p.value)) ? 0 : (Number(p.value) || 0)
         const workers = provinceWorkersMap.value[name] || []
         let html = `<div style="font-weight:600;font-size:13px;margin-bottom:6px;color:#7dd3fc">${name}</div>`
-        html += `<div style="color:#ff6b8a;font-weight:600">人员: ${count}人</div>`
+        html += `<div style="color:${CHART_COLORS.danger};font-weight:600">人员: ${count}人</div>`
         if (workers.length) {
           html += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,0.12);padding-top:6px;max-height:160px;overflow:auto">'
           html += workers.map(w => `<div style="padding:2px 0;color:#cbe4ff">· ${w.userName} <span style="color:#8fb8df;margin-left:4px">${shortArea(w.area)}</span></div>`).join('')
@@ -232,15 +210,15 @@ function renderMap() {
             { offset: 1, color: 'rgba(4, 30, 56, 0.95)' }
           ]
         },
-        borderColor: '#3a7bd5',
+        borderColor: CHART_COLORS.primary,
         borderWidth: 1,
-        shadowColor: 'rgba(58, 123, 213, 0.45)',
+        shadowColor: 'rgba(43, 109, 232, 0.45)',
         shadowBlur: 12,
         shadowOffsetY: 6
       },
       emphasis: {
         itemStyle: {
-          areaColor: '#2B91B7',
+          areaColor: CHART_COLORS.primaryLight,
           borderColor: '#00eeff',
           borderWidth: 1
         },
@@ -252,6 +230,7 @@ function renderMap() {
       {
         name: '人员分布',
         type: 'map',
+        map: 'china',
         geoIndex: 0,
         cursor: 'pointer',
         label: {
@@ -265,12 +244,12 @@ function renderMap() {
         },
         labelLayout: { hideOverlap: true },
         itemStyle: {
-          borderColor: '#5089EC',
+          borderColor: CHART_COLORS.primaryLight,
           borderWidth: 1
         },
         emphasis: {
           label: { show: true },
-          itemStyle: { areaColor: '#2B91B7' }
+          itemStyle: { areaColor: CHART_COLORS.primaryLight }
         },
         data: mapData.value.map(d => ({ name: d.name, value: d.count }))
       },
@@ -284,9 +263,9 @@ function renderMap() {
         cursor: 'pointer',
         symbolSize: (val: number[]) => Math.max(28, Math.min(52, 22 + val[2] * 1.4)),
         itemStyle: {
-          color: '#F62157',
+          color: CHART_COLORS.danger,
           shadowBlur: 12,
-          shadowColor: 'rgba(246, 33, 87, 0.55)'
+          shadowColor: 'rgba(245, 108, 108, 0.55)'
         },
         label: {
           show: true,
@@ -302,23 +281,30 @@ function renderMap() {
         data: barData
       }
     ]
-  }, true)
-}
+  })
 
-let resizeTimer: ReturnType<typeof setTimeout>
-function onResize() {
-  clearTimeout(resizeTimer)
-  resizeTimer = setTimeout(() => mapChart?.resize(), 200)
+  if (!eventsBound && instance.value) {
+    // 点击省份：高亮并触发一次 tooltip（可选交互，不改变核心展示）
+    instance.value.on('click', (params: any) => {
+      const name = params?.name
+      if (!name) return
+      instance.value?.dispatchAction({
+        type: 'highlight',
+        seriesName: '人员分布',
+        name
+      })
+      instance.value?.dispatchAction({
+        type: 'showTip',
+        seriesName: '人员分布',
+        name
+      })
+    })
+    eventsBound = true
+  }
 }
 
 onMounted(() => {
   loadMap()
-  window.addEventListener('resize', onResize)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', onResize)
-  mapChart?.dispose()
 })
 </script>
 
@@ -401,6 +387,6 @@ onUnmounted(() => {
   background:
     radial-gradient(120% 120% at 50% 0%, #0c2a4a 0%, #07182a 60%, #030d18 100%);
   border: 1px solid #1a4a6e;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 40px rgba(58, 123, 213, 0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 40px rgba(43, 109, 232, 0.08);
 }
 </style>

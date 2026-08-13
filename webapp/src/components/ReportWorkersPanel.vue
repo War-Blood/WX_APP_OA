@@ -59,7 +59,7 @@ defineEmits<{
 .toolbar {
   .toolbar-left {
     display: flex;
-    gap: 12px;
+    gap: $spacing-base;
     align-items: center;
     margin-bottom: 16px;
   }
@@ -70,7 +70,7 @@ defineEmits<{
 
   .total-text {
     font-size: 14px;
-    color: #999;
+    color: $text-secondary;
   }
 }
 </style>

@@ -41,7 +41,7 @@
             class="quick-item"
             @tap="goToFeature(action.route)"
           >
-            <view class="quick-icon" :style="{ backgroundColor: action.bg }">
+            <view class="quick-icon" :class="'quick-icon--' + action.cls">
               <image class="quick-icon-img" :src="action.iconSrc" mode="aspectFit" />
             </view>
             <text class="quick-label">{{ action.label }}</text>
@@ -59,7 +59,7 @@
         </view>
         <view v-for="(item, index) in activities" :key="item.id">
           <view class="activity-item" @tap="goToActivity(item)">
-            <view class="activity-dot" :style="{ backgroundColor: item.dotColor || '#2B6DE8' }" />
+            <view class="activity-dot" :class="'activity-dot--' + (item.dotClass || 'default')" />
             <view class="activity-content">
               <text class="activity-title">{{ item.title }}</text>
               <text class="activity-desc">{{ item.desc }}</text>
@@ -103,18 +103,18 @@ const monthLabel = computed(() => {
   return `${now.getFullYear()}年${now.getMonth() + 1}月`
 })
 
-// 快捷操作：从模块列表取 sort 前 4 的可见模块
+// 快捷操作：从模块列表取 sort 前 4 的可见模块（背景色收敛为 scoped class，见 .quick-icon--*）
 const quickIconMap = {
-  approval: { iconSrc: '/static/icons/quick-clipboard.svg', bg: '#EDF2FF' },
-  report: { iconSrc: '/static/icons/quick-document.svg', bg: '#F0FDF4' },
-  message: { iconSrc: '/static/icons/quick-bell.svg', bg: '#F3E8FF' },
-  report_history: { iconSrc: '/static/icons/quick-check.svg', bg: '#E6F7FF' },
-  review: { iconSrc: '/static/icons/quick-check.svg', bg: '#E6F7FF' },
-  compliance: { iconSrc: '/static/icons/quick-check.svg', bg: '#FFF0F0' },
-  stats: { iconSrc: '/static/icons/quick-document.svg', bg: '#FEF3E2' },
-  attendance: { iconSrc: '/static/icons/quick-clock.svg', bg: '#EDF2FF' }
+  approval: { iconSrc: '/static/icons/quick-clipboard.svg', cls: 'approval' },
+  report: { iconSrc: '/static/icons/quick-document.svg', cls: 'report' },
+  message: { iconSrc: '/static/icons/quick-bell.svg', cls: 'message' },
+  report_history: { iconSrc: '/static/icons/quick-check.svg', cls: 'report_history' },
+  review: { iconSrc: '/static/icons/quick-check.svg', cls: 'review' },
+  compliance: { iconSrc: '/static/icons/quick-check.svg', cls: 'compliance' },
+  stats: { iconSrc: '/static/icons/quick-document.svg', cls: 'stats' },
+  attendance: { iconSrc: '/static/icons/quick-clock.svg', cls: 'attendance' }
 }
-const defaultQuickIcon = { iconSrc: '/static/icons/quick-document.svg', bg: '#FAFAFA' }
+const defaultQuickIcon = { iconSrc: '/static/icons/quick-document.svg', cls: 'default' }
 
 const quickActions = computed(() => {
   return appStore.modules
@@ -125,7 +125,7 @@ const quickActions = computed(() => {
       const icon = quickIconMap[m.key] || defaultQuickIcon
       return {
         label: m.name,
-        bg: icon.bg,
+        cls: icon.cls,
         iconSrc: icon.iconSrc,
         route: m.route || ''
       }
@@ -171,7 +171,7 @@ async function loadPageData() {
       title: item.title || item.text || '',
       desc: item.desc || item.subtitle || '',
       time: item.time || '',
-      dotColor: item.type === 'report' ? '#22C55E' : '#2B6DE8',
+      dotClass: item.type === 'report' ? 'report' : 'default',
       type: item.type || 'default',
     }))
     unreadCount.value = unreadRes.data.count || 0
@@ -192,7 +192,7 @@ async function onLoadMore() {
     if (!list.length) { noMoreData.value = true; return }
     const mapped = list.map((item) => ({
       id: item.id, title: item.title || item.text || '', desc: item.desc || item.subtitle || '',
-      time: item.time || '', dotColor: item.type === 'report' ? '#22C55E' : '#2B6DE8', type: item.type || 'default',
+      time: item.time || '', dotClass: item.type === 'report' ? 'report' : 'default', type: item.type || 'default',
     }))
     activities.value = [...activities.value, ...mapped]
   } catch { activityPage.value-- }
@@ -225,13 +225,15 @@ function goToActivity(item) {
 </script>
 
 <style lang="scss" scoped>
-/* Ardot exact: page bg #F5F5F5 */
-.home-page { display: flex; flex-direction: column; height: 100vh; background: #F5F5F5; }
+@import '@/uni.scss';
 
-/* Stats header: blue gradient, month label + 3-col stats */
+/* 页面背景与品牌令牌统一 */
+.home-page { display: flex; flex-direction: column; height: 100vh; background: $bg-color; }
+
+/* Stats header: brand blue gradient, month label + 3-col stats */
 .stats-header {
   height: 200rpx;
-  background: linear-gradient(180deg, #2E6BE5 0%, #337BEA 50%, #5284EE 100%);
+  background: linear-gradient(180deg, $primary-color 0%, $primary-light 100%);
   padding: 24rpx 40rpx 48rpx 40rpx;
   flex-shrink: 0;
 }
@@ -253,30 +255,43 @@ function goToActivity(item) {
 .stat-text { font-size: 22rpx; color: #FFFFFF; }
 
 /* Scrollable content */
-.content { flex: 1; overflow-y: auto; background: #F5F5F5; }
+.content { flex: 1; overflow-y: auto; background: $bg-color; }
 
 /* Quick actions card: white, full width */
-.quick-card { background: #FFFFFF; padding-bottom: 48rpx; }
+.quick-card { background: $bg-card; padding-bottom: 48rpx; }
 .section-title-row { height: 72rpx; display: flex; align-items: flex-end; padding: 0 24rpx; }
-.section-title { font-size: 24rpx; font-weight: 500; color: #B0B0B0; line-height: 30rpx; }
+.section-title { font-size: 24rpx; font-weight: 500; color: $text-regular; line-height: 30rpx; }
 .quick-grid { display: flex; justify-content: space-around; padding: 24rpx; }
 .quick-item { display: flex; flex-direction: column; align-items: center; gap: 16rpx; width: 112rpx; }
 .quick-icon { width: 96rpx; height: 96rpx; border-radius: 48rpx; display: flex; align-items: center; justify-content: center; }
 .quick-icon-img { width: 48rpx; height: 48rpx; }
-.quick-label { font-size: 24rpx; color: #333333; }
+.quick-label { font-size: 24rpx; color: $text-primary; }
 
-/* Section divider: 10px #EDEDED */
-.section-divider { height: 20rpx; background: #EDEDED; }
+/* 快捷入口底色：静态 class 收敛（模块 → 浅色 tint，与设计文档一致） */
+.quick-icon--approval, .quick-icon--attendance { background: $primary-bg; }
+.quick-icon--report { background: #F0FDF4; }
+.quick-icon--message { background: #F3E8FF; }
+.quick-icon--report_history, .quick-icon--review { background: #E6F7FF; }
+.quick-icon--compliance { background: #FFF0F0; }
+.quick-icon--stats { background: #FEF3E2; }
+.quick-icon--default { background: #FAFAFA; }
+
+/* 动态 dot：report → success 绿，default → 品牌蓝 */
+.activity-dot--report { background: $success-color; }
+.activity-dot--default { background: $primary-color; }
+
+/* Section divider */
+.section-divider { height: 20rpx; background: $border-light; }
 
 /* Activity card */
-.activity-card { background: #FFFFFF; padding-bottom: 24rpx; }
+.activity-card { background: $bg-card; padding-bottom: 24rpx; }
 .activity-item { display: flex; align-items: center; padding: 24rpx; gap: 24rpx; }
 .activity-dot { width: 16rpx; height: 16rpx; border-radius: 8rpx; flex-shrink: 0; }
 .activity-content { flex: 1; display: flex; flex-direction: column; gap: 4rpx; }
-.activity-title { font-size: 26rpx; font-weight: 600; color: #333333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.activity-desc { font-size: 24rpx; color: #999999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.activity-time { font-size: 22rpx; color: #B0B0B0; flex-shrink: 0; }
-.divider { height: 1rpx; background: #ECECEC; margin: 0 24rpx; }
+.activity-title { font-size: 26rpx; font-weight: 600; color: $text-primary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-desc { font-size: 24rpx; color: $text-secondary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-time { font-size: 22rpx; color: $text-secondary; flex-shrink: 0; }
+.divider { height: 1rpx; background: $border-light; margin: 0 24rpx; }
 
-.loading-more, .no-more { text-align: center; padding: 24rpx; font-size: 24rpx; color: #B0B0B0; }
+.loading-more, .no-more { text-align: center; padding: 24rpx; font-size: 24rpx; color: $text-secondary; }
 </style>

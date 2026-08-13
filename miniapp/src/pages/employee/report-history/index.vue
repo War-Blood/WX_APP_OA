@@ -33,19 +33,11 @@
           <view class="card-header">
             <text class="project-name">{{ item.project || '未命名项目' }}</text>
             <!-- 日志类型标签 -->
-            <view class="type-tag" :style="{ background: getTypeBg(item.reportType) }">
-              <text class="type-tag-text" :style="{ color: getTypeColor(item.reportType) }">
-                {{ getTypeLabel(item.reportType) }}
-              </text>
-            </view>
+            <StatusTag :status="item.reportType" />
           </view>
           <!-- 补公出审核状态 -->
           <view v-if="item.reportType === 'biz_trip_supplement'" class="supplement-row">
-            <view class="supplement-status-tag" :style="{ background: getSupplementBg(item.supplementStatus) }">
-              <text class="supplement-status-text" :style="{ color: getSupplementColor(item.supplementStatus) }">
-                {{ getSupplementLabel(item.supplementStatus) }}
-              </text>
-            </view>
+            <StatusTag :status="item.supplementStatus" />
           </view>
           <view class="card-meta">
             <text class="meta-date">{{ item.date || item.reportDate }}</text>
@@ -68,10 +60,14 @@
           </view>
         </view>
       </view>
-      <view v-else class="empty-wrap">
-        <text class="empty-text">暂无日报</text>
-        <text class="empty-desc">当前筛选条件下没有日报记录</text>
-      </view>
+      <EmptyState
+        v-else
+        title="暂无日报"
+        description="下拉可刷新"
+        :show-action="true"
+        action-text="重新加载"
+        @action="onRefresh"
+      />
       <view v-if="noMoreData && filteredList.length > 0" class="no-more">已经到底啦</view>
     </scroll-view>
   </view>
@@ -80,6 +76,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
+import StatusTag from '@/components/status-tag/index.vue'
+import EmptyState from '@/components/empty-state/index.vue'
 import { reportApi } from '@/services/modules/report'
 
 const activeTab = ref('all')
@@ -98,38 +96,6 @@ const tabs = [
 
 const reportList = ref([])
 const filteredList = computed(() => reportList.value)
-
-// ===== 日志类型标签 =====
-function getTypeLabel(type) {
-  const map = { biz_trip: '公出', biz_trip_supplement: '补公出', office: '工作日报', leave: '请假单' }
-  return map[type] || type || '日报'
-}
-
-function getTypeBg(type) {
-  const map = { biz_trip: '#EDF2FF', biz_trip_supplement: '#FFF8E1', office: '#E8F5E9', leave: '#FFEBEE' }
-  return map[type] || '#F5F5F5'
-}
-
-function getTypeColor(type) {
-  const map = { biz_trip: '#2B6DE8', biz_trip_supplement: '#F59E0B', office: '#2E7D32' }
-  return map[type] || '#999999'
-}
-
-// ===== 补公出审核状态 =====
-function getSupplementLabel(status) {
-  const map = { pending_review: '审核中', approved: '通过', delayed: '延迟', special: '通过(特殊)' }
-  return map[status] || status || '待审核'
-}
-
-function getSupplementBg(status) {
-  const map = { pending_review: '#FFF8E1', approved: '#EFFDF5', delayed: '#FFF0F0', special: '#EDF2FF' }
-  return map[status] || '#F5F5F5'
-}
-
-function getSupplementColor(status) {
-  const map = { pending_review: '#F59E0B', approved: '#22C55E', delayed: '#EF4444', special: '#2B6DE8' }
-  return map[status] || '#999999'
-}
 
 // ===== 工具函数 =====
 function truncateText(text, maxLen) {
@@ -193,17 +159,19 @@ async function loadReportList(reset = true) {
 </script>
 
 <style lang="scss" scoped>
+@import '@/uni.scss';
+
 .page {
   width: 100%;
   height: 100vh;
-  background: #F7F7F7;
+  background: $bg-color;
   display: flex;
   flex-direction: column;
 }
 
 .tabs {
   display: flex;
-  background: #FFFFFF;
+  background: $bg-card;
   flex-shrink: 0;
 }
 
@@ -217,21 +185,21 @@ async function loadReportList(reset = true) {
 }
 
 .tab-text {
-  font-size: 28rpx;
-  color: #999999;
+  font-size: $font-base;
+  color: $text-secondary;
   font-weight: 400;
 }
 
 .tab-text-active {
-  color: #2B6DE8;
+  color: $primary-color;
   font-weight: 600;
 }
 
 .tab-indicator {
   width: 48rpx;
-  height: 6rpx;
-  background: #2B6DE8;
-  border-radius: 4rpx;
+  height: 4rpx;
+  background: $primary-color;
+  border-radius: 2rpx;
   margin-top: 4rpx;
 }
 
@@ -248,13 +216,13 @@ async function loadReportList(reset = true) {
 }
 
 .report-card {
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  padding: 24rpx;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-base;
 }
 
 .card-hover {
-  background: #FAFBFC;
+  background: $bg-form;
 }
 
 .card-header {
@@ -265,28 +233,13 @@ async function loadReportList(reset = true) {
 }
 
 .project-name {
-  font-size: 28rpx;
+  font-size: $font-base;
   font-weight: 600;
-  color: #333333;
+  color: $text-primary;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.type-tag {
-  height: 32rpx;
-  padding: 0 12rpx;
-  border-radius: 6rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.type-tag-text {
-  font-size: 20rpx;
-  font-weight: 500;
 }
 
 /* 补公出审核状态 */
@@ -295,50 +248,36 @@ async function loadReportList(reset = true) {
   margin-top: 12rpx;
 }
 
-.supplement-status-tag {
-  height: 32rpx;
-  padding: 0 12rpx;
-  border-radius: 6rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.supplement-status-text {
-  font-size: 20rpx;
-  font-weight: 500;
-}
-
 .card-meta {
   display: flex;
   align-items: center;
-  gap: 24rpx;
-  margin-top: 16rpx;
+  gap: $spacing-base;
+  margin-top: $spacing-sm;
 }
 
 .meta-date,
 .meta-type,
 .meta-person,
 .meta-area {
-  font-size: 24rpx;
-  color: #999999;
+  font-size: $font-sm;
+  color: $text-secondary;
 }
 
 .meta-type {
-  color: #2B6DE8;
+  color: $primary-color;
   font-weight: 500;
 }
 
 .card-preview {
   margin-top: 12rpx;
   padding: 12rpx 16rpx;
-  background: #F7F8FA;
-  border-radius: 8rpx;
+  background: $bg-form;
+  border-radius: $radius-sm;
 }
 
 .preview-text {
-  font-size: 24rpx;
-  color: #666666;
+  font-size: $font-sm;
+  color: $text-regular;
   line-height: 36rpx;
 }
 
@@ -350,57 +289,38 @@ async function loadReportList(reset = true) {
 }
 
 .progress-label {
-  font-size: 22rpx;
-  color: #999999;
+  font-size: $font-xs;
+  color: $text-secondary;
   flex-shrink: 0;
 }
 
 .progress-bar-bg {
   flex: 1;
   height: 8rpx;
-  background: #EFF2F5;
+  background: $bg-form;
   border-radius: 4rpx;
   overflow: hidden;
 }
 
 .progress-bar-fill {
   height: 100%;
-  background: #22C55E;
+  background: $success-color;
   border-radius: 4rpx;
   transition: width 0.3s ease;
 }
 
 .progress-pct {
-  font-size: 22rpx;
+  font-size: $font-xs;
   font-weight: 600;
-  color: #22C55E;
+  color: $success-color;
   min-width: 64rpx;
   text-align: right;
-}
-
-.empty-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 200rpx 0;
-}
-
-.empty-text {
-  font-size: 30rpx;
-  color: #999999;
-}
-
-.empty-desc {
-  font-size: 24rpx;
-  color: #C0C4CC;
-  margin-top: 12rpx;
 }
 
 .no-more {
   text-align: center;
   padding: 32rpx 0;
-  font-size: 24rpx;
-  color: #C0C4CC;
+  font-size: $font-sm;
+  color: $text-placeholder;
 }
 </style>

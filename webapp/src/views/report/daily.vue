@@ -213,6 +213,8 @@ onMounted(() => { loadReports() })
       </el-table-column>
     </el-table>
 
+    <el-empty v-if="!loading && !list.length" description="暂无工作日报" />
+
     <div class="pagination-wrap">
       <span class="total-text">共 {{ total }} 条</span>
       <el-pagination

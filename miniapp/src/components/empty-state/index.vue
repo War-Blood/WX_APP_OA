@@ -19,7 +19,7 @@ function getEmptyIcon(name) {
 
 const props = defineProps({
   icon: { type: String, default: 'empty' },
-  iconBg: { type: String, default: '#F5F5F5' },
+  iconBg: { type: String, default: '#F7F8FA' }, // $bg-form
   iconColor: { type: String, default: '#CCCCCC' },
   iconSize: { type: Number, default: 48 },
   title: { type: String, default: '暂无数据' },
@@ -36,6 +36,8 @@ function onAction() {
 </script>
 
 <style lang="scss" scoped>
+@import '@/uni.scss';
+
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -56,14 +58,14 @@ function onAction() {
 
 .empty-title {
   font-size: 28rpx;
-  color: #999999;
+  color: $text-secondary;
   font-weight: 400;
   margin-bottom: 12rpx;
 }
 
 .empty-desc {
   font-size: 24rpx;
-  color: #BBBBBB;
+  color: $text-placeholder;
   text-align: center;
   line-height: 36rpx;
   margin-bottom: 24rpx;
@@ -72,17 +74,17 @@ function onAction() {
 .empty-action {
   padding: 16rpx 40rpx;
   border-radius: 24rpx;
-  background: #EDF2FF;
-  border: 1rpx solid #D6E4FF;
+  background: $primary-bg;
+  border: 1rpx solid $primary-bg-deep;
 }
 
 .empty-action:active {
-  background: #D6E4FF;
+  background: $primary-bg-deep;
 }
 
 .empty-action-text {
   font-size: 26rpx;
-  color: #2B6DE8;
+  color: $primary-color;
   font-weight: 500;
 }
 </style>

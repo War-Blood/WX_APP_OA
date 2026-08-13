@@ -6,6 +6,7 @@ import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
 import type { StatsViewFilter } from '@/api/statsView'
 import { createStatsView } from '@/api/statsView'
 import FilterDialog from '@/components/FilterDialog.vue'
+import SectionCard from '@/components/SectionCard.vue'
 import { useUserStore } from '@/stores/user'
 import { toast } from '@/utils/toast'
 
@@ -72,18 +73,12 @@ function maxInColumn(key: string) {
   return Math.max(1, ...workTypeList.value.map(w => (w as any).workTypes?.[key] || 0))
 }
 
-function cellBg(val: number, maxVal: number) {
-  if (!val || maxVal === 0) return 'transparent'
+function cellClass(val: number, maxVal: number): number {
+  if (!val || maxVal === 0) return 0
   const pct = val / maxVal
-  if (pct <= 0.25) return '#E8F5E9'
-  if (pct <= 0.5) return '#A5D6A7'
-  if (pct <= 0.75) return '#66BB6A'
-  return '#388E3C'
-}
-
-function cellColor(val: number, maxVal: number) {
-  if (!val || maxVal === 0) return '#333'
-  return val / maxVal > 0.5 ? '#fff' : '#333'
+  if (pct <= 0.25) return 1
+  if (pct <= 0.5) return 2
+  return 3
 }
 
 onMounted(loadWorkTypes)
@@ -91,18 +86,13 @@ onMounted(loadWorkTypes)
 
 <template>
   <div class="worktype-page">
-    <el-card class="section-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span>工作类型分布</span>
-          <div class="card-header-right">
-            <el-button v-if="userStore.isAdmin" size="small" @click="showFilter = true">筛选</el-button>
-            <el-button size="small" @click="prevWorkTypeMonth">‹</el-button>
-            <span class="month-label">{{ workTypeMonth }}</span>
-            <el-button size="small" @click="nextWorkTypeMonth">›</el-button>
-            <el-button :icon="Refresh" size="small" text @click="loadWorkTypes">刷新</el-button>
-          </div>
-        </div>
+    <SectionCard title="工作类型分布">
+      <template #actions>
+        <el-button v-if="userStore.isAdmin" size="small" @click="showFilter = true">筛选</el-button>
+        <el-button size="small" @click="prevWorkTypeMonth">‹</el-button>
+        <span class="month-label">{{ workTypeMonth }}</span>
+        <el-button size="small" @click="nextWorkTypeMonth">›</el-button>
+        <el-button :icon="Refresh" size="small" text @click="loadWorkTypes">刷新</el-button>
       </template>
       <el-table :data="workTypeList" v-loading="workTypeLoading" stripe border>
         <!-- 汇总行 -->
@@ -129,11 +119,7 @@ onMounted(loadWorkTypes)
         <el-table-column v-for="wt in WT_LABELS" :key="wt" :label="wt.replace('工作（','').replace('）','')" width="76" align="center">
           <template #default="{ row }">
             <span
-              :style="{
-                background: cellBg((row as any).workTypes?.[wt] || 0, maxInColumn(wt)),
-                color: cellColor((row as any).workTypes?.[wt] || 0, maxInColumn(wt)),
-                padding: '2px 8px', borderRadius: '4px', fontWeight: '600'
-              }"
+              :class="['cell-heat', `cell-heat--${cellClass((row as any).workTypes?.[wt] || 0, maxInColumn(wt))}`]"
             >{{ (row as any).workTypes?.[wt] || 0 }}</span>
           </template>
         </el-table-column>
@@ -143,23 +129,22 @@ onMounted(loadWorkTypes)
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+      <el-empty v-if="!workTypeLoading && !workTypeList.length" description="暂无工作类型数据" />
+    </SectionCard>
     <FilterDialog v-model="showFilter" stat-key="worktypes" @apply="onFilterApply" />
   </div>
 </template>
 
 <style scoped lang="scss">
-.worktype-page { padding: 20px; }
-
 .wt-summary {
-  background: #F0F7FF;
+  background: $primary-bg;
   font-weight: 600;
 
   .wt-sum-cell {
     padding: 8px 0;
     text-align: center;
-    color: #333;
-    border-bottom: 1px solid #E5E7EB;
+    color: $text-primary;
+    border-bottom: 1px solid $border-color;
   }
 
   .wt-sum-name {
@@ -167,43 +152,32 @@ onMounted(loadWorkTypes)
     text-align: left;
   }
 
-  .wt-sum-supp { color: #F59E0B; }
+  .wt-sum-supp { color: $warning-color; }
 
-  .wt-sum-office { color: #22C55E; }
+  .wt-sum-office { color: $success-color; }
 
-  .wt-sum-total { color: #2B6DE8; font-weight: 700; }
+  .wt-sum-total { color: $primary-color; font-weight: 700; }
 }
 
 .wt-supp {
-  color: #F59E0B;
+  color: $warning-color;
   font-weight: 600;
 }
 
 .wt-office {
-  color: #22C55E;
+  color: $success-color;
   font-weight: 600;
 }
 
-.section-card {
-  .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-weight: 500;
-
-    .card-header-right {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .month-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: #333;
-      min-width: 80px;
-      text-align: center;
-    }
-  }
+.cell-heat {
+  padding: 2px 8px;
+  border-radius: $border-radius-base;
+  font-weight: 600;
+  color: $text-primary;
 }
+
+.cell-heat--0 { background: transparent; }
+.cell-heat--1 { background: #E8F5E9; }
+.cell-heat--2 { background: #A5D6A7; }
+.cell-heat--3 { background: #66BB6A; }
 </style>

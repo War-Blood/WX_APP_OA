@@ -10,10 +10,11 @@
       <view v-if="loading" class="state-wrap">
         <text class="state-text">加载中...</text>
       </view>
-      <view v-else-if="list.length === 0" class="state-wrap">
-        <text class="state-text">本月暂无未填写记录</text>
-        <text class="state-desc">未填写指出差期间未提交公出日志的日期</text>
-      </view>
+      <EmptyState
+        v-else-if="list.length === 0"
+        title="本月暂无未填写记录"
+        description="未填写指出差期间未提交公出日志的日期"
+      />
       <view v-else class="list">
         <view v-for="item in list" :key="item.userId" class="person-card">
           <view class="person-header">
@@ -43,6 +44,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
+import EmptyState from '@/components/empty-state/index.vue'
 import { statsApi } from '@/services/modules/stats'
 import { useUserStore } from '@/stores/user'
 
@@ -79,30 +81,32 @@ function formatDate(d) {
 </script>
 
 <style lang="scss" scoped>
+@import '@/uni.scss';
+
 .page {
   width: 100%;
   height: 100vh;
-  background: #F5F5F5;
+  background: $bg-color;
   display: flex;
   flex-direction: column;
 }
 
 .summary-bar {
-  padding: 24rpx;
-  background: #FFF8F0;
-  border-bottom: 1rpx solid #F0E4D2;
+  padding: $spacing-base;
+  background: #FFF8E1;
+  border-bottom: 1rpx solid $border-light;
 }
 
 .summary-text {
-  font-size: 28rpx;
-  color: #B26A00;
+  font-size: $font-base;
+  color: $warning-color;
   font-weight: 500;
 }
 
 .content-scroll {
   flex: 1;
   height: 0;
-  padding: 24rpx;
+  padding: $spacing-base;
 }
 
 .state-wrap {
@@ -115,13 +119,8 @@ function formatDate(d) {
 
 .state-text {
   font-size: 30rpx;
-  color: #333;
+  color: $text-primary;
   font-weight: 500;
-}
-
-.state-desc {
-  font-size: 24rpx;
-  color: #999;
 }
 
 .list {
@@ -131,9 +130,9 @@ function formatDate(d) {
 }
 
 .person-card {
-  background: #fff;
-  border-radius: 16rpx;
-  padding: 24rpx;
+  background: $bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-base;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 
@@ -150,14 +149,14 @@ function formatDate(d) {
 }
 
 .person-name {
-  font-size: 32rpx;
+  font-size: $font-lg;
   font-weight: 600;
-  color: #333;
+  color: $text-primary;
 }
 
 .person-code {
-  font-size: 24rpx;
-  color: #999;
+  font-size: $font-sm;
+  color: $text-secondary;
 }
 
 .person-total {
@@ -167,29 +166,29 @@ function formatDate(d) {
 }
 
 .total-num {
-  font-size: 40rpx;
+  font-size: $font-xxl;
   font-weight: 700;
-  color: #EF4444;
+  color: $danger-color;
 }
 
 .total-label {
-  font-size: 24rpx;
-  color: #666;
+  font-size: $font-sm;
+  color: $text-regular;
 }
 
 .project-line {
-  margin-top: 16rpx;
+  margin-top: $spacing-sm;
   display: flex;
 }
 
 .project-label {
-  font-size: 24rpx;
-  color: #999;
+  font-size: $font-sm;
+  color: $text-secondary;
 }
 
 .project-value {
-  font-size: 24rpx;
-  color: #333;
+  font-size: $font-sm;
+  color: $text-primary;
   flex: 1;
 }
 
@@ -203,9 +202,9 @@ function formatDate(d) {
 .date-tag {
   padding: 8rpx 18rpx;
   background: #FFF0F0;
-  border-radius: 24rpx;
-  font-size: 24rpx;
-  color: #EF4444;
+  border-radius: $radius-sm;
+  font-size: $font-sm;
+  color: $danger-color;
 }
 
 .bottom-placeholder {

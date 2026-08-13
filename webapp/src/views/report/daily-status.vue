@@ -9,6 +9,7 @@ import {
   type TomorrowStatusWorker, type TomorrowStatusResponse
 } from '@/api/report'
 import { currentDateInBeijing, shiftDate } from '@/utils/date'
+import { CHART_COLORS } from '@/utils/chart'
 
 const router = useRouter()
 
@@ -98,12 +99,12 @@ const summaryItems = computed<{ key: string; label: string; count: number; color
   if (!response.value) return []
   const s: DailyStatusSummary = response.value.summary
   return [
-    { key: 'submitted', label: '已提交', count: s.submitted, color: '#67C23A' },
-    { key: 'substituted', label: '已代填', count: s.substituted, color: '#909399' },
-    { key: 'supplement', label: '补公出', count: s.supplement, color: '#E6A23C' },
-    { key: 'office', label: '工作日报', count: s.office, color: '#409EFF' },
-    { key: 'leave', label: '请假', count: s.leave, color: '#909399' },
-    { key: 'missing', label: '缺失', count: s.missing, color: '#F56C6C' }
+    { key: 'submitted', label: '已提交', count: s.submitted, color: CHART_COLORS.success },
+    { key: 'substituted', label: '已代填', count: s.substituted, color: CHART_COLORS.info },
+    { key: 'supplement', label: '补公出', count: s.supplement, color: CHART_COLORS.warning },
+    { key: 'office', label: '工作日报', count: s.office, color: CHART_COLORS.primary },
+    { key: 'leave', label: '请假', count: s.leave, color: CHART_COLORS.info },
+    { key: 'missing', label: '缺失', count: s.missing, color: CHART_COLORS.danger }
   ]
 })
 
@@ -292,6 +293,7 @@ onMounted(() => {
         </template>
       </el-table-column>
     </el-table>
+    <el-empty v-if="!loading && !filteredWorkers.length" description="暂无今日日报数据" />
 
     <!-- 明日模式:分组列表 -->
     <div v-if="mode === 'tomorrow'" v-loading="tomorrowLoading" class="tomorrow-panel">
@@ -323,30 +325,28 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-.daily-status-page { padding: 20px; }
-
 .top-bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: $spacing-medium;
 
   .date-hint {
-    color: #909399;
-    font-size: 14px;
+    color: $text-secondary;
+    font-size: $font-size-base;
   }
 }
 
 .summary-row {
-  margin-bottom: 16px;
+  margin-bottom: $spacing-medium;
 
   .summary-item {
     text-align: center;
-    padding: 12px 8px;
-    background: #fff;
-    border-radius: 6px;
-    border: 1px solid #ebeef5;
-    border-top: 3px solid #dcdfe6;
+    padding: $spacing-base $spacing-small;
+    background: $bg-white;
+    border-radius: $border-radius-large;
+    border: 1px solid $border-lighter;
+    border-top: 3px solid $border-color;
 
     .summary-count {
       font-size: 24px;
@@ -355,27 +355,27 @@ onMounted(() => {
     }
 
     .summary-label {
-      font-size: 12px;
-      color: #909399;
-      margin-top: 4px;
+      font-size: $font-size-small;
+      color: $text-secondary;
+      margin-top: $spacing-extra-small;
     }
   }
 }
 
 .filter-bar {
   display: flex;
-  gap: 12px;
+  gap: $spacing-base;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: $spacing-medium;
 }
 
 .substitute-name {
-  color: #909399;
-  font-size: 12px;
+  color: $text-secondary;
+  font-size: $font-size-small;
 }
 
 .mode-seg {
-  margin-left: 8px;
+  margin-left: $spacing-small;
 }
 
 .tomorrow-panel {
@@ -383,24 +383,24 @@ onMounted(() => {
 }
 
 .tomorrow-group {
-  margin-bottom: 16px;
+  margin-bottom: $spacing-medium;
 
   .tomorrow-group-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: $spacing-small;
 
     .tomorrow-group-name {
-      font-size: 14px;
+      font-size: $font-size-base;
       font-weight: 600;
-      color: #2B6DE8;
+      color: $primary-color;
     }
   }
 }
 
 .tomorrow-empty {
-  color: #C0C4CC;
+  color: $text-placeholder;
 }
 
 :deep(.row-missing) {

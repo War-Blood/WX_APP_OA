@@ -522,6 +522,7 @@ onMounted(() => { loadStats(); loadReports() })
           </template>
         </el-table-column>
       </el-table>
+      <el-empty v-if="!loading && !reportList.length" description="暂无符合条件的日报" />
       <div class="pagination-wrap">
         <span class="total-text">共 {{ reportTotal }} 条</span>
         <el-pagination
@@ -704,10 +705,9 @@ onMounted(() => { loadStats(); loadReports() })
 </template>
 
 <style scoped lang="scss">
-.report-page { padding: 20px; }
 .toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
 .toolbar-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .toolbar-left { display: flex; gap: 12px; align-items: center; }
-.pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; .total-text { font-size: 14px; color: #999; } }
+.pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; .total-text { font-size: 14px; color: $text-secondary; } }
 .edit-readonly { margin-bottom: 8px; }
 </style>

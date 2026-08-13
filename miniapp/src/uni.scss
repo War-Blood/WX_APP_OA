@@ -4,11 +4,20 @@ $primary-color: #2B6DE8;
 $primary-light: #5B8DF0;
 $primary-dark: #1A4FA8;
 $primary-bg: #EDF2FF;
+$primary-bg-deep: #D6E4FF;
 
 $success-color: #22C55E;
 $warning-color: #F59E0B;
 $danger-color: #EF4444;
 $info-color: #909399;
+
+// 绿色热度色阶（工作类型颜色矩阵统一入口，见 .AI/rules/miniapp-design-patterns.md）
+$heat-green: (
+  h1: #E8F5E9,
+  h2: #A5D6A7,
+  h3: #66BB6A,
+  h4: #388E3C,
+);
 
 $text-primary: #333333;
 $text-regular: #666666;

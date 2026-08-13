@@ -2,6 +2,9 @@
 $primary-color: #2B6DE8;
 $primary-light: #4C8DF1;
 $primary-dark: #1A5AD4;
+// 品牌淡色（对齐小程序）
+$primary-bg: #EDF2FF;
+$primary-bg-deep: #D6E4FF;
 
 // 功能色
 $success-color: #67C23A;
@@ -69,6 +72,8 @@ $header-bg: #FFFFFF;
 // CSS Variables
 :root {
   --primary-color: #{$primary-color};
+  --primary-bg: #{$primary-bg};
+  --primary-bg-deep: #{$primary-bg-deep};
   --success-color: #{$success-color};
   --warning-color: #{$warning-color};
   --danger-color: #{$danger-color};

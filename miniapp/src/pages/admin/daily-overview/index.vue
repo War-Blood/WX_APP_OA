@@ -16,162 +16,34 @@
       </view>
     </view>
 
-    <!-- 摘要统计条 -->
-    <view v-if="response" class="summary-bar">
-      <view class="summary-item summary-item--submitted">
-        <text class="summary-val">{{ submittedCount }}</text>
-        <text class="summary-lbl">已提交</text>
-      </view>
-      <view class="summary-item summary-item--missing">
-        <text class="summary-val" :class="{ 'summary-val--danger': missingCount > 0 }">{{ missingCount }}</text>
-        <text class="summary-lbl">缺失</text>
-      </view>
+    <!-- 加载 / 列表 -->
+    <view v-if="loading || response" class="daily-panel-wrap">
+      <DailyStatusPanel
+        :response="response"
+        :loading="loading"
+        :show-total="false"
+        :refreshing="refreshing"
+        @go-detail="goToDetail"
+        @refresherrefresh="onRefresh"
+      />
     </view>
-
-    <!-- 加载中 -->
-    <view v-if="loading" class="loading-wrap"><text class="loading-text">加载中...</text></view>
-
-    <!-- 内容列表 -->
-    <scroll-view
-      v-else-if="response"
-      class="content-scroll"
-      scroll-y
-      :refresher-enabled="true"
-      :refresher-triggered="refreshing"
-      @refresherrefresh="onRefresh"
-    >
-      <!-- 缺失人员 -->
-      <view v-if="missingWorkers.length > 0" class="section">
-        <text class="section-header section-header--missing">未提交 ({{ missingWorkers.length }})</text>
-        <view class="card-list">
-          <view v-for="w in missingWorkers" :key="w.userId" class="worker-card worker-card--missing">
-            <view class="card-left">
-              <text class="card-name">{{ w.userName }}</text>
-              <text class="card-code">{{ w.workerCode || '' }}</text>
-            </view>
-            <view class="card-right">
-              <text class="card-status-tag tag--missing">未提交</text>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <!-- 补公出 -->
-      <view v-if="supplementWorkers.length > 0" class="section">
-        <text class="section-header section-header--supplement">补公出 ({{ supplementWorkers.length }})</text>
-        <view class="card-list">
-          <view
-            v-for="w in supplementWorkers"
-            :key="w.userId"
-            class="worker-card"
-            :class="'worker-card--' + w.status"
-            @tap="goToDetail(w)"
-          >
-            <view class="card-left">
-              <text class="card-name">{{ w.userName }}</text>
-              <text class="card-code">{{ w.workerCode || '' }}</text>
-            </view>
-            <view class="card-mid">
-              <text v-if="w.project" class="card-project">{{ w.project }}</text>
-              <text v-if="w.area" class="card-area">{{ w.area }}</text>
-            </view>
-            <view class="card-right">
-              <text class="card-status-tag tag--supplement">补公出</text>
-              <text v-if="w.workType" class="card-work-type">{{ w.workType }}</text>
-              <text v-if="w.submittedAt" class="card-time">{{ formatTime(w.submittedAt) }}</text>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <!-- 请假 -->
-      <view v-if="leaveWorkers.length > 0" class="section">
-        <text class="section-header section-header--leave">请假 ({{ leaveWorkers.length }})</text>
-        <view class="card-list">
-          <view
-            v-for="w in leaveWorkers"
-            :key="w.userId"
-            class="worker-card worker-card--leave"
-          >
-            <view class="card-left">
-              <text class="card-name">{{ w.userName }}</text>
-              <text class="card-code">{{ w.workerCode || '' }}</text>
-            </view>
-            <view class="card-right">
-              <text class="card-status-tag" :class="'tag--' + w.status">
-                {{ statusLabelMap[w.status] || w.status }}
-              </text>
-              <text v-if="w.submittedAt" class="card-time">{{ formatTime(w.submittedAt) }}</text>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <!-- 已提交人员 -->
-      <view v-if="activeWorkers.length > 0" class="section">
-        <text class="section-header section-header--active">已提交 ({{ activeWorkers.length }})</text>
-        <view class="card-list">
-          <view
-            v-for="w in activeWorkers"
-            :key="w.userId"
-            class="worker-card"
-            :class="'worker-card--' + w.status"
-            @tap="goToDetail(w)"
-          >
-            <view class="card-left">
-              <text class="card-name">{{ w.userName }}</text>
-              <text class="card-code">{{ w.workerCode || '' }}</text>
-            </view>
-            <view class="card-mid">
-              <text v-if="w.project" class="card-project">{{ w.project }}</text>
-              <text v-if="w.area" class="card-area">{{ w.area }}</text>
-            </view>
-            <view class="card-right">
-              <text class="card-status-tag" :class="'tag--' + w.status">
-                {{ statusLabelMap[w.status] || w.status }}
-              </text>
-              <text v-if="w.workType" class="card-work-type">{{ w.workType }}</text>
-              <text v-if="w.submittedAt" class="card-time">{{ formatTime(w.submittedAt) }}</text>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <view class="bottom-placeholder"></view>
-    </scroll-view>
 
     <!-- 空状态 -->
-    <view v-else-if="!loading" class="empty-wrap">
-      <text class="empty-text">暂无数据</text>
-    </view>
+    <EmptyState v-else title="暂无数据" />
   </view>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
+import DailyStatusPanel from '@/components/daily-status-panel/index.vue'
+import EmptyState from '@/components/empty-state/index.vue'
 import { reportApi } from '@/services/modules/report'
 
 // 工具函数
 function formatToday() {
   const d = new Date()
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
-}
-
-function formatTime(datetime) {
-  if (!datetime) return ''
-  const parts = String(datetime).split(' ')
-  return parts[1] ? parts[1].substring(0, 5) : datetime
-}
-
-// 状态标签映射
-const statusLabelMap = {
-  submitted: '已提交',
-  supplement: '补公出',
-  office: '工作日报',
-  substituted: '已代填',
-  leave: '请假',
-  missing: '未提交'
 }
 
 // 状态
@@ -196,33 +68,6 @@ const displayDate = computed(() => {
   if (currentDate.value === today) return '今天 ' + currentDate.value
   if (currentDate.value === yesterdayStr) return '昨天 ' + currentDate.value
   return currentDate.value
-})
-
-const missingCount = computed(() => response.value?.summary?.missing || 0)
-const submittedCount = computed(() => {
-  if (!response.value) return 0
-  const s = response.value.summary
-  return (s.submitted || 0) + (s.substituted || 0) + (s.supplement || 0) + (s.office || 0) + (s.leave || 0)
-})
-
-const missingWorkers = computed(() => {
-  if (!response.value) return []
-  return response.value.workers.filter(w => w.status === 'missing')
-})
-
-const supplementWorkers = computed(() => {
-  if (!response.value) return []
-  return response.value.workers.filter(w => w.status === 'supplement')
-})
-
-const activeWorkers = computed(() => {
-  if (!response.value) return []
-  return response.value.workers.filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'supplement')
-})
-
-const leaveWorkers = computed(() => {
-  if (!response.value) return []
-  return response.value.workers.filter(w => w.status === 'leave')
 })
 
 // 数据加载
@@ -338,185 +183,12 @@ onMounted(() => {
   color: $text-secondary;
 }
 
-// ===== 摘要统计条 =====
-.summary-bar {
-  display: flex;
-  gap: $spacing-sm;
-  padding: $spacing-sm $spacing-base;
-  flex-shrink: 0;
-}
-.summary-item {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  padding: 16rpx 20rpx;
-  border-radius: $radius-base;
-}
-.summary-item--submitted {
-  background: #EFFDF5;
-}
-.summary-item--missing {
-  background: #FFF0F0;
-}
-.summary-val {
-  font-size: 36rpx;
-  font-weight: 700;
-  color: $success-color;
-}
-.summary-val--danger {
-  color: $danger-color;
-}
-.summary-lbl {
-  font-size: $font-sm;
-  color: $text-regular;
-}
-
-// ===== 内容滚动 =====
-.content-scroll {
+// ===== 面板容器 =====
+.daily-panel-wrap {
   flex: 1;
   height: 0;
-  padding: 0 $spacing-base;
-}
-
-// ===== 分组区块 =====
-.section {
-  margin-bottom: $spacing-sm;
-}
-.section-header {
-  font-size: 26rpx;
-  font-weight: 600;
-  padding: 12rpx 0;
-  display: block;
-}
-.section-header--missing { color: $danger-color; }
-.section-header--active  { color: $success-color; }
-.section-header--leave   { color: $text-secondary; }
-
-// ===== 卡片列表 =====
-.card-list {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: $spacing-xs;
-}
-
-// 通用卡片
-.worker-card {
-  display: flex;
-  align-items: center;
-  padding: 20rpx $spacing-base;
-  background: $bg-card;
-  border-radius: $radius-base;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
-}
-
-// 缺失卡片
-.worker-card--missing {
-  border-left: 6rpx solid $danger-color;
-  background: #FFF5F5;
-}
-
-// 请假/调休卡片
-.worker-card--leave {
-  border-left: 6rpx solid $text-placeholder;
-}
-
-// 已提交/补公出卡片
-.worker-card--submitted { border-left: 6rpx solid $success-color; }
-.worker-card--supplement { border-left: 6rpx solid $warning-color; }
-.worker-card--office { border-left: 6rpx solid $primary-color; }
-.worker-card--substituted { border-left: 6rpx solid #6366F1; }
-
-.card-left {
-  display: flex;
-  flex-direction: column;
-  gap: 4rpx;
-  width: 140rpx;
-  flex-shrink: 0;
-}
-.card-name {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: $text-primary;
-}
-.card-code {
-  font-size: $font-xs;
-  color: $text-secondary;
-}
-
-.card-mid {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4rpx;
-}
-.card-project {
-  font-size: $font-sm;
-  color: $text-primary;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.card-area {
-  font-size: $font-xs;
-  color: $text-secondary;
-}
-
-.card-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4rpx;
-  flex-shrink: 0;
-  margin-left: $spacing-sm;
-}
-.card-work-type {
-  font-size: $font-xs;
-  color: $primary-color;
-}
-.card-time {
-  font-size: $font-xs - 2rpx;
-  color: $text-placeholder;
-}
-
-// ===== 状态标签 =====
-.card-status-tag {
-  font-size: $font-xs;
-  font-weight: 500;
-  padding: 2rpx 10rpx;
-  border-radius: $radius-sm;
-}
-.tag--submitted   { background: #EFFDF5; color: $success-color; }
-.tag--supplement  { background: #FFF8E1; color: $warning-color; }
-.tag--office      { background: $primary-bg; color: $primary-color; }
-.tag--substituted { background: #FFF0F5; color: #6366F1; }
-.tag--leave       { background: #F5F3FF; color: #8B5CF6; }
-.tag--rest        { background: #FDF2F8; color: #EC4899; }
-.tag--missing     { background: #FFF0F0; color: $danger-color; }
-
-// ===== 加载 & 空状态 =====
-.loading-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 200rpx 0;
-}
-.loading-text {
-  font-size: $font-base;
-  color: $text-secondary;
-}
-.empty-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 200rpx 0;
-}
-.empty-text {
-  font-size: $font-base;
-  color: $text-secondary;
-}
-.bottom-placeholder {
-  height: 40rpx;
 }
 </style>

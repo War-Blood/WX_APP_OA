@@ -4,34 +4,22 @@
 
     <!-- 月份选择 -->
     <view class="month-selector">
-      <view class="month-arrow" @click="prevMonth">◀</view>
+      <view class="month-arrow" @tap="prevMonth">◀</view>
       <text class="month-text">{{ displayMonth }}</text>
-      <view class="month-arrow" @click="nextMonth">▶</view>
+      <view class="month-arrow" @tap="nextMonth">▶</view>
     </view>
 
     <!-- 统计卡片 -->
     <view class="summary-grid">
-      <view class="stat-card stat-work">
-        <text class="stat-num">{{ stats.workDays }}</text>
-        <text class="stat-label">现场</text>
-      </view>
-      <view class="stat-card stat-biz">
-        <text class="stat-num">{{ stats.bizTripDays }}</text>
-        <text class="stat-label">在途</text>
-      </view>
-      <view class="stat-card stat-rest">
-        <text class="stat-num">{{ stats.restDays }}</text>
-        <text class="stat-label">休息</text>
-      </view>
-      <view class="stat-card stat-leave">
-        <text class="stat-num">{{ stats.leaveDays }}</text>
-        <text class="stat-label">请假</text>
-      </view>
+      <stat-card :value="stats.workDays" label="现场" tone="primary" />
+      <stat-card :value="stats.bizTripDays" label="在途" tone="warning" />
+      <stat-card :value="stats.restDays" label="休息" tone="success" />
+      <stat-card :value="stats.leaveDays" label="请假" tone="default" class="stat-leave" />
     </view>
 
     <!-- 未提交提醒 -->
-    <view class="missing-card" v-if="stats.missingDays > 0" @click="handleMissingClick">
-      <text class="missing-icon">⚠️</text>
+    <view class="missing-card" v-if="stats.missingDays > 0" @tap="handleMissingClick">
+      <view class="missing-dot"></view>
       <text class="missing-text">本月有 {{ stats.missingDays }} 天未提交公出日志</text>
     </view>
 
@@ -46,7 +34,7 @@
           :key="idx"
           class="cal-cell"
           :class="cell.statusClass"
-          @click="handleCellClick(cell)"
+          @tap="handleCellClick(cell)"
         >
           <text class="cal-day">{{ cell.day }}</text>
         </view>
@@ -62,8 +50,8 @@
     </view>
 
     <!-- 日期详情弹窗 -->
-    <view class="detail-overlay" v-if="selectedDay" @click="selectedDay = null">
-      <view class="detail-card" @click.stop>
+    <view class="detail-overlay" v-if="selectedDay" @tap="selectedDay = null">
+      <view class="detail-card" @tap.stop>
         <text class="detail-date">{{ selectedDay.date }}</text>
         <view class="detail-row">
           <text class="detail-label">状态</text>
@@ -75,7 +63,7 @@
           <text class="detail-label">备注</text>
           <text class="detail-value">{{ selectedDay.note }}</text>
         </view>
-        <view class="detail-close" @click="selectedDay = null">关闭</view>
+        <view class="detail-close" @tap="selectedDay = null">关闭</view>
       </view>
     </view>
   </view>
@@ -83,6 +71,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import StatCard from '@/components/stat-card/index.vue'
 import { attendanceApi } from '@/services/modules/attendance'
 import { showSuccess, showError, showToast } from '@/utils/toast'
 
@@ -101,7 +90,7 @@ const dailyMap = ref({})
 
 const statusMap = { work: '现场（陆）', rest: '休息', biz_trip: '在途', leave: '请假', missing: '未提交', none: '无排班' }
 const statusClassMap = { work: 'cal-work', rest: 'cal-rest', biz_trip: 'cal-biz', leave: 'cal-leave', missing: 'cal-missing', none: 'cal-none' }
-const statusColorMap = { work: '#2B6DE8', rest: '#22C55E', biz_trip: '#F59E0B', leave: '#EF4444', missing: '#EF4444', none: '#999999' }
+const statusColorMap = { work: '#2B6DE8', rest: '#22C55E', biz_trip: '#F59E0B', leave: '#8B5CF6', missing: '#EF4444', none: '#999999' }
 
 function statusLabel(s) { return statusMap[s] || '无排班' }
 function statusColor(s) { return statusColorMap[s] || '#999999' }
@@ -192,84 +181,78 @@ function handleMissingClick() {
 loadData()
 </script>
 
-<style scoped>
-.page { min-height: 100vh; background: #F7F7F7; padding-bottom: 40rpx; }
+<style lang="scss" scoped>
+@import '@/uni.scss';
+
+.page { min-height: 100vh; background: $bg-color; padding-bottom: 40rpx; }
 
 .month-selector {
   display: flex; align-items: center; justify-content: center;
-  padding: 24rpx; background: #FFFFFF; margin: 16rpx 24rpx; border-radius: 16rpx;
+  padding: $spacing-base; background: $bg-card; margin: $spacing-sm $spacing-base; border-radius: $radius-lg;
   box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
 }
-.month-arrow { font-size: 28rpx; padding: 12rpx 24rpx; color: #2B6DE8; }
-.month-text { font-size: 32rpx; font-weight: 600; color: #333333; min-width: 180rpx; text-align: center; }
+.month-arrow { font-size: $font-base; padding: 12rpx $spacing-base; color: $primary-color; }
+.month-text { font-size: $font-lg; font-weight: 600; color: $text-primary; min-width: 180rpx; text-align: center; }
 
 .summary-grid {
-  display: flex; margin: 0 24rpx 16rpx; gap: 16rpx;
+  display: flex; margin: 0 $spacing-base $spacing-sm; gap: $spacing-sm;
 }
-.stat-card {
-  flex: 1; background: #FFFFFF; border-radius: 16rpx; padding: 20rpx 0;
-  text-align: center; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
-}
-.stat-num { display: block; font-size: 48rpx; font-weight: 700; }
-.stat-label { display: block; font-size: 24rpx; color: #999999; margin-top: 4rpx; }
-.stat-work .stat-num { color: #2B6DE8; }
-.stat-biz .stat-num { color: #F59E0B; }
-.stat-rest .stat-num { color: #909399; }
-.stat-leave .stat-num { color: #8B5CF6; }
+/* 请假卡片：设计文档 leave 色 #8B5CF6（stat-card tone 集无此色，仅在卡片上覆写） */
+.stat-leave :deep(.stat-num) { color: #8B5CF6; }
 
 .missing-card {
-  display: flex; align-items: center; margin: 0 24rpx 16rpx;
-  background: #FFF3CD; border-radius: 12rpx; padding: 20rpx 24rpx;
+  display: flex; align-items: center; margin: 0 $spacing-base $spacing-sm;
+  background: #FFF8E1; border-radius: $radius-base; padding: 20rpx $spacing-base;
 }
-.missing-icon { font-size: 32rpx; margin-right: 12rpx; }
-.missing-text { font-size: 28rpx; color: #856404; }
+.missing-dot { width: 28rpx; height: 28rpx; border-radius: $radius-sm; background: $warning-color; margin-right: 12rpx; flex-shrink: 0; }
+.missing-text { font-size: $font-base; color: $warning-color; }
 
-.calendar { margin: 0 24rpx; background: #FFFFFF; border-radius: 16rpx; padding: 20rpx; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06); }
+.calendar { margin: 0 $spacing-base; background: $bg-card; border-radius: $radius-lg; padding: 20rpx; box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06); }
 .cal-header { display: flex; margin-bottom: 12rpx; }
-.cal-weekday { flex: 1; text-align: center; font-size: 24rpx; color: #999999; padding: 8rpx 0; }
+.cal-weekday { flex: 1; text-align: center; font-size: $font-sm; color: $text-secondary; padding: 8rpx 0; }
 .cal-grid { display: flex; flex-wrap: wrap; }
-.cal-cell { width: calc(100% / 7); aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 8rpx; }
+.cal-cell { width: calc(100% / 7); aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: $radius-sm; }
 .cal-day { font-size: 26rpx; }
-.cal-work { background: #EDF2FF; }
-.cal-work .cal-day { color: #2B6DE8; }
+.cal-work { background: $primary-bg; }
+.cal-work .cal-day { color: $primary-color; }
 .cal-biz { background: #FFF8E1; }
-.cal-biz .cal-day { color: #F59E0B; }
-.cal-rest { background: #F0FDF4; }
-.cal-rest .cal-day { color: #22C55E; }
-.cal-leave { background: #FEF2F2; }
-.cal-leave .cal-day { color: #EF4444; }
-.cal-missing { background: #FFF1F0; }
-.cal-missing .cal-day { color: #EF4444; }
-.cal-none { background: #F7F7F7; }
-.cal-none .cal-day { color: #CCCCCC; }
+.cal-biz .cal-day { color: $warning-color; }
+.cal-rest { background: #EFFDF5; }
+.cal-rest .cal-day { color: $success-color; }
+.cal-leave { background: #F5F3FF; }
+.cal-leave .cal-day { color: #8B5CF6; }
+.cal-missing { background: #FFF0F0; }
+.cal-missing .cal-day { color: $danger-color; }
+.cal-none { background: $bg-color; }
+.cal-none .cal-day { color: $text-placeholder; }
 
-.legend { display: flex; justify-content: center; gap: 24rpx; margin: 24rpx; flex-wrap: wrap; }
-.legend-item { display: flex; align-items: center; gap: 8rpx; font-size: 22rpx; color: #666666; }
+.legend { display: flex; justify-content: center; gap: $spacing-base; margin: $spacing-base; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 8rpx; font-size: $font-xs; color: $text-regular; }
 .dot { width: 16rpx; height: 16rpx; border-radius: 4rpx; }
-.dot-work { background: #2B6DE8; }
-.dot-biz { background: #F59E0B; }
-.dot-rest { background: #909399; }
+.dot-work { background: $primary-color; }
+.dot-biz { background: $warning-color; }
+.dot-rest { background: $success-color; }
 .dot-leave { background: #8B5CF6; }
-.dot-missing { background: #EF4444; }
+.dot-missing { background: $danger-color; }
 
-/* 日期详情弹窗 */
+/* 日期详情弹窗（底部抽屉） */
 .detail-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.4); display: flex; align-items: flex-end; justify-content: center;
   z-index: 1100;
 }
 .detail-card {
-  background: #FFFFFF; border-radius: 16rpx; padding: 40rpx; width: 560rpx;
+  width: 100%; background: $bg-card; border-radius: $radius-xl $radius-xl 0 0; padding: 40rpx;
 }
 .detail-date {
-  font-size: 32rpx; font-weight: 600; color: #333333; display: block; margin-bottom: 24rpx;
+  font-size: $font-lg; font-weight: 600; color: $text-primary; display: block; margin-bottom: $spacing-base;
 }
 .detail-row {
-  display: flex; justify-content: space-between; padding: 12rpx 0; border-bottom: 1rpx solid #F0F0F0;
+  display: flex; justify-content: space-between; padding: 12rpx 0; border-bottom: 1rpx solid $border-light;
 }
-.detail-label { font-size: 28rpx; color: #999999; }
-.detail-value { font-size: 28rpx; }
+.detail-label { font-size: $font-base; color: $text-secondary; }
+.detail-value { font-size: $font-base; }
 .detail-close {
-  margin-top: 32rpx; text-align: center; font-size: 28rpx; color: #2B6DE8; padding: 16rpx 0;
+  margin-top: $spacing-lg; text-align: center; font-size: $font-base; color: $primary-color; padding: $spacing-sm 0;
 }
 </style>

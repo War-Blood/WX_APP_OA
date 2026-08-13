@@ -122,7 +122,7 @@ onMounted(loadTrash)
   margin-top: 16px;
 
   .total-text {
-    font-size: 14px;
+    font-size: $font-size-small;
     color: #909399;
   }
 }

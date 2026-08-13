@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import StatCard from '@/components/StatCard.vue'
 import type { AllStatsResponse } from '@/api/report'
 
 defineProps<{
@@ -10,49 +11,22 @@ defineProps<{
 <template>
   <el-row :gutter="16" class="stats-row" v-loading="loading">
     <el-col :span="6">
-      <el-card class="stat-card" shadow="hover">
-        <div class="stat-val">{{ stats?.totalLogs ?? '-' }}</div>
-        <div class="stat-lbl">总日志数</div>
-      </el-card>
+      <StatCard label="总日志数" :value="stats?.totalLogs ?? '-'" />
     </el-col>
     <el-col :span="6">
-      <el-card class="stat-card" shadow="hover">
-        <div class="stat-val" style="color:#409EFF">{{ stats?.monthNew ?? '-' }}</div>
-        <div class="stat-lbl">本月新增</div>
-      </el-card>
+      <StatCard label="本月新增" :value="stats?.monthNew ?? '-'" tone="primary" />
     </el-col>
     <el-col :span="6">
-      <el-card class="stat-card" shadow="hover">
-        <div class="stat-val" style="color:#E6A23C">{{ stats?.delayedTotal ?? '-' }}</div>
-        <div class="stat-lbl">延迟条数</div>
-      </el-card>
+      <StatCard label="延迟条数" :value="stats?.delayedTotal ?? '-'" tone="warning" />
     </el-col>
     <el-col :span="6">
-      <el-card class="stat-card" shadow="hover">
-        <div class="stat-val" style="color:#F56C6C">{{ stats?.missingPersonCount ?? '-' }}</div>
-        <div class="stat-lbl">缺失人次</div>
-      </el-card>
+      <StatCard label="缺失人次" :value="stats?.missingPersonCount ?? '-'" tone="danger" />
     </el-col>
   </el-row>
 </template>
 
 <style scoped lang="scss">
 .stats-row {
-  margin-bottom: 16px;
-
-  .stat-card {
-    text-align: center;
-
-    .stat-val {
-      font-size: 28px;
-      font-weight: 700;
-    }
-
-    .stat-lbl {
-      font-size: 13px;
-      color: #999;
-      margin-top: 4px;
-    }
-  }
+  margin-bottom: $spacing-medium;
 }
 </style>

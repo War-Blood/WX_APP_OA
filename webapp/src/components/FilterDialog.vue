@@ -16,35 +16,46 @@ const emit = defineEmits<{
 const fields = ref<FilterField[]>([])
 const deptTree = ref<DepartmentItem[]>([])
 const treeProps = { label: 'name', children: 'children' }
-// 按角色各自的筛选条件（导航栏切换角色分别配置）
-const ROLE_TABS = [
-  { value: 'employee', label: '普通员工' },
-  { value: 'bm', label: '部门领导' },
-  { value: 'leader', label: '组长' },
-  { value: 'admin', label: '管理员' },
-]
-const activeRole = ref('employee')
-const roleConditions = ref<Record<string, FilterCondition[]>>({ employee: [], bm: [], leader: [], admin: [], superadmin: [] })
-const conditions = computed(() => roleConditions.value[activeRole.value] || [])
-// 上层：视图可见性（角色 → 数据范围）
-const visibility = ref<Record<string, string>>({
+
+// 唯一角色顺序：同时驱动「视图可见性」行与「条件」导航 Tab（修复原有顺序不一致 + 补齐 superadmin）
+const ROLE_ORDER = ['employee', 'bm', 'leader', 'admin', 'superadmin'] as const
+type RoleKey = (typeof ROLE_ORDER)[number]
+const ROLE_LABELS: Record<RoleKey, string> = {
+  employee: '普通员工',
+  bm: '部门领导',
+  leader: '组长',
+  admin: '管理员',
+  superadmin: '超级管理员',
+}
+const ROLE_TABS = ROLE_ORDER.map(r => ({ value: r, label: ROLE_LABELS[r] }))
+const VISIBILITY_ROLES = ROLE_ORDER.map(r => ({ value: r, label: ROLE_LABELS[r] }))
+
+// 上层：视图可见性默认值（角色 → 数据范围）
+const DEFAULT_VISIBILITY: Record<string, string> = {
   employee: 'department',
   bm: 'department_and_children',
   admin: 'all',
   leader: 'group',
-})
+  superadmin: 'all',
+}
+
+const emptyRoleConditions = (): Record<string, FilterCondition[]> => {
+  const out: Record<string, FilterCondition[]> = {}
+  for (const r of ROLE_ORDER) out[r] = []
+  return out
+}
+
+const activeRole = ref('employee')
+const roleConditions = ref<Record<string, FilterCondition[]>>(emptyRoleConditions())
+const conditions = computed(() => roleConditions.value[activeRole.value] || [])
+const visibility = ref<Record<string, string>>({ ...DEFAULT_VISIBILITY })
+
 const SCOPE_OPTIONS = [
   { value: 'all', label: '全部' },
   { value: 'department', label: '本部门' },
   { value: 'department_and_children', label: '本部门及下属' },
   { value: 'self', label: '仅本人' },
   { value: 'group', label: '对应组员' },
-]
-const VISIBILITY_ROLES = [
-  { value: 'employee', label: '普通员工' },
-  { value: 'bm', label: '部门领导' },
-  { value: 'admin', label: '管理员' },
-  { value: 'leader', label: '组长' },
 ]
 
 const OP_OPTIONS = [
@@ -70,21 +81,19 @@ function open() {
     // 角色条件：新格式 roleConditions；旧格式回退用共享 conditions 初始化各角色
     const rc = (filter.roleConditions && typeof filter.roleConditions === 'object') ? filter.roleConditions : {}
     const fallback = (filter.conditions || []).map(c => ({ ...c }))
-    for (const r of ['employee', 'bm', 'leader', 'admin', 'superadmin']) {
+    for (const r of ROLE_ORDER) {
       roleConditions.value[r] = Array.isArray(rc[r]) ? rc[r].map(c => ({ ...c })) : fallback.map(c => ({ ...c }))
     }
     if (filter.visibility && typeof filter.visibility === 'object') {
-      visibility.value = {
-        employee: filter.visibility.employee || 'department',
-        bm: filter.visibility.bm || 'department_and_children',
-        admin: filter.visibility.admin || 'all',
-        leader: filter.visibility.leader || 'group',
+      visibility.value = { ...DEFAULT_VISIBILITY }
+      for (const r of ROLE_ORDER) {
+        if (filter.visibility[r]) visibility.value[r] = filter.visibility[r]
       }
     } else {
-      visibility.value = { employee: 'department', bm: 'department_and_children', admin: 'all', leader: 'group' }
+      visibility.value = { ...DEFAULT_VISIBILITY }
     }
   }).catch(() => {
-    for (const r of ['employee', 'bm', 'leader', 'admin', 'superadmin']) roleConditions.value[r] = []
+    for (const r of ROLE_ORDER) roleConditions.value[r] = []
   })
 }
 
@@ -101,10 +110,16 @@ function changeField(i: number, field: string) {
   conditions.value[i].value = f?.input === 'switch' ? 1 : (f?.input === 'dept_tree' ? null : '')
 }
 
+function reset() {
+  // 清空条件并恢复默认可见性
+  roleConditions.value = emptyRoleConditions()
+  visibility.value = { ...DEFAULT_VISIBILITY }
+}
+
 function apply() {
   const clean = (list: FilterCondition[]) => (list || []).filter(c => c.field)
   const cleaned: Record<string, FilterCondition[]> = {}
-  for (const r of ['employee', 'bm', 'leader', 'admin', 'superadmin']) cleaned[r] = clean(roleConditions.value[r] || [])
+  for (const r of ROLE_ORDER) cleaned[r] = clean(roleConditions.value[r] || [])
   emit('apply', {
     conditions: cleaned[activeRole.value],
     roleConditions: cleaned,
@@ -121,7 +136,7 @@ function apply() {
       <div class="vis-rows">
         <div v-for="r in VISIBILITY_ROLES" :key="r.value" class="vis-row">
           <span class="vis-role">{{ r.label }}</span>
-          <el-select :model-value="visibility[r.value]" style="width: 180px" @update:model-value="visibility[r.value] = $event">
+          <el-select :model-value="visibility[r.value]" class="field-w-180" @update:model-value="visibility[r.value] = $event">
             <el-option v-for="o in SCOPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
         </div>
@@ -135,10 +150,10 @@ function apply() {
     </el-radio-group>
     <div class="cond-rows">
       <div v-for="(c, i) in conditions" :key="i" class="cond-row">
-        <el-select :model-value="c.field" style="width: 150px" @update:model-value="(v: string) => changeField(i, v)">
+        <el-select :model-value="c.field" class="field-w-sm" @update:model-value="(v: string) => changeField(i, v)">
           <el-option v-for="f in fields" :key="f.field" :label="f.label" :value="f.field" />
         </el-select>
-        <el-select :model-value="c.op" style="width: 100px" @update:model-value="c.op = $event">
+        <el-select :model-value="c.op" class="field-w-xs" @update:model-value="c.op = $event">
           <el-option v-for="o in OP_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
         </el-select>
         <!-- 值控件按字段类型动态渲染 -->
@@ -149,7 +164,7 @@ function apply() {
           :props="treeProps"
           node-key="id" value-key="id" clearable check-strictly :render-after-expand="false"
           placeholder="选择部门"
-          style="width: 200px"
+          class="field-w"
           @update:model-value="c.value = $event ? Number($event) : null"
         />
         <el-switch
@@ -161,7 +176,7 @@ function apply() {
           v-else-if="fieldDef(c.field)?.input === 'select' && c.op !== 'in' && c.op !== 'not_in'"
           :model-value="c.value || ''"
           clearable placeholder="选择"
-          style="width: 200px"
+          class="field-w"
           @update:model-value="c.value = $event || ''"
         >
           <el-option v-for="o in (fieldDef(c.field)?.options || [])" :key="o" :label="o" :value="o" />
@@ -170,34 +185,34 @@ function apply() {
           v-else-if="fieldDef(c.field)?.input === 'select' && (c.op === 'in' || c.op === 'not_in')"
           :model-value="(c.value as string[]) || []"
           multiple clearable placeholder="多选"
-          style="width: 200px"
+          class="field-w"
           @update:model-value="c.value = $event"
         >
           <el-option v-for="o in (fieldDef(c.field)?.options || [])" :key="o" :label="o" :value="o" />
         </el-select>
         <template v-else-if="c.op === 'between'">
-          <el-input v-if="fieldDef(c.field)?.type === 'date'" :model-value="((c.value as string[]) || [])[0] || ''" type="date" placeholder="起始" style="width: 130px" @update:model-value="c.value = [$event, ((c.value as string[]) || [])[1] || '']" />
-          <el-input :model-value="((c.value as string[]) || [])[1] || ''" type="date" placeholder="结束" style="width: 130px" @update:model-value="c.value = [((c.value as string[]) || [])[0] || '', $event]" />
+          <el-input v-if="fieldDef(c.field)?.type === 'date'" :model-value="((c.value as string[]) || [])[0] || ''" type="date" placeholder="起始" class="field-w-date" @update:model-value="c.value = [$event, ((c.value as string[]) || [])[1] || '']" />
+          <el-input :model-value="((c.value as string[]) || [])[1] || ''" type="date" placeholder="结束" class="field-w-date" @update:model-value="c.value = [((c.value as string[]) || [])[0] || '', $event]" />
         </template>
         <el-date-picker
           v-else-if="fieldDef(c.field)?.type === 'date'"
           :model-value="c.value || ''"
           value-format="YYYY-MM-DD"
           placeholder="选择日期"
-          style="width: 200px"
+          class="field-w"
           @update:model-value="c.value = $event || ''"
         />
         <el-input-number
           v-else-if="fieldDef(c.field)?.type === 'int'"
           :model-value="Number(c.value) || 0"
-          style="width: 200px"
+          class="field-w"
           @update:model-value="c.value = $event"
         />
         <el-input
           v-else
           :model-value="String(c.value ?? '')"
           clearable placeholder="输入值"
-          style="width: 200px"
+          class="field-w"
           @update:model-value="c.value = $event"
         />
         <el-button type="danger" text @click="removeCondition(i)">×</el-button>
@@ -205,6 +220,7 @@ function apply() {
       <el-button v-if="fields.length" size="small" @click="addCondition">+ 添加条件</el-button>
     </div>
     <template #footer>
+      <el-button @click="reset">重置</el-button>
       <el-button type="primary" @click="apply">应用并保存</el-button>
     </template>
   </el-dialog>
@@ -218,4 +234,10 @@ function apply() {
 .vis-role { width: 90px; font-size: 13px; color: #606266; }
 .cond-rows { display: flex; flex-direction: column; gap: 8px; }
 .cond-row { display: flex; align-items: center; gap: 8px; }
+/* 字段宽度工具类（替代内联 style="width: ...px"，保持视觉宽度一致） */
+.field-w { width: 200px; }
+.field-w-180 { width: 180px; }
+.field-w-sm { width: 150px; }
+.field-w-xs { width: 100px; }
+.field-w-date { width: 130px; }
 </style>

@@ -133,6 +133,8 @@ onMounted(() => {
       </el-table-column>
     </el-table>
 
+    <el-empty v-if="!loading && !list.length" description="暂无审核记录" />
+
     <!-- 分页 -->
     <div class="pagination-wrap">
       <span class="total-text">共 {{ total }} 条</span>
@@ -186,23 +188,21 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-.audit-page { padding: 20px; }
-
 .toolbar {
-  margin-bottom: 16px;
+  margin-bottom: $spacing-medium;
 }
 
 .review-detail {
-  margin-bottom: 8px;
+  margin-bottom: $spacing-small;
 }
 
 .review-section {
-  margin-bottom: 16px;
+  margin-bottom: $spacing-medium;
 
   .section-title {
     font-weight: 600;
-    margin-bottom: 8px;
-    color: #303133;
+    margin-bottom: $spacing-small;
+    color: $text-primary;
   }
 }
 
@@ -210,15 +210,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 16px;
+  margin-top: $spacing-medium;
 
   .total-text {
-    font-size: 14px;
-    color: #909399;
+    font-size: $font-size-base;
+    color: $text-secondary;
   }
 }
 
 .reviewed-text {
-  color: #c0c4cc;
+  color: $text-placeholder;
 }
 </style>

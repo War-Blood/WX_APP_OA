@@ -19,10 +19,7 @@
         <text class="entry-value">{{ entryDateDisplay }}</text>
       </view>
       <view class="stat-grid">
-        <view v-for="s in statCards" :key="s.key" class="stat-card">
-          <text class="stat-num" :class="s.colorClass">{{ s.value }}</text>
-          <text class="stat-lbl">{{ s.label }}</text>
-        </view>
+        <StatCard v-for="s in statCards" :key="s.key" :value="s.value" :label="s.label" :tone="s.tone" />
       </view>
       <view v-if="personalStats.missingDates?.length" class="card">
         <text class="card-title">缺失日期（最近30条）</text>
@@ -79,101 +76,17 @@
         </view>
       </view>
 
-      <!-- 今日模式:摘要统计条 -->
-      <view v-if="dailyMode === 'today' && dailyResponse" class="summary-bar">
-        <view class="summary-item summary-item--submitted">
-          <text class="summary-val">{{ dailySubmitted }}</text>
-          <text class="summary-lbl">已提交</text>
-        </view>
-        <view class="summary-item summary-item--missing">
-          <text class="summary-val" :class="{ 'summary-val--danger': dailyMissing > 0 }">{{ dailyMissing }}</text>
-          <text class="summary-lbl">缺失</text>
-        </view>
-        <view class="summary-item summary-item--total">
-          <text class="summary-val">{{ dailySubmitted + dailyMissing }}</text>
-          <text class="summary-lbl">总人数</text>
-        </view>
+      <!-- 今日模式:加载/空/列表 -->
+      <view v-if="dailyMode === 'today'" class="daily-panel-wrap">
+        <DailyStatusPanel
+          :response="dailyResponse"
+          :loading="dailyLoading"
+          :show-total="true"
+          :refreshing="refreshing"
+          @go-detail="goDailyDetail"
+          @refresherrefresh="onRefresh"
+        />
       </view>
-
-      <!-- 今日模式:加载/空状态 -->
-      <view v-if="dailyMode === 'today' && dailyLoading" class="loading"><text>加载中...</text></view>
-      <view v-else-if="dailyMode === 'today' && !dailyResponse" class="empty"><text>暂无数据</text></view>
-
-      <!-- 今日模式:内容列表 -->
-      <scroll-view v-else-if="dailyMode === 'today'" class="daily-scroll" scroll-y>
-        <!-- 缺失人员 -->
-        <view v-if="dailyMissingWorkers.length" class="daily-section">
-          <text class="section-header section-header--missing">未提交 ({{ dailyMissingWorkers.length }})</text>
-          <view class="daily-card-list">
-            <view v-for="w in dailyMissingWorkers" :key="w.userId" class="worker-card worker-card--missing">
-              <view class="card-left">
-                <text class="card-name">{{ w.userName }}</text>
-                <text class="card-code">{{ w.workerCode || '' }}</text>
-              </view>
-              <text class="card-status-tag tag--missing">未提交</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 补公出 -->
-        <view v-if="dailySupplementWorkers.length" class="daily-section">
-          <text class="section-header section-header--supplement">补公出 ({{ dailySupplementWorkers.length }})</text>
-          <view class="daily-card-list">
-            <view v-for="w in dailySupplementWorkers" :key="w.userId" class="worker-card" :class="'worker-card--' + w.status" @tap="goDailyDetail(w)">
-              <view class="card-left">
-                <text class="card-name">{{ w.userName }}</text>
-                <text class="card-code">{{ w.workerCode || '' }}</text>
-              </view>
-              <view class="card-mid">
-                <text v-if="w.project" class="card-project">{{ w.project }}</text>
-                <text v-if="w.area" class="card-area">{{ w.area }}</text>
-              </view>
-              <view class="card-right">
-                <text class="card-status-tag tag--supplement">补公出</text>
-                <text v-if="w.workType" class="card-work-type">{{ w.workType }}</text>
-                <text v-if="w.submittedAt" class="card-time">{{ fmtTime(w.submittedAt) }}</text>
-              </view>
-            </view>
-          </view>
-        </view>
-
-        <!-- 请假/调休 -->
-        <view v-if="dailyLeaveWorkers.length" class="daily-section">
-          <text class="section-header section-header--leave">请假/调休 ({{ dailyLeaveWorkers.length }})</text>
-          <view class="daily-card-list">
-            <view v-for="w in dailyLeaveWorkers" :key="w.userId" class="worker-card worker-card--leave">
-              <view class="card-left">
-                <text class="card-name">{{ w.userName }}</text>
-                <text class="card-code">{{ w.workerCode || '' }}</text>
-              </view>
-              <text class="card-status-tag" :class="'tag--' + w.status">{{ statusLabel(w.status) }}</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 已提交 -->
-        <view v-if="dailyActiveWorkers.length" class="daily-section">
-          <text class="section-header section-header--active">已提交 ({{ dailyActiveWorkers.length }})</text>
-          <view class="daily-card-list">
-            <view v-for="w in dailyActiveWorkers" :key="w.userId" class="worker-card" :class="'worker-card--' + w.status" @tap="goDailyDetail(w)">
-              <view class="card-left">
-                <text class="card-name">{{ w.userName }}</text>
-                <text class="card-code">{{ w.workerCode || '' }}</text>
-              </view>
-              <view class="card-mid">
-                <text v-if="w.project" class="card-project">{{ w.project }}</text>
-                <text v-if="w.area" class="card-area">{{ w.area }}</text>
-              </view>
-              <view class="card-right">
-                <text class="card-status-tag" :class="'tag--' + w.status">{{ statusLabel(w.status) }}</text>
-                <text v-if="w.workType" class="card-work-type">{{ w.workType }}</text>
-                <text v-if="w.submittedAt" class="card-time">{{ fmtTime(w.submittedAt) }}</text>
-              </view>
-            </view>
-          </view>
-        </view>
-        <view class="spacer" />
-      </scroll-view>
 
       <!-- 明日模式:加载/空状态 -->
       <view v-if="dailyMode === 'tomorrow' && tomorrowLoading" class="loading"><text>加载中...</text></view>
@@ -209,7 +122,7 @@
       </view>
       <view class="legend">
         <view v-for="l in calLegend" :key="l.label" class="legend-item">
-          <view class="legend-dot" :style="{ background: l.color }" /><text>{{ l.label }}</text>
+          <view class="legend-dot" :class="l.cls" /><text>{{ l.label }}</text>
         </view>
       </view>
       <view v-if="calLoading" class="loading"><text>加载中...</text></view>
@@ -237,7 +150,7 @@
         <view class="nav-btn" @tap="projNext"><text class="nav-icon">›</text></view>
       </view>
       <view v-if="projLoading" class="loading"><text>加载中...</text></view>
-      <view v-else-if="!projData.length" class="empty"><text>暂无项目数据</text></view>
+      <EmptyState v-else-if="!projData.length" title="暂无数据" />
       <view v-else class="proj-list">
         <view v-for="p in projData" :key="p.project" class="card proj-card" @tap="openProjDetail(p)">
           <view class="proj-head">
@@ -248,7 +161,7 @@
             <text>完成 {{ p.completedQty }} / 需求 {{ p.requiredQty }}</text>
             <text class="proj-info">{{ p.logCount }}条 · {{ p.dayCount }}天</text>
           </view>
-          <view class="proj-track"><view class="proj-fill" :style="{ width: (p.progress ?? 0) + '%', background: projColor(p.progress) }" /></view>
+          <view class="proj-track"><view class="proj-fill" :class="projFillClass(p.progress)" :style="{ width: (p.progress ?? 0) + '%' }" /></view>
           <text class="proj-pct">{{ p.progress !== null ? p.progress + '%' : '无数据' }}</text>
         </view>
       </view>
@@ -288,7 +201,7 @@
               <text class="wt-c wt-name">{{ w.userName }}</text>
               <text class="wt-c wt-val wt-supp">{{ w.supplementCount || 0 }}</text>
               <text class="wt-c wt-val wt-office">{{ w.officeCount || 0 }}</text>
-              <text v-for="l in wtLabels" :key="l" class="wt-c wt-val" :style="{ background: wtCellBg(w.workTypes[l], wtMax(l)) }">{{ w.workTypes[l] || 0 }}</text>
+              <text v-for="l in wtLabels" :key="l" class="wt-c wt-val" :class="wtCellClass(w.workTypes[l], wtMax(l))">{{ w.workTypes[l] || 0 }}</text>
               <text class="wt-c wt-val wt-total">{{ w.total }}</text>
             </view>
           </view>
@@ -387,6 +300,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
+import DailyStatusPanel from '@/components/daily-status-panel/index.vue'
+import StatCard from '@/components/stat-card/index.vue'
+import EmptyState from '@/components/empty-state/index.vue'
 import { reportApi } from '@/services/modules/report'
 import { useUserStore } from '@/stores/user'
 
@@ -431,10 +347,10 @@ const entryDateDisplay = computed(() => personalStats.value.entryDate || userSto
 const statCards = computed(() => {
   const s = personalStats.value
   return [
-    { key:'total',   label:'累计条数', value: s.totalCount,   colorClass:'stat-num--primary' },
-    { key:'month',   label:'当月条数', value: s.monthCount,   colorClass:'stat-num--success' },
-    { key:'missing', label:'缺失天数', value: s.missingDays,  colorClass: s.missingDays > 0 ? 'stat-num--danger' : 'stat-num--success' },
-    { key:'delay',   label:'延迟条数', value: s.delayedCount, colorClass: s.delayedCount > 0 ? 'stat-num--warning' : 'stat-num--success' }
+    { key:'total',   label:'累计条数', value: s.totalCount,   tone:'primary' },
+    { key:'month',   label:'当月条数', value: s.monthCount,   tone:'success' },
+    { key:'missing', label:'缺失天数', value: s.missingDays,  tone: s.missingDays > 0 ? 'danger' : 'success' },
+    { key:'delay',   label:'延迟条数', value: s.delayedCount, tone: s.delayedCount > 0 ? 'warning' : 'success' }
   ]
 })
 
@@ -446,9 +362,9 @@ const calData = ref([])
 const calLoading = ref(false)
 const dayHeaders = ['一','二','三','四','五','六','日']
 const calLegend = [
-  { label:'全员提交', color:'#E8F5E9' },
-  { label:'部分提交', color:'#FFFFFF' },
-  { label:'无数据', color:'#F0F0F0' },
+  { label:'全员提交', cls:'legend-dot--full' },
+  { label:'部分提交', cls:'legend-dot--partial' },
+  { label:'无数据', cls:'legend-dot--nodata' },
 ]
 const calMonthLabel = computed(() => { const [y,m] = calMonth.value.split('-'); return y + '年' + parseInt(m) + '月' })
 
@@ -471,7 +387,7 @@ const calendarGrid = computed(() => {
   return rows
 })
 
-// 背景规则：全员提交→淡绿；部分提交→白；无数据(休息/未到)→浅灰
+// 背景规则：全员提交→淡绿；部分提交→浅蓝；无数据(休息/未到)→浅灰
 function calClass(cell) {
   if (!cell) return 'cal-empty'
   if (!cell.hasData) return 'cal-nodata'
@@ -487,7 +403,7 @@ const projData = ref([])
 const projLoading = ref(false)
 function projPrev() { projMonth.value = prevM(projMonth.value); loadProjects() }
 function projNext() { projMonth.value = nextM(projMonth.value); loadProjects() }
-function projColor(p) { if (p === null) return '#C0C4CC'; if (p < 50) return '#EF4444'; if (p < 80) return '#F59E0B'; return '#22C55E' }
+function projFillClass(p) { if (p === null) return 'proj-fill--empty'; if (p < 50) return 'proj-fill--danger'; if (p < 80) return 'proj-fill--warning'; return 'proj-fill--success' }
 
 // ============ 人员分布 ============
 const workTypeData = ref([])
@@ -495,7 +411,7 @@ const workTypeMonth = ref(nowMonth())
 const wtLabels = ['工作（陆）','工作（海）','待工','在途','请假']
 const wtShort = ['陆','海','待','途','假']
 function wtMax(k) { return Math.max(1, ...workTypeData.value.map(w => w.workTypes[k] || 0)) }
-function wtCellBg(v, max) { if (!v) return 'transparent'; const p = v / max; return p <= .25 ? '#E8F5E9' : p <= .5 ? '#A5D6A7' : '#66BB6A' }
+function wtCellClass(v, max) { if (!v) return 'wt-cell--h0'; const p = v / max; return p <= .25 ? 'wt-cell--h1' : p <= .5 ? 'wt-cell--h2' : p <= .75 ? 'wt-cell--h3' : 'wt-cell--h4' }
 // 汇总行：各列合计 + 补录合计 + 总计
 const wtSummary = computed(() => {
   const s = { workTypes: {}, supplement: 0, office: 0, total: 0 }
@@ -594,25 +510,6 @@ const dailyDateDisplay = computed(() => {
   if (dailyDate.value === yesterday()) return '昨天 ' + dailyDate.value
   return dailyDate.value
 })
-
-const dailyMissing = computed(() => dailyResponse.value?.summary?.missing || 0)
-const dailySubmitted = computed(() => {
-  if (!dailyResponse.value) return 0
-  const s = dailyResponse.value.summary
-  return (s.submitted || 0) + (s.substituted || 0) + (s.supplement || 0) + (s.office || 0) + (s.leave || 0)
-})
-
-const dailyMissingWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'missing'))
-const dailySupplementWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'supplement'))
-const dailyActiveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status !== 'missing' && w.status !== 'leave' && w.status !== 'supplement'))
-const dailyLeaveWorkers = computed(() => (dailyResponse.value?.workers || []).filter(w => w.status === 'leave'))
-
-function fmtTime(dt) { if (!dt) return ''; const p = String(dt).split(' '); return p[1] ? p[1].slice(0, 5) : dt }
-
-function statusLabel(s) {
-  const m = { submitted: '已提交', supplement: '补公出', office: '工作日报', substituted: '已代填', leave: '请假', missing: '未提交' }
-  return m[s] || s
-}
 
 async function loadDailyStatus() {
   dailyLoading.value = true
@@ -736,6 +633,9 @@ onMounted(async () => {
 <style lang="scss" scoped>
 @import '@/uni.scss';
 
+// 状态徽章/摘要浅色底（设计规范 §5，暂无独立令牌，本地变量统一管理）
+$tint-danger: #FFF0F0;
+
 // ===== 布局 =====
 .page { width:100%; height:100vh; background:$bg-color; display:flex; flex-direction:column; }
 .content-scroll { flex:1; height:0; padding:0 $spacing-base; }
@@ -759,17 +659,10 @@ onMounted(async () => {
 
 // ===== 四格统计 =====
 .stat-grid { display:flex; gap:$spacing-sm; margin-bottom:$spacing-sm; }
-.stat-card { flex:1; background:$bg-card; border-radius:$radius-lg; padding:20rpx 12rpx; display:flex; flex-direction:column; align-items:center; gap:6rpx; box-shadow:0 2rpx 12rpx rgba(0,0,0,.04); }
-.stat-num { font-size:38rpx; font-weight:700; line-height:1.2; }
-.stat-lbl { font-size:$font-xs; color:$text-secondary; }
-.stat-num--primary { color:$primary-color; }
-.stat-num--success { color:$success-color; }
-.stat-num--danger  { color:$danger-color; }
-.stat-num--warning { color:$warning-color; }
 
 // ===== 缺失日期 =====
 .missing-tags { display:flex; flex-wrap:wrap; gap:$spacing-xs; margin-top:$spacing-sm; }
-.missing-tag { padding:6rpx 14rpx; background:#FFF0F0; border-radius:$radius-sm; font-size:$font-sm; color:$danger-color; }
+.missing-tag { padding:6rpx 14rpx; background:$tint-danger; border-radius:$radius-sm; font-size:$font-sm; color:$danger-color; }
 
 // ===== 月度占比 =====
 .ratio-list { display:flex; flex-direction:column; gap:14rpx; }
@@ -802,34 +695,41 @@ onMounted(async () => {
 
 // ===== 图例 =====
 .legend { display:flex; gap:20rpx; justify-content:center; padding-bottom:$spacing-sm; }
-.legend-item { display:flex; align-items:center; gap:4rpx; font-size:20rpx; color:$text-secondary; }
+.legend-item { display:flex; align-items:center; gap:4rpx; font-size:$font-xs; color:$text-secondary; }
 .legend-dot { width:18rpx; height:18rpx; border-radius:4rpx; }
+.legend-dot--full    { background:map-get($heat-green, h1); }
+.legend-dot--partial { background:$primary-bg; }
+.legend-dot--nodata  { background:$border-light; }
 
 // ===== 日历网格 =====
 .cal-grid { background:$bg-card; border-radius:$radius-lg; padding:12rpx; box-shadow:0 2rpx 12rpx rgba(0,0,0,.04); }
 .cal-row { display:flex; }
 .cal-head { margin-bottom:2rpx; }
-.cal-hd { flex:1; text-align:center; font-size:20rpx; color:$text-secondary; padding:6rpx 0; }
+.cal-hd { flex:1; text-align:center; font-size:$font-xs; color:$text-secondary; padding:6rpx 0; }
 .cal-cell { flex:1; aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:4rpx; margin:2rpx; }
 .cal-empty { background:transparent; }
-.cal-nodata { background:#F0F0F0; }
-.cal-full { background:#E8F5E9; }
-.cal-partial { background:#FFFFFF; border:1rpx solid #E5E7EB; }
+.cal-nodata { background:$border-light; }
+.cal-full { background:map-get($heat-green, h1); }
+.cal-partial { background:$primary-bg; border:1rpx solid $border-color; }
 .cal-partial .cal-n { color:$primary-color; }
-.cal-full .cal-n { color:#22C55E; }
+.cal-full .cal-n { color:$success-color; }
 .cal-d { font-size:22rpx; font-weight:500; color:$text-primary; line-height:1.2; }
-.cal-n { font-size:20rpx; font-weight:700; color:$text-regular; line-height:1.2; }
+.cal-n { font-size:$font-xs; font-weight:700; color:$text-regular; line-height:1.2; }
 
 // ===== 项目进展 =====
 .proj-list { display:flex; flex-direction:column; gap:$spacing-sm; }
 .proj-card { margin-bottom:0 !important; }
 .proj-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10rpx; }
 .proj-name { font-size:28rpx; font-weight:600; color:$text-primary; }
-.proj-tag { font-size:20rpx; color:$text-secondary; background:$bg-form; padding:2rpx 10rpx; border-radius:$radius-sm; }
+.proj-tag { font-size:$font-xs; color:$text-secondary; background:$bg-form; padding:2rpx 10rpx; border-radius:$radius-sm; }
 .proj-meta { display:flex; justify-content:space-between; margin-bottom:10rpx; font-size:$font-sm; color:$text-regular; }
 .proj-info { color:$text-secondary; font-size:$font-xs; }
 .proj-track { height:14rpx; background:$border-light; border-radius:7rpx; overflow:hidden; margin-bottom:6rpx; }
 .proj-fill { height:100%; border-radius:7rpx; transition:width .5s; min-width:2rpx; }
+.proj-fill--empty   { background:$text-placeholder; }
+.proj-fill--danger  { background:$danger-color; }
+.proj-fill--warning { background:$warning-color; }
+.proj-fill--success { background:$success-color; }
 .proj-pct { font-size:$font-sm; font-weight:600; color:$text-primary; text-align:right; display:block; }
 
 // ===== 工作类型表格 =====
@@ -838,14 +738,19 @@ onMounted(async () => {
 .wt-table { display:inline-flex; flex-direction:column; min-width:100%; }
 .wt-row { display:flex; border-bottom:1rpx solid $border-light; }
 .wt-head { background:#F7F8FA; border-radius:$radius-sm $radius-sm 0 0; }
-.wt-c { padding:10rpx 6rpx; font-size:20rpx; text-align:center; display:flex; align-items:center; justify-content:center; }
-.wt-name { width:100rpx; flex-shrink:0; font-weight:500; color:$text-primary; justify-content:flex-start; padding-left:12rpx; }
-.wt-supp { color:#F59E0B; font-weight:600; }
-.wt-office { color:#22C55E; font-weight:600; }
-.wt-val { width:52rpx; flex-shrink:0; border-radius:4rpx; margin:1rpx; }
+.wt-c { padding:10rpx 6rpx; font-size:$font-xs; text-align:center; display:flex; align-items:center; justify-content:center; }
+.wt-name { width:104rpx; flex-shrink:0; font-weight:500; color:$text-primary; justify-content:flex-start; padding-left:12rpx; }
+.wt-supp { color:$warning-color; font-weight:600; }
+.wt-office { color:$success-color; font-weight:600; }
+.wt-val { width:56rpx; flex-shrink:0; border-radius:4rpx; margin:1rpx; }
 .wt-total { font-weight:700; color:$primary-color; }
-.wt-summary { background:#F0F7FF; font-weight:600; }
+.wt-summary { background:$primary-bg; font-weight:600; }
 .wt-summary .wt-c { color:$text-primary; font-weight:600; }
+.wt-cell--h0 { background:transparent; }
+.wt-cell--h1 { background:map-get($heat-green, h1); color:$text-primary; }
+.wt-cell--h2 { background:map-get($heat-green, h2); color:$text-primary; }
+.wt-cell--h3 { background:map-get($heat-green, h3); color:$text-primary; }
+.wt-cell--h4 { background:map-get($heat-green, h4); color:#FFFFFF; }
 
 // ===== 省份排行 =====
 .area-list { display:flex; flex-direction:column; }
@@ -868,6 +773,7 @@ onMounted(async () => {
 
 // ===== 全员当日 =====
 .daily-tab { display:flex; flex-direction:column; flex:1; height:0; }
+.daily-panel-wrap { flex:1; height:0; min-height:0; display:flex; flex-direction:column; }
 .date-bar { display:flex; align-items:center; justify-content:center; gap:$spacing-sm; padding:$spacing-sm $spacing-base; background:$bg-card; flex-shrink:0; }
 .date-nav-btn { width:64rpx; height:64rpx; display:flex; align-items:center; justify-content:center; background:#F7F8FA; border-radius:$radius-base; }
 .date-nav-btn:active { background:#EBEDF0; }
@@ -881,52 +787,22 @@ onMounted(async () => {
 .daily-seg-item--active { background:$primary-color; }
 .daily-seg-text { font-size:$font-sm; color:$text-regular; font-weight:500; }
 .daily-seg-item--active .daily-seg-text { color:#FFFFFF; }
-.summary-bar { display:flex; gap:$spacing-sm; padding:$spacing-sm $spacing-base; flex-shrink:0; }
-.summary-item { flex:1; display:flex; align-items:center; gap:8rpx; padding:16rpx 20rpx; border-radius:$radius-base; }
-.summary-item--submitted { background:#EFFDF5; }
-.summary-item--missing { background:#FFF0F0; }
-.summary-item--total { background:#F0F7FF; }
-.summary-val { font-size:36rpx; font-weight:700; color:$success-color; }
-.summary-val--danger { color:$danger-color; }
-.summary-item--total .summary-val { color:$primary-color; }
-.summary-lbl { font-size:$font-sm; color:$text-regular; }
 .daily-scroll { flex:1; height:0; padding:0 $spacing-base; }
 .daily-section { margin-bottom:$spacing-sm; }
 .section-header { font-size:26rpx; font-weight:600; padding:12rpx 0; display:block; }
-.section-header--missing { color:$danger-color; }
-.section-header--active  { color:$success-color; }
-.section-header--leave   { color:$text-secondary; }
 .section-header--tomorrow { color:$primary-color; }
 .daily-card-list { display:flex; flex-direction:column; gap:$spacing-xs; }
 .worker-card {
   display:flex; align-items:center; padding:20rpx $spacing-base; background:$bg-card;
   border-radius:$radius-base; box-shadow:0 2rpx 12rpx rgba(0,0,0,.04);
 }
-.worker-card--missing { border-left:6rpx solid $danger-color; background:#FFF5F5; }
-.worker-card--leave { border-left:6rpx solid $text-placeholder; }
-.worker-card--submitted { border-left:6rpx solid $success-color; }
-.worker-card--supplement { border-left:6rpx solid $warning-color; }
-.worker-card--office { border-left:6rpx solid $primary-color; }
-.worker-card--substituted { border-left:6rpx solid #6366F1; }
 .worker-card--tomorrow { border-left:6rpx solid $primary-color; }
 .card-left { display:flex; flex-direction:column; gap:4rpx; width:140rpx; flex-shrink:0; }
 .card-name { font-size:26rpx; font-weight:600; color:$text-primary; }
-.card-code { font-size:$font-xs; color:$text-secondary; }
-.card-mid { flex:1; min-width:0; display:flex; flex-direction:column; gap:4rpx; }
 .card-project { font-size:$font-sm; color:$text-primary; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.card-area { font-size:$font-xs; color:$text-secondary; }
 .card-right { display:flex; flex-direction:column; align-items:flex-end; gap:4rpx; flex-shrink:0; margin-left:$spacing-sm; }
 .card-work-type { font-size:$font-xs; color:$primary-color; }
 .card-work-type--empty { color:$text-secondary; }
-.card-time { font-size:18rpx; color:$text-placeholder; }
-.card-status-tag { font-size:$font-xs; font-weight:500; padding:2rpx 10rpx; border-radius:$radius-sm; }
-.tag--submitted   { background:#EFFDF5; color:$success-color; }
-.tag--supplement  { background:#FFF8E1; color:$warning-color; }
-.tag--office      { background:$primary-bg; color:$primary-color; }
-.tag--substituted { background:#FFF0F5; color:#6366F1; }
-.tag--leave       { background:#F5F3FF; color:#8B5CF6; }
-.tag--rest        { background:#FDF2F8; color:#EC4899; }
-.tag--missing     { background:#FFF0F0; color:$danger-color; }
 
 // ===== drill-down 弹窗 =====
 .drill-overlay {
@@ -960,7 +836,7 @@ onMounted(async () => {
 .drill-log-head { display:flex; align-items:center; gap:12rpx; margin-bottom:4rpx; }
 .drill-log-date { font-size:24rpx; font-weight:500; color:$text-primary; }
 .drill-log-type { font-size:20rpx; color:$primary-color; font-weight:500; }
-.drill-log-by { font-size:18rpx; color:$text-placeholder; margin-left:auto; }
+.drill-log-by { font-size:$font-xs; color:$text-placeholder; margin-left:auto; }
 .drill-log-proj { font-size:20rpx; color:$text-secondary; display:block; margin-bottom:2rpx; }
-.drill-log-content { font-size:20rpx; color:$text-regular; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.drill-log-content { font-size:$font-xs; color:$text-regular; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>

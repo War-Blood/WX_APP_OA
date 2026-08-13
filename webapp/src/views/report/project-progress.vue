@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { getProjectProgress, getReportList, type ProjectProgressItem } from '@/api/report'
 import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
+import SectionCard from '@/components/SectionCard.vue'
 
 const progLoading = ref(false)
 const progList = ref<ProjectProgressItem[]>([])
@@ -61,17 +62,12 @@ onMounted(loadProjects)
 
 <template>
   <div class="project-page">
-    <el-card class="section-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span>项目进展看板（MAX 取值）</span>
-          <div class="card-header-right">
-            <el-button size="small" @click="prevProgMonth">‹</el-button>
-            <span class="month-label">{{ progMonth }}</span>
-            <el-button size="small" @click="nextProgMonth">›</el-button>
-            <el-button :icon="Refresh" size="small" text @click="loadProjects">刷新</el-button>
-          </div>
-        </div>
+    <SectionCard title="项目进展看板" subtitle="MAX 取值">
+      <template #actions>
+        <el-button size="small" @click="prevProgMonth">‹</el-button>
+        <span class="month-label">{{ progMonth }}</span>
+        <el-button size="small" @click="nextProgMonth">›</el-button>
+        <el-button :icon="Refresh" size="small" text @click="loadProjects">刷新</el-button>
       </template>
       <el-table :data="progList" v-loading="progLoading" stripe border @row-click="openProjLogs" highlight-current-row style="cursor:pointer">
         <el-table-column prop="project" label="项目名称" min-width="140" show-overflow-tooltip />
@@ -93,6 +89,7 @@ onMounted(loadProjects)
         <el-table-column prop="logCount" label="日志条数" width="90" align="center" />
         <el-table-column prop="dayCount" label="天数" width="70" align="center" />
       </el-table>
+      <el-empty v-if="!progLoading && !progList.length" description="本月暂无项目数据" />
 
       <el-dialog v-model="projLogVisible" :title="'项目日志：' + projLogTitle" width="800px" destroy-on-close>
         <el-table :data="projLogList" v-loading="projLogLoading" stripe border max-height="500">
@@ -109,33 +106,6 @@ onMounted(loadProjects)
           </el-table-column>
         </el-table>
       </el-dialog>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
-
-<style scoped lang="scss">
-.project-page { padding: 20px; }
-
-.section-card {
-  .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-weight: 500;
-
-    .card-header-right {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .month-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: #333;
-      min-width: 80px;
-      text-align: center;
-    }
-  }
-}
-</style>

@@ -5,6 +5,7 @@ import { getWorkerStats } from '@/api/report'
 import type { StatsViewFilter } from '@/api/statsView'
 import { createStatsView } from '@/api/statsView'
 import FilterDialog from '@/components/FilterDialog.vue'
+import SectionCard from '@/components/SectionCard.vue'
 import { useUserStore } from '@/stores/user'
 import { toast } from '@/utils/toast'
 
@@ -48,13 +49,10 @@ onMounted(loadWorkers)
 
 <template>
   <div class="worker-page">
-    <el-card class="section-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span>按人员维度</span>
-          <el-button v-if="userStore.isAdmin" size="small" @click="showFilter = true">筛选</el-button>
-          <el-button :icon="Refresh" size="small" text @click="loadWorkers">刷新</el-button>
-        </div>
+    <SectionCard title="按人员维度">
+      <template #actions>
+        <el-button v-if="userStore.isAdmin" size="small" @click="showFilter = true">筛选</el-button>
+        <el-button :icon="Refresh" size="small" text @click="loadWorkers">刷新</el-button>
       </template>
       <el-table :data="workerList" v-loading="workerLoading" stripe border>
         <el-table-column prop="name" label="人员" width="120" />
@@ -62,35 +60,25 @@ onMounted(loadWorkers)
         <el-table-column prop="monthCount" label="本月" width="80" align="center" sortable />
         <el-table-column prop="lastDate" label="最近提交" width="120" align="center" sortable />
       </el-table>
+      <el-empty v-if="!workerLoading && !workerList.length" description="暂无人员数据" />
       <div class="pagination-wrap">
         <span class="total-text">共 {{ workerTotal }} 人</span>
       </div>
-    </el-card>
+    </SectionCard>
     <FilterDialog v-model="showFilter" stat-key="workers" @apply="onFilterApply" />
   </div>
 </template>
 
 <style scoped lang="scss">
-.worker-page { padding: 20px; }
-
-.section-card {
-  .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-weight: 500;
-  }
-}
-
 .pagination-wrap {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 16px;
+  margin-top: $spacing-medium;
 
   .total-text {
-    font-size: 14px;
-    color: #909399;
+    font-size: $font-size-base;
+    color: $text-secondary;
   }
 }
 </style>

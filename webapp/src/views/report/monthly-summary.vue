@@ -4,6 +4,8 @@ import { ref, onMounted, computed } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { getMonthlySummary, type MonthlySummaryResponse } from '@/api/report'
 import { getWorkerList, type WorkerItem } from '@/api/admin'
+import StatCard from '@/components/StatCard.vue'
+import { CHART_COLORS } from '@/utils/chart'
 
 // 人员列表
 const workers = ref<WorkerItem[]>([])
@@ -20,11 +22,11 @@ const data = ref<MonthlySummaryResponse | null>(null)
 const workTypeKeys = ['工作（陆）', '工作（海）', '待工', '在途', '请假']
 
 const barColors: Record<string, string> = {
-  '工作（陆）': '#409EFF',
-  '工作（海）': '#67C23A',
-  '待工': '#E6A23C',
-  '在途': '#909399',
-  '请假': '#F56C6C'
+  '工作（陆）': CHART_COLORS.primary,
+  '工作（海）': CHART_COLORS.success,
+  '待工': CHART_COLORS.warning,
+  '在途': CHART_COLORS.info,
+  '请假': CHART_COLORS.danger
 }
 
 const selectedUserName = computed(() => {
@@ -123,22 +125,13 @@ onMounted(() => {
       <!-- 出勤概览 -->
       <el-row :gutter="16" class="attendance-row">
         <el-col :span="8">
-          <div class="attendance-item">
-            <div class="attendance-val">{{ data.workDays }}</div>
-            <div class="attendance-lbl">应出勤天数</div>
-          </div>
+          <StatCard label="应出勤天数" :value="data.workDays" size="md" />
         </el-col>
         <el-col :span="8">
-          <div class="attendance-item">
-            <div class="attendance-val" style="color:#409EFF">{{ data.totalSubmitted }}</div>
-            <div class="attendance-lbl">已填报天数</div>
-          </div>
+          <StatCard label="已填报天数" :value="data.totalSubmitted" size="md" tone="primary" />
         </el-col>
         <el-col :span="8">
-          <div class="attendance-item">
-            <div class="attendance-val" style="color:#F56C6C">{{ data.workDays - data.totalSubmitted }}</div>
-            <div class="attendance-lbl">缺报天数</div>
-          </div>
+          <StatCard label="缺报天数" :value="data.workDays - data.totalSubmitted" size="md" tone="danger" />
         </el-col>
       </el-row>
 
@@ -162,7 +155,7 @@ onMounted(() => {
                 class="bar-fill"
                 :style="{
                   width: data.ratio[key] || '0%',
-                  backgroundColor: barColors[key] || '#dcdfe6'
+                  backgroundColor: barColors[key] || 'var(--border-color)'
                 }"
               />
             </div>
@@ -181,49 +174,27 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
-.monthly-summary-page { padding: 20px; }
-
 .selector-bar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: $spacing-medium;
+  margin-bottom: $spacing-large;
 
   .selector-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: $spacing-small;
 
     .selector-label {
-      font-size: 14px;
-      color: #606266;
+      font-size: $font-size-base;
+      color: $text-regular;
       white-space: nowrap;
     }
   }
 }
 
 .attendance-row {
-  margin-bottom: 20px;
-
-  .attendance-item {
-    text-align: center;
-    padding: 16px;
-    background: #fff;
-    border-radius: 8px;
-    border: 1px solid #ebeef5;
-
-    .attendance-val {
-      font-size: 28px;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .attendance-lbl {
-      font-size: 13px;
-      color: #909399;
-      margin-top: 4px;
-    }
-  }
+  margin-bottom: $spacing-large;
 }
 
 .chart-card {
@@ -233,7 +204,7 @@ onMounted(() => {
 }
 
 .bar-chart {
-  padding: 8px 0;
+  padding: $spacing-small 0;
 }
 
 .bar-row {
@@ -248,24 +219,25 @@ onMounted(() => {
 
 .bar-label {
   width: 80px;
-  font-size: 13px;
-  color: #606266;
+  font-size: $font-size-small;
+  color: $text-regular;
   flex-shrink: 0;
   text-align: right;
-  padding-right: 12px;
+  padding-right: $spacing-base;
 }
 
 .bar-track {
   flex: 1;
   height: 24px;
-  background: #f5f7fa;
-  border-radius: 4px;
+  background: $bg-color;
+  border-radius: $border-radius-base;
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: 4px;
+  border-radius: $border-radius-base;
+  background-color: $border-color;
   transition: width 0.6s ease;
   min-width: 2px;
 }
@@ -274,19 +246,19 @@ onMounted(() => {
   width: 100px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-left: 12px;
+  gap: $spacing-small;
+  padding-left: $spacing-base;
   flex-shrink: 0;
 
   .bar-percent {
-    font-size: 13px;
+    font-size: $font-size-small;
     font-weight: 600;
-    color: #303133;
+    color: $text-primary;
   }
 
   .bar-days {
-    font-size: 12px;
-    color: #909399;
+    font-size: $font-size-extra-small;
+    color: $text-secondary;
   }
 }
 </style>
