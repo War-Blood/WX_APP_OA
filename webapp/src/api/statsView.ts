@@ -38,9 +38,9 @@ export interface StatsView {
   scopeRules?: ScopeRule[]
 }
 
-/** 动态获取可筛选字段 */
+/** 动态获取可筛选字段（加时间戳破坏浏览器 HTTP 缓存，保证最新） */
 export function getFilterFields(): Promise<FilterField[]> {
-  return request.get('/stats/views/fields')
+  return request.get('/stats/views/fields', { params: { _ts: Date.now() } })
 }
 
 /** 保存某统计页的唯一视图（UPSERT，admin+） */
@@ -59,5 +59,6 @@ export function getStatsView(statKey: string): Promise<{
   filter: StatsViewFilter
   createdBy: number
 } | null> {
-  return request.get('/stats/views', { params: { statKey } })
+  // 时间戳破坏浏览器 HTTP 缓存：保存视图后重开「筛选」强制取最新值
+  return request.get('/stats/views', { params: { statKey, _ts: Date.now() } })
 }
