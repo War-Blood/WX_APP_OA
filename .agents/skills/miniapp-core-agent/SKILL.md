@@ -158,6 +158,7 @@ agent_module: miniapp
 ## 8. 公出统计动态筛选规则（2026-08 起生效）
 
 - 小程序与 Web 端调用**同一批** `/api/stats/*`、`/api/report/daily-status` 接口，后端按 `stats_views` 视图条件 + 角色数据范围（RLS）统一过滤返回，**前端不做任何本地筛选/权限配置**
+- 公出统计 Tab 栏**所有角色可见**（不再仅管理员）：全员当日/日历/项目进展/工作类型/区域分布均按当前登录角色（employee/bm/leader/admin/superadmin）返回过滤后数据；个人统计保持为默认 Tab
 - 本 Agent 不得在前端硬编码筛选条件、视图名称或角色数据范围；需要调整口径时通过 orchestrator 找 data-agent / core-agent
 - 员工/部门领导只能看到后端返回范围内数据；管理员在 Web 端配置视图后，小程序下次请求即生效
 - 新增统计字段/页面时，先确认后端 `FILTER_FIELDS` 注册表与统计接口是否支持，避免前端适配后端

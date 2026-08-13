@@ -3,7 +3,8 @@
     <NavBar title="公出统计" :showBack="true" />
 
     <!-- Tab 栏 -->
-    <view v-if="userStore.isAdmin" class="tab-bar">
+    <!-- 各角色均可见：数据范围由后端按视图+角色 RLS 强制，前端只展示 -->
+    <view class="tab-bar">
       <view v-for="t in tabs" :key="t.key" class="tab-item" @tap="switchTab(t.key)">
         <text class="tab-text" :class="{ 'tab-text--active': activeTab === t.key }">{{ t.label }}</text>
         <view v-if="activeTab === t.key" class="tab-indicator" />
@@ -402,7 +403,7 @@ const tabs = [
 const activeTab = ref('personal')
 const refreshing = ref(false)
 
-function showTab(k) { return !userStore.isAdmin ? k === 'personal' : activeTab.value === k }
+function showTab(k) { return activeTab.value === k }
 
 function switchTab(k) {
   activeTab.value = k
