@@ -8,6 +8,10 @@
 
     <!-- 答题模式 -->
     <template v-if="tab === 'answer'">
+      <!-- 保存状态轻提示（成功淡出 / 失败可点击重试） -->
+      <view v-if="savedTip || saveFailed" class="save-tip" :class="{ 'save-tip--fail': saveFailed }" @tap="saveFailed && saveProgress(true)">
+        <text>{{ saveFailed ? '保存失败，点击重试' : savedTip }}</text>
+      </view>
       <scroll-view class="content" scroll-y v-if="questions.length">
         <view class="progress"><text>第 {{ current + 1 }}/{{ questions.length }} 题</text></view>
         <question-card
@@ -25,7 +29,7 @@
         <view class="btn-nav" @tap="current = Math.max(0, current - 1)"><text>上一题</text></view>
         <view class="btn-nav" @tap="current = Math.min(questions.length - 1, current + 1)"><text>下一题</text></view>
         <view class="btn-submit" @tap="openAnswerCard"><text>答题卡</text></view>
-        <view class="btn-submit primary" @tap="submit"><text>交卷</text></view>
+        <view class="btn-submit primary" @tap="confirmSubmit"><text>交卷</text></view>
       </view>
     </template>
 
@@ -50,7 +54,7 @@
       <view class="card-panel" @tap.stop>
         <view class="panel-title">答题卡</view>
         <answer-card :questions="questions" :answers="answers" :current="current" @jump="jumpTo" />
-        <view class="btn-submit primary" @tap="cardVisible = false; submit()"><text>交卷</text></view>
+        <view class="btn-submit primary" @tap="cardVisible = false; confirmSubmit()"><text>交卷</text></view>
       </view>
     </view>
   </view>
@@ -58,7 +62,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onHide, onUnload } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import QuestionCard from '@/components/question-card/index.vue'
 import AnswerCard from '@/components/answer-card/index.vue'
@@ -70,6 +74,7 @@ const categoryId = ref(0)
 const types = ref([])
 const count = ref(20)
 const backMemorize = ref(false)
+const drawMode = ref('random')
 
 const loading = ref(false)
 const questions = ref([])
@@ -79,15 +84,24 @@ const answers = ref({})
 const submitted = ref(false)
 const cardVisible = ref(false)
 const recordId = ref(null)
+const savedTip = ref('')
+const saveFailed = ref(false)
+
+let saveTimer = null
+let advanceTimer = null
 
 onLoad((options) => {
   categoryId.value = Number(options.categoryId) || 0
   types.value = (options.types || '').split(',').filter(Boolean)
   count.value = Number(options.count) || 20
   backMemorize.value = options.back === '1'
+  drawMode.value = options.drawMode || 'random'
   tab.value = options.back === '1' ? 'back' : 'answer'
   load()
 })
+
+onHide(() => { saveProgress(true) })
+onUnload(() => { saveProgress(true); clearTimeout(saveTimer); clearTimeout(advanceTimer) })
 
 async function load() {
   loading.value = true
@@ -96,7 +110,7 @@ async function load() {
     const res = await examApi.learnStart({
       categoryId: categoryId.value || undefined,
       type: types.value.length ? types.value : undefined,
-      mode: 'random',
+      mode: drawMode.value,
       count: count.value,
       backMemorize: isBack,
     })
@@ -112,13 +126,57 @@ async function load() {
 
 function switchTab(t) {
   if (t === tab.value) return
+  saveProgress(true) // 切换前冲刷未保存的答案
   tab.value = t
   current.value = 0
-  load()
+  // 仅目标列表为空才请求，避免重载覆盖已答进度
+  if (t === 'back' && !backQuestions.value.length) load()
+  else if (t !== 'back' && !questions.value.length) load()
 }
 
 function onSelect(val) {
   answers.value[questions.value[current.value].id] = val
+  if (tab.value === 'answer') saveProgress()
+  // 单选/判断自动跳下一题（300ms 视觉确认；背题 Tab / 已提交 / 末题不跳）
+  const q = questions.value[current.value]
+  if (q && (q.type === 'single' || q.type === 'judge') && current.value < questions.value.length - 1) {
+    clearTimeout(advanceTimer)
+    advanceTimer = setTimeout(() => {
+      if (!submitted.value && current.value < questions.value.length - 1) current.value++
+    }, 300)
+  }
+}
+
+/** 练习进度保存（防抖 2s，服务端持久化；失败给出提示与重试入口） */
+function saveProgress(immediate = false) {
+  if (!recordId.value || !Object.keys(answers.value).length) return
+  const doSave = async () => {
+    try {
+      await examApi.saveProgress(recordId.value, answers.value)
+      saveFailed.value = false
+      savedTip.value = '已自动保存'
+      setTimeout(() => { savedTip.value = '' }, 1500)
+    } catch (err) {
+      saveFailed.value = true
+      savedTip.value = ''
+      uni.showToast({ title: '保存失败，请检查网络', icon: 'none' })
+    }
+  }
+  if (immediate) doSave()
+  else {
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(doSave, 2000)
+  }
+}
+
+function confirmSubmit() {
+  const answered = Object.keys(answers.value).filter(k => answers.value[k] !== '').length
+  uni.showModal({
+    title: '交卷确认',
+    content: `已答 ${answered}/${questions.value.length} 题，确认提交？`,
+    confirmText: '确认交卷',
+    success: (r) => { if (r.confirm) submit() },
+  })
 }
 
 function jumpTo(i) {
@@ -132,17 +190,16 @@ async function submit() {
   if (!questions.value.length) return
   if (!recordId.value) return showError('练习未开始')
   submitted.value = true
+  uni.showLoading({ title: '提交中...', mask: true })
   try {
     const res = await examApi.learnSubmit(recordId.value, answers.value)
-    uni.setStorageSync('exam_practice_result', {
-      score: res.data.score,
-      totalScore: res.data.totalScore,
-      details: res.data.details,
-    })
-    uni.redirectTo({ url: '/pages/exam/examResult/index?mode=learn' })
+    // 练习模式改 navigateTo：可返回检查；结果按 recordId 直连后端（不再依赖本地 storage）
+    uni.navigateTo({ url: '/pages/exam/examResult/index?recordId=' + (res.data?.recordId || recordId.value) })
   } catch (err) {
     submitted.value = false
     showError(err.message || '提交失败')
+  } finally {
+    uni.hideLoading()
   }
 }
 </script>
@@ -153,6 +210,8 @@ async function submit() {
 .tab { flex: 1; text-align: center; padding: 24rpx 0; font-size: 28rpx; color: #999; }
 .tab.active { color: #2B6DE8; font-weight: 600; border-bottom: 4rpx solid #2B6DE8; }
 .content { flex: 1; height: 0; padding: 24rpx; }
+.save-tip { margin: 16rpx 24rpx 0; padding: 12rpx 24rpx; background: #EFFDF5; color: #22C55E; border-radius: 12rpx; font-size: 24rpx; text-align: center; }
+.save-tip--fail { background: #FFF0F0; color: #EF4444; }
 .back-list { display: flex; flex-direction: column; gap: 24rpx; }
 .progress { font-size: 24rpx; color: #909399; margin-bottom: 16rpx; }
 .empty { text-align: center; padding: 120rpx 0; font-size: 28rpx; color: #999; }

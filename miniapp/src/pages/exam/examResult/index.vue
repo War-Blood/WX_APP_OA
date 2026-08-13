@@ -1,7 +1,7 @@
 <template>
   <view class="page">
     <nav-bar :title="title" :showBack="true" />
-    <scroll-view class="content" scroll-y>
+    <scroll-view class="content" scroll-y v-if="questions.length">
       <view class="score-card">
         <text class="score-num">{{ score ?? '-' }}</text>
         <text class="score-total">/ {{ totalScore }}</text>
@@ -18,7 +18,17 @@
         </view>
       </view>
     </scroll-view>
+    <view v-else-if="loading" class="empty loading-state"><text>加载中…</text></view>
+    <view v-else-if="loadError" class="empty">
+      <text class="err-text">{{ loadError }}</text>
+      <view class="retry-row">
+        <view class="btn-secondary retry-btn" @tap="reload"><text>重新加载</text></view>
+      </view>
+    </view>
+    <view v-else class="empty"><text>暂无结果数据</text></view>
+
     <view class="bottom-bar">
+      <view v-if="mode === 'practice'" class="btn-primary" @tap="again"><text>再练一组</text></view>
       <view class="btn-secondary" @tap="goRecord"><text>查看记录</text></view>
       <view class="btn-primary" @tap="goHome"><text>返回首页</text></view>
     </view>
@@ -31,13 +41,17 @@ import { onLoad } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import QuestionCard from '@/components/question-card/index.vue'
 import { examApi } from '@/services/modules/exam'
-import { showError } from '@/utils/toast'
 
 const title = ref('答题结果')
 const score = ref(null)
 const totalScore = ref(0)
 const status = ref('')
 const questions = ref([])
+const loading = ref(false)
+const loadError = ref('')
+const recordIdRef = ref(null)
+const mode = ref('')
+const categoryId = ref(0)
 
 const statusLabel = computed(() => {
   if (status.value === 'timeout') return '⏰ 已超时'
@@ -51,13 +65,18 @@ function parseOptions(opts) {
 }
 
 async function loadByRecord(recordId) {
+  recordIdRef.value = recordId
+  loading.value = true
+  loadError.value = ''
   try {
     const res = await examApi.recordDetail(recordId)
     const d = res.data
     score.value = d.score
     totalScore.value = d.totalScore
     status.value = d.status
-    title.value = `${d.mode === 'mock' ? '模拟考试' : '正式考试'}结果`
+    mode.value = d.mode || ''
+    categoryId.value = d.categoryId || 0
+    title.value = { practice: '练习结果', mock: '模拟考试结果', exam: '正式考试结果' }[d.mode] || '答题结果'
     questions.value = (d.details || []).map(dt => ({
       userAnswer: dt.userAnswer,
       question: {
@@ -66,28 +85,22 @@ async function loadByRecord(recordId) {
         analysis: dt.analysis, score: dt.totalPoints,
       },
     }))
-  } catch (err) { showError(err.message || '加载失败') }
+  } catch (err) {
+    loadError.value = err.message || '加载失败'
+  } finally {
+    loading.value = false
+  }
 }
 
-function loadPractice() {
-  const r = uni.getStorageSync('exam_practice_result')
-  if (!r) return
-  score.value = r.score
-  totalScore.value = r.totalScore
-  status.value = 'submitted'
-  questions.value = (r.details || []).map(dt => ({
-    userAnswer: dt.userAnswer,
-    question: {
-      id: dt.questionId, type: dt.type, title: dt.title,
-      options: parseOptions(dt.options), answer: dt.rightAnswer,
-      analysis: dt.analysis, score: dt.totalPoints,
-    },
-  }))
+function reload() { if (recordIdRef.value) loadByRecord(recordIdRef.value) }
+
+function again() {
+  uni.navigateTo({ url: '/pages/exam/dati/index?mode=learn&categoryId=' + categoryId.value })
 }
 
 onLoad((options) => {
   if (options.recordId) loadByRecord(options.recordId)
-  else if (options.mode === 'learn') loadPractice()
+  else loadError.value = '缺少答题记录'
 })
 
 function goHome() { uni.reLaunch({ url: '/pages/features/index' }) }
@@ -102,6 +115,11 @@ function goRecord() { uni.navigateTo({ url: '/pages/exam/record/index' }) }
 .score-total { font-size: 32rpx; color: #909399; }
 .score-label { display: block; width: 100%; text-align: center; font-size: 26rpx; color: #666; margin-top: 8rpx; }
 .detail-list { display: flex; flex-direction: column; gap: 24rpx; }
+.empty { text-align: center; padding: 120rpx 0; font-size: 28rpx; color: #999; }
+.loading-state text { color: #2B6DE8; }
+.err-text { display: block; color: #DC2626; margin-bottom: 24rpx; font-size: 28rpx; }
+.retry-row { display: flex; gap: 24rpx; justify-content: center; }
+.retry-btn { width: 220rpx; }
 .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; display: flex; gap: 16rpx; }
 .btn-primary { flex: 1; height: 88rpx; display: flex; align-items: center; justify-content: center; border-radius: 44rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); }
 .btn-primary text { font-size: 30rpx; font-weight: 600; color: #FFF; }

@@ -72,7 +72,7 @@ function toggleType(k) {
 function start() {
   if (!selectedTypes.value.length) return showError('请选择题型')
   uni.navigateTo({
-    url: `/pages/exam/dati/index?mode=learn&categoryId=${categoryId.value}&types=${selectedTypes.value.join(',')}&count=${count.value}&back=${backMemorize.value ? 1 : 0}`,
+    url: `/pages/exam/dati/index?mode=learn&categoryId=${categoryId.value}&types=${selectedTypes.value.join(',')}&count=${count.value}&back=${backMemorize.value ? 1 : 0}&drawMode=${mode.value}`,
   })
 }
 </script>

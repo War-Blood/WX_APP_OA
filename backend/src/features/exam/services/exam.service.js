@@ -156,6 +156,20 @@ async function getCategoryOrThrow(categoryId) {
  * @returns {Promise<Object>} { recordId?, snapshot }
  */
 async function startLearn({ userId, categoryId, type, mode = 'random', count, backMemorize = false }) {
+  // 练习续答: 已有同用户同分类进行中的练习记录则恢复(镜像 startTimed 断线恢复), 不重新抽题
+  if (!backMemorize) {
+    const [existing] = await db.query(
+      "SELECT * FROM exam_records WHERE user_id = ? AND category_id = ? AND mode = 'practice' AND status = 'doing' ORDER BY id DESC LIMIT 1",
+      [userId, categoryId || 0]
+    );
+    if (existing) {
+      const snapshot = typeof existing.question_snapshot === 'string' ? JSON.parse(existing.question_snapshot) : existing.question_snapshot;
+      const safeSnapshot = snapshot.map(({ answer, ...q }) => q);
+      const savedAnswers = existing.answers ? (typeof existing.answers === 'string' ? JSON.parse(existing.answers) : existing.answers) : {};
+      return { recordId: existing.id, snapshot: safeSnapshot, savedAnswers, resumed: true };
+    }
+  }
+
   const conditions = ["q.status = 'active'"];
   const params = [];
   const limit = Math.min(count || 20, 200);
@@ -226,16 +240,24 @@ async function submitLearn(userId, recordId, answers) {
     [recordId, userId]
   );
   if (!record) throw new NotFoundError('练习记录不存在');
-  if (record.status !== 'doing') throw new BusinessError('练习已结束');
+  if (record.status !== 'doing') {
+    // 幂等: 已提交则直接返回既有结果(镜像 submitTimed)
+    const existed = gradeRecord(record);
+    return { recordId, score: existed.score, totalScore: existed.totalScore, details: existed.details, status: record.status };
+  }
 
   const snapshot = typeof record.question_snapshot === 'string' ? JSON.parse(record.question_snapshot) : record.question_snapshot;
   const { score, details } = gradeSnapshot(snapshot, answers || {});
   await upsertWrongQuestions(userId, details.filter((d) => !d.correct).map((d) => d.questionId));
 
-  // 练习记录不持久化: 提交后删除, 避免数据库膨胀(沿用 需求修改/1.md 决策)
-  await db.execute('DELETE FROM exam_records WHERE id = ?', [recordId]);
+  // 练习记录持久化: 结果页按 recordId 查询展示; 超 7 天记录由 scanTimeoutExams 定时清理防膨胀
+  const useTime = Math.round((Date.now() - new Date(record.start_time).getTime()) / 1000);
+  await db.execute(
+    "UPDATE exam_records SET answers = ?, score = ?, use_time = ?, end_time = NOW(), status = 'submitted' WHERE id = ?",
+    [JSON.stringify(answers || {}), score, useTime, recordId]
+  );
 
-  return { score, totalScore: record.total_score, details };
+  return { recordId, score, totalScore: record.total_score, details, status: 'submitted' };
 }
 
 /**
@@ -443,7 +465,7 @@ async function startPaperExam(userId, paperId) {
  */
 async function saveProgress(userId, recordId, answers) {
   const [record] = await db.query(
-    "SELECT id, status FROM exam_records WHERE id = ? AND user_id = ? AND mode IN ('exam','mock')",
+    "SELECT id, status FROM exam_records WHERE id = ? AND user_id = ? AND mode IN ('exam','mock','practice')",
     [recordId, userId]
   );
   if (!record) throw new NotFoundError('答题记录不存在');
@@ -525,6 +547,14 @@ async function scanTimeoutExams() {
   );
   const affected = result[0].affectedRows || 0;
   if (affected > 0) logger.info('超时扫描', { module: 'ANSWER', affected });
+
+  // 练习记录保留 7 天供结果页按 recordId 查询, 过期清理防止数据库膨胀
+  const cleanup = await db.execute(
+    "DELETE FROM exam_records WHERE mode = 'practice' AND created_at < NOW() - INTERVAL 7 DAY"
+  );
+  const cleaned = cleanup[0].affectedRows || 0;
+  if (cleaned > 0) logger.info('练习记录清理', { module: 'ANSWER', cleaned });
+
   return affected;
 }
 

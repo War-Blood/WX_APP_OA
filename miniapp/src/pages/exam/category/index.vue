@@ -11,7 +11,11 @@
             <text>{{ c.time }}分钟</text>
           </view>
         </view>
-        <text class="arrow">›</text>
+        <view class="cat-right">
+          <!-- 练习模式快速开始：跳过练习设置，默认随机20题全题型 -->
+          <view v-if="mode === 'learn'" class="quick-btn" @tap.stop="quickStart(c)"><text>快速练习</text></view>
+          <text class="arrow">›</text>
+        </view>
       </view>
       <view v-if="!flatCategories.length" class="empty">暂无题库分类</view>
     </scroll-view>
@@ -51,6 +55,11 @@ function choose(c) {
   const route = { learn: '/pages/exam/learn/index', moniq: '/pages/exam/moniq/index', exam: '/pages/exam/exam/index', rank: '/pages/exam/rank/index' }[mode.value]
   uni.navigateTo({ url: `${route}?categoryId=${c.id}` })
 }
+
+/** 练习模式快速开始：默认随机20题全题型，跳过练习设置页，将流程从3步缩到2步 */
+function quickStart(c) {
+  uni.navigateTo({ url: `/pages/exam/dati/index?mode=learn&categoryId=${c.id}&types=single,multiple,judge&count=20&back=0&drawMode=random` })
+}
 </script>
 
 <style lang="scss" scoped>
@@ -60,6 +69,9 @@ function choose(c) {
 .cat-info { display: flex; flex-direction: column; gap: 8rpx; }
 .cat-name { font-size: 30rpx; font-weight: 600; color: #333; }
 .cat-meta { display: flex; gap: 8rpx; font-size: 24rpx; color: #909399; }
+.cat-right { display: flex; align-items: center; gap: 16rpx; }
+.quick-btn { padding: 8rpx 20rpx; background: #EDF2FF; border-radius: 24rpx; font-size: 24rpx; color: #2B6DE8; }
+.quick-btn:active { background: #D6E4FF; }
 .arrow { color: #C0C4CC; font-size: 36rpx; }
 .empty { text-align: center; padding: 120rpx 0; font-size: 28rpx; color: #999; }
 </style>

@@ -74,6 +74,8 @@ function optionClass(key) {
 }
 
 function onTap(key) {
+  // 触觉反馈: 可交互时轻震, 让用户感知选中动作被接收
+  if (props.interactive) uni.vibrateShort({ type: 'light' })
   if (props.question.type === 'multiple') {
     const set = selectedKeys.value.includes(key)
       ? selectedKeys.value.filter(k => k !== key)
@@ -92,7 +94,8 @@ function onTap(key) {
 .q-score { font-size: 22rpx; color: #909399; }
 .q-title { font-size: 30rpx; font-weight: 600; color: #1E293B; line-height: 1.6; margin-bottom: 20rpx; }
 .q-options { display: flex; flex-direction: column; gap: 16rpx; }
-.q-option { display: flex; align-items: center; gap: 16rpx; padding: 20rpx 24rpx; border: 2rpx solid #E4E7ED; border-radius: 16rpx; font-size: 28rpx; color: #333; }
+.q-option { display: flex; align-items: center; gap: 16rpx; padding: 20rpx 24rpx; border: 2rpx solid #E4E7ED; border-radius: 16rpx; font-size: 28rpx; color: #333; transition: all .15s ease; }
+.q-option:active { transform: scale(.98); }
 .q-option.checked { border-color: #2B6DE8; background: #EDF2FF; }
 .q-option.correct { border-color: #16A34A; background: #F0FDF4; }
 .q-option.wrong { border-color: #DC2626; background: #FEF2F2; }
