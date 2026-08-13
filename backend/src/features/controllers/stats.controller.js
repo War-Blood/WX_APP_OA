@@ -108,7 +108,8 @@ async function dailyCounts(req, res, next) {
 async function projectProgress(req, res, next) {
   try {
     const { month } = req.body;
-    const result = await coreStatsService.getProjectProgress(month);
+    const viewParams = { role: req.user.role, userId: req.user.userId };
+    const result = await coreStatsService.getProjectProgress(month, viewParams);
     res.json(success(result));
   } catch (err) { next(err); }
 }

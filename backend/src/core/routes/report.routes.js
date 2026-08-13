@@ -74,14 +74,15 @@ router.post('/supplement-review', ...adminAuth, reportController.supplementRevie
 router.post('/stats', authenticate, reportController.stats);
 
 // ==============================
-// 管理层看板（v2.0 新增，仅 admin+）
+// 全员当日/明日状态（v2.0 新增）
+// 数据范围由后端 RLS（stats_views 视图 + 角色）强制，登录即可按各自范围查看
 // ==============================
 
 // POST /api/report/daily-status — 全员当日状态
-router.post('/daily-status', ...adminAuth, reportController.dailyStatus);
+router.post('/daily-status', authenticate, reportController.dailyStatus);
 
 // POST /api/report/tomorrow-status — 明日计划状态
-router.post('/tomorrow-status', ...adminAuth, reportController.tomorrowStatus);
+router.post('/tomorrow-status', authenticate, reportController.tomorrowStatus);
 
 // POST /api/report/monthly-summary — 月度工作占比（管理员看全员，员工看自己）
 router.post('/monthly-summary', authenticate, reportController.monthlySummary);

@@ -103,8 +103,8 @@ agent_module: backend
 | GET | `/api/report/workerList` | 作业人员名单 |
 | POST | `/api/report/workerStats` | 人员统计看板 |
 | POST | `/api/report/export` | 导出 CSV |
-| POST | `/api/report/daily-status` | 全员当日状态（admin+，应用 daily 视图） |
-| POST | `/api/report/tomorrow-status` | 明日计划状态（admin+） |
+| POST | `/api/report/daily-status` | 全员当日状态（登录即可，按 daily 视图+角色 RLS 返回各自范围） |
+| POST | `/api/report/tomorrow-status` | 明日计划状态（登录即可，同上） |
 
 ### Stats 端点（控制器/服务在本 Agent，路由由 data-agent 挂载）
 | 方法 | 路径 | 说明 |
@@ -114,6 +114,7 @@ agent_module: backend
 | POST | `/api/stats/area-distribution` | 省份人员分布（area 视图，仅昨日） |
 | POST | `/api/stats/province-workers` | 省份下钻人员列表 |
 | POST | `/api/stats/user-monthly-logs` | 用户月度公出日志明细 |
+| POST | `/api/stats/project-progress` | 项目进展（应用 workers 视图+角色 RLS，限制项目范围） |
 | GET | `/api/stats/views/fields` | 动态可筛选字段注册表 |
 | GET | `/api/stats/views` | 获取某统计页唯一视图 |
 | GET | `/api/stats/views/ops` | 统计视图操作审计（admin+，保存/读取记录） |

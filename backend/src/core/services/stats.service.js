@@ -1054,10 +1054,14 @@ async function getDailyCounts(month, viewParams) {
  * @param {string} month - 月份 (YYYY-MM)
  * @returns {Promise<Object>} { month, projects: [...] }
  */
-async function getProjectProgress(month) {
+async function getProjectProgress(month, viewParams) {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     throw new BusinessError('month 必填，格式 YYYY-MM');
   }
+
+  // 按人员范围（workers 视图 + 角色 RLS）限制项目范围，保证小程序/Web 各角色口径一致
+  const vf = await buildUserFilter('workers', viewParams, 'u');
+  const userScopeSql = vf.clauses.length ? ` AND EXISTS (SELECT 1 FROM users u WHERE u.id = dr.user_id AND ${vf.clauses.join(' AND ')})` : '';
 
   // 子查询取每个项目最新一条记录的 id，再 JOIN 取完整数据
   const rows = await db.query(
@@ -1080,8 +1084,9 @@ async function getProjectProgress(month) {
          AND project IS NOT NULL AND project != ''
          AND DATE_FORMAT(report_date, '%Y-%m') = ?
        GROUP BY project
-     ) sub ON dr.id = sub.latest_id`,
-    [month]
+      ) sub ON dr.id = sub.latest_id
+      WHERE 1 = 1${userScopeSql}`,
+    [month, ...vf.params]
   );
 
   // 获取每个项目的作业人员数（从 workers 文本字段和 daily_report_workers 去重）

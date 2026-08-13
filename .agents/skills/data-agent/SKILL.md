@@ -44,6 +44,7 @@ agent_module: backend
 | POST | `/api/stats/activities` | JWT | 最近动态列表（分页） |
 | POST | `/api/stats/profile` | JWT | 个人中心统计 |
 | POST | `/api/stats/reportStats` | JWT | 日报统计看板 |
+| POST | `/api/stats/project-progress` | JWT | 项目进展看板（转发 viewParams，按 workers 视图+RLS 限制范围） |
 | GET | `/api/stats/views/fields` | JWT | 动态获取可筛选字段注册表（WPS 式） |
 | GET | `/api/stats/views?statKey=` | JWT | 获取某统计页的唯一视图 |
 | GET | `/api/stats/views/ops` | admin+ | 统计视图操作审计（保存/读取记录） |
