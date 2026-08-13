@@ -5,6 +5,7 @@ const { ValidationError } = require('../../common/utils/errors');
 
 const VALID_KEYS = ['daily', 'worktypes', 'area', 'calendar', 'workers'];
 const VALID_OPS = ['eq', 'ne', 'in', 'not_in', 'like', 'gte', 'lte', 'between', 'is_null'];
+const VALID_SCOPES = ['all', 'department', 'department_and_children', 'self'];
 
 /**
  * 可筛选字段注册表（来自真实数据库列，WPS 式动态筛选）
