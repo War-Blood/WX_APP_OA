@@ -75,6 +75,51 @@ async function upsertView({ statKey, conditions, visibility }, userId) {
      ON DUPLICATE KEY UPDATE filter_json = VALUES(filter_json), updated_at = NOW()`,
     [statKey, JSON.stringify(safe), userId]
   );
+  // 操作审计：记录本次保存及实际写入的内容（即 stats_views.filter_json）
+  await logViewOp({ statKey, action: 'save', payload: safe, userId });
+}
+
+/**
+ * 记录统计视图操作审计（筛选弹窗保存/读取）
+ * @param {string} statKey - 统计页标识
+ * @param {'save'|'read'} action - save=保存 / read=打开弹窗读取
+ * @param {Object} payload - 实际写入/返回的 { conditions, visibility, filter? }
+ * @param {number} userId - 操作人
+ */
+async function logViewOp({ statKey, action, payload, userId }) {
+  if (!statKey || !action) return;
+  try {
+    await db.execute(
+      'INSERT INTO stats_view_ops (stat_key, action, payload_json, created_by) VALUES (?, ?, ?, ?)',
+      [statKey, action, JSON.stringify(payload || {}), userId]
+    );
+  } catch (err) {
+    // 审计失败不影响主流程（例如表尚未迁移）
+  }
+}
+
+/**
+ * 查询统计视图操作记录（按统计页，倒序）
+ * @param {string} [statKey] - 统计页标识，缺省查全部
+ * @param {number} [limit] - 条数上限
+ * @returns {Promise<Array>}
+ */
+async function listViewOps({ statKey, limit = 50 } = {}) {
+  const rows = await db.query(
+    `SELECT id, stat_key, action, payload_json, created_by, created_at
+     FROM stats_view_ops
+     ${statKey ? 'WHERE stat_key = ?' : ''}
+     ORDER BY id DESC LIMIT ?`,
+    statKey ? [statKey, limit] : [limit]
+  );
+  return rows.map(r => ({
+    id: r.id,
+    statKey: r.stat_key,
+    action: r.action,
+    payload: parseJson(r.payload_json),
+    createdBy: r.created_by,
+    createdAt: r.created_at ? String(r.created_at) : '',
+  }));
 }
 
 /**
@@ -114,5 +159,5 @@ function getFilterFields() {
 
 module.exports = {
   upsertView, getViewByStatKey, getRoleScope, getFilterFields,
-  FILTER_FIELDS, sanitizeConditions,
+  FILTER_FIELDS, sanitizeConditions, logViewOp, listViewOps,
 };

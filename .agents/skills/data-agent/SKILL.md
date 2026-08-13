@@ -46,6 +46,7 @@ agent_module: backend
 | POST | `/api/stats/reportStats` | JWT | 日报统计看板 |
 | GET | `/api/stats/views/fields` | JWT | 动态获取可筛选字段注册表（WPS 式） |
 | GET | `/api/stats/views?statKey=` | JWT | 获取某统计页的唯一视图 |
+| GET | `/api/stats/views/ops` | admin+ | 统计视图操作审计（保存/读取记录） |
 | POST | `/api/stats/views` | admin+ | 保存某统计页的唯一视图（UPSERT，条件+可见性） |
 
 ### Compliance (`/api/compliance/*`)
@@ -67,6 +68,7 @@ agent_module: backend
 |------|------|
 | `compliance_records` | 合规记录表（出差状态/缺失报告/及时性） |
 | `stats_views` | 统计视图表（每 stat_key 一行，filter_json 存 conditions+visibility；读写归 core-agent，本 Agent 只读使用） |
+| `stats_view_ops` | 统计视图操作审计表（筛选弹窗 save/read + payload；归 core-agent 维护） |
 
 ## 4. 能力边界（铁律）
 

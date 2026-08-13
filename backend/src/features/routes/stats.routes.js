@@ -75,6 +75,9 @@ router.get('/stats/views/fields', authenticate, statsViewController.fields);
 // GET /api/stats/views?statKey= — 获取某统计页的唯一视图（登录）
 router.get('/stats/views', authenticate, statsViewController.get);
 
+// GET /api/stats/views/ops — 统计视图操作记录（admin+，筛选弹窗保存/读取审计）
+router.get('/stats/views/ops', ...adminAuth, statsViewController.ops);
+
 // POST /api/stats/views — 保存某统计页的唯一视图（UPSERT，admin+）
 router.post('/stats/views', ...adminAuth, statsViewController.save);
 

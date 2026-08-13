@@ -116,6 +116,7 @@ agent_module: backend
 | POST | `/api/stats/user-monthly-logs` | 用户月度公出日志明细 |
 | GET | `/api/stats/views/fields` | 动态可筛选字段注册表 |
 | GET | `/api/stats/views` | 获取某统计页唯一视图 |
+| GET | `/api/stats/views/ops` | 统计视图操作审计（admin+，保存/读取记录） |
 | POST | `/api/stats/views` | 保存统计页视图（UPSERT，admin+） |
 
 ### Message (`/api/message/*`)
@@ -145,6 +146,7 @@ agent_module: backend
 | `daily_reports` | 日报表 |
 | `messages` | 消息表 |
 | `stats_views` | 统计视图表（每 stat_key 一行，filter_json 存 conditions+visibility） |
+| `stats_view_ops` | 统计视图操作审计表（save/read + payload，调试筛选弹窗用） |
 
 ## 4. 能力边界（铁律）
 
@@ -267,3 +269,4 @@ agent_module: backend
 - 改动后 `node --check` + `npm run lint`（backend）
 - 与 data-agent 联调验证：视图保存 → 各统计接口过滤/RLS → 小程序与 Web 口径一致
 - `stats_views` 表结构变更需出 `sql/` 迁移脚本，并同步更新 data-agent / webapp-core-agent 文档
+- 筛选弹窗每次保存/打开都会写入 `stats_view_ops`（审计），排查保存/显示问题先查该表或 `GET /api/stats/views/ops`
