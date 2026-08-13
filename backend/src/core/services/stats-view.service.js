@@ -28,7 +28,9 @@ const FILTER_FIELDS = {
 };
 
 function parseJson(str) {
-  try { return JSON.parse(str || '{}'); } catch { return {}; }
+  if (str == null) return {};
+  if (typeof str === 'object') return str; // mysql2 已将 JSON 列自动解析为对象
+  try { return JSON.parse(str); } catch { return {}; }
 }
 
 /** 校验动态条件列表；非法条件过滤 */
