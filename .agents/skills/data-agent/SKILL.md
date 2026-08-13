@@ -179,6 +179,7 @@ agent_module: backend
 | 统一入口 | `buildUserFilter(view, {role,userId}, alias)` 生成用户范围条件（`clauses`+`params`+`conditions`），所有统计接口共用 |
 | daily_reports 字段 | 通过 `EXISTS` 子查询过滤用户（人员范围语义）；`is_field_worker` 按出差状态识别（近30天公出日志/进行中出差/active 合规出差） |
 | 区域视图特例 | `area` 条件除用户范围外，还要在报告级对 `dr.area` 再应用一次（保证"仅显示所选省份"） |
+| 部门条件 | `department_id` 的 eq/in 条件必须按含子部门展开（`expandDeptConditions`），与 RLS/旧 stats_personnel_scope 口径一致 |
 | 保存权限 | `POST /api/stats/views` 仅 admin+；条件/可见性必须经 `sanitizeConditions`/`sanitizeVisibility` 白名单过滤 |
 
 ### 8.3 质量约束

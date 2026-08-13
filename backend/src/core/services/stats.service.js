@@ -446,6 +446,35 @@ function buildConditionsSql(conditions, usersAlias) {
 }
 
 /**
+ * 部门条件按「含子部门」口径展开：
+ * 部门树选择根/父部门时，仅匹配直属部门会把子部门人员全部滤掉，
+ * 与 RLS 的 department_and_children、旧 stats_personnel_scope 口径保持一致。
+ * eq/in 的 department_id 条件统一展开为整棵子树的 IN 条件。
+ * @param {Array} conditions - [{field, op, value}]
+ * @returns {Promise<Array>}
+ */
+async function expandDeptConditions(conditions) {
+  const out = [];
+  for (const c of conditions || []) {
+    if (c.field === 'department_id' && (c.op === 'eq' || c.op === 'in')) {
+      const ids = Array.isArray(c.value) ? c.value : [c.value];
+      const expanded = new Set();
+      for (const id of ids) {
+        if (id == null || id === '') continue;
+        const sub = await resolveDeptSubtreeIds(Number(id));
+        if (sub && sub.length) sub.forEach(x => expanded.add(x));
+      }
+      if (expanded.size) {
+        out.push({ field: 'department_id', op: 'in', value: [...expanded] });
+        continue;
+      }
+    }
+    out.push(c);
+  }
+  return out;
+}
+
+/**
  * 旧固定字段 filter_json → 动态 conditions
  */
 function migrateLegacyFilter(filter) {
@@ -481,7 +510,7 @@ async function buildUserFilter(view, viewParams, alias) {
     : migrateLegacyFilter(rawFilter);
 
   // 上层（视图可见性 RLS）+ 下层（条件）统一作为条件经 buildConditionsSql 生效
-  const conditions = [...viewConditions];
+  const conditions = await expandDeptConditions(viewConditions);
   if (scopeType !== 'all' && userId && scopeType !== 'self') {
     const rows = await db.query('SELECT department_id FROM users WHERE id = ?', [userId]);
     const userDeptId = rows.length ? rows[0].department_id : null;

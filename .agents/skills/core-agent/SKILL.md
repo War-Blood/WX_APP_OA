@@ -261,6 +261,7 @@ agent_module: backend
 | 区域特例 | `area` 条件在 `getAreaDistribution` 报告级对 `dr.area` 再应用一次（区域分布仅显示所选省份） |
 | 业务口径 | 只统计 approved；同人同日去重；三路径（本人/代填表/workers 文本）；admin/superadmin 排除；区域默认北京时间昨日 |
 | 部门子树 | `resolveDeptSubtreeIds` 有 60s TTL 缓存，改动 departments 表后最多 60s 内生效 |
+| 部门条件 | 视图/筛选中的 `department_id`（eq/in）统一经 `expandDeptConditions` 展开为含子部门 IN，防止选根/父部门时子部门人员被滤掉 |
 
 ### 质量门
 - 改动后 `node --check` + `npm run lint`（backend）
