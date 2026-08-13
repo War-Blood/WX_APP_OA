@@ -4,6 +4,10 @@ const db = require('../../common/config/database');
 const { BusinessError } = require('../../common/utils/errors');
 const statsViewService = require('./stats-view.service');
 
+// 部门子树缓存（60s TTL）：统计接口频繁按部门范围过滤，避免每次请求全表加载 departments
+const DEPT_SUBTREE_CACHE = new Map();
+const DEPT_SUBTREE_CACHE_TTL = 60 * 1000;
+
 /**
  * 统计服务 — 三种 scope 统计 + 月度占比 + 当日全员状态
  */
@@ -345,6 +349,10 @@ async function getMonthlySummary(userId, month) {
  * @returns {Promise<Array<number>|null>}
  */
 async function resolveDeptSubtreeIds(rootId) {
+  const now = Date.now();
+  const cached = DEPT_SUBTREE_CACHE.get(rootId);
+  if (cached && now - cached.ts < DEPT_SUBTREE_CACHE_TTL) return cached.ids;
+
   const all = await db.query('SELECT id, parent_id FROM departments WHERE deleted_at IS NULL');
   const childrenMap = new Map();
   for (const d of all) {
@@ -362,43 +370,9 @@ async function resolveDeptSubtreeIds(rootId) {
     result.push(id);
     for (const c of childrenMap.get(id) || []) stack.push(c);
   }
-  return result.length > 0 ? result : null;
-}
-
-/**
- * 读取公出统计视图筛选配置（system_config.stats_filter_<view>，JSON）
- * @param {string} view - daily/worktypes/area/calendar/workers
- * @returns {Promise<{hasDept: boolean, deptIds: Array<number>|null, deptParams: Array<number>, fieldOnly: boolean, workType: string, province: string}>}
- */
-async function getViewFilter(view) {
-  const rows = await db.query(
-    'SELECT config_value FROM system_config WHERE config_key = ? LIMIT 1',
-    [`stats_filter_${view}`]
-  );
-  let cfg = {};
-  if (rows.length > 0) {
-    try { cfg = JSON.parse(rows[0].config_value || '{}'); } catch { cfg = {}; }
-  }
-
-  // deptId 缺省：视图配置 > 旧全局 stats_personnel_scope > 23(浙江贝良)
-  let deptIdRaw = cfg.deptId != null && cfg.deptId !== '' ? cfg.deptId : null;
-  if (!deptIdRaw) {
-    const legacy = await db.query(
-      "SELECT config_value FROM system_config WHERE config_key = 'stats_personnel_scope' LIMIT 1"
-    );
-    deptIdRaw = legacy.length > 0 ? legacy[0].config_value : null;
-  }
-  const deptId = /^\d+$/.test(String(deptIdRaw || '')) ? Number(deptIdRaw) : null;
-  const deptIds = deptId ? await resolveDeptSubtreeIds(deptId) : null;
-
-  return {
-    hasDept: !!deptIds,
-    deptIds: deptIds || null,
-    deptParams: deptIds || [],
-    fieldOnly: !(cfg.fieldOnly === 0 || cfg.fieldOnly === false || cfg.fieldOnly === '0'),
-    workType: String(cfg.workType || '').trim(),
-    province: String(cfg.province || '').trim(),
-  };
+  const ids = result.length > 0 ? result : null;
+  DEPT_SUBTREE_CACHE.set(rootId, { ts: now, ids });
+  return ids;
 }
 
 /**
@@ -452,6 +426,8 @@ function buildConditionsSql(conditions, usersAlias) {
   for (const c of conditions || []) {
     const def = statsViewService.FILTER_FIELDS[c.field];
     if (!def) continue;
+    // 空数组条件（in/not_in/between 未选值）跳过，避免生成非法 SQL（如 IN () / BETWEEN 无参）
+    if (['in', 'not_in', 'between'].includes(c.op) && (!Array.isArray(c.value) || c.value.length === 0)) continue;
     // 仅现场：特殊处理为出差状态识别（不依赖花名册标识）
     if (c.field === 'is_field_worker') {
       const fwSql = buildFieldWorkerSql(usersAlias);
@@ -489,7 +465,7 @@ function migrateLegacyFilter(filter) {
  * @param {string} view - 统计页标识 daily/worktypes/area/calendar/workers
  * @param {Object} [viewParams] - { role, userId }
  * @param {string} alias - 用户表别名（无别名传 'users'）
- * @returns {Promise<{clauses: string[], params: Array}>}
+ * @returns {Promise<{clauses: string[], params: Array, conditions: Array}>}
  */
 async function buildUserFilter(view, viewParams, alias) {
   const role = (viewParams && viewParams.role) || 'employee';
@@ -527,7 +503,7 @@ async function buildUserFilter(view, viewParams, alias) {
     cond.params.push(userId);
   }
 
-  return { clauses: cond.clauses, params: cond.params };
+  return { clauses: cond.clauses, params: cond.params, conditions };
 }
 
 /**
@@ -541,27 +517,24 @@ async function getDailyStatus(dateStr, viewParams) {
   // 视图筛选（view=daily）+ 数据范围 RLS
   const vf = await buildUserFilter('daily', viewParams, 'u');
   const userScopeSql = vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : '';
-  const workTypeSql = vf.workType ? ' AND dr.today_work_type = ?' : '';
   const deptParams = vf.params;
-  const workType = vf.workType;
 
   // 从当日报告反查涉及的人员（排除管理员；按视图筛选展示范围）
-  const today = formatDate(new Date());
   const allUserRows = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
      FROM users u
      INNER JOIN daily_reports dr ON u.id = dr.user_id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}${workTypeSql}
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}
      UNION
      SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
      FROM users u
      INNER JOIN daily_report_workers drw ON u.id = drw.worker_uid
      INNER JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}${workTypeSql}
+       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}
      ORDER BY id ASC`,
-    [date, ...deptParams, ...(workType ? [workType] : []), date, ...deptParams, ...(workType ? [workType] : [])]
+    [date, ...deptParams, date, ...deptParams]
   );
   const workers = allUserRows;
 
@@ -633,15 +606,6 @@ async function getDailyStatus(dateStr, viewParams) {
     [date]
   );
 
-  // v2.0 预留: 代填详情映射（subMap 暂未使用，保留供后续扩展）
-  // const subMap = {};
-  // substitutions.forEach(s => {
-  //   if (!subMap[s.worker_uid]) {
-  //     subMap[s.worker_uid] = [];
-  //   }
-  //   subMap[s.worker_uid].push(s.submitterId);
-  // });
-
   // 构建 report map: user_id -> report
   const reportMapByUser = {};
   reports.forEach(r => {
@@ -650,8 +614,9 @@ async function getDailyStatus(dateStr, viewParams) {
 
   // 找到每个被代填人的报告（通过 daily_report_workers）
   const subReportMap = {};
+  const reportById = new Map(reports.map(r => [r.reportId, r]));
   substitutions.forEach(s => {
-    const report = reports.find(r => r.reportId === s.report_id);
+    const report = reportById.get(s.report_id);
     if (report && !subReportMap[s.worker_uid]) {
       subReportMap[s.worker_uid] = report;
     }
@@ -907,8 +872,10 @@ async function getDailyCounts(month, viewParams) {
   const tripRows = await db.query(
     `SELECT applicant_id, trip_started_at, trip_ended_at
      FROM attendance_leave_requests
-     WHERE request_type = 'biz_trip' AND status != 'cancelled'`,
-    []
+     WHERE request_type = 'biz_trip' AND status != 'cancelled'
+       AND (trip_started_at IS NULL OR DATE_FORMAT(trip_started_at, '%Y-%m') <= ?)
+       AND (trip_ended_at IS NULL OR DATE_FORMAT(trip_ended_at, '%Y-%m') >= ?)`,
+    [month, month]
   );
 
   // 当月所有已提交（非草稿）日报，用于统计实际填写人
@@ -1105,9 +1072,7 @@ async function getWorkerWorkTypes(month, viewParams) {
   // 视图筛选（view=worktypes）+ 数据范围 RLS
   const vf = await buildUserFilter('worktypes', viewParams, 'u');
   const userScopeSql = vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : '';
-  const workTypeSql = vf.workType ? ' AND today_work_type = ?' : '';
   const deptParams = vf.params;
-  const workType = vf.workType;
   const activeWorkers = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
      FROM users u
@@ -1132,9 +1097,9 @@ async function getWorkerWorkTypes(month, viewParams) {
     `SELECT user_id, today_work_type, COUNT(DISTINCT report_date) AS cnt
      FROM daily_reports
      WHERE status = 'approved' AND report_type != 'office'
-       AND DATE_FORMAT(report_date, '%Y-%m') = ?${workTypeSql}
+       AND DATE_FORMAT(report_date, '%Y-%m') = ?
      GROUP BY user_id, today_work_type`,
-    [month, ...(workType ? [workType] : [])]
+    [month]
   );
 
   // 当月被代填的工作类型分布（正式关联表，按日期去重；排除该人当天已自行提交的日期，防双计）
@@ -1143,14 +1108,14 @@ async function getWorkerWorkTypes(month, viewParams) {
      FROM daily_report_workers drw
      JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
-       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?${workTypeSql}
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
        AND NOT EXISTS (
          SELECT 1 FROM daily_reports mine
          WHERE mine.user_id = drw.worker_uid AND mine.report_date = dr.report_date
            AND mine.status = 'approved' AND mine.report_type != 'office'
        )
      GROUP BY drw.worker_uid, dr.today_work_type`,
-    [month, ...(workType ? [workType] : [])]
+    [month]
   );
 
   // 兜底：从 workers 文本字段解析（daily_report_workers 为空时）
@@ -1160,8 +1125,8 @@ async function getWorkerWorkTypes(month, viewParams) {
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.workers IS NOT NULL AND dr.workers != ''
        AND dr.user_id != 0
-       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?${workTypeSql}`,
-    [month, ...(workType ? [workType] : [])]
+       AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?`,
+    [month]
   );
 
   // 当月补录（补公出）的去重天数统计：user_id → 去重天数
@@ -1378,9 +1343,15 @@ async function getAreaDistribution(date, viewParams) {
   // 视图筛选（view=area）+ 数据范围 RLS + 区域/省份
   const vf = await buildUserFilter('area', viewParams, 'users');
   const userScopeSql = vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : '';
-  const provinceSql = vf.province ? ' AND dr.area LIKE ?' : '';
   const deptParams = vf.params;
-  const province = vf.province;
+
+  // 区域/省份条件在报告级再次应用（与「区域分布仅显示所选省份」口径一致）
+  const areaParams = [];
+  const reportAreaSql = (vf.conditions || [])
+    .filter(c => c.field === 'area')
+    .map(c => buildOpSql('dr.area', c.op, c.value, areaParams))
+    .join(' AND ');
+  const areaSql = reportAreaSql ? ` AND ${reportAreaSql}` : '';
 
   // 1. 查昨日所有报告（含区域和 workers 文本）
   const reports = await db.query(
@@ -1388,8 +1359,8 @@ async function getAreaDistribution(date, viewParams) {
      FROM daily_reports dr
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
-       AND dr.report_date = ?${provinceSql}`,
-    [targetDate, ...(province ? [`${province}%`] : [])]
+       AND dr.report_date = ?${areaSql}`,
+    [targetDate, ...areaParams]
   );
 
   // 2. 查昨日关联表代填关系
@@ -1399,8 +1370,8 @@ async function getAreaDistribution(date, viewParams) {
      JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND dr.area IS NOT NULL AND dr.area != ''
-       AND dr.report_date = ?${provinceSql}`,
-    [targetDate, ...(province ? [`${province}%`] : [])]
+       AND dr.report_date = ?${areaSql}`,
+    [targetDate, ...areaParams]
   );
 
   // 3. 收集所有涉及的 userId（提交人 + 代填人），构建 uid→info

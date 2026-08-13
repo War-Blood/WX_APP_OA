@@ -16,11 +16,19 @@ agent_module: webapp
 ### report — 日报管理
 | 文件 | 操作 | 职责 |
 |------|:--:|------|
-| `views/report/index.vue` | 改造 | 日报管理列表（统计看板+日报查询+人员看板三Tab） |
-| `views/report/audit.vue` | **新增** | 补公出日志审核页 |
-| `views/report/stats.vue` | **新增** | 公出统计看板（全员汇总+按项目+按人员三维度） |
-| `views/report/daily-status.vue` | **新增** | 员工当日状态页（7种状态标记+搜索筛选） |
-| `views/report/monthly-summary.vue` | **新增** | 员工月度工作占比页（条形图+6类占比） |
+| `views/report/index.vue` | 改造 | 日报管理入口（统计看板+日报查询+人员看板三Tab） |
+| `views/report/audit.vue` | **新增** | 补公出审核页（admin+） |
+| `views/report/daily.vue` | **新增** | 工作日报列表页（admin+） |
+| `views/report/overview.vue` | **新增** | 统计概览（getStats('all')） |
+| `views/report/personnel-distribution.vue` | **新增** | 人员分布图（区域分布-昨日 + 中国地图，area 视图） |
+| `views/report/calendar.vue` | **新增** | 提交日历（calendar 视图） |
+| `views/report/project-progress.vue` | **新增** | 项目进展看板 |
+| `views/report/work-type.vue` | **新增** | 人员工作类型分布（worktypes 视图） |
+| `views/report/worker-dimension.vue` | **新增** | 人员明细（workers 视图） |
+| `views/report/daily-status.vue` | **新增** | 员工当日状态 + 明日计划（admin+，daily 视图） |
+| `views/report/monthly-summary.vue` | **新增** | 月度工作占比 |
+
+> ⚠️ 统计筛选统一使用 `components/FilterDialog.vue`（webapp-common-agent 提供），保存走 `api/statsView.ts`，**不写回** system_config 旧 `stats_filter_*` 配置。
 
 ### dashboard — 仪表盘
 | 文件 | 职责 |
@@ -44,9 +52,17 @@ agent_module: webapp
 | POST | `/api/report/workerStats` | 人员统计看板 | report/index |
 | POST | `/api/report/pending-reviews` | 补公出待审核列表 | report/audit |
 | POST | `/api/report/supplement-review` | 补公出审核判定 | report/audit |
-| POST | `/api/report/stats` | 统计看板（all/project 两种 scope） | report/stats |
+| POST | `/api/report/stats` | 统计看板（user/all/project 三种 scope） | report/index、report/overview |
 | POST | `/api/report/daily-status` | 全员当日状态 | report/daily-status |
 | POST | `/api/report/monthly-summary` | 月度工作占比 | report/monthly-summary |
+| POST | `/api/stats/daily-counts` | 提交日历数据 | report/calendar |
+| POST | `/api/stats/worker-work-types` | 工作类型分布 | report/work-type |
+| POST | `/api/stats/area-distribution` | 区域分布（昨日） | report/personnel-distribution |
+| POST | `/api/stats/province-workers` | 省份下钻 | report/personnel-distribution |
+| POST | `/api/stats/user-monthly-logs` | 用户月度日志明细 | report/worker-dimension |
+| GET | `/api/stats/views/fields` | 可筛选字段注册表 | FilterDialog |
+| GET | `/api/stats/views` | 获取统计页视图 | FilterDialog |
+| POST | `/api/stats/views` | 保存统计页视图（admin+） | FilterDialog → 各统计页 |
 
 ### 从 project-agent 消费
 | 方法 | 路径 | 用途 | 调用页面 |
@@ -114,3 +130,11 @@ agent_module: webapp
 2. 创建 `views/report/xxx.vue`
 3. 通知 **webapp-common-agent** 在 `router/index.ts` 注册路由
 4. 联调验证数据正确性
+
+## 8. 公出统计动态筛选规则（2026-08 起生效）
+
+- 每统计页对应一个 `statKey`：`daily`/`worktypes`/`area`/`calendar`/`workers`；「筛选」弹窗（FilterDialog）保存后，后端自动应用视图条件 + 角色 RLS，**前端无需传 viewId、无需本地过滤**
+- 普通员工/部门领导只观看后端返回的过滤结果；仅 admin+ 显示「筛选」按钮
+- 字段选项必须来自 `/api/stats/views/fields` 注册表；工作类型/状态等选项与后端 `FILTER_FIELDS.options` 保持一致
+- 区域分布页 `area` 条件同时约束用户范围与报告省份（仅显示所选省份）；日期维度默认昨日/当月
+- 保存视图成功后再刷新当前页；保存失败不得清空页面数据

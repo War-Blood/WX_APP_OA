@@ -18,6 +18,8 @@ agent_module: webapp
 |------|------|
 | `components/AppHeader/index.vue` | 顶部导航栏 |
 | `components/AppSidebar/index.vue` | 侧边菜单栏 |
+| `components/FilterDialog.vue` | 公出统计筛选弹窗（动态条件 + 视图可见性，基于后端字段注册表渲染） |
+| ~~`components/StatsFilterBar.vue`~~ | 已删除（2026-08 被 FilterDialog + stats_views 取代，禁止恢复） |
 
 ### API 定义层 (api/)
 | 文件 | 职责 |
@@ -32,6 +34,7 @@ agent_module: webapp
 | `api/project.ts` | 项目 API |
 | `api/settings.ts` | 系统设置 API |
 | `api/stats.ts` | 统计 API |
+| `api/statsView.ts` | 统计视图 API（`/api/stats/views*`：字段注册表/获取视图/保存视图） |
 
 ### 状态管理 (stores/)
 | 文件 | 职责 |
@@ -80,6 +83,7 @@ agent_module: webapp
 | 服务 | 业务 Agent 使用方式 |
 |------|-------------------|
 | `api/report.ts` | webapp-core-agent 调用日报 API |
+| `api/statsView.ts` | webapp-core-agent 调用统计视图保存/获取 API |
 | `api/project.ts` | webapp-core-agent 调用项目 API |
 | `api/user.ts` | webapp-admin-agent 调用用户管理 API |
 | `api/admin.ts` | webapp-admin-agent 调用花名册 API |
@@ -89,6 +93,7 @@ agent_module: webapp
 | `stores/user.ts` | 所有业务 Agent 读取登录态/角色 |
 | `router/index.ts` | 所有业务 Agent 新增页面时需本 Agent 注册路由 |
 | `utils/request.ts` | 所有 API 模块的请求基础 |
+| `components/FilterDialog.vue` | webapp-core-agent 的报表统计页筛选弹窗 |
 | Element Plus | 全局 UI 组件库 |
 
 ## 4. 能力边界（铁律）
@@ -147,3 +152,10 @@ agent_module: webapp
 2. 修改 `stores/xxx.ts`
 3. 通过 orchestrator 通知所有受影响业务 Agent
 4. 确保 TypeScript 类型定义同步更新
+
+## 8. 公出统计筛选组件规则（2026-08 起生效）
+
+- **FilterDialog.vue** 是 Web 端唯一筛选入口：`statKey` 对应后端 `daily/worktypes/area/calendar/workers`；条件/可见性通过 `api/statsView.ts` 保存到 `POST /api/stats/views`（admin+）
+- 字段列表必须来自 `GET /api/stats/views/fields`（后端 `FILTER_FIELDS` 注册表），**禁止**在前端硬编码筛选字段
+- `statsView.ts` 的类型定义（`FilterCondition`/`FilterField`/`StatsViewFilter`）与后端契约一一对应，改动需同步后端
+- 统计页属于 webapp-core-agent，公共层只提供组件/API，不写页面业务逻辑

@@ -14,9 +14,11 @@ agent_module: backend
 ### stats — 统计看板（位于 features/）
 | 文件 | 层级 | 职责 |
 |------|------|------|
-| `features/routes/stats.routes.js` | 路由 | 统计路由注册 |
-| `features/controllers/stats.controller.js` | 控制器 | 首页统计/动态/个人统计/日报统计 |
+| `features/routes/stats.routes.js` | 路由 | 统计路由注册（含统计视图 `/stats/views*`，控制器/服务在 core/ 归 core-agent） |
+| `features/controllers/stats.controller.js` | 控制器 | 首页统计/动态/个人统计/日报统计/公出统计各视图入口 |
 | `features/services/stats.service.js` | 服务 | 多表聚合查询统计 |
+
+> ⚠️ **统计归属说明**：公出统计的**聚合实现**在 `core/services/stats.service.js`、统计视图在 `core/services/stats-view.service.js` + `core/controllers/stats-view.controller.js`（均归 core-agent）。本 Agent 的 `features/routes/stats.routes.js` 负责挂载 `/api/stats/*` 路由并转发到 core 的控制器/服务；改动聚合逻辑前先与 core-agent 协调。
 
 ### compliance — 合规管理（位于 features/compliance/）
 | 文件 | 层级 | 职责 |
@@ -42,6 +44,9 @@ agent_module: backend
 | POST | `/api/stats/activities` | JWT | 最近动态列表（分页） |
 | POST | `/api/stats/profile` | JWT | 个人中心统计 |
 | POST | `/api/stats/reportStats` | JWT | 日报统计看板 |
+| GET | `/api/stats/views/fields` | JWT | 动态获取可筛选字段注册表（WPS 式） |
+| GET | `/api/stats/views?statKey=` | JWT | 获取某统计页的唯一视图 |
+| POST | `/api/stats/views` | admin+ | 保存某统计页的唯一视图（UPSERT，条件+可见性） |
 
 ### Compliance (`/api/compliance/*`)
 | 方法 | 路径 | 认证 | 权限 | 说明 |
@@ -61,6 +66,7 @@ agent_module: backend
 | 表名 | 说明 |
 |------|------|
 | `compliance_records` | 合规记录表（出差状态/缺失报告/及时性） |
+| `stats_views` | 统计视图表（每 stat_key 一行，filter_json 存 conditions+visibility；读写归 core-agent，本 Agent 只读使用） |
 
 ## 4. 能力边界（铁律）
 
@@ -146,3 +152,36 @@ agent_module: backend
 1. 在 `common/tasks/reminder.task.js` 添加提醒逻辑（本 Agent 负责）
 2. 向 orchestrator 申请 common-agent 在 `scheduler.js` 注册新的 cron 表达式
 3. 更新本文档
+
+## 8. 公出统计业务与动态筛选规则（2026-08 起生效）
+
+> 权威文档：`大纲/PRD/公出日志功能PRD-交接文档.md`、`大纲/PRD/公出统计-PRD.md`、`大纲/PRD/统计视图管理/设计文档.md`、`.AI/Wiki/Web 管理后台/使用手册-公出统计视图筛选配置.md`。处理公出统计/统计视图任务前必须加载上述文档。
+
+### 8.1 业务口径（统计查询必须遵守）
+| 规则 | 说明 |
+|------|------|
+| 日志类型 | `biz_trip`（公出，直接通过）/ `biz_trip_supplement`（补公出，待审核）；`office` 公司日报已删除、`调休` 已删除 |
+| 工作类型 | `工作（陆）`/`工作（海）`/`待工`/`在途`/`请假`；空值与历史"工作/作业"归一化为 `工作（陆）` |
+| 统计状态 | 默认只统计 `status='approved'`；补公出计数单独列 |
+| 人员三路径 | 某人参与某日 = ①自己提交 ②`daily_report_workers` 代填 ③`workers` 文本匹配；同人同日只计一次 |
+| 统计范围 | 有公出日志数据的人都显示，不受花名册在职/离职限制；admin/superadmin 不参与统计 |
+| 未提交判定 | 仅在职外场人员（`worker_status='active'` 且按出差状态识别）标记 missing |
+| 区域分布 | 仅看昨日（默认北京时间昨日）；省份取 `area.split('-')[0]` 并归一化（见 `PROVINCE_NAME_MAP`） |
+| 进度 | `progress_percent = completed_qty / required_qty`；项目看板取当月最新一条 |
+
+### 8.2 动态筛选（统计视图）模型
+| 项 | 约定 |
+|----|------|
+| 存储 | `stats_views` 每统计页**唯一一行**（`uk_stat_key`），`filter_json = { conditions: [{field,op,value}], visibility: {role: scope} }` |
+| stat_key | `daily`（全员当日）/`worktypes`（工作类型分布）/`area`（区域分布）/`calendar`（提交日历）/`workers`（人员明细） |
+| 字段注册表 | `stats-view.service.js` 的 `FILTER_FIELDS`（users/daily_reports 真实列），前端经 `GET /api/stats/views/fields` 动态获取 |
+| RLS 默认 | admin/superadmin=`all`、bm=`department_and_children`、employee=`department`；视图 `visibility` 可覆盖 |
+| 统一入口 | `buildUserFilter(view, {role,userId}, alias)` 生成用户范围条件（`clauses`+`params`+`conditions`），所有统计接口共用 |
+| daily_reports 字段 | 通过 `EXISTS` 子查询过滤用户（人员范围语义）；`is_field_worker` 按出差状态识别（近30天公出日志/进行中出差/active 合规出差） |
+| 区域视图特例 | `area` 条件除用户范围外，还要在报告级对 `dr.area` 再应用一次（保证"仅显示所选省份"） |
+| 保存权限 | `POST /api/stats/views` 仅 admin+；条件/可见性必须经 `sanitizeConditions`/`sanitizeVisibility` 白名单过滤 |
+
+### 8.3 质量约束
+- 所有筛选 SQL 走参数化（`buildOpSql`），禁止字符串拼接；`in/not_in/between` 空数组条件直接跳过，禁止生成 `IN ()`
+- 小程序与 Web 双端调用同一批接口，后端统一应用视图 + RLS，前端不做本地筛选/权限
+- 改动统计聚合前 `node --check` + 后端 `npm run lint`，联调验证双端口径一致

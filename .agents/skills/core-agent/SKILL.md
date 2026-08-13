@@ -34,6 +34,11 @@ agent_module: backend
 | `core/routes/report.routes.js` | 路由 | 日报路由注册 |
 | `core/controllers/report.controller.js` | 控制器 | 日报提交/草稿/删除/导出/统计 |
 | `core/services/report.service.js` | 服务 | 日报 CRUD/CSV 导出/人员统计 |
+| `core/services/stats.service.js` | 服务 | 公出统计聚合（全员当日/明日/日历/工作类型/区域/明细 + 视图筛选 `buildUserFilter`） |
+| `core/services/stats-view.service.js` | 服务 | 统计视图 `stats_views` 读写 + 字段注册表 `FILTER_FIELDS` + RLS 默认策略 |
+| `core/controllers/stats-view.controller.js` | 控制器 | 统计视图 `GET/POST /api/stats/views*` |
+
+> ⚠️ 公出统计的控制器/服务在本 Agent（core/），但路由由 **data-agent** 的 `features/routes/stats.routes.js` 挂载；改动统计接口前与 data-agent 协调，两者共享业务口径（见第 9 节）。
 
 ### message — 消息通知
 | 文件 | 层级 | 职责 |
@@ -98,6 +103,20 @@ agent_module: backend
 | GET | `/api/report/workerList` | 作业人员名单 |
 | POST | `/api/report/workerStats` | 人员统计看板 |
 | POST | `/api/report/export` | 导出 CSV |
+| POST | `/api/report/daily-status` | 全员当日状态（admin+，应用 daily 视图） |
+| POST | `/api/report/tomorrow-status` | 明日计划状态（admin+） |
+
+### Stats 端点（控制器/服务在本 Agent，路由由 data-agent 挂载）
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/stats/daily-counts` | 月度每日提交人次（calendar 视图） |
+| POST | `/api/stats/worker-work-types` | 人员工作类型分布（worktypes 视图） |
+| POST | `/api/stats/area-distribution` | 省份人员分布（area 视图，仅昨日） |
+| POST | `/api/stats/province-workers` | 省份下钻人员列表 |
+| POST | `/api/stats/user-monthly-logs` | 用户月度公出日志明细 |
+| GET | `/api/stats/views/fields` | 动态可筛选字段注册表 |
+| GET | `/api/stats/views` | 获取某统计页唯一视图 |
+| POST | `/api/stats/views` | 保存统计页视图（UPSERT，admin+） |
 
 ### Message (`/api/message/*`)
 | 方法 | 路径 | 说明 |
@@ -125,6 +144,7 @@ agent_module: backend
 | `approvals` | 审批表 |
 | `daily_reports` | 日报表 |
 | `messages` | 消息表 |
+| `stats_views` | 统计视图表（每 stat_key 一行，filter_json 存 conditions+visibility） |
 
 ## 4. 能力边界（铁律）
 
@@ -224,3 +244,25 @@ agent_module: backend
 1. 在 `approval.service.js` 中直接 `require` 同目录下的 `message.service.js`
 2. 无需跨 Agent 协调（两个子模块都在 core-agent 内）
 3. 更新本文档的内部模块关系部分
+
+## 9. 公出统计动态筛选规则（2026-08 起生效）
+
+> 完整口径见 **data-agent SKILL 第 8 节** 与 `大纲/PRD/统计视图管理/设计文档.md`、`大纲/PRD/公出日志功能PRD-交接文档.md`。本 Agent 拥有聚合实现，必须遵守同一套口径。
+
+| 规则 | 约定 |
+|------|------|
+| 统一入口 | 所有统计接口先调 `buildUserFilter(view, {role,userId}, alias)` 生成用户范围条件，再拼接到主查询；返回 `{ clauses, params, conditions }` |
+| 视图存储 | `stats_views` 每统计页唯一一行；`filter_json.conditions`（动态条件）+ `filter_json.visibility`（角色→数据范围） |
+| RLS | admin/superadmin=`all`、bm=`department_and_children`、employee=`department`；`visibility[role]` 可覆盖；`self` 直接追加 `users.id = 本人` |
+| 字段注册表 | `stats-view.service.js FILTER_FIELDS` 是唯一合法字段来源；`sanitizeConditions` 白名单过滤，非法条件丢弃 |
+| daily_reports 字段 | 用 `EXISTS (SELECT 1 FROM daily_reports fdr WHERE fdr.user_id = users.id AND ...)` 过滤用户 |
+| 仅现场 | `is_field_worker` 走 `buildFieldWorkerSql`（近30天 approved 公出日志 OR 进行中出差 OR active 合规出差），不读花名册标识 |
+| 空数组 | `in/not_in/between` 值为空数组时跳过该条件，禁止生成 `IN ()` / 无参 `BETWEEN` |
+| 区域特例 | `area` 条件在 `getAreaDistribution` 报告级对 `dr.area` 再应用一次（区域分布仅显示所选省份） |
+| 业务口径 | 只统计 approved；同人同日去重；三路径（本人/代填表/workers 文本）；admin/superadmin 排除；区域默认北京时间昨日 |
+| 部门子树 | `resolveDeptSubtreeIds` 有 60s TTL 缓存，改动 departments 表后最多 60s 内生效 |
+
+### 质量门
+- 改动后 `node --check` + `npm run lint`（backend）
+- 与 data-agent 联调验证：视图保存 → 各统计接口过滤/RLS → 小程序与 Web 口径一致
+- `stats_views` 表结构变更需出 `sql/` 迁移脚本，并同步更新 data-agent / webapp-core-agent 文档
