@@ -490,6 +490,16 @@ function migrateLegacyFilter(filter) {
 }
 
 /**
+ * 视图级 RLS 默认覆盖：部分统计页对「普通员工」的默认数据范围与全局角色默认（本部门）不同。
+ * - calendar（提交日历）：员工端应只显示本人「已提交/需提交」，故默认改 self（仅供自己）
+ * - area（区域分布）：员工端无查看权限，由 getAreaDistribution/getProvinceWorkers 单独空出不展示
+ * 本表仅在视图未显式配置角色可见性时兜底生效；已配置的 visibility 优先。
+ */
+const VIEW_SCOPE_DEFAULTS = {
+  calendar: { employee: 'self' },
+};
+
+/**
  * 构造统计查询的用户筛选：该统计页的唯一视图条件 + 固定角色 RLS
  * @param {string} view - 统计页标识 daily/worktypes/area/calendar/workers
  * @param {Object} [viewParams] - { role, userId }
@@ -516,10 +526,11 @@ async function buildUserFilter(view, viewParams, alias) {
     }
   }
 
-  // 数据范围优先级：组长身份（非管理员）> 角色可见性 > 角色默认
+  // 数据范围优先级：组长身份（非管理员）> 角色可见性 > 视图级默认覆盖 > 角色全局默认
   let scopeType = null;
   if (isLeader && role !== 'admin' && role !== 'superadmin') scopeType = visibility.leader;
   if (scopeType == null) scopeType = visibility[role];
+  if (scopeType == null && userId) scopeType = VIEW_SCOPE_DEFAULTS[view]?.[role];
   if (scopeType == null) scopeType = statsViewService.getRoleScope(role);
 
   // 按角色条件：不同角色各自独立筛选条件（组长优先取 leader 键）
@@ -1395,12 +1406,19 @@ function getYesterdayCST() {
 
 /**
  * 省份人员分布（中国地图数据源）
+ * 普通员工无查看权限（仅管理层可见）：employee 角色直接返回空集
  * @param {string} [date] - 可选日期 YYYY-MM-DD，默认北京时间昨日
+ * @param {Object} [viewParams] - { role, userId }
  * @returns {Promise<Object>} { date, provinces: [{ name, count, projects, workers }] }
  */
 async function getAreaDistribution(date, viewParams) {
   // 仅统计昨日数据（默认北京时间昨日，支持传 date 查看任意日）
   const targetDate = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getYesterdayCST();
+
+  // 普通员工无查看权限：直接返回空集，不返回部门级分布
+  if ((viewParams && viewParams.role) === 'employee') {
+    return { date: targetDate, provinces: [] };
+  }
 
   // 视图筛选（view=area）+ 数据范围 RLS + 区域/省份
   const vf = await buildUserFilter('area', viewParams, 'users');
@@ -1541,8 +1559,10 @@ async function getAreaDistribution(date, viewParams) {
 
 /**
  * 省份下钻 — 该省人员列表
+ * 普通员工无查看权限：employee 角色直接返回空人员列表
  * @param {string} province - 省份名（如"广东"）
  * @param {string} [month] - 可选月份筛选
+ * @param {Object} [viewParams] - { role, userId }
  * @returns {Promise<Object>} { province, workers: [...] }
  */
 async function getProvinceWorkers(province, date, viewParams) {
@@ -1551,6 +1571,11 @@ async function getProvinceWorkers(province, date, viewParams) {
   // 归一化省份名（兼容简称/全称/脏数据）
   const provinceFull = normalizeProvinceName(province);
   if (!provinceFull) throw new BusinessError('无法识别的省份');
+
+  // 普通员工无查看权限：直接返回空人员列表
+  if ((viewParams && viewParams.role) === 'employee') {
+    return { province: provinceFull, workers: [] };
+  }
 
   // 视图筛选（view=area）+ 数据范围 RLS
   const vf = await buildUserFilter('area', viewParams, 'users');

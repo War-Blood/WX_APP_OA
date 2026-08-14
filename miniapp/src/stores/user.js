@@ -19,6 +19,7 @@ export const useUserStore = defineStore('user', () => {
   const userAvatar = computed(() => userInfo.value?.avatarUrl || '')
   const role = computed(() => userInfo.value?.role || 'employee')
   const isAdmin = computed(() => role.value === 'admin' || role.value === 'superadmin')
+  const isEmployee = computed(() => role.value === 'employee')
   const department = computed(() => userInfo.value?.department || '')
   const permissions = computed(() => PERMISSIONS_MAP[role.value] || PERMISSIONS_MAP.employee)
 
@@ -68,6 +69,7 @@ export const useUserStore = defineStore('user', () => {
     userAvatar,
     role,
     isAdmin,
+    isEmployee,
     department,
     permissions,
     hasPermission,

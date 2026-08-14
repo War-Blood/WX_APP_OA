@@ -209,8 +209,8 @@
         </scroll-view>
       </view>
 
-      <!-- 区域分布（昨日） -->
-      <view v-if="areaData.length" class="card" style="margin-top:16rpx">
+      <!-- 区域分布（昨日）— 仅管理层可见，普通员工无查看权限 -->
+      <view v-if="!userStore.isEmployee && areaData.length" class="card" style="margin-top:16rpx">
         <text class="card-title">区域分布（昨日）</text>
         <view class="area-list">
           <view v-for="p in areaData" :key="p.name" class="area-row" @tap="openProvinceDrill(p)">
@@ -327,7 +327,7 @@ function switchTab(k) {
   if (k === 'daily' && !dailyResponse.value) loadDailyStatus()
   if (k === 'calendar' && !calData.value.length) loadCalendar()
   if (k === 'projects' && !projData.value.length) loadProjects()
-  if (k === 'workers' && !workTypeData.value.length) { loadWorkTypes(); loadAreas() }
+  if (k === 'workers' && !workTypeData.value.length) { loadWorkTypes(); if (!userStore.isEmployee) loadAreas() }
 }
 
 // ============ 工具函数 ============
@@ -457,6 +457,7 @@ const provinceWorkers = ref([])
 const provinceLoading = ref(false)
 
 async function openProvinceDrill(p) {
+  if (userStore.isEmployee) return // 区域分布：普通员工无查看权限
   provinceDrill.value = p
   provinceLoading.value = true
   provinceWorkers.value = []
@@ -618,7 +619,7 @@ async function onRefresh() {
   }
   else if (activeTab.value === 'calendar') await loadCalendar()
   else if (activeTab.value === 'projects') await loadProjects()
-  else if (activeTab.value === 'workers') await Promise.all([loadWorkTypes(), loadAreas()])
+  else if (activeTab.value === 'workers') { const jobs = [loadWorkTypes()]; if (!userStore.isEmployee) jobs.push(loadAreas()); await Promise.all(jobs) }
   refreshing.value = false
 }
 
