@@ -10,8 +10,14 @@ import {
 } from '@/api/report'
 import { currentDateInBeijing, shiftDate } from '@/utils/date'
 import { CHART_COLORS } from '@/utils/chart'
+import type { StatsViewFilter } from '@/api/statsView'
+import { createStatsView } from '@/api/statsView'
+import FilterDialog from '@/components/FilterDialog.vue'
+import { useUserStore } from '@/stores/user'
+import { toast } from '@/utils/toast'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 // 查看该人员的日报列表(跳转到日报管理页并搜索其姓名)
 function goDailyDetail(row: { userName: string }) {
@@ -34,6 +40,9 @@ const tomorrowResponse = ref<TomorrowStatusResponse | null>(null)
 // 筛选
 const keyword = ref('')
 const statusFilter = ref('')
+// 动态视图筛选：今日/明日各自独立（daily_today / daily_tomorrow）
+const showFilter = ref(false)
+const filterStatKey = computed(() => (mode.value === 'today' ? 'daily_today' : 'daily_tomorrow'))
 
 const statusOptions = [
   { label: '全部状态', value: '' },
@@ -121,7 +130,7 @@ const totalWorkers = computed(() => submittedTotal.value + (response.value?.summ
 async function loadData() {
   loading.value = true
   try {
-    const params: { date?: string } = {}
+    const params: { date?: string; statKey: string } = { statKey: 'daily_today' }
     if (date.value) params.date = date.value
     response.value = await getDailyStatus(params)
   } catch {
@@ -134,7 +143,7 @@ async function loadData() {
 async function loadTomorrow(dateStr?: string) {
   tomorrowLoading.value = true
   try {
-    const params: { date?: string } = {}
+    const params: { date?: string; statKey: string } = { statKey: 'daily_tomorrow' }
     if (dateStr) params.date = dateStr
     tomorrowResponse.value = await getTomorrowStatus(params)
   } catch {
@@ -142,6 +151,24 @@ async function loadTomorrow(dateStr?: string) {
   } finally {
     tomorrowLoading.value = false
   }
+}
+
+// 保存当前模式对应的视图筛选（今日/明日独立），保存后按新视图重新加载
+async function onFilterApply(filter: StatsViewFilter) {
+  try {
+    await createStatsView({
+      statKey: filterStatKey.value,
+      conditions: filter.conditions || [],
+      roleConditions: filter.roleConditions || {},
+      visibility: filter.visibility,
+    })
+    toast.success('视图已保存')
+  } catch {
+    toast.error('保存失败')
+  }
+  showFilter.value = false
+  if (mode.value === 'tomorrow') loadTomorrow(date.value)
+  else loadData()
 }
 
 function switchMode(m: 'today' | 'tomorrow') {
@@ -227,6 +254,8 @@ onMounted(() => {
         <el-radio-button :value="'today'">今日</el-radio-button>
         <el-radio-button :value="'tomorrow'">明日</el-radio-button>
       </el-radio-group>
+      <el-button v-if="userStore.isAdmin" size="small" @click="showFilter = true">筛选</el-button>
+      <span class="filter-hint" v-if="userStore.isAdmin">当前：{{ mode === 'today' ? '今日' : '明日' }}视图</span>
       <span class="date-hint" v-if="mode === 'today' && response">共 {{ totalWorkers }} 人</span>
       <span class="date-hint" v-if="mode === 'tomorrow' && tomorrowResponse">共 {{ tomorrowResponse.totalWorkers }} 人</span>
     </div>
@@ -321,6 +350,8 @@ onMounted(() => {
       </template>
       <el-empty v-else-if="!tomorrowLoading" description="暂无明日计划数据" />
     </div>
+
+    <FilterDialog v-model="showFilter" :stat-key="filterStatKey" @apply="onFilterApply" />
   </div>
 </template>
 
@@ -334,6 +365,12 @@ onMounted(() => {
   .date-hint {
     color: $text-secondary;
     font-size: $font-size-base;
+  }
+
+  .filter-hint {
+    color: $text-secondary;
+    font-size: $font-size-small;
+    margin-left: $spacing-extra-small;
   }
 }
 

@@ -444,13 +444,13 @@ async function stats(req, res, next) {
 
 /**
  * 全员当日状态
- * POST /api/report/daily-status
+ * POST /api/report/daily-status  body: { date?, statKey? }
  */
 async function dailyStatus(req, res, next) {
   try {
-    const { date } = req.body;
+    const { date, statKey } = req.body;
     const viewParams = { role: req.user.role, userId: req.user.userId };
-    const result = await statsService.getDailyStatus(date, viewParams);
+    const result = await statsService.getDailyStatus(date, viewParams, statKey);
     res.json(success(result));
   } catch (err) {
     next(err);
@@ -459,13 +459,13 @@ async function dailyStatus(req, res, next) {
 
 /**
  * 明日计划状态
- * POST /api/report/tomorrow-status
+ * POST /api/report/tomorrow-status  body: { date?, statKey? }
  */
 async function tomorrowStatus(req, res, next) {
   try {
-    const { date } = req.body;
+    const { date, statKey } = req.body;
     const viewParams = { role: req.user.role, userId: req.user.userId };
-    const result = await statsService.getTomorrowStatus(date, viewParams);
+    const result = await statsService.getTomorrowStatus(date, viewParams, statKey);
     res.json(success(result));
   } catch (err) {
     next(err);

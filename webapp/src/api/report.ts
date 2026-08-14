@@ -359,18 +359,20 @@ export function reviewSupplement(params: ReviewSupplementParams): Promise<void> 
   return request.post('/report/supplement-review', params)
 }
 
-/** 管理层看板 — 员工当日状态 */
+/** 管理层看板 — 员工当日状态（statKey: daily_today 独立筛选视图） */
 export function getDailyStatus(params: {
   date?: string
   status?: string
   keyword?: string
+  statKey?: string
 }): Promise<DailyStatusResponse> {
   return request.post('/report/daily-status', params)
 }
 
-/** 明日计划状态 */
+/** 明日计划状态（statKey: daily_tomorrow 独立筛选视图） */
 export function getTomorrowStatus(params: {
   date?: string
+  statKey?: string
 }): Promise<TomorrowStatusResponse> {
   return request.post('/report/tomorrow-status', params)
 }

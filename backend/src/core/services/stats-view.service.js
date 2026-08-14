@@ -3,7 +3,8 @@
 const db = require('../../common/config/database');
 const { ValidationError } = require('../../common/utils/errors');
 
-const VALID_KEYS = ['daily', 'worktypes', 'area', 'calendar', 'workers'];
+// daily: 公出统计-全员当日(小程序)；daily_today/daily_tomorrow: Web 员工当日状态页 今日/明日 独立筛选
+const VALID_KEYS = ['daily', 'worktypes', 'area', 'calendar', 'workers', 'daily_today', 'daily_tomorrow'];
 const VALID_OPS = ['eq', 'ne', 'in', 'not_in', 'like', 'gte', 'lte', 'between', 'is_null'];
 const VALID_SCOPES = ['all', 'department', 'department_and_children', 'self', 'group'];
 const ROLE_KEYS = ['employee', 'bm', 'admin', 'superadmin', 'leader'];

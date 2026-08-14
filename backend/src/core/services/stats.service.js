@@ -562,13 +562,15 @@ async function buildUserFilter(view, viewParams, alias) {
 /**
  * 全员当日状态（管理层看板）
  * @param {string} dateStr - 日期 (YYYY-MM-DD)，默认今天
+ * @param {Object} [viewParams] - { role, userId }
+ * @param {string} [statKey] - 统计视图标识，默认 'daily'（小程序公出统计）；Web 员工当日状态传 'daily_today'
  * @returns {Promise<Object>}
  */
-async function getDailyStatus(dateStr, viewParams) {
+async function getDailyStatus(dateStr, viewParams, statKey) {
   const date = dateStr || formatDate(new Date());
 
-  // 视图筛选（view=daily）+ 数据范围 RLS
-  const vf = await buildUserFilter('daily', viewParams, 'u');
+  // 视图筛选（view 统计页标识）+ 数据范围 RLS
+  const vf = await buildUserFilter(statKey || 'daily', viewParams, 'u');
   const userScopeSql = vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : '';
   const deptParams = vf.params;
 
@@ -794,9 +796,11 @@ async function getDailyStatus(dateStr, viewParams) {
  * 展示某一天（N 日）的明日工作安排：查 N-1 日日报里填写的 tomorrow_work_type，
  * 与今日视图结构对称，返回平铺 workers，前端按明日工作类型分组
  * @param {string} [date] - 目标日 N（YYYY-MM-DD），默认明日
+ * @param {Object} [viewParams] - { role, userId }
+ * @param {string} [statKey] - 统计视图标识，默认 'daily'；Web 员工当日状态传 'daily_tomorrow'
  * @returns {Promise<Object>} { date, totalWorkers, summary, workers }
  */
-async function getTomorrowStatus(date, viewParams) {
+async function getTomorrowStatus(date, viewParams, statKey) {
   // 目标日 N（明日视图选中日）
   const targetDate = date || (() => {
     const t = new Date();
@@ -809,8 +813,8 @@ async function getTomorrowStatus(date, viewParams) {
   d.setDate(d.getDate() - 1);
   const prevDate = formatDate(d);
 
-  // 与今日状态保持同一人员口径：取 N-1 日“全员当日状态”展示的人员集合
-  const dailyStatus = await getDailyStatus(prevDate, viewParams);
+  // 与今日状态保持同一人员口径：取 N-1 日“全员当日状态”展示的人员集合（同一 statKey 视图）
+  const dailyStatus = await getDailyStatus(prevDate, viewParams, statKey);
   const dailyWorkers = dailyStatus.workers || [];
 
   // N-1 日日报中填写的明日工作类型（本人提交，含工作日报）
