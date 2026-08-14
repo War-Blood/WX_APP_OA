@@ -55,9 +55,19 @@
               <span style="margin-left:8px">{{ d.title }}</span>
               <span style="margin-left:auto;color:#909399;font-size:12px">{{ d.earnedPoints }}/{{ d.totalPoints }}分</span>
             </template>
+            <el-image v-if="d.titleImage" :src="d.titleImage" fit="contain" style="max-width:320px;max-height:200px;margin:8px 0" :preview-src-list="[d.titleImage]" />
+            <div v-if="Array.isArray(d.options) && d.options.some((o: any) => o.image)" class="detail-options">
+              <template v-for="o in d.options" :key="o.key">
+                <div v-if="o.image" class="detail-opt">
+                  <span>{{ o.key }}.</span>
+                  <el-image :src="o.image" fit="contain" style="max-width:140px;max-height:90px" :preview-src-list="[o.image]" />
+                </div>
+              </template>
+            </div>
             <div>你的答案：<b>{{ formatAnswer(d) }}</b></div>
             <div>正确答案：<b>{{ formatKeys(d, d.rightAnswer) }}</b></div>
             <div v-if="d.analysis">解析：{{ d.analysis }}</div>
+            <el-image v-if="d.analysisImage" :src="d.analysisImage" fit="contain" style="max-width:320px;max-height:200px;margin:8px 0" :preview-src-list="[d.analysisImage]" />
           </el-collapse-item>
         </el-collapse>
       </template>
@@ -171,4 +181,6 @@ onMounted(async () => {
 .toolbar { display: flex; justify-content: space-between; align-items: center; }
 .title { font-size: 18px; font-weight: 600; }
 .actions { display: flex; gap: 12px; }
+.detail-options { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.detail-opt { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #606266; }
 </style>

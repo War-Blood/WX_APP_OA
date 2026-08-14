@@ -78,13 +78,15 @@ export interface QuestionDetail {
   questionId: number
   type: string
   title: string
-  options: { key: string; text: string }[] | string
+  options: { key: string; text: string; image?: string }[] | string
   userAnswer: string
   rightAnswer: string
   analysis?: string
   correct: boolean
   earnedPoints: number
   totalPoints: number
+  titleImage?: string | null
+  analysisImage?: string | null
 }
 
 export interface RecordDetail {

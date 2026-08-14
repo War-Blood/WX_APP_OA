@@ -98,7 +98,7 @@
       <el-upload drag :auto-upload="false" :on-change="handleFileChange" :limit="1" :on-exceed="() => toast.warning('每次只能选择一个文件')" accept=".xlsx,.xls" style="margin-top:8px">
         <div class="el-upload__text">拖拽 Excel 文件到此处或<em>点击上传</em></div>
       </el-upload>
-      <p class="import-hint">模板列：分类 / 题型 / 题干 / 选项A~H / 答案 / 解析 / 分值 / 判分模式 / 题干图片。判断题仅填题干+答案(正确/错误)；多选答案用逗号分隔如 A,C；「分类」填主分类名称(可空=用右侧目标分类)。</p>
+      <p class="import-hint">模板列：分类 / 题型 / 题干 / 选项A~H / 答案 / 解析 / 分值 / 判分模式 / 题干图片。模板含单选/多选/判断三行【示例】数据，导入时自动跳过；判断题仅填题干+答案(正确/错误)；多选答案用逗号分隔如 A,C；「分类」填主分类名称(可空=用右侧目标分类)；「题干图片」填图片URL(可选)。</p>
 
       <!-- 本地解析预览/错误 -->
       <div v-if="parsePreview" class="preview">
@@ -107,6 +107,7 @@
           <ul><li v-for="e in parsePreview.parseErrors" :key="e.row">第{{ e.row }}行：{{ e.reason }}</li></ul>
         </div>
         <p v-if="parsePreview.validCount">✅ 可导入 {{ parsePreview.validCount }} 题</p>
+        <p v-if="parsePreview.skippedSamples" class="sample-tip">ℹ 已自动跳过 {{ parsePreview.skippedSamples }} 行模板示例数据</p>
       </div>
 
       <div v-if="batchResult" style="margin-top:16px">
@@ -172,7 +173,7 @@ const form = reactive<{
 
 const batchVisible = ref(false)
 const importCategoryId = ref<number | null>(null)
-const parsePreview = ref<{ validCount: number; parseErrors: { row: number; reason: string }[] } | null>(null)
+const parsePreview = ref<{ validCount: number; parseErrors: { row: number; reason: string }[]; skippedSamples: number } | null>(null)
 const parsedRows = ref<Question[]>([])
 const batchResult = ref<{ success: number; failed: number; errors: { row: number; reason: string }[] } | null>(null)
 
@@ -361,7 +362,7 @@ async function handleFileChange(file: { raw: File }) {
   try {
     const preview = await parseQuestionWorkbook(file.raw, categories.value)
     parsedRows.value = preview.rows
-    parsePreview.value = { validCount: preview.rows.length, parseErrors: preview.errors }
+    parsePreview.value = { validCount: preview.rows.length, parseErrors: preview.errors, skippedSamples: preview.skippedSamples || 0 }
   } catch {
     toast.error('文件解析失败，请使用模板格式的 .xlsx 文件')
   }
@@ -399,6 +400,7 @@ onMounted(async () => {
 .option-row { display: flex; align-items: center; gap: 8px; width: 100%; }
 .judge-hint { color: #909399; font-size: 12px; }
 .img-row { display: flex; align-items: center; gap: 8px; }
+.img-hint { color: #909399; font-size: 12px; }
 .img-preview { width: 48px; height: 48px; border-radius: 6px; border: 1px solid #e5e7eb; }
 .opt-img { width: 32px; height: 32px; border-radius: 4px; border: 1px solid #e5e7eb; flex-shrink: 0; }
 
@@ -407,6 +409,7 @@ onMounted(async () => {
 .preview { margin-top: 12px; }
 .preview-block.error { background: #fef0f0; border-radius: 6px; padding: 8px 12px; }
 .preview-title { font-weight: 600; color: #c45656; margin: 0 0 4px; }
+.sample-tip { margin-top: 6px; color: #909399; font-size: 12px; }
 .preview-block.error ul { margin: 0; padding-left: 18px; color: #c45656; max-height: 160px; overflow: auto; }
 .preview-block.error li { margin-bottom: 2px; }
 .err-list { max-height: 160px; overflow: auto; padding-left: 18px; color: #c45656; }

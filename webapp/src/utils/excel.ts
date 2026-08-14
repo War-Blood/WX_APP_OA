@@ -25,6 +25,8 @@ export interface ParsePreview {
   errors: { row: number; reason: string }[]
   /** 总数据行数(去空行) */
   total: number
+  /** 自动跳过的示例行数(题干以【示例】开头) */
+  skippedSamples: number
   /** 识别到的原始表头 */
   header: string[]
 }
@@ -38,7 +40,7 @@ const TEMPLATE_HEADER = [
 
 /** 模板示例行(第二行), 帮助理解字段含义 */
 const TEMPLATE_SAMPLE: (string | number)[] = [
-  '低压电工', 'single', '我国工频交流电的频率是多少赫兹？',
+  '低压电工', 'single', '【示例】我国工频交流电的频率是多少赫兹？',
   '40Hz', '50Hz', '60Hz', '100Hz', '', '', '', '',
   'B', '我国工频为50Hz', 2, 'exact', '',
 ]
@@ -51,8 +53,10 @@ export function downloadQuestionTemplate(fileName = '题库导入模板.xlsx') {
   const rows: (string | number)[][] = []
   rows.push([...TEMPLATE_HEADER])
   rows.push([...TEMPLATE_SAMPLE])
+  // 多选示例
+  rows.push(['低压电工', 'multiple', '【示例】下列哪些属于安全色？', '红色', '蓝色', '绿色', '黄色', '白色', '', '', '', 'A,B,C,D', '安全色为红蓝绿黄四种', 2, 'exact', ''])
   // 判断题示例(分类/题型/题干/答案/解析/分值/判分模式)
-  rows.push(['低压电工', 'judge', '人体允许持续接触的安全电压一般不超过多少伏？', '', '', '', '', '', '', '', '', '正确', '安全电压上限为36V', 2, 'exact', ''])
+  rows.push(['低压电工', 'judge', '【示例】人体允许持续接触的安全电压一般不超过多少伏？', '', '', '', '', '', '', '', '', '正确', '安全电压上限为36V', 2, 'exact', ''])
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = [
@@ -101,10 +105,10 @@ export async function parseQuestionWorkbook(file: File, categories: { id: number
   const buffer = await file.arrayBuffer()
   const wb = XLSX.read(buffer, { type: 'array' })
   const ws = wb.Sheets[wb.SheetNames[0]]
-  if (!ws) return { rows: [], errors: [], total: 0, header: [] }
+  if (!ws) return { rows: [], errors: [], total: 0, header: [], skippedSamples: 0 }
 
   const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as (string | number)[][]
-  if (!matrix.length) return { rows: [], errors: [], total: 0, header: [] }
+  if (!matrix.length) return { rows: [], errors: [], total: 0, header: [], skippedSamples: 0 }
 
   const header = (matrix[0] || []).map((h) => String(h).trim())
   const col = resolveColumns(header)
@@ -114,19 +118,22 @@ export async function parseQuestionWorkbook(file: File, categories: { id: number
   const errors: { row: number; reason: string }[] = []
   const rows: Question[] = []
   let total = 0
+  let skippedSamples = 0
 
   for (let i = 1; i < matrix.length; i++) {
     const line = matrix[i] || []
     if (line.every((c) => c === '' || c == null)) continue
-    total++
     const excelRow = i + 1 // Excel 中表头占第1行, 数据行号 = i+1
     const cell = (c: number) => (c >= 0 ? String(line[c] ?? '').trim() : '')
-    const pushErr = (reason: string) => errors.push({ row: excelRow, reason })
-
-    const typeRaw = cell(col.type).toLowerCase()
-    const type = VALID_TYPE_LABELS[typeRaw] || (VALID_TYPES.has(typeRaw) ? typeRaw : '')
     const title = cell(col.title)
 
+    // 示例行(题干以【示例】开头)自动跳过, 不校验不导入
+    if (title.startsWith('【示例】')) { skippedSamples++; continue }
+
+    total++
+    const pushErr = (reason: string) => errors.push({ row: excelRow, reason })
+    const typeRaw = cell(col.type).toLowerCase()
+    const type = VALID_TYPE_LABELS[typeRaw] || (VALID_TYPES.has(typeRaw) ? typeRaw : '')
     if (!type) { pushErr('题型无效(须为 single/multiple/judge 或 单选/多选/判断)'); continue }
     if (!title) { pushErr('题干不能为空'); continue }
 
@@ -191,7 +198,7 @@ export async function parseQuestionWorkbook(file: File, categories: { id: number
     } as Question)
   }
 
-  return { rows, errors, total, header }
+  return { rows, errors, total, header, skippedSamples }
 }
 
 /**

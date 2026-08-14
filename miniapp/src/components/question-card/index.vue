@@ -109,7 +109,7 @@ function onTap(key) {
 .q-score { font-size: 22rpx; color: #909399; }
 .q-title { font-size: 30rpx; font-weight: 600; color: #1E293B; line-height: 1.6; margin-bottom: 20rpx; }
 .q-options { display: flex; flex-direction: column; gap: 16rpx; }
-.q-img { width: 100%; border-radius: 12rpx; margin-top: 16rpx; }
+.q-img { width: 100%; max-height: 600rpx; border-radius: 12rpx; margin-top: 16rpx; object-fit: contain; background: #F8FAFC; }
 .opt-body { flex: 1; display: flex; flex-direction: column; gap: 8rpx; }
 .opt-img { max-width: 320rpx; border-radius: 8rpx; }
 .q-option { display: flex; align-items: center; gap: 16rpx; padding: 20rpx 24rpx; border: 2rpx solid #E4E7ED; border-radius: 16rpx; font-size: 28rpx; color: #333; transition: all .15s ease; }

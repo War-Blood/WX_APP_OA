@@ -46,6 +46,14 @@ async function uploadImage(req, res, next) {
     try {
       const meta = await sharp(req.file.path).metadata();
       if (!meta.width || !meta.height) { removeFile(); throw new ValidationError('图片文件无效'); }
+      // 图片布局规范: 超宽(>1600px)等比压缩至 1600 内, 保留原格式
+      const MAX_EDGE = 1600;
+      if (meta.width > MAX_EDGE || meta.height > MAX_EDGE) {
+        await sharp(req.file.path)
+          .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
+          .toFile(req.file.path + '.tmp');
+        fs.renameSync(req.file.path + '.tmp', req.file.path);
+      }
     } catch (e) {
       if (e instanceof ValidationError) throw e;
       removeFile();
