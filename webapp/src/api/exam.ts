@@ -96,6 +96,8 @@ export interface RecordDetail {
   mode: string
   score: number | null
   totalScore: number
+  passScore?: number | null
+  isPass?: boolean
   useTime: number
   status: string
   startTime: string

@@ -27,9 +27,11 @@ import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import { examApi } from '@/services/modules/exam'
+import { showError } from '@/utils/toast'
 
 const mode = ref('learn')
 const flatCategories = ref([])
+const useLearn = ref(true)
 
 const titleMap = { learn: '选择题库', moniq: '选择模拟考试', exam: '选择正式考试', rank: '选择排行榜' }
 const title = computed(() => titleMap[mode.value] || '选择分类')
@@ -40,6 +42,10 @@ onLoad(async (options) => {
     const res = await examApi.getCategoryTree()
     flatCategories.value = (res.data || []).map(n => ({ ...n, indent: '' }))
   } catch { /* */ }
+  try {
+    const s = await examApi.getSettings()
+    useLearn.value = s.data?.use_learn !== '0'
+  } catch { /* */ }
 })
 
 function choose(c) {
@@ -47,8 +53,12 @@ function choose(c) {
   uni.navigateTo({ url: `${route}?categoryId=${c.id}` })
 }
 
-/** 练习模式快速开始：默认随机20题全题型，跳过练习设置页，将流程从3步缩到2步 */
+/** 练习模式快速开始：默认随机20题全题型，跳过练习设置页，将流程从3步缩到2步（与首页门禁口径一致） */
 function quickStart(c) {
+  if (mode.value === 'learn' && !useLearn.value) {
+    showError('练习模式未开启')
+    return
+  }
   uni.navigateTo({ url: `/pages/exam/dati/index?mode=learn&categoryId=${c.id}&types=single,multiple,judge&count=20&back=0&drawMode=random` })
 }
 </script>

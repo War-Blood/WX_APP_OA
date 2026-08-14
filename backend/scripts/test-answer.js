@@ -34,10 +34,9 @@ async function main() {
 
   // 1. 设置读写
   console.log('\n[1] 答题设置');
-  await settingService.update([{ key: 'use_learn', value: '1' }, { key: 'check_user', value: '1' }]);
+  await settingService.update([{ key: 'use_learn', value: '1' }]);
   const settings = await settingService.get();
   check('use_learn=1', settings.use_learn === '1');
-  check('check_user=1', settings.check_user === '1');
 
   // 2. 临时分类 + 题目
   console.log('\n[2] 分类/题库');

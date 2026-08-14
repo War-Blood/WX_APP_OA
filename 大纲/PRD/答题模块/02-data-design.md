@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS exam_records (
 -- 4. 答题设置表（dati setting）
 CREATE TABLE IF NOT EXISTS exam_settings (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  setting_key VARCHAR(50) NOT NULL UNIQUE COMMENT 'use_learn / check_user',
+  setting_key VARCHAR(50) NOT NULL UNIQUE COMMENT 'use_learn',
   setting_value VARCHAR(255) NOT NULL,
   description VARCHAR(500) DEFAULT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -132,10 +132,9 @@ CREATE TABLE IF NOT EXISTS exam_favorites (
   UNIQUE KEY uk_user_question (user_id, question_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='题目收藏';
 
--- 设置表种子数据
+-- 设置表种子数据（check_user 已废弃移除，v2.2）
 INSERT IGNORE INTO exam_settings (setting_key, setting_value, description) VALUES
-  ('use_learn', '1', '是否开放练习/背题模式 (1=开 0=关)'),
-  ('check_user', '1', '是否仅登录用户可答题 (OA 恒有用户, 默认开)');
+  ('use_learn', '1', '是否开放练习/背题模式 (1=开 0=关)');
 ```
 
 ## 索引策略

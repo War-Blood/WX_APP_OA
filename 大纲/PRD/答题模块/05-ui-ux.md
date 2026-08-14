@@ -238,7 +238,7 @@
 
 ### 5. 答题设置 `settings.vue`
 
-- 开关列表：`use_learn`（开放练习/背题）、`check_user`（仅登录用户可答）。
+- 开关列表：`use_learn`（开放练习/背题；`check_user` 已废弃移除 v2.2）。
 - el-switch + 保存按钮，保存即生效。
 
 ---

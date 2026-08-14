@@ -96,7 +96,7 @@ if (hasChildren) throw new BusinessError('分类下仍有子分类或题目, 不
 | `POST /api/exam/wrong/remove` | 登录 | 移除错题 `{ questionId }` |
 | `POST /api/exam/favorite/toggle` | 登录 | 收藏/取消收藏 `{ questionId }` → `{ favorited }` |
 | `POST /api/exam/favorite/list` | 登录 | 我的收藏 `{ page, pageSize }` |
-| `POST /api/exam/settings/get` | 登录 | 读取答题设置（use_learn/check_user） |
+| `POST /api/exam/settings/get` | 登录 | 读取答题设置（use_learn；check_user 已废弃 v2.2） |
 | `POST /api/exam/settings/update` | admin | 更新答题设置 `{ settings: [{key,value}] }` |
 
 ## 请求/响应示例

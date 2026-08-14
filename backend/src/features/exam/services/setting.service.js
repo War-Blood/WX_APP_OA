@@ -8,11 +8,11 @@ const { ErrorCode } = require('../../../common/utils/constants');
  * 答题设置服务 — 读取/更新键值
  */
 
-const ALLOWED_KEYS = ['use_learn', 'check_user'];
+const ALLOWED_KEYS = ['use_learn'];
 
 /**
  * 读取答题设置
- * @returns {Promise<Object>} { use_learn, check_user }
+ * @returns {Promise<Object>} { use_learn }
  */
 async function get() {
   const rows = await db.query('SELECT setting_key, setting_value FROM exam_settings');

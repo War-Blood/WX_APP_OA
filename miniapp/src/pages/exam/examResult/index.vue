@@ -46,6 +46,7 @@ const title = ref('答题结果')
 const score = ref(null)
 const totalScore = ref(0)
 const status = ref('')
+const passScore = ref(null)
 const questions = ref([])
 const loading = ref(false)
 const loadError = ref('')
@@ -56,7 +57,9 @@ const categoryId = ref(0)
 const statusLabel = computed(() => {
   if (status.value === 'timeout') return '⏰ 已超时'
   if (score.value == null) return '—'
-  return score.value >= totalScore.value / 2 ? '✅ 通过' : '❌ 未通过'
+  // 通过判定统一口径：正式考试按人工设置的合格线(passScore)；练习/模拟无合格线时按总分 60% 兜底
+  const pass = passScore.value != null ? passScore.value : Math.round(totalScore.value * 0.6)
+  return score.value >= pass ? '✅ 通过' : '❌ 未通过'
 })
 
 function parseOptions(opts) {
@@ -74,6 +77,7 @@ async function loadByRecord(recordId) {
     score.value = d.score
     totalScore.value = d.totalScore
     status.value = d.status
+    passScore.value = d.passScore ?? null
     mode.value = d.mode || ''
     categoryId.value = d.categoryId || 0
     title.value = { practice: '练习结果', mock: '模拟考试结果', exam: '正式考试结果' }[d.mode] || '答题结果'

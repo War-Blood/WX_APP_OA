@@ -75,7 +75,7 @@ async function allRecords({ keyword, categoryId, mode, status, paperId, page = 1
  */
 async function detail(recordId, userId, isAdmin = false) {
   const [record] = await db.query(
-    'SELECT r.*, c.name AS categoryName, p.title AS paperTitle'
+    'SELECT r.*, c.name AS categoryName, p.title AS paperTitle, p.pass_score AS paperPassScore'
     + ' FROM exam_records r'
     + ' LEFT JOIN exam_categories c ON r.category_id = c.id'
     + ' LEFT JOIN exam_papers p ON r.paper_id = p.id'
@@ -84,11 +84,17 @@ async function detail(recordId, userId, isAdmin = false) {
   );
   if (!record) throw new NotFoundError('答题记录不存在');
   const { score, totalScore, details } = examService.gradeRecord(record);
+  // 通过判定统一口径：正式考试按人工设置的合格线（pass_score）；练习/模拟无合格线时按总分 60% 兜底
+  const passScore = record.paperPassScore != null
+    ? Number(record.paperPassScore)
+    : Math.round(totalScore * 0.6);
+  const isPass = record.status === 'submitted' && score != null && score >= passScore;
   return {
     recordId: record.id, categoryId: record.category_id, categoryName: record.categoryName || '',
     paperId: record.paper_id, paperTitle: record.paperTitle || '',
     mode: record.mode, score, totalScore, useTime: record.use_time,
-    status: record.status, startTime: record.start_time, endTime: record.end_time,
+    status: record.status, passScore, isPass,
+    startTime: record.start_time, endTime: record.end_time,
     details,
   };
 }
@@ -109,8 +115,15 @@ async function overview({ categoryId } = {}) {
     + ' FROM exam_records ' + where,
     params
   );
+  // 通过判定统一口径：join 试卷按人工设置的合格线 pass_score；练习/模拟(无 paper)按总分 60% 兜底
+  const passParams = categoryId ? [categoryId] : [];
   const passCountRow = await db.query(
-    'SELECT COUNT(*) AS cnt FROM exam_records ' + where + ' AND score >= total_score', params
+    'SELECT COUNT(*) AS cnt FROM exam_records r'
+    + ' LEFT JOIN exam_papers p ON r.paper_id = p.id'
+    + " WHERE r.status IN ('submitted','timeout') AND r.score IS NOT NULL"
+    + (categoryId ? ' AND r.category_id = ?' : '')
+    + ' AND r.score >= COALESCE(p.pass_score, ROUND(r.total_score * 0.6))',
+    passParams
   );
   const byCategory = await db.query(
     'SELECT c.id, c.name, COUNT(*) AS cnt'

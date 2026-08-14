@@ -392,7 +392,7 @@ CREATE TABLE IF NOT EXISTS \`exam_records\` (
 -- ============================================
 CREATE TABLE IF NOT EXISTS \`exam_settings\` (
   \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
-  \`setting_key\` VARCHAR(50) NOT NULL COMMENT '配置键 (use_learn / check_user)',
+  \`setting_key\` VARCHAR(50) NOT NULL COMMENT '配置键 (use_learn; check_user 已废弃 v2.2)',
   \`setting_value\` VARCHAR(255) NOT NULL COMMENT '配置值',
   \`description\` VARCHAR(500) DEFAULT NULL COMMENT '配置说明',
   \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -607,9 +607,10 @@ async function initDatabase() {
     try {
       await connection.execute(
         `INSERT IGNORE INTO exam_settings (setting_key, setting_value, description) VALUES
-         ('use_learn', '1', '是否开放练习/背题模式 (1=开 0=关)'),
-         ('check_user', '1', '是否仅登录用户可答题 (OA 恒有用户, 默认开)')`
+         ('use_learn', '1', '是否开放练习/背题模式 (1=开 0=关)')`
       );
+      // check_user 已废弃（OA 恒有登录用户、无消费端），清理历史残留行
+      await connection.execute("DELETE FROM exam_settings WHERE setting_key = 'check_user'");
       console.log('  ✅ 答题设置种子数据就绪');
     } catch (err) {
       console.error(`  ❌ 答题设置种子失败: ${err.message}`);

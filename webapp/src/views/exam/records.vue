@@ -42,8 +42,9 @@
     <!-- 记录详情弹窗 -->
     <el-dialog v-model="detailVisible" :title="`答题详情：${current?.userName || ''} — ${current?.paperTitle || current?.categoryName || ''}`" width="680px" top="6vh" @closed="currentDetail = null">
       <template v-if="currentDetail">
-        <el-descriptions :column="3" border size="small">
+        <el-descriptions :column="4" border size="small">
           <el-descriptions-item label="得分">{{ currentDetail.score ?? '-' }}/{{ currentDetail.totalScore }}</el-descriptions-item>
+          <el-descriptions-item label="合格线">{{ currentDetail.passScore ?? '—' }}分</el-descriptions-item>
           <el-descriptions-item label="用时">{{ currentDetail.useTime }}秒</el-descriptions-item>
           <el-descriptions-item label="状态">{{ statusLabel(currentDetail.status) }}</el-descriptions-item>
         </el-descriptions>
