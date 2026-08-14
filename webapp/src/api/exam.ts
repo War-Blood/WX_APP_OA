@@ -62,6 +62,8 @@ export interface RecordRow {
   departmentName?: string
   categoryId: number
   categoryName?: string
+  paperId?: number
+  paperTitle?: string
   mode: 'practice' | 'exam' | 'mock'
   score: number | null
   totalScore: number

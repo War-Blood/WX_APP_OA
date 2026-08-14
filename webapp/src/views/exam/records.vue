@@ -40,7 +40,7 @@
     </el-card>
 
     <!-- 记录详情弹窗 -->
-    <el-dialog v-model="detailVisible" :title="`答题详情：${current?.userName || ''} — ${current?.categoryName || ''}`" width="640px" top="6vh">
+    <el-dialog v-model="detailVisible" :title="`答题详情：${current?.userName || ''} — ${current?.paperTitle || current?.categoryName || ''}`" width="680px" top="6vh" @closed="currentDetail = null">
       <template v-if="currentDetail">
         <el-descriptions :column="3" border size="small">
           <el-descriptions-item label="得分">{{ currentDetail.score ?? '-' }}/{{ currentDetail.totalScore }}</el-descriptions-item>
