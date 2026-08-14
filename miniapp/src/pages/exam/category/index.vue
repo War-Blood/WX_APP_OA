@@ -4,7 +4,7 @@
     <scroll-view class="content" scroll-y>
       <view v-for="c in flatCategories" :key="c.id" class="cat-card" @tap="choose(c)">
         <view class="cat-info">
-          <text class="cat-name">{{ c.indent }}{{ c.name }}</text>
+          <text class="cat-name">{{ c.name }}</text>
           <view class="cat-meta">
             <text>{{ c.questionNum }}题</text>
             <text>·</text>
@@ -34,20 +34,11 @@ const flatCategories = ref([])
 const titleMap = { learn: '选择题库', moniq: '选择模拟考试', exam: '选择正式考试', rank: '选择排行榜' }
 const title = computed(() => titleMap[mode.value] || '选择分类')
 
-function flatten(nodes, indent, out) {
-  nodes.forEach(n => {
-    out.push({ ...n, indent })
-    if (n.children && n.children.length) flatten(n.children, indent + '    ', out)
-  })
-}
-
 onLoad(async (options) => {
   mode.value = options.mode || 'learn'
   try {
     const res = await examApi.getCategoryTree()
-    const out = []
-    flatten(res.data || [], '', out)
-    flatCategories.value = out
+    flatCategories.value = (res.data || []).map(n => ({ ...n, indent: '' }))
   } catch { /* */ }
 })
 

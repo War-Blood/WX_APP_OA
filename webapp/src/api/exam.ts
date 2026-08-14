@@ -20,6 +20,8 @@ export interface QuestionRow {
   score_mode?: 'exact' | 'partial'
   shuffle_options?: number
   status?: string
+  title_image?: string | null
+  analysis_image?: string | null
 }
 
 export interface Question {
@@ -34,6 +36,8 @@ export interface Question {
   scoreMode?: 'exact' | 'partial'
   shuffleOptions?: boolean
   status?: string
+  titleImage?: string
+  analysisImage?: string
   createdBy?: number
   createdAt?: string
 }
@@ -49,7 +53,6 @@ export interface ExamCategory {
   time?: number
   path?: string
   sortOrder?: number
-  children?: ExamCategory[]
 }
 
 export interface RecordRow {
@@ -112,6 +115,7 @@ export interface StatsOverview {
   passCount: number
   passRate: number
   distribution: { id: number; name: string; cnt: number }[]
+  scoreSegments?: { seg: string; cnt: number }[]
 }
 
 export interface SettingRow {
@@ -206,14 +210,14 @@ export function getQuestionList(params: { page?: number; pageSize?: number; cate
   return request.post('/exam/questions/list', params)
 }
 export function createQuestion(data: Question): Promise<{ id: number }> { return request.post('/exam/questions/create', data) }
-export function updateQuestion(data: Question & { id: number }): Promise<{ updated: boolean }> { return request.post('/exam/questions/update', data) }
+export function updateQuestion(data: Partial<Question> & { id: number }): Promise<{ updated: boolean }> { return request.post('/exam/questions/update', data) }
 export function deleteQuestion(id: number): Promise<{ deleted: boolean }> { return request.post('/exam/questions/delete', { id }) }
-export function batchImportQuestions(questions: Question[]): Promise<{ success: number; failed: number; errors: { row: number; reason: string }[] }> {
-  return request.post('/exam/questions/batch-import', { questions })
+export function batchImportQuestions(questions: Question[], baseRow = 2): Promise<{ success: number; failed: number; errors: { row: number; reason: string }[] }> {
+  return request.post('/exam/questions/batch-import', { questions, baseRow })
 }
 
 // ===== 记录 =====
-export function getRecordList(params: { page?: number; pageSize?: number; keyword?: string; categoryId?: number; mode?: string; status?: string }): Promise<PagedResult<RecordRow>> {
+export function getRecordList(params: { page?: number; pageSize?: number; keyword?: string; categoryId?: number; mode?: string; status?: string; paperId?: number }): Promise<PagedResult<RecordRow>> {
   return request.post('/exam/records/all', params)
 }
 export function getRecordDetail(recordId: number): Promise<RecordDetail> { return request.post('/exam/records/detail', { recordId }) }
@@ -238,3 +242,12 @@ export function createPaper(data: Paper): Promise<{ id: number }> { return reque
 export function updatePaper(data: Partial<Paper> & { id: number }): Promise<{ updated: boolean }> { return request.post('/exam/papers/update', data) }
 export function deletePaper(id: number): Promise<{ deleted: boolean }> { return request.post('/exam/papers/delete', { id }) }
 export function publishPaper(id: number): Promise<{ published: boolean }> { return request.post('/exam/papers/publish', { id }) }
+export function archivePaper(id: number): Promise<{ archived: boolean }> { return request.post('/exam/papers/archive', { id }) }
+export function clonePaper(id: number): Promise<{ id: number }> { return request.post('/exam/papers/clone', { id }) }
+export function getPaperDetail(id: number): Promise<{ paper: PaperRow; questions: { id: number; type: string; title: string; score: number }[]; ruleSummary: DrawRule[] }> { return request.post('/exam/papers/detail', { id }) }
+// ===== 图片上传 =====
+export function uploadQuestionImage(file: File): Promise<{ url: string }> {
+  const fd = new FormData()
+  fd.append('file', file)
+  return request.post('/exam/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+}

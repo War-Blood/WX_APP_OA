@@ -8,8 +8,8 @@
           <span class="hint">关闭后小程序练习/背题入口提示"练习模式未开启"</span>
         </el-form-item>
         <el-form-item label="仅登录用户可答题">
-          <el-switch v-model="settings.check_user" :active-value="'1'" :inactive-value="'0'" disabled />
-          <span class="hint">OA 恒有登录用户，默认开启</span>
+          <el-switch v-model="settings.check_user" :active-value="'1'" :inactive-value="'0'" />
+          <span class="hint">关闭后仅限已登录用户答题（OA 恒有登录用户，建议保持开启）</span>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="saving" @click="handleSave">保存设置</el-button>
@@ -37,6 +37,7 @@ async function handleSave() {
   try {
     await updateSettings([
       { key: 'use_learn', value: settings.value.use_learn || '0' },
+      { key: 'check_user', value: settings.value.check_user || '1' },
     ])
     toast.success('设置已保存')
   } catch { toast.error('保存失败') }

@@ -190,8 +190,11 @@ async function update(id, data) {
  * @returns {Promise<Object>} { deleted }
  */
 async function remove(id) {
-  const [paper] = await db.query('SELECT id FROM exam_papers WHERE id = ?', [id]);
+  const [paper] = await db.query('SELECT status FROM exam_papers WHERE id = ?', [id]);
   if (!paper) throw new BusinessError('试卷不存在', null, ErrorCode.ANSWER_PAPER_NOT_FOUND);
+  if (paper.status === 'published') {
+    throw new BusinessError('已发布试卷不可删除, 请先归档', null, ErrorCode.ANSWER_PAPER_NOT_PUBLISHED);
+  }
   await db.execute('DELETE FROM exam_papers WHERE id = ?', [id]);
   return { deleted: true };
 }
@@ -209,4 +212,66 @@ async function publish(id) {
   return { published: true };
 }
 
-module.exports = { list, available, checkScope, create, update, remove, publish };
+/**
+ * 归档已发布试卷(不可恢复为发布态, 仅保留成绩数据)
+ * @param {number} id - 试卷ID
+ * @returns {Promise<Object>} { archived }
+ */
+async function archive(id) {
+  const [paper] = await db.query('SELECT status FROM exam_papers WHERE id = ?', [id]);
+  if (!paper) throw new BusinessError('试卷不存在', null, ErrorCode.ANSWER_PAPER_NOT_FOUND);
+  if (paper.status !== 'published') throw new BusinessError('仅已发布试卷可归档');
+  await db.execute("UPDATE exam_papers SET status = 'archived' WHERE id = ?", [id]);
+  return { archived: true };
+}
+
+/**
+ * 克隆试卷为新草稿(标题加 副本, 版本重置)
+ * @param {number} id - 原试卷ID
+ * @returns {Promise<Object>} { id }
+ */
+async function clone(id) {
+  const [paper] = await db.query('SELECT * FROM exam_papers WHERE id = ?', [id]);
+  if (!paper) throw new BusinessError('试卷不存在', null, ErrorCode.ANSWER_PAPER_NOT_FOUND);
+  const result = await db.execute(
+    `INSERT INTO exam_papers (title, description, duration, pass_score, total_score,
+     max_attempts, scope_type, scope_departments, scope_users, scope_roles,
+     draw_rules, shuffle_questions, shuffle_options, question_ids,
+     start_time, end_time, status, version, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1, ?)`,
+    [paper.title + '（副本）', paper.description, paper.duration, paper.pass_score, paper.total_score,
+      paper.max_attempts, paper.scope_type, paper.scope_departments, paper.scope_users, paper.scope_roles,
+      paper.draw_rules, paper.shuffle_questions, paper.shuffle_options, paper.question_ids,
+      paper.start_time, paper.end_time, paper.created_by]
+  );
+  return { id: result[0].insertId };
+}
+
+/**
+ * 试卷详情(供管理端只读预览): 随机抽题返回规则, 手动选题返回题目
+ * @param {number} id - 试卷ID
+ * @returns {Promise<Object>} { paper, questions, ruleSummary }
+ */
+async function detail(id) {
+  const [paper] = await db.query('SELECT * FROM exam_papers WHERE id = ?', [id]);
+  if (!paper) throw new BusinessError('试卷不存在', null, ErrorCode.ANSWER_PAPER_NOT_FOUND);
+  const drawRules = parseArr(paper.draw_rules);
+  let questions = [];
+  let ruleSummary = [];
+  if (drawRules.length) {
+    ruleSummary = drawRules.map((r2) => ({
+      type: r2.type, categoryId: r2.categoryId || 0, count: r2.count, score: r2.score,
+    }));
+  } else {
+    const ids = parseArr(paper.question_ids);
+    if (ids.length) {
+      questions = await db.query(
+        'SELECT id, type, title, score FROM exam_questions WHERE id IN (' + ids.map(() => '?').join(',') + ')',
+        ids
+      );
+    }
+  }
+  return { paper, questions, ruleSummary };
+}
+
+module.exports = { list, available, checkScope, create, update, remove, publish, archive, clone, detail };

@@ -1,6 +1,7 @@
 'use strict';
 
 const questionService = require('../services/question.service');
+const logger = require('../../../common/utils/logger');
 const { success, paginated } = require('../../../common/utils/response');
 
 /**
@@ -45,8 +46,14 @@ async function remove(req, res, next) {
 /** 批量导入 */
 async function batchImport(req, res, next) {
   try {
-    const { questions } = req.body;
-    const result = await questionService.batchImport(questions, req.user.userId);
+    const { questions, baseRow = 2 } = req.body;
+    const result = await questionService.batchImport(questions, req.user.userId, Number(baseRow) || 2);
+    logger.info('题库批量导入', {
+      module: 'ANSWER',
+      userId: req.user.userId,
+      success: result.success,
+      failed: result.failed,
+    });
     res.json(success(result, `成功 ${result.success} 条，失败 ${result.failed} 条`));
   } catch (err) { next(err); }
 }

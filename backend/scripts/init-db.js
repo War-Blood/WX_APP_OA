@@ -324,7 +324,7 @@ CREATE TABLE IF NOT EXISTS \`system_config\` (
 -- ============================================
 CREATE TABLE IF NOT EXISTS \`exam_categories\` (
   \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
-  \`parent_id\` INT UNSIGNED DEFAULT 0 COMMENT '父级ID, 0=顶级, 支持二级',
+  \`parent_id\` INT UNSIGNED DEFAULT 0 COMMENT '主分类标识, 恒为0(v3 扁平化, 无子分类)',
   \`name\` VARCHAR(50) NOT NULL COMMENT '分类名称',
   \`cover\` VARCHAR(500) DEFAULT NULL COMMENT '封面图URL (dati questionMenu.cover)',
   \`question_num\` INT DEFAULT 0 COMMENT '显示题量, 实际按题库统计',
@@ -348,6 +348,8 @@ CREATE TABLE IF NOT EXISTS \`exam_questions\` (
   \`options\` JSON NOT NULL COMMENT '选项 [{"key":"A","text":"..."}]',
   \`answer\` VARCHAR(20) NOT NULL COMMENT '正确答案(多选逗号分隔)',
   \`analysis\` TEXT DEFAULT NULL COMMENT '解析',
+  \`title_image\` VARCHAR(500) DEFAULT NULL COMMENT '题干图片URL (可选)',
+  \`analysis_image\` VARCHAR(500) DEFAULT NULL COMMENT '解析图片URL (可选)',
   \`score\` INT NOT NULL DEFAULT 2 COMMENT '分值',
   \`score_mode\` ENUM('exact','partial') DEFAULT 'exact' COMMENT '判分模式',
   \`status\` ENUM('active','disabled') DEFAULT 'active' COMMENT '状态',
@@ -611,6 +613,43 @@ async function initDatabase() {
       console.log('  ✅ 答题设置种子数据就绪');
     } catch (err) {
       console.error(`  ❌ 答题设置种子失败: ${err.message}`);
+    }
+
+    // ──── v3.1 答题模块迁移（分类扁平化 + 题目图片列, 幂等） ────
+    // 1) exam_questions 增加图片列（题干/解析图片, 缺列则 ALTER）
+    const questionImageColumns = [
+      ['title_image', "`title_image` VARCHAR(500) DEFAULT NULL COMMENT '题干图片URL (可选)'"],
+      ['analysis_image', "`analysis_image` VARCHAR(500) DEFAULT NULL COMMENT '解析图片URL (可选)'"],
+    ];
+    for (const [column, ddl] of questionImageColumns) {
+      try {
+        if (!(await columnExists(connection, 'exam_questions', column))) {
+          await connection.execute(`ALTER TABLE \`exam_questions\` ADD COLUMN ${ddl}`);
+          console.log(`  ✅ 迁移 exam_questions.${column}`);
+        }
+      } catch (err) {
+        console.error(`  ❌ 迁移 exam_questions.${column} 失败: ${err.message}`);
+      }
+    }
+
+    // 2) 分类扁平化兜底: 存在子分类时, 其题目迁到根分类并删除子分类(与 sql/v3_exam_flat_category.sql 一致, 幂等)
+    try {
+      const [subCategories] = await connection.execute(
+        'SELECT COUNT(*) AS cnt FROM \`exam_categories\` WHERE parent_id != 0'
+      );
+      if (subCategories[0].cnt > 0) {
+        // 每个子分类的题目迁到其根分类; 无根则归入任一主分类
+        await connection.execute(
+          `UPDATE \`exam_questions\` q
+           JOIN \`exam_categories\` c ON q.category_id = c.id AND c.parent_id != 0
+           LEFT JOIN \`exam_categories\` root ON root.id = c.parent_id
+           SET q.category_id = COALESCE(root.id, (SELECT id FROM (SELECT id FROM \`exam_categories\` WHERE parent_id = 0 ORDER BY id ASC LIMIT 1) t))`
+        );
+        await connection.execute('DELETE FROM \`exam_categories\` WHERE parent_id != 0');
+        console.log('  ✅ 分类扁平化: 子分类题目已迁移至主分类, 子分类已删除');
+      }
+    } catch (err) {
+      console.error(`  ❌ 分类扁平化兜底失败: ${err.message}`);
     }
 
     console.log('✅ 数据库初始化完成！');

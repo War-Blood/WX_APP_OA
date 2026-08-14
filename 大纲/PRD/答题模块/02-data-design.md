@@ -65,6 +65,8 @@ CREATE TABLE IF NOT EXISTS exam_questions (
   options JSON NOT NULL COMMENT '[{"key":"A","text":"..."}]',
   answer VARCHAR(20) NOT NULL COMMENT '多选逗号分隔, 如 B,C',
   analysis TEXT COMMENT '解析',
+  title_image VARCHAR(500) DEFAULT NULL COMMENT '题干图片URL (可选)',
+  analysis_image VARCHAR(500) DEFAULT NULL COMMENT '解析图片URL (可选)',
   score INT NOT NULL DEFAULT 2 COMMENT '分值',
   score_mode ENUM('exact','partial') DEFAULT 'exact' COMMENT '多选判分: 全对/漏选部分分',
   shuffle_options TINYINT(1) DEFAULT 0 COMMENT '本题目选项是否随机排列',

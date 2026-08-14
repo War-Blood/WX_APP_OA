@@ -16,6 +16,33 @@
           <el-col :span="6"><el-card shadow="hover"><div class="stat-val">{{ stats.avgScore }}</div><div class="stat-lbl">平均分</div></el-card></el-col>
           <el-col :span="6"><el-card shadow="hover"><div class="stat-val" style="color:#22C55E">{{ stats.passRate }}%</div><div class="stat-lbl">通过率</div></el-card></el-col>
         </el-row>
+        <el-card v-if="stats.total" shadow="never" style="margin-bottom:20px">
+          <div style="text-align:center;font-weight:600;margin-bottom:12px">通过情况（{{ stats.passCount }}/{{ stats.total }}，{{ stats.passRate }}%）</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <span style="width:120px;font-size:13px;color:#606266">通过</span>
+            <div style="flex:1;height:24px;background:#EDF2FF;border-radius:4px;overflow:hidden">
+              <div :style="{ width: stats.passRate + '%', height: '100%', background: '#22C55E' }" />
+            </div>
+            <span style="width:60px;font-size:13px;color:#909399">{{ stats.passCount }}条</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="width:120px;font-size:13px;color:#606266">未通过</span>
+            <div style="flex:1;height:24px;background:#EDF2FF;border-radius:4px;overflow:hidden">
+              <div :style="{ width: (100 - stats.passRate) + '%', height: '100%', background: '#EF4444' }" />
+            </div>
+            <span style="width:60px;font-size:13px;color:#909399">{{ stats.total - stats.passCount }}条</span>
+          </div>
+        </el-card>
+        <el-card v-if="stats.scoreSegments?.length" shadow="never" style="margin-bottom:20px">
+          <div style="text-align:center;font-weight:600;margin-bottom:12px">分数段分布</div>
+          <div v-for="seg in stats.scoreSegments" :key="seg.seg" style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <span style="width:120px;font-size:13px;color:#606266">{{ seg.seg }}</span>
+            <div style="flex:1;height:24px;background:#EDF2FF;border-radius:4px;overflow:hidden">
+              <div :style="{ width: segPercentOf(seg.cnt) + '%', height: '100%', background: '#2B6DE8' }" />
+            </div>
+            <span style="width:60px;font-size:13px;color:#909399">{{ seg.cnt }}条</span>
+          </div>
+        </el-card>
         <el-card v-if="stats.distribution?.length" shadow="never">
           <div style="text-align:center;font-weight:600;margin-bottom:12px">分类答题量分布</div>
           <div v-for="d in stats.distribution" :key="d.id" style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
@@ -26,7 +53,7 @@
             <span style="width:60px;font-size:13px;color:#909399">{{ d.cnt }}条</span>
           </div>
         </el-card>
-        <div v-else style="text-align:center;padding:40px;color:#909399">暂无答题数据</div>
+        <div v-if="!stats.total" style="text-align:center;padding:40px;color:#909399">暂无答题数据</div>
       </div>
     </el-card>
   </div>
@@ -35,24 +62,21 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { toast } from '@/utils/toast'
-import type { ExamCategory, StatsOverview } from '@/api/exam'
+import type { StatsOverview } from '@/api/exam'
 import { getStatsOverview, getCategoryList } from '@/api/exam'
 
 const loading = ref(false)
 const filterCategory = ref<number | null>(null)
 const categoryOptions = ref<{ id: number; name: string }[]>([])
-const stats = ref<StatsOverview>({ people: 0, total: 0, avgScore: 0, passCount: 0, passRate: 0, distribution: [] })
+const stats = ref<StatsOverview>({ people: 0, total: 0, avgScore: 0, passCount: 0, passRate: 0, distribution: [], scoreSegments: [] })
 
 function percentOf(cnt: number): number {
   const total = stats.value.distribution.reduce((s, d) => s + d.cnt, 0)
   return total ? Math.round(cnt / total * 100) : 0
 }
-
-function flattenCategories(nodes: ExamCategory[], out: { id: number; name: string }[]) {
-  nodes.forEach(n => {
-    out.push({ id: n.id, name: n.path || n.name })
-    if (n.children && n.children.length) flattenCategories(n.children, out)
-  })
+function segPercentOf(cnt: number): number {
+  const total = (stats.value.scoreSegments || []).reduce((sum, d) => sum + d.cnt, 0)
+  return total ? Math.round(cnt / total * 100) : 0
 }
 
 async function loadData() {
@@ -66,8 +90,7 @@ async function loadData() {
 onMounted(async () => {
   try {
     const cats = await getCategoryList()
-    categoryOptions.value = []
-    flattenCategories(cats, categoryOptions.value)
+    categoryOptions.value = cats.map(c => ({ id: c.id, name: c.name }))
   } catch { /* */ }
   loadData()
 })

@@ -9,6 +9,9 @@
             <el-select v-model="filterCategory" placeholder="按分类" clearable style="width:180px" @change="loadData">
               <el-option v-for="c in categoryOptions" :key="c.id" :label="c.name" :value="c.id" />
             </el-select>
+            <el-select v-model="filterPaper" placeholder="按试卷" clearable filterable style="width:180px" @change="loadData">
+              <el-option v-for="p in paperOptions" :key="p.id" :label="p.title" :value="p.id" />
+            </el-select>
             <el-select v-model="filterMode" placeholder="模式" clearable style="width:130px" @change="loadData">
               <el-option label="正式考试" value="exam" /><el-option label="模拟考试" value="mock" />
             </el-select>
@@ -50,9 +53,10 @@
             <template #title>
               <span :style="{ color: d.correct ? '#16a34a' : '#dc2626' }">{{ d.correct ? '✅' : '❌' }}</span>
               <span style="margin-left:8px">{{ d.title }}</span>
+              <span style="margin-left:auto;color:#909399;font-size:12px">{{ d.earnedPoints }}/{{ d.totalPoints }}分</span>
             </template>
-            <div>你的答案：<b>{{ d.userAnswer || '未作答' }}</b></div>
-            <div>正确答案：<b>{{ d.rightAnswer }}</b></div>
+            <div>你的答案：<b>{{ formatAnswer(d) }}</b></div>
+            <div>正确答案：<b>{{ formatKeys(d, d.rightAnswer) }}</b></div>
             <div v-if="d.analysis">解析：{{ d.analysis }}</div>
           </el-collapse-item>
         </el-collapse>
@@ -65,7 +69,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { toast } from '@/utils/toast'
-import type { RecordRow, RecordDetail, ExamCategory } from '@/api/exam'
+import type { RecordRow, RecordDetail } from '@/api/exam'
 import { getRecordList, getRecordDetail, exportRecords, getCategoryList } from '@/api/exam'
 
 const loading = ref(false)
@@ -77,7 +81,9 @@ const keyword = ref('')
 const filterCategory = ref<number | null>(null)
 const filterMode = ref<string | null>(null)
 const filterStatus = ref<string | null>(null)
+const filterPaper = ref<number | null>(null)
 const categoryOptions = ref<{ id: number; name: string }[]>([])
+const paperOptions = ref<{ id: number; title: string }[]>([])
 
 const detailVisible = ref(false)
 const current = ref<RecordRow | null>(null)
@@ -88,13 +94,6 @@ const statusType = (s: string): '' | 'success' | 'warning' | 'primary' =>
   ({ submitted: 'success', doing: 'primary', timeout: 'warning' } as Record<string, '' | 'success' | 'warning' | 'primary'>)[s] || ''
 const statusLabel = (s: string): string => ({ submitted: '已提交', doing: '进行中', timeout: '已超时' })[s] || s
 
-function flattenCategories(nodes: ExamCategory[], out: { id: number; name: string }[]) {
-  nodes.forEach(n => {
-    out.push({ id: n.id, name: n.path || n.name })
-    if (n.children && n.children.length) flattenCategories(n.children, out)
-  })
-}
-
 async function loadData() {
   loading.value = true
   try {
@@ -104,6 +103,7 @@ async function loadData() {
       categoryId: filterCategory.value || undefined,
       mode: filterMode.value || undefined,
       status: filterStatus.value || undefined,
+      paperId: filterPaper.value || undefined,
     })
     tableData.value = res.list || []
     total.value = res.total || 0
@@ -138,12 +138,30 @@ async function handleExport() {
   finally { exporting.value = false }
 }
 
+// 答案字母 → 选项文本(取快照 options)
+function formatKeys(d: any, answer: string): string {
+  if (!answer) return '未作答'
+  const options = Array.isArray(d.options) ? d.options : []
+  return answer.split(',').map((k: string) => {
+    const opt = options.find((o: any) => o.key === k)
+    return opt ? k + '. ' + opt.text : k
+  }).join('；')
+}
+function formatAnswer(d: any): string {
+  return d.userAnswer ? formatKeys(d, d.userAnswer) : '未作答'
+}
+
 onMounted(async () => {
   loadData()
   try {
     const cats = await getCategoryList()
-    categoryOptions.value = []
-    flattenCategories(cats, categoryOptions.value)
+    categoryOptions.value = cats.map(c => ({ id: c.id, name: c.name }))
+  } catch { /* */ }
+  // 试卷选项(已发布 + 草稿, 供筛选)
+  try {
+    const { getPaperList } = await import('@/api/exam')
+    const res = await getPaperList({ page: 1, pageSize: 200 })
+    paperOptions.value = (res.list || []).map((p: any) => ({ id: p.id, title: p.title }))
   } catch { /* */ }
 })
 </script>

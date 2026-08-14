@@ -5,6 +5,7 @@
       <text class="q-score">{{ question.score }}分</text>
     </view>
     <view class="q-title">{{ question.title }}</view>
+    <image v-if="question.titleImage" class="q-img" :src="question.titleImage" mode="widthFix" @tap="previewTitleImage" />
     <view class="q-options">
       <view
         v-for="opt in question.options"
@@ -15,7 +16,10 @@
       >
         <view class="opt-circle" :class="{ checked: selectedKeys.includes(opt.key) }" />
         <text class="opt-key">{{ opt.key }}.</text>
-        <text class="opt-text">{{ opt.text }}</text>
+        <view class="opt-body">
+          <text class="opt-text">{{ opt.text }}</text>
+          <image v-if="opt.image" class="opt-img" :src="opt.image" mode="widthFix" @tap.stop="previewOptionImage(opt.image)" />
+        </view>
       </view>
     </view>
     <view v-if="showAnswer" class="q-analysis">
@@ -24,6 +28,7 @@
       </view>
       <view class="qa-line">正确答案：{{ question.answer }}</view>
       <view v-if="question.analysis" class="qa-line analysis">解析：{{ question.analysis }}</view>
+      <image v-if="question.analysisImage" class="q-img" :src="question.analysisImage" mode="widthFix" @tap="previewAnalysisImage" />
     </view>
   </view>
 </template>
@@ -73,6 +78,16 @@ function optionClass(key) {
   return classes
 }
 
+function previewTitleImage() {
+  if (props.question.titleImage) uni.previewImage({ urls: [props.question.titleImage] })
+}
+function previewOptionImage(url) {
+  uni.previewImage({ urls: [url] })
+}
+function previewAnalysisImage() {
+  if (props.question.analysisImage) uni.previewImage({ urls: [props.question.analysisImage] })
+}
+
 function onTap(key) {
   // 触觉反馈: 可交互时轻震, 让用户感知选中动作被接收
   if (props.interactive) uni.vibrateShort({ type: 'light' })
@@ -94,6 +109,9 @@ function onTap(key) {
 .q-score { font-size: 22rpx; color: #909399; }
 .q-title { font-size: 30rpx; font-weight: 600; color: #1E293B; line-height: 1.6; margin-bottom: 20rpx; }
 .q-options { display: flex; flex-direction: column; gap: 16rpx; }
+.q-img { width: 100%; border-radius: 12rpx; margin-top: 16rpx; }
+.opt-body { flex: 1; display: flex; flex-direction: column; gap: 8rpx; }
+.opt-img { max-width: 320rpx; border-radius: 8rpx; }
 .q-option { display: flex; align-items: center; gap: 16rpx; padding: 20rpx 24rpx; border: 2rpx solid #E4E7ED; border-radius: 16rpx; font-size: 28rpx; color: #333; transition: all .15s ease; }
 .q-option:active { transform: scale(.98); }
 .q-option.checked { border-color: #2B6DE8; background: #EDF2FF; }

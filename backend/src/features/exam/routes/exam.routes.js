@@ -11,6 +11,7 @@ const recordController = require('../controllers/record.controller');
 const wrongController = require('../controllers/wrong.controller');
 const favoriteController = require('../controllers/favorite.controller');
 const settingController = require('../controllers/setting.controller');
+const uploadController = require('../controllers/upload.controller');
 
 const adminAuth = [authenticate, requireRole('admin', 'superadmin')];
 
@@ -27,6 +28,9 @@ router.post('/questions/update', ...adminAuth, questionController.update);
 router.post('/questions/delete', ...adminAuth, questionController.remove);
 router.post('/questions/batch-import', ...adminAuth, questionController.batchImport);
 
+// ===== 图片上传（题库题目图片） =====
+router.post('/upload/image', ...adminAuth, uploadController.uploadMiddleware, uploadController.uploadImage);
+
 // ===== 练习（刷题/背题） =====
 router.post('/learn/start', authenticate, examController.startLearn);
 router.post('/learn/submit', authenticate, examController.submitLearn);
@@ -41,6 +45,9 @@ router.post('/papers/create', ...adminAuth, paperController.create);
 router.post('/papers/update', ...adminAuth, paperController.update);
 router.post('/papers/delete', ...adminAuth, paperController.remove);
 router.post('/papers/publish', ...adminAuth, paperController.publish);
+router.post('/papers/archive', ...adminAuth, paperController.archive);
+router.post('/papers/clone', ...adminAuth, paperController.clone);
+router.post('/papers/detail', ...adminAuth, paperController.detail);
 
 // ===== 正式考试（试卷制, 用户可参加列表 + 开始） =====
 router.post('/papers/available', authenticate, paperController.available);

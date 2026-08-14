@@ -20,17 +20,18 @@ async function myRecords(req, res, next) {
 /** 全员答题记录(管理员) */
 async function allRecords(req, res, next) {
   try {
-    const { page = 1, pageSize = 20, keyword, categoryId, mode } = req.body;
-    const result = await recordService.allRecords({ keyword, categoryId, mode, page, pageSize });
+    const { page = 1, pageSize = 20, keyword, categoryId, mode, status, paperId } = req.body;
+    const result = await recordService.allRecords({ keyword, categoryId, mode, status, paperId, page, pageSize });
     res.json(paginated(result.list, result.total, Number(page), Number(pageSize)));
   } catch (err) { next(err); }
 }
 
-/** 记录详情 */
+/** 记录详情(管理员可查看任意记录, 普通用户仅本人) */
 async function detail(req, res, next) {
   try {
     const { recordId } = req.body;
-    const result = await recordService.detail(recordId, req.user.userId);
+    const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
+    const result = await recordService.detail(recordId, req.user.userId, isAdmin);
     res.json(success(result));
   } catch (err) { next(err); }
 }
@@ -50,7 +51,7 @@ async function exportRecords(req, res, next) {
     const { categoryId, keyword } = req.body;
     const { filename, csv } = await recordService.exportRecords({ categoryId, keyword });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
     res.send(csv);
   } catch (err) { next(err); }
 }

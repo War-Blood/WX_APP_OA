@@ -26,7 +26,14 @@
     <el-dialog v-model="editVisible" :title="editingId ? '编辑分类' : '新增分类'" width="420px" destroy-on-close @closed="resetForm">
       <el-form :model="form" label-width="90px">
         <el-form-item label="名称"><el-input v-model="form.name" maxlength="50" /></el-form-item>
-        <el-form-item label="封面URL"><el-input v-model="form.cover" placeholder="可选" /></el-form-item>
+        <el-form-item label="封面">
+          <div class="cover-row">
+            <el-input v-model="form.cover" placeholder="封面URL, 可选" style="flex:1" />
+            <el-upload :show-file-list="false" :http-request="handleCoverUpload" accept=".jpg,.jpeg,.png,.webp,.gif">
+              <el-button size="small">上传</el-button>
+            </el-upload>
+          </div>
+        </el-form-item>
         <el-form-item label="建议时长"><el-input-number v-model="form.time" :min="1" :max="180" /> <span class="hint">分钟</span></el-form-item>
         <el-form-item label="排序"><el-input-number v-model="form.sortOrder" :min="0" /></el-form-item>
       </el-form>
@@ -43,7 +50,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { toast } from '@/utils/toast'
 import type { ExamCategory } from '@/api/exam'
-import { getCategoryList, createCategory, updateCategory, deleteCategory } from '@/api/exam'
+import { getCategoryList, createCategory, updateCategory, deleteCategory, uploadQuestionImage } from '@/api/exam'
 
 const loading = ref(false)
 const categories = ref<ExamCategory[]>([])
@@ -55,20 +62,9 @@ const form = reactive({ name: '', cover: '', time: 10, sortOrder: 0 })
 async function loadData() {
   loading.value = true
   try {
-    const tree = await getCategoryList()
-    categories.value = flatten(tree)
+    categories.value = await getCategoryList()
   } catch { toast.error('加载失败') }
   finally { loading.value = false }
-}
-
-// 仅展示单层分类(扁平化, 忽略嵌套子节点)
-function flatten(nodes: ExamCategory[]): ExamCategory[] {
-  const out: ExamCategory[] = []
-  nodes.forEach(n => {
-    out.push(n)
-    if (n.children && n.children.length) out.push(...flatten(n.children))
-  })
-  return out
 }
 
 function openEdit(node: ExamCategory | null) {
@@ -88,6 +84,14 @@ function openEdit(node: ExamCategory | null) {
 function resetForm() {
   editingId.value = null
   Object.assign(form, { name: '', cover: '', time: 10, sortOrder: 0 })
+}
+
+async function handleCoverUpload(opt: any) {
+  try {
+    const res = await uploadQuestionImage(opt.file)
+    form.cover = res.url
+    toast.success('封面上传成功')
+  } catch { toast.error('封面上传失败') }
 }
 
 async function handleSave() {
@@ -124,4 +128,5 @@ onMounted(loadData)
 .cat-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 4px; border-bottom: 1px solid #f0f0f0; }
 .cat-name { display: flex; align-items: center; }
 .hint { margin-left: 8px; color: #909399; }
+.cover-row { display: flex; gap: 8px; width: 100%; }
 </style>

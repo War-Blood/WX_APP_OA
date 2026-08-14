@@ -20,12 +20,12 @@ async function myRecords(userId, { page = 1, pageSize = 20 }) {
     "SELECT COUNT(*) AS total FROM exam_records WHERE user_id = ? AND mode IN ('exam','mock')", [userId]
   );
   const rows = await db.query(
-    `SELECT r.*, c.name AS categoryName, p.title AS paperTitle
-     FROM exam_records r
-     LEFT JOIN exam_categories c ON r.category_id = c.id
-     LEFT JOIN exam_papers p ON r.paper_id = p.id
-     WHERE r.user_id = ? AND r.mode IN ('exam','mock')
-     ORDER BY r.created_at DESC LIMIT ? OFFSET ?`,
+    'SELECT r.*, c.name AS categoryName, p.title AS paperTitle'
+    + ' FROM exam_records r'
+    + ' LEFT JOIN exam_categories c ON r.category_id = c.id'
+    + ' LEFT JOIN exam_papers p ON r.paper_id = p.id'
+    + " WHERE r.user_id = ? AND r.mode IN ('exam','mock')"
+    + ' ORDER BY r.created_at DESC LIMIT ? OFFSET ?',
     [userId, pageSize, offset]
   );
   return { list: rows.map(formatRow), total };
@@ -33,32 +33,34 @@ async function myRecords(userId, { page = 1, pageSize = 20 }) {
 
 /**
  * 全员答题记录(管理员)
- * @param {Object} opts - { keyword?, categoryId?, mode?, page?, pageSize? }
+ * @param {Object} opts - { keyword?, categoryId?, mode?, status?, paperId?, page?, pageSize? }
  * @returns {Promise<Object>} { list, total }
  */
-async function allRecords({ keyword, categoryId, mode, page = 1, pageSize = 20 }) {
+async function allRecords({ keyword, categoryId, mode, status, paperId, page = 1, pageSize = 20 }) {
   const conditions = ["r.mode IN ('exam','mock')"];
   const params = [];
   if (categoryId) { conditions.push('r.category_id = ?'); params.push(categoryId); }
   if (mode) { conditions.push('r.mode = ?'); params.push(mode); }
+  if (status) { conditions.push('r.status = ?'); params.push(status); }
+  if (paperId) { conditions.push('r.paper_id = ?'); params.push(paperId); }
   if (keyword) {
     conditions.push('(u.nickname LIKE ? OR u.user_name LIKE ?)');
-    params.push(`%${keyword}%`, `%${keyword}%`);
+    params.push('%' + keyword + '%', '%' + keyword + '%');
   }
   const where = 'WHERE ' + conditions.join(' AND ');
   const offset = (page - 1) * pageSize;
 
   const [{ total }] = await db.query(
-    `SELECT COUNT(*) AS total FROM exam_records r JOIN users u ON r.user_id = u.id ${where}`, params
+    'SELECT COUNT(*) AS total FROM exam_records r JOIN users u ON r.user_id = u.id ' + where, params
   );
   const rows = await db.query(
-    `SELECT r.*, c.name AS categoryName, p.title AS paperTitle, u.nickname AS userName, d.name AS departmentName
-     FROM exam_records r
-     JOIN users u ON r.user_id = u.id
-     LEFT JOIN exam_categories c ON r.category_id = c.id
-     LEFT JOIN exam_papers p ON r.paper_id = p.id
-     LEFT JOIN departments d ON u.department_id = d.id AND d.deleted_at IS NULL
-     ${where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?`,
+    'SELECT r.*, c.name AS categoryName, p.title AS paperTitle, u.nickname AS userName, d.name AS departmentName'
+    + ' FROM exam_records r'
+    + ' JOIN users u ON r.user_id = u.id'
+    + ' LEFT JOIN exam_categories c ON r.category_id = c.id'
+    + ' LEFT JOIN exam_papers p ON r.paper_id = p.id'
+    + ' LEFT JOIN departments d ON u.department_id = d.id AND d.deleted_at IS NULL'
+    + ' ' + where + ' ORDER BY r.created_at DESC LIMIT ? OFFSET ?',
     [...params, pageSize, offset]
   );
   return { list: rows.map(formatRow), total };
@@ -68,16 +70,17 @@ async function allRecords({ keyword, categoryId, mode, page = 1, pageSize = 20 }
  * 单条记录详情(逐题判分, 供结果页渲染)
  * @param {number} recordId - 记录ID
  * @param {number} userId - 用户ID
+ * @param {boolean} isAdmin - 管理员可查看任意记录(否则仅本人)
  * @returns {Promise<Object>} 记录 + 逐题详情
  */
-async function detail(recordId, userId) {
+async function detail(recordId, userId, isAdmin = false) {
   const [record] = await db.query(
-    `SELECT r.*, c.name AS categoryName, p.title AS paperTitle
-     FROM exam_records r
-     LEFT JOIN exam_categories c ON r.category_id = c.id
-     LEFT JOIN exam_papers p ON r.paper_id = p.id
-     WHERE r.id = ? AND r.user_id = ?`,
-    [recordId, userId]
+    'SELECT r.*, c.name AS categoryName, p.title AS paperTitle'
+    + ' FROM exam_records r'
+    + ' LEFT JOIN exam_categories c ON r.category_id = c.id'
+    + ' LEFT JOIN exam_papers p ON r.paper_id = p.id'
+    + ' WHERE r.id = ?' + (isAdmin ? '' : ' AND r.user_id = ?'),
+    isAdmin ? [recordId] : [recordId, userId]
   );
   if (!record) throw new NotFoundError('答题记录不存在');
   const { score, totalScore, details } = examService.gradeRecord(record);
@@ -96,23 +99,32 @@ async function detail(recordId, userId) {
  * @returns {Promise<Object>} 统计结果
  */
 async function overview({ categoryId } = {}) {
-  const conditions = ["status IN ('submitted','timeout')", "score IS NOT NULL"];
+  const conditions = ["status IN ('submitted','timeout')", 'score IS NOT NULL'];
   const params = [];
   if (categoryId) { conditions.push('category_id = ?'); params.push(categoryId); }
   const where = 'WHERE ' + conditions.join(' AND ');
 
   const [summary] = await db.query(
-    `SELECT COUNT(*) AS total, COUNT(DISTINCT user_id) AS people, AVG(score) AS avgScore
-     FROM exam_records ${where}`,
+    'SELECT COUNT(*) AS total, COUNT(DISTINCT user_id) AS people, AVG(score) AS avgScore'
+    + ' FROM exam_records ' + where,
     params
   );
   const passCountRow = await db.query(
-    `SELECT COUNT(*) AS cnt FROM exam_records ${where} AND score >= total_score`, params
+    'SELECT COUNT(*) AS cnt FROM exam_records ' + where + ' AND score >= total_score', params
   );
   const byCategory = await db.query(
-    `SELECT c.id, c.name, COUNT(*) AS cnt
-     FROM exam_records r JOIN exam_categories c ON r.category_id = c.id
-     ${where} GROUP BY c.id, c.name ORDER BY cnt DESC LIMIT 10`,
+    'SELECT c.id, c.name, COUNT(*) AS cnt'
+    + ' FROM exam_records r JOIN exam_categories c ON r.category_id = c.id'
+    + ' ' + where + ' GROUP BY c.id, c.name ORDER BY cnt DESC LIMIT 10',
+    params
+  );
+  const scoreSegments = await db.query(
+    'SELECT CASE'
+    + " WHEN score * 1.0 / total_score < 0.6 THEN '不及格'"
+    + " WHEN score * 1.0 / total_score < 0.8 THEN '及格(60-79%)'"
+    + " WHEN score * 1.0 / total_score < 1 THEN '良好(80-99%)'"
+    + " ELSE '满分(100%)' END AS seg, COUNT(*) AS cnt"
+    + ' FROM exam_records ' + where + ' GROUP BY seg',
     params
   );
 
@@ -124,6 +136,7 @@ async function overview({ categoryId } = {}) {
     passCount: passCountRow[0].cnt,
     passRate: total ? Math.round(passCountRow[0].cnt / total * 100) : 0,
     distribution: byCategory,
+    scoreSegments: scoreSegments,
   };
 }
 
@@ -154,17 +167,17 @@ async function exportRecords({ categoryId, keyword } = {}) {
   if (categoryId) { conditions.push('r.category_id = ?'); params.push(categoryId); }
   if (keyword) {
     conditions.push('(u.nickname LIKE ? OR u.user_name LIKE ?)');
-    params.push(`%${keyword}%`, `%${keyword}%`);
+    params.push('%' + keyword + '%', '%' + keyword + '%');
   }
   const where = 'WHERE ' + conditions.join(' AND ');
 
   const rows = await db.query(
-    `SELECT r.*, c.name AS categoryName, u.nickname AS userName, d.name AS departmentName
-     FROM exam_records r
-     JOIN users u ON r.user_id = u.id
-     LEFT JOIN exam_categories c ON r.category_id = c.id
-     LEFT JOIN departments d ON u.department_id = d.id AND d.deleted_at IS NULL
-     ${where} ORDER BY r.created_at DESC`,
+    'SELECT r.*, c.name AS categoryName, u.nickname AS userName, d.name AS departmentName'
+    + ' FROM exam_records r'
+    + ' JOIN users u ON r.user_id = u.id'
+    + ' LEFT JOIN exam_categories c ON r.category_id = c.id'
+    + ' LEFT JOIN departments d ON u.department_id = d.id AND d.deleted_at IS NULL'
+    + ' ' + where + ' ORDER BY r.created_at DESC',
     params
   );
 
@@ -178,8 +191,8 @@ async function exportRecords({ categoryId, keyword } = {}) {
     r.use_time != null ? r.use_time : '',
     csvField(statusMap[r.status] || r.status), r.end_time || '',
   ].join(','));
-  const csv = '﻿' + [headers.join(','), ...lines].join('\n');
-  return { filename: `answer-records-${new Date().toISOString().slice(0, 10)}.csv`, csv };
+  const csv = '\uFEFF' + [headers.join(','), ...lines].join('\n');
+  return { filename: 'answer-records-' + new Date().toISOString().slice(0, 10) + '.csv', csv };
 }
 
 module.exports = { myRecords, allRecords, detail, overview, exportRecords };

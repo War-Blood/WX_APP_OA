@@ -59,4 +59,31 @@ async function publish(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, available, create, update, remove, publish };
+/** 归档试卷 */
+async function archive(req, res, next) {
+  try {
+    const { id } = req.body;
+    const result = await paperService.archive(id);
+    res.json(success(result, '已归档'));
+  } catch (err) { next(err); }
+}
+
+/** 克隆试卷为草稿 */
+async function clone(req, res, next) {
+  try {
+    const { id } = req.body;
+    const result = await paperService.clone(id);
+    res.json(success(result, '已克隆为草稿'));
+  } catch (err) { next(err); }
+}
+
+/** 试卷详情(只读预览) */
+async function detail(req, res, next) {
+  try {
+    const { id } = req.body;
+    const result = await paperService.detail(id);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+module.exports = { list, available, create, update, remove, publish, archive, clone, detail };

@@ -34,25 +34,26 @@ function shuffleOptions(options, answer) {
   const byKey = {};
   options.forEach((o) => { byKey[o.key] = o.text; });
   const shuffled = shuffleArray(options.map((o) => o.key));
-  const newOptions = shuffled.map((k, i) => ({ key: String.fromCharCode(65 + i), text: byKey[k] }));
+  const byAll = {};
+  options.forEach((o) => { byAll[o.key] = o; });
+  const newOptions = shuffled.map((k, i) => {
+    const src = byAll[k] || {};
+    const opt = { key: String.fromCharCode(65 + i), text: src.text };
+    if (src.image) opt.image = src.image;
+    return opt;
+  });
   const newAnswer = answer.split(',').map((k) => String.fromCharCode(65 + shuffled.indexOf(k))).join(',');
   return { options: newOptions, answer: newAnswer };
 }
 
 /**
- * 分类子树 id(含自身, 递归收集子孙)
- * @param {number} rootId - 根分类ID
- * @returns {Promise<Array<number>>} id 数组
+ * 分类 id 集(含自身)
+ * v3 起分类体系扁平化(无子分类), 子树即分类自身
+ * @param {number} rootId - 主分类ID
+ * @returns {Promise<Array<number>>} [rootId]
  */
 async function getCategorySubtreeIds(rootId) {
-  const ids = [rootId];
-  const queue = [rootId];
-  while (queue.length) {
-    const pid = queue.shift();
-    const children = await db.query('SELECT id FROM exam_categories WHERE parent_id = ?', [pid]);
-    children.forEach((c) => { ids.push(c.id); queue.push(c.id); });
-  }
-  return ids;
+  return [rootId];
 }
 
 /**
@@ -115,6 +116,7 @@ function gradeSnapshot(snapshot, answers) {
       questionId: q.id, type: q.type, title: q.title,
       options: q.options, userAnswer, rightAnswer: q.answer,
       analysis: q.analysis, correct, earnedPoints, totalPoints: q.score,
+      titleImage: q.titleImage || null, analysisImage: q.analysisImage || null,
     });
   });
   return { score, details };
@@ -208,6 +210,7 @@ async function startLearn({ userId, categoryId, type, mode = 'random', count, ba
     return {
       id: q.id, type: q.type, title: q.title, options, answer,
       analysis: q.analysis, score: q.score, scoreMode: q.score_mode,
+      titleImage: q.title_image || null, analysisImage: q.analysis_image || null,
     };
   });
 
@@ -310,7 +313,7 @@ async function startTimed(userId, categoryId, mode) {
       options = shuffled.options;
       answer = shuffled.answer;
     }
-    return { id: q.id, type: q.type, title: q.title, options, answer, analysis: q.analysis, score: q.score, scoreMode: q.score_mode };
+    return { id: q.id, type: q.type, title: q.title, options, answer, analysis: q.analysis, score: q.score, scoreMode: q.score_mode, titleImage: q.title_image || null, analysisImage: q.analysis_image || null };
   });
   const totalScore = snapshot.reduce((s, q) => s + q.score, 0);
   const safeSnapshot = snapshot.map(({ answer, ...q }) => q);
@@ -410,7 +413,7 @@ async function startPaperExam(userId, paperId) {
         params.push(...subtree);
       }
       const rows = await db.query(
-        `SELECT id, type, title, options, answer, analysis, score, score_mode, shuffle_options FROM exam_questions WHERE ${conds.join(' AND ')} ORDER BY RAND() LIMIT ?`,
+        `SELECT id, type, title, options, answer, analysis, score, score_mode, shuffle_options, title_image, analysis_image FROM exam_questions WHERE ${conds.join(' AND ')} ORDER BY RAND() LIMIT ?`,
         [...params, count]
       );
       rows.forEach((q) => { if (rule.score) q.score = rule.score; });
@@ -421,7 +424,7 @@ async function startPaperExam(userId, paperId) {
     const ids = parseArr(paper.question_ids);
     if (!ids.length) throw new BusinessError('试卷未配置题目', null, ErrorCode.ANSWER_PAPER_NOT_PUBLISHED);
     questions = await db.query(
-      `SELECT id, type, title, options, answer, analysis, score, score_mode, shuffle_options FROM exam_questions WHERE id IN (${ids.map(() => '?').join(',')})`,
+      `SELECT id, type, title, options, answer, analysis, score, score_mode, shuffle_options, title_image, analysis_image FROM exam_questions WHERE id IN (${ids.map(() => '?').join(',')})`,
       ids
     );
   }
