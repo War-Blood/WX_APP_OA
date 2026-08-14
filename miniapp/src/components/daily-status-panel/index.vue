@@ -47,7 +47,7 @@
       <view v-if="supplementWorkers.length" class="daily-section">
         <text class="section-header section-header--supplement">补公出 ({{ supplementWorkers.length }})</text>
         <view class="daily-card-list">
-          <view v-for="w in supplementWorkers" :key="w.userId" class="worker-card" :class="'worker-card--' + w.status" @tap="onGoDetail(w)">
+          <view v-for="w in supplementWorkers" :key="w.userId" class="worker-card" :class="cardBarClass(w)" @tap="onGoDetail(w)">
             <view class="card-left">
               <text class="card-name">{{ w.userName }}</text>
               <text class="card-code">{{ w.workerCode || '' }}</text>
@@ -69,7 +69,7 @@
       <view v-if="leaveWorkers.length" class="daily-section">
         <text class="section-header section-header--leave">请假/调休 ({{ leaveWorkers.length }})</text>
         <view class="daily-card-list">
-          <view v-for="w in leaveWorkers" :key="w.userId" class="worker-card worker-card--leave">
+          <view v-for="w in leaveWorkers" :key="w.userId" class="worker-card" :class="cardBarClass(w)">
             <view class="card-left">
               <text class="card-name">{{ w.userName }}</text>
               <text class="card-code">{{ w.workerCode || '' }}</text>
@@ -83,7 +83,7 @@
       <view v-if="activeWorkers.length" class="daily-section">
         <text class="section-header section-header--active">已提交 ({{ activeWorkers.length }})</text>
         <view class="daily-card-list">
-          <view v-for="w in activeWorkers" :key="w.userId" class="worker-card" :class="'worker-card--' + w.status" @tap="onGoDetail(w)">
+          <view v-for="w in activeWorkers" :key="w.userId" class="worker-card" :class="cardBarClass(w)" @tap="onGoDetail(w)">
             <view class="card-left">
               <text class="card-name">{{ w.userName }}</text>
               <text class="card-code">{{ w.workerCode || '' }}</text>
@@ -145,6 +145,22 @@ function statusLabel(s) {
   return m[s] || s
 }
 
+// 卡片左侧色条按工作状态（today_work_type）着色：待工=淡黄 / 工作（陆/海）=正常绿 / 在途=蓝 / 请假=紫；
+// 无工作类型（未提交/工作日报等）回退到提交状态色；代填人员同样取被代填日报的工作类型
+const WT_COLOR_KEY = {
+  '工作（陆）': 'work',
+  '工作（海）': 'work',
+  '待工': 'idle',
+  '在途': 'travel',
+  '请假': 'leave'
+}
+
+function cardBarClass(w) {
+  const wt = (w.workType || '').trim()
+  const key = WT_COLOR_KEY[wt]
+  return key ? 'worker-card--' + key : 'worker-card--' + (w.status || 'missing')
+}
+
 function onGoDetail(w) {
   if (w.reportId) emit('go-detail', w)
 }
@@ -188,11 +204,17 @@ $tint-summary-total: #F0F7FF;
   border-radius:$radius-base; box-shadow:0 2rpx 12rpx rgba(0,0,0,.04);
 }
 .worker-card--missing { border-left:6rpx solid $danger-color; background:$tint-card-missing; }
-.worker-card--leave { border-left:6rpx solid $text-placeholder; }
 .worker-card--submitted { border-left:6rpx solid $success-color; }
 .worker-card--supplement { border-left:6rpx solid $warning-color; }
 .worker-card--office { border-left:6rpx solid $primary-color; }
 .worker-card--substituted { border-left:6rpx solid #6366F1; }
+
+// 卡片左侧色条按工作状态着色（待工=淡黄 / 工作=正常绿 / 在途=蓝 / 请假=紫；无工作类型回退上方状态色）
+$bar-idle: #FFD666;
+.worker-card--work   { border-left:6rpx solid $success-color; }
+.worker-card--idle   { border-left:6rpx solid $bar-idle; background:#FFFBE6; }
+.worker-card--travel { border-left:6rpx solid $primary-color; }
+.worker-card--leave  { border-left:6rpx solid #8B5CF6; }
 .card-left { display:flex; flex-direction:column; gap:4rpx; width:140rpx; flex-shrink:0; }
 .card-name { font-size:26rpx; font-weight:600; color:$text-primary; }
 .card-code { font-size:$font-xs; color:$text-secondary; }
