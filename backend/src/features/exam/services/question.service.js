@@ -5,8 +5,22 @@ const { BusinessError, ValidationError } = require('../../../common/utils/errors
 const { ErrorCode } = require('../../../common/utils/constants');
 
 /**
- * 题库管理服务 — 列表/创建/更新/删除/批量导入
+ * 题库管理服务 — 列表/创建/更新/删除/批量导入(分类默认回落「低压电工」)
  */
+
+/**
+ * 解析题目归属分类: 缺省/无效时回落到唯一「低压电工」根分类
+ * @param {number|null|undefined} categoryId - 传入分类ID
+ * @returns {Promise<number|null>} 低压电工根分类 id; 数据库无低压电工时返回 null
+ */
+async function resolveDefaultCategoryId(categoryId) {
+  if (categoryId) {
+    const [cat] = await db.query('SELECT id FROM exam_categories WHERE id = ? AND parent_id = 0', [categoryId]);
+    if (cat) return cat.id;
+  }
+  const [lv] = await db.query("SELECT id FROM exam_categories WHERE name = '低压电工' AND parent_id = 0 LIMIT 1");
+  return lv ? lv.id : null;
+}
 
 /**
  * 题库列表(分类/题型/关键词筛选 + 分页)
@@ -43,10 +57,11 @@ async function create(data) {
   }
   if (!data.answer) throw new ValidationError('正确答案不能为空');
 
+  const categoryId = await resolveDefaultCategoryId(data.categoryId);
   const result = await db.execute(
     `INSERT INTO exam_questions (category_id, type, title, options, answer, analysis, score, score_mode, shuffle_options, status, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
-    [data.categoryId || null, data.type || 'single', data.title, JSON.stringify(data.options),
+    [categoryId, data.type || 'single', data.title, JSON.stringify(data.options),
       data.answer, data.analysis || null, data.score || 2, data.scoreMode || 'exact',
       data.shuffleOptions ? 1 : 0, data.createdBy || null]
   );
@@ -118,10 +133,11 @@ async function batchImport(questions, createdBy) {
       if (!Array.isArray(q.options) || q.options.length < 2) throw new Error('至少需要2个选项');
       if (!validTypes.includes(q.type)) throw new Error(`题型字段无效: ${q.type}`);
 
+      const categoryId = await resolveDefaultCategoryId(q.categoryId);
       await db.execute(
         `INSERT INTO exam_questions (category_id, type, title, options, answer, analysis, score, score_mode, shuffle_options, created_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [q.categoryId || null, q.type, q.title, JSON.stringify(q.options),
+        [categoryId, q.type, q.title, JSON.stringify(q.options),
           q.answer, q.analysis || null, q.score || 2, q.scoreMode || 'exact',
           q.shuffleOptions ? 1 : 0, createdBy || null]
       );

@@ -5,7 +5,7 @@ const { BusinessError, ValidationError } = require('../../../common/utils/errors
 const { ErrorCode } = require('../../../common/utils/constants');
 
 /**
- * 题库分类管理服务 — 分类树(含二级) + CRUD
+ * 题库分类管理服务 — 单层分类(唯一「低压电工」扁平结构) + CRUD
  */
 
 /**
@@ -61,16 +61,14 @@ async function list() {
  */
 async function create(data) {
   if (!data.name) throw new ValidationError('分类名称不能为空');
-  const parentId = data.parentId || 0;
-  let path = data.name;
-  if (parentId) {
-    const [parent] = await db.query('SELECT path FROM exam_categories WHERE id = ?', [parentId]);
-    if (!parent) throw new BusinessError('父分类不存在', null, ErrorCode.ANSWER_CATEGORY_NOT_FOUND);
-    path = parent.path ? `${parent.path}/${data.name}` : data.name;
+  if (data.parentId && data.parentId !== 0) {
+    throw new ValidationError('题库分类仅支持单层, 不支持创建子分类');
   }
+  const parentId = 0;
+  // 单层分类: 不再拼接父分类路径, 保留唯一分类名作为 path
   const result = await db.execute(
     'INSERT INTO exam_categories (parent_id, name, cover, time, path, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
-    [parentId, data.name, data.cover || null, data.time != null ? data.time : 10, path, data.sortOrder || 0]
+    [parentId, data.name, data.cover || null, data.time != null ? data.time : 10, data.name, data.sortOrder || 0]
   );
   return { id: result[0].insertId };
 }

@@ -5,10 +5,7 @@
         <div class="toolbar">
           <span class="title">题库管理</span>
           <div class="actions">
-            <el-button size="small" @click="catDialogVisible = true">分类管理</el-button>
-            <el-select v-model="categoryFilter" placeholder="分类" clearable style="width:180px" @change="loadData">
-              <el-option v-for="c in categoryOptions" :key="c.id" :label="c.path || c.name" :value="c.id" />
-            </el-select>
+            <el-tag v-if="currentCategory" type="info">{{ currentCategory.name }}</el-tag>
             <el-input v-model="keyword" placeholder="搜索题干" clearable style="width:200px" @clear="loadData" @keyup.enter="loadData" />
             <el-select v-model="filterType" placeholder="题型" clearable style="width:120px" @change="loadData">
               <el-option label="单选" value="single" /><el-option label="多选" value="multiple" /><el-option label="判断" value="judge" />
@@ -34,7 +31,9 @@
     <!-- 题目新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑题目' : '新增题目'" width="520px" destroy-on-close @closed="resetForm">
       <el-form :model="form" label-width="80px">
-        <el-form-item label="分类"><el-select v-model="form.categoryId" clearable placeholder="全部分类" style="width:100%"><el-option v-for="c in categoryOptions" :key="c.id" :label="c.path || c.name" :value="c.id" /></el-select></el-form-item>
+        <el-form-item v-if="currentCategory" label="分类">
+          <el-tag size="small" type="info">{{ currentCategory.name }}</el-tag>
+        </el-form-item>
         <el-form-item label="题型"><el-select v-model="form.type"><el-option label="单选" value="single" /><el-option label="多选" value="multiple" /><el-option label="判断" value="judge" /></el-select></el-form-item>
         <el-form-item label="题干"><el-input v-model="form.title" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="分值"><el-input-number v-model="form.score" :min="1" :max="20" /></el-form-item>
@@ -57,59 +56,42 @@
     </el-dialog>
 
     <!-- 批量导入弹窗 -->
-    <el-dialog v-model="batchVisible" title="批量导入" width="600px">
-      <el-upload drag :auto-upload="false" :on-change="handleFileChange" accept=".json">
-        <div>拖拽 JSON 文件到此处或点击上传</div>
+    <el-dialog v-model="batchVisible" title="批量导入" width="640px">
+      <div class="import-actions">
+        <el-button type="primary" plain :icon="Download" @click="handleDownloadTemplate">下载模板</el-button>
+      </div>
+      <el-upload drag :auto-upload="false" :on-change="handleFileChange" :limit="1" accept=".xlsx,.xls" style="margin-top:8px">
+        <div class="el-upload__text">拖拽 Excel 文件到此处或<em>点击上传</em></div>
       </el-upload>
+      <p class="import-hint">模板列：题型 / 题干 / 选项A~H / 答案 / 解析 / 分值 / 判分模式。判断题仅填题干+答案(正确/错误)；多选答案用逗号分隔如 A,C。导入后题目自动归入「{{ currentCategory?.name || '低压电工' }}」。</p>
+
+      <!-- 本地解析预览/错误 -->
+      <div v-if="parsePreview" class="preview">
+        <div v-if="parsePreview.parseErrors.length" class="preview-block error">
+          <p class="preview-title">⚠ 以下行无法导入（共 {{ parsePreview.parseErrors.length }} 行）：</p>
+          <ul><li v-for="e in parsePreview.parseErrors" :key="e.row">第{{ e.row }}行：{{ e.reason }}</li></ul>
+        </div>
+        <p v-if="parsePreview.validCount">✅ 可导入 {{ parsePreview.validCount }} 题</p>
+      </div>
+
       <div v-if="batchResult" style="margin-top:16px">
         <p>✅ 成功 {{ batchResult.success }} 题</p>
         <p v-if="batchResult.failed">⚠ 失败 {{ batchResult.failed }} 题</p>
-        <ul v-if="batchResult.errors && batchResult.errors.length">{{ batchResult.errors.map(e => `第${e.row}行: ${e.reason}`).join(', ') }}</ul>
+        <ul v-if="batchResult.errors && batchResult.errors.length">{{ batchResult.errors.map(e => '第' + e.row + '行: ' + e.reason).join(', ') }}</ul>
       </div>
-      <template #footer><el-button @click="batchVisible=false">关闭</el-button><el-button type="primary" @click="doBatchImport">开始导入</el-button></template>
-    </el-dialog>
-
-    <!-- 分类管理弹窗 -->
-    <el-dialog v-model="catDialogVisible" title="分类管理" width="480px">
-      <div class="cat-actions">
-        <el-button type="primary" size="small" @click="openCatDialog()">+ 新增分类</el-button>
-      </div>
-      <el-tree :data="categories" :props="{ label: 'name', children: 'children' }" node-key="id" default-expand-all>
-        <template #default="{ data }">
-          <span class="cat-node">
-            <span>{{ data.path || data.name }}</span>
-            <span>
-              <el-button size="small" link @click.stop="openCatDialog(data)">编辑</el-button>
-              <el-button size="small" link type="danger" @click.stop="handleCatDelete(data)">删除</el-button>
-            </span>
-          </span>
-        </template>
-      </el-tree>
-      <template #footer><el-button @click="catDialogVisible=false">关闭</el-button></template>
-    </el-dialog>
-
-    <!-- 新增/编辑分类弹窗 -->
-    <el-dialog v-model="catEditVisible" :title="catEditingId ? '编辑分类' : '新增分类'" width="380px">
-      <el-form :model="catForm" label-width="80px">
-        <el-form-item label="父分类">
-          <el-select v-model="catForm.parentId" :disabled="catEditingId !== null" clearable style="width:100%">
-            <el-option v-for="c in categoryOptions" :key="c.id" :label="c.path || c.name" :value="c.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="名称"><el-input v-model="catForm.name" /></el-form-item>
-        <el-form-item label="排序"><el-input-number v-model="catForm.sortOrder" :min="0" /></el-form-item>
-      </el-form>
-      <template #footer><el-button @click="catEditVisible=false">取消</el-button><el-button type="primary" @click="handleCatSave">保存</el-button></template>
+      <template #footer><el-button @click="batchVisible=false">关闭</el-button><el-button type="primary" :disabled="!parsedRows.length" @click="doBatchImport">开始导入</el-button></template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessageBox } from 'element-plus'
+import { Download } from '@element-plus/icons-vue'
 import { toast } from '@/utils/toast'
 import type { Question, QuestionRow, ExamCategory } from '@/api/exam'
-import { getQuestionList, createQuestion, updateQuestion, deleteQuestion, batchImportQuestions, getCategoryList, createCategory, updateCategory, deleteCategory } from '@/api/exam'
+import { getQuestionList, createQuestion, updateQuestion, deleteQuestion, batchImportQuestions, getCategoryList } from '@/api/exam'
+import { downloadQuestionTemplate, parseQuestionWorkbook } from '@/utils/excel'
 
 const loading = ref(false)
 const tableData = ref<QuestionRow[]>([])
@@ -117,7 +99,6 @@ const total = ref(0)
 const page = ref(1)
 const keyword = ref('')
 const filterType = ref('')
-const categoryFilter = ref<number>()
 
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -147,29 +128,23 @@ const form = reactive<{
 })
 
 const batchVisible = ref(false)
-const batchFile = ref<{ raw: File } | null>(null)
+const batchFile = ref<File | null>(null)
+const parsePreview = ref<{ validCount: number; parseErrors: { row: number; reason: string }[] } | null>(null)
+const parsedRows = ref<Question[]>([])
 const batchResult = ref<{ success: number; failed: number; errors: { row: number; reason: string }[] } | null>(null)
 
-// 分类
+// 唯一分类(低压电工)
 const categories = ref<ExamCategory[]>([])
-const categoryOptions = ref<{ id: number; name: string; path?: string }[]>([])
-const catDialogVisible = ref(false)
-const catEditVisible = ref(false)
-const catEditingId = ref<number | null>(null)
-const catForm = reactive({ parentId: 0, name: '', sortOrder: 0 })
+const currentCategory = computed(() => categories.value[0] || null)
 
-function flattenCategoryOptions(nodes: ExamCategory[]) {
-  nodes.forEach(n => {
-    categoryOptions.value.push({ id: n.id, name: n.name, path: n.path })
-    if (n.children && n.children.length) flattenCategoryOptions(n.children)
-  })
+function firstCategoryId(): number | undefined {
+  const c = categories.value[0]
+  return c ? c.id : undefined
 }
 
 async function loadCategories() {
   try {
     categories.value = await getCategoryList()
-    categoryOptions.value = []
-    flattenCategoryOptions(categories.value)
   } catch { toast.error('分类加载失败') }
 }
 
@@ -189,7 +164,7 @@ function defaultOptions(type: string) {
 function resetForm() {
   Object.assign(form, {
     type: 'single' as const,
-    categoryId: undefined,
+    categoryId: firstCategoryId(),
     title: '',
     score: 2,
     scoreMode: 'exact' as const,
@@ -207,7 +182,6 @@ async function loadData() {
     const res = await getQuestionList({
       page: page.value,
       pageSize: 20,
-      categoryId: categoryFilter.value || undefined,
       type: filterType.value || undefined,
       keyword: keyword.value || undefined
     })
@@ -227,7 +201,7 @@ function openEdit(row: QuestionRow) {
   }
   Object.assign(form, {
     type: row.type,
-    categoryId: row.category_id,
+    categoryId: row.category_id || firstCategoryId(),
     title: row.title,
     score: row.score,
     scoreMode: row.score_mode || 'exact',
@@ -273,72 +247,60 @@ async function handleDelete(row: QuestionRow) {
   } catch { /* cancelled */ }
 }
 
-function openBatchDialog() { batchVisible.value = true; batchResult.value = null }
-function handleFileChange(file: { raw: File }) { batchFile.value = file }
-async function doBatchImport() {
-  if (!batchFile.value) return
+function openBatchDialog() {
+  batchVisible.value = true
+  batchFile.value = null
+  parsedRows.value = []
+  parsePreview.value = null
+  batchResult.value = null
+}
+
+function handleDownloadTemplate() {
+  downloadQuestionTemplate()
+}
+
+async function handleFileChange(file: { raw: File }) {
+  batchFile.value = file.raw
+  batchResult.value = null
   try {
-    const text = await batchFile.value.raw.text()
-    const questions = JSON.parse(text) as Question[]
-    const res = await batchImportQuestions(questions)
+    const preview = await parseQuestionWorkbook(file.raw)
+    parsedRows.value = preview.rows
+    parsePreview.value = { validCount: preview.rows.length, parseErrors: preview.errors }
+  } catch {
+    toast.error('文件解析失败，请使用模板格式的 .xlsx 文件')
+  }
+}
+
+async function doBatchImport() {
+  if (!parsedRows.value.length) return
+  try {
+    const res = await batchImportQuestions(parsedRows.value)
     batchResult.value = res
+    toast.success('导入完成：成功 ' + res.success + ' 条，失败 ' + res.failed + ' 条')
+    loadData()
   } catch { toast.error('导入失败') }
 }
 
-// 分类管理
-function openCatDialog(node?: ExamCategory) {
-  if (node) {
-    catEditingId.value = node.id
-    catForm.parentId = node.parentId
-    catForm.name = node.name
-    catForm.sortOrder = node.sortOrder || 0
-  } else {
-    catEditingId.value = null
-    catForm.parentId = 0
-    catForm.name = ''
-    catForm.sortOrder = 0
-  }
-  catEditVisible.value = true
-}
-
-async function handleCatSave() {
-  if (!catForm.name) { toast.warning('名称不能为空'); return }
-  try {
-    if (catEditingId.value) {
-      await updateCategory({ id: catEditingId.value, name: catForm.name, sortOrder: catForm.sortOrder })
-    } else {
-      await createCategory({ parentId: catForm.parentId, name: catForm.name, sortOrder: catForm.sortOrder })
-    }
-    catEditVisible.value = false
-    await loadCategories()
-    toast.success('已保存')
-  } catch { toast.error('保存失败') }
-}
-
-async function handleCatDelete(node: ExamCategory) {
-  try {
-    await ElMessageBox.confirm(`确定删除分类"${node.name}"？`, '删除确认', { type: 'warning' })
-    await deleteCategory(node.id)
-    await loadCategories()
-    toast.success('已删除')
-  } catch { /* cancelled */ }
-}
-
-onMounted(() => {
-  loadCategories()
+onMounted(async () => {
+  await loadCategories()
   loadData()
 })
 </script>
 
 <style lang="scss" scoped>
 .questions-page { padding: 20px; }
-.toolbar { display: flex; justify-content: space-between; align-items: center; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 .title { font-size: 18px; font-weight: 600; }
-.actions { display: flex; gap: 12px; }
-
-.cat-actions { margin-bottom: 12px; }
-.cat-node { display: flex; justify-content: space-between; align-items: center; flex: 1; padding-right: 8px; }
+.actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 
 .option-editor { width: 100%; display: flex; flex-direction: column; gap: 8px; }
 .option-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+
+.import-actions { display: flex; align-items: center; gap: 8px; }
+.import-hint { margin: 10px 0 0; color: #909399; font-size: 12px; line-height: 1.6; }
+.preview { margin-top: 12px; }
+.preview-block.error { background: #fef0f0; border-radius: 6px; padding: 8px 12px; }
+.preview-title { font-weight: 600; color: #c45656; margin: 0 0 4px; }
+.preview-block.error ul { margin: 0; padding-left: 18px; color: #c45656; }
+.preview-block.error li { margin-bottom: 2px; }
 </style>
