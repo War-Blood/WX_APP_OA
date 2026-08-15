@@ -59,8 +59,9 @@ export interface PushScriptDetail {
   webhookId: number
   msgtype: 'text' | 'markdown'
   templateContent: string
-  mentionType: 'none' | 'all' | 'roles' | 'users'
+  mentionType: 'none' | 'all' | 'roles' | 'users' | 'filtered'
   mentionTargets: string[] | number[]
+  mentionSource: string
   conditionConfig: ConditionConfig
   retryTimes: number
   retryInterval: number
@@ -91,6 +92,7 @@ export interface DataSourceMeta {
   id: string
   name: string
   fields: DataSourceFieldMeta[]
+  people: Array<{ id: string; name: string }>
 }
 
 export interface TestResult {
@@ -173,8 +175,9 @@ export interface PushScriptPayload {
   webhookId: number
   msgtype: 'text' | 'markdown'
   templateContent: string
-  mentionType: 'none' | 'all' | 'roles' | 'users'
+  mentionType: 'none' | 'all' | 'roles' | 'users' | 'filtered'
   mentionTargets?: Array<string | number>
+  mentionSource?: string
   conditionConfig: ConditionConfig
   retryTimes?: number
   retryInterval?: number

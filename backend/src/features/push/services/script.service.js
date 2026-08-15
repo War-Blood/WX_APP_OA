@@ -63,6 +63,7 @@ async function list({ page = 1, pageSize = 20, keyword, status } = {}) {
     webhookEnabled: !!r.webhook_enabled,
     msgtype: r.msgtype,
     mentionType: r.mention_type,
+    mentionSource: r.mention_source || '',
     retryTimes: r.retry_times,
     retryInterval: r.retry_interval,
     maxDailySends: r.max_daily_sends,
@@ -130,7 +131,7 @@ async function validateInput(data, excludeId) {
   if (!data.templateContent || !String(data.templateContent).trim()) {
     throw new BusinessError('消息模板不能为空', null, ErrorCode.PUSH_INVALID_TEMPLATE);
   }
-  if (!['none', 'all', 'roles', 'users'].includes(data.mentionType)) {
+  if (!['none', 'all', 'roles', 'users', 'filtered'].includes(data.mentionType)) {
     throw new ValidationError('@ 方式非法');
   }
   if (data.mentionType === 'roles' && (!Array.isArray(data.mentionTargets) || data.mentionTargets.length === 0)) {
@@ -138,6 +139,16 @@ async function validateInput(data, excludeId) {
   }
   if (data.mentionType === 'users' && (!Array.isArray(data.mentionTargets) || data.mentionTargets.length === 0)) {
     throw new ValidationError('指定人员 @ 时至少选择一人');
+  }
+  if (data.mentionType === 'filtered') {
+    if (!data.mentionSource) {
+      throw new ValidationError('按条件筛选 @ 时请选择数据源');
+    }
+    const meta = require('./data-source.service').getSourceMeta();
+    const sourceMeta = meta.find((s) => s.id === data.mentionSource);
+    if (!sourceMeta || !sourceMeta.people || sourceMeta.people.length === 0) {
+      throw new ValidationError('所选数据源不支持人员名单筛选');
+    }
   }
   conditionService.assertValid(data.conditionConfig);
   // 兜底：excludeId 参数仅为保持签名一致，删除时无需使用
@@ -163,6 +174,7 @@ function buildFields(data, userId) {
     String(data.templateContent),
     data.mentionType || 'none',
     JSON.stringify(data.mentionTargets || []),
+    data.mentionSource || null,
     JSON.stringify(data.conditionConfig),
     Math.min(Number(data.retryTimes) || 0, 5),
     Math.min(Math.max(Number(data.retryInterval) || 60, 10), 3600),
@@ -183,9 +195,9 @@ async function create(data, userId) {
   const [result] = await db.execute(
     `INSERT INTO push_scripts
        (name, description, status, schedule_type, schedule_value, timezone, webhook_id,
-        msgtype, template_content, mention_type, mention_targets, condition_config,
+        msgtype, template_content, mention_type, mention_targets, mention_source, condition_config,
         retry_times, retry_interval, max_daily_sends, notify_on_fail, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     buildFields(data, userId)
   );
   // 延迟 require 避免与 push.task → executor 循环依赖
@@ -208,9 +220,9 @@ async function update(id, data) {
     `UPDATE push_scripts SET
        name = ?, description = ?, status = ?, schedule_type = ?, schedule_value = ?, timezone = ?,
        webhook_id = ?, msgtype = ?, template_content = ?, mention_type = ?, mention_targets = ?,
-       condition_config = ?, retry_times = ?, retry_interval = ?, max_daily_sends = ?, notify_on_fail = ?
+       mention_source = ?, condition_config = ?, retry_times = ?, retry_interval = ?, max_daily_sends = ?, notify_on_fail = ?
      WHERE id = ?`,
-    [...buildFields(data, script.created_by).slice(0, 16), id]
+    [...buildFields(data, script.created_by).slice(0, 17), id]
   );
   const pushTask = require('../../../common/tasks/push.task');
   await pushTask.syncScripts();

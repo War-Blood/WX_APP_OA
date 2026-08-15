@@ -49,8 +49,9 @@ CREATE TABLE IF NOT EXISTS push_scripts (
   webhook_id INT UNSIGNED NOT NULL COMMENT '关联 push_webhooks.id',
   msgtype ENUM('text','markdown') NOT NULL DEFAULT 'text' COMMENT '消息类型',
   template_content TEXT NOT NULL COMMENT '消息模板，支持 {{var}}',
-  mention_type ENUM('none','all','roles','users') NOT NULL DEFAULT 'none' COMMENT '@ 方式',
+  mention_type ENUM('none','all','roles','users','filtered') NOT NULL DEFAULT 'none' COMMENT '@ 方式（filtered=按条件筛选不满足人员）',
   mention_targets JSON DEFAULT NULL COMMENT 'roles=角色数组；users=userId 数组',
+  mention_source VARCHAR(50) DEFAULT NULL COMMENT 'filtered 模式：数据源 id（如 daily_report），取该源人员名单',
   condition_config JSON DEFAULT NULL COMMENT '{logic, rules:[{source,field,operator,value}]}',
   retry_times TINYINT UNSIGNED NOT NULL DEFAULT 2 COMMENT '失败重试次数',
   retry_interval INT UNSIGNED NOT NULL DEFAULT 60 COMMENT '重试间隔秒（指数退避）',
@@ -103,13 +104,15 @@ CREATE TABLE IF NOT EXISTS push_task_logs (
 
 ## 4. 预定义数据源（条件判定用，注册表可扩展）
 
-| source | 说明 | 字段 |
-|--------|------|------|
-| `daily_report` | 昨日日报统计 | `submitted_count`、`missing_count`、`total_count`、`on_time_count`、`late_count`、`coverage`（提交率 0-1） |
-| `compliance` | 昨日合规 | `missing_projects`、`checked_projects`、`missing_count` |
-| `attendance` | 今日考勤 | `is_workday`（bool）、`leave_count`、`biz_trip_count` |
-| `users` | 用户统计 | `active_count`、`pending_count` |
-| `system` | 系统日期 | `date`、`weekday`（1-7）、`day_of_month`、`month` |
+| source | 说明 | 字段 | 人员名单（people） |
+|--------|------|------|-------------------|
+| `daily_report` | 昨日日报统计 | `submitted_count`、`missing_count`、`total_count`、`on_time_count`、`late_count`、`coverage`（提交率 0-1） | `missing_workers`：昨日未提交人员（userId/name/phone/qywx_userid，动态） |
+| `compliance` | 昨日合规 | `missing_projects`、`checked_projects`、`missing_count` | — |
+| `attendance` | 今日考勤 | `is_workday`（bool）、`leave_count`、`biz_trip_count` | — |
+| `users` | 用户统计 | `active_count`、`pending_count` | — |
+| `system` | 系统日期 | `date`、`weekday`（1-7）、`day_of_month`、`month` | — |
+
+> `people` 名单能力：支持「按条件筛选 @」的数据源在元信息中声明 `people`（`getSourceMeta` 下发），发送时动态取该名单；名单为空（全员满足）→ 不触发 @。
 
 > 字段元信息（名称/类型/说明）由 `/api/push/data-sources/list` 下发，前端条件编辑器动态渲染。
 

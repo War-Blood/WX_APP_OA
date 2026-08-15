@@ -30,9 +30,11 @@
 5  条件判定        rules 逐条比较 → 全部通过（AND）/任一通过（OR）
                    └─ 不通过 → 日志 condition_result='fail'、send_status='condition_fail' → 结束
 6  模板渲染        template.service 替换 {{var}} → rendered_content
-                   └─ text 超 2048 字节 / markdown 超 4096 字节 → 截断并记日志
-7  解析 @ 目标     mention.service 按 mention_type 查 users →
-                   text: mentioned_mobile_list(phone)；markdown: mentioned_list(qywx_userid)
+                   （内容可直接写固定文本，变量可选；text 超 2048 字节 / markdown 超 4096 字节 → 截断并记日志）
+7  解析 @ 目标     mention.service.resolve(script, context)
+                   none: 不@；all/roles/users: 查 users → text: mentioned_mobile_list(phone) / markdown: mentioned_list(qywx_userid)
+                   filtered: 从数据源人员名单（如 daily_report.missing_workers）动态取"不满足人员"
+                     → 名单为空（全员满足）→ 不触发 @（detail 记录原因）
                    └─ 无对应标识的用户跳过，mention_detail 记录姓名与缺失原因
 8  安全发送        sender.service.send(webhook, msgtype, content, mentions)
                    a. 读凭证（push_webhooks.webhook_key/secret）→ key 缺失 → 抛 PUSH_WEBHOOK_NOT_CONFIGURED

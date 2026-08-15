@@ -107,7 +107,7 @@
         <el-form-item label="时间" prop="scheduleValue">
           <el-time-picker
             v-if="form.scheduleType === 'daily'"
-            v-model="dailyTime"
+            v-model="form.scheduleValue"
             format="HH:mm"
             value-format="HH:mm"
             placeholder="选择时间"
@@ -141,15 +141,13 @@
             <el-radio value="markdown">markdown（@ 用企微 userid）</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="消息模板" prop="templateContent">
-          <el-input v-model="form.templateContent" type="textarea" :rows="5" placeholder="支持 {{变量}} 占位，如：{{date}} 昨日有 {{daily_report.missing_count}} 人未提交：{{mention_names}}" />
-          <div class="var-panel">
-            <span class="var-panel-title">内置变量：</span>
-            <el-tag v-for="v in builtinVars" :key="v" size="small" class="var-tag" @click="insertVar(v)">{{ v }}</el-tag>
-            <span v-if="dataSources.length" class="var-panel-title" style="margin-left: 8px">数据源字段：</span>
-            <el-tag v-for="v in sourceVars" :key="v" size="small" class="var-tag" type="info" @click="insertVar(v)">{{ v }}</el-tag>
-            <div class="sub-text">点击变量插入模板；日期变量 <code v-pre>{{date_1}}</code> 表示 1 天前</div>
-          </div>
+        <el-form-item label="消息内容" prop="templateContent">
+          <el-input
+            v-model="form.templateContent"
+            type="textarea"
+            :rows="5"
+            placeholder="输入要发送的统一内容；支持 {{date}} 等变量（可不使用，直接发固定内容）"
+          />
         </el-form-item>
         <el-form-item label="@ 方式">
           <el-radio-group v-model="form.mentionType">
@@ -157,7 +155,14 @@
             <el-radio value="all">@ 所有人（在职员工）</el-radio>
             <el-radio value="roles">按角色</el-radio>
             <el-radio value="users">指定人员</el-radio>
+            <el-radio value="filtered">按条件筛选（不满足人员）</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="form.mentionType === 'filtered'" label="筛选数据源">
+          <el-select v-model="form.mentionSource" placeholder="选择数据源（取其不满足人员名单）" style="width: 100%">
+            <el-option v-for="s in peopleSources" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+          <div class="sub-text">每次执行时动态取该数据源的不满足人员（如昨日未提交日报人员）；全员满足时名单为空 → 不触发 @</div>
         </el-form-item>
         <el-form-item v-if="form.mentionType === 'roles'" label="@ 角色">
           <el-select v-model="form.mentionTargets" multiple placeholder="选择角色" style="width: 100%">
@@ -247,7 +252,7 @@
             <pre class="content-pre">{{ testResult.renderedContent || '（无内容）' }}</pre>
             <div v-if="testResult.mentionDetail" class="sub-text">
               @ 人员：{{ testResult.mentionDetail.names?.join('、') || '无' }}
-              <template v-if="testResult.mentionDetail.skipped?.length">；{{ testResult.mentionDetail.skipped.length }} 人因无标识跳过</template>
+              <template v-if="testResult.mentionDetail.skipped?.length">；{{ mentionSkipText(testResult.mentionDetail.skipped) }}</template>
             </div>
           </template>
           <template v-else>
@@ -308,9 +313,6 @@ const userOptions = ref<Array<{ userId: string; userName: string; nickName: stri
 const editVisible = ref(false)
 const editingId = ref<number | null>(null)
 const formRef = ref<FormInstance>()
-const dailyTime = ref('08:30')
-
-const builtinVars = ['{{date}}', '{{date_1}}', '{{weekday}}', '{{time}}', '{{script_name}}', '{{mention_names}}']
 
 const emptyForm = () => ({
   name: '',
@@ -322,8 +324,9 @@ const emptyForm = () => ({
   webhookId: undefined as number | undefined,
   msgtype: 'text' as 'text' | 'markdown',
   templateContent: '',
-  mentionType: 'none' as 'none' | 'all' | 'roles' | 'users',
+  mentionType: 'none' as 'none' | 'all' | 'roles' | 'users' | 'filtered',
   mentionTargets: [] as Array<string | number>,
+  mentionSource: '',
   conditionConfig: { logic: 'AND', rules: [] } as ConditionConfig,
   retryTimes: 2,
   retryInterval: 60,
@@ -336,17 +339,13 @@ const rules: FormRules = {
   name: [{ required: true, message: '请输入脚本名称', trigger: 'blur' }],
   scheduleValue: [{ required: true, message: '请输入触发时间', trigger: 'blur' }],
   webhookId: [{ required: true, message: '请选择目标群', trigger: 'change' }],
-  templateContent: [{ required: true, message: '请输入消息模板', trigger: 'blur' }],
+  templateContent: [{ required: true, message: '请输入消息内容', trigger: 'blur' }],
 }
 
 const testVisible = ref(false)
 const testResult = ref<TestResult | null>(null)
 
-const sourceVars = computed(() => {
-  const vars: string[] = []
-  dataSources.value.forEach((s) => s.fields.forEach((f) => vars.push(`{{${s.id}.${f.id}}}`)))
-  return vars
-})
+const peopleSources = computed(() => dataSources.value.filter((s) => s.people?.length))
 
 async function loadData() {
   loading.value = true
@@ -390,8 +389,9 @@ function lastStatusLabel(status: string) {
 
 async function openCreate() {
   editingId.value = null
-  Object.assign(form, emptyForm())
-  dailyTime.value = '08:30'
+  const fresh = emptyForm()
+  fresh.scheduleValue = '08:30' // daily 默认时间
+  Object.assign(form, fresh)
   editVisible.value = true
 }
 
@@ -410,13 +410,13 @@ async function openEdit(id: number) {
     templateContent: d.templateContent,
     mentionType: d.mentionType,
     mentionTargets: d.mentionTargets || [],
+    mentionSource: d.mentionSource || '',
     conditionConfig: d.conditionConfig || { logic: 'AND', rules: [] },
     retryTimes: d.retryTimes,
     retryInterval: d.retryInterval,
     maxDailySends: d.maxDailySends,
     notifyOnFail: d.notifyOnFail,
   })
-  dailyTime.value = d.scheduleType === 'daily' ? d.scheduleValue : '08:30'
   if (d.mentionType === 'users' && Array.isArray(d.mentionTargets)) {
     const ids = d.mentionTargets.map(String)
     if (ids.length) {
@@ -444,7 +444,7 @@ async function handleSave() {
     toast.error('请至少添加一条发送条件')
     return
   }
-  if (form.scheduleType === 'daily' && !dailyTime.value) {
+  if (form.scheduleType === 'daily' && !form.scheduleValue) {
     toast.error('请选择触发时间')
     return
   }
@@ -453,13 +453,14 @@ async function handleSave() {
     description: form.description,
     status: form.status,
     scheduleType: form.scheduleType,
-    scheduleValue: form.scheduleType === 'daily' ? dailyTime.value : form.scheduleValue,
+    scheduleValue: form.scheduleValue,
     timezone: form.timezone,
     webhookId: form.webhookId as number,
     msgtype: form.msgtype,
     templateContent: form.templateContent,
     mentionType: form.mentionType,
     mentionTargets: form.mentionTargets,
+    mentionSource: form.mentionType === 'filtered' ? form.mentionSource : undefined,
     conditionConfig: {
       logic: form.conditionConfig.logic,
       rules: form.conditionConfig.rules.map((r) => ({
@@ -544,8 +545,8 @@ async function handleTest(row: PushScriptItem, cmd: string) {
   }
 }
 
-function insertVar(v: string) {
-  form.templateContent += v
+function mentionSkipText(skipped: Array<{ reason?: string }>): string {
+  return (skipped || []).map((s) => s.reason).join('；')
 }
 
 function fieldsOf(sourceId: string): DataSourceFieldMeta[] {
@@ -624,18 +625,6 @@ onMounted(() => {
   font-size: 12px;
   color: #909399;
   line-height: 1.6;
-}
-.var-panel {
-  margin-top: 6px;
-  line-height: 2;
-}
-.var-panel-title {
-  font-size: 12px;
-  color: #909399;
-}
-.var-tag {
-  cursor: pointer;
-  margin-right: 6px;
 }
 .rule-list {
   width: 100%;

@@ -35,10 +35,11 @@
 | | 时区 | el-select（Asia/Shanghai 默认） | 必填 |
 | 目标与内容 | 目标群 | el-select（push_webhooks，disabled 项置灰并标注"未配置凭证/已停用"） | 必填 |
 | | 消息类型 | el-radio（text / markdown） | — |
-| | 消息模板 | el-input type=textarea（rows=6）+ 变量提示面板 | 必填；变量面板点击插入 `{{var}}` |
-| | @ 方式 | el-radio（不@ / @所有人 / 按角色 / 指定人员） | — |
+| | 消息内容 | el-input type=textarea（rows=5），直接输入统一内容（支持 {{date}} 等变量，可不使用） | 必填 |
+| | @ 方式 | el-radio（不@ / @所有人 / 按角色 / 指定人员 / **按条件筛选**） | — |
 | | @ 角色 | el-select multiple（角色列表） | roles 时必填 |
 | | @ 人员 | el-select multiple filterable remote（用户远程搜索） | users 时必填 |
+| | 筛选数据源 | el-select（有人员名单能力的数据源，如"昨日日报"）；提示：动态取不满足人员，全员满足时名单为空 → 不触发 @ | filtered 时必填 |
 | 发送条件 | 条件组逻辑 | el-radio（AND / OR） | — |
 | | 规则列表 | 动态表单：数据源下拉（data-sources/list）→ 字段下拉（按数据源联动）→ 操作符下拉（按字段类型）→ 值输入（数字/文本/布尔/多值） | 至少 1 条（后端 2706） |
 | 重试与告警 | 重试次数 | el-input-number（0-5） | — |

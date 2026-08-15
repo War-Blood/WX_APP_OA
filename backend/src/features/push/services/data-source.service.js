@@ -62,6 +62,9 @@ const SOURCES = {
       { id: 'late_count', name: '迟到提交数', type: 'number' },
       { id: 'coverage', name: '提交率(0-1)', type: 'number' },
     ],
+    people: [
+      { id: 'missing_workers', name: '未提交人员名单（按条件筛选@）' },
+    ],
     /**
      * @param {string} yesterday - YYYY-MM-DD
      * @returns {Promise<Object>}
@@ -83,6 +86,27 @@ const SOURCES = {
       const r = rows[0] || {};
       const total = Number(r.total) || 0;
       const submitted = Number(r.submitted) || 0;
+
+      // 未提交人员名单（动态 @ 用；与 missing_count 同口径）
+      const peopleRows = await db.query(
+        `SELECT u.id AS userId, u.user_name AS name, u.nickname, u.phone, u.qywx_userid
+         FROM users u
+         LEFT JOIN daily_reports dr
+           ON dr.user_id = u.id AND dr.report_date = ?
+            AND dr.deleted_at IS NULL AND dr.status IN ('submitted','approved')
+         WHERE u.deleted_at IS NULL AND u.status = 'active'
+           AND u.role NOT IN ('admin','superadmin')
+           AND dr.id IS NULL
+         ORDER BY u.user_name`,
+        [yesterday]
+      );
+      const missingWorkers = peopleRows.map((p) => ({
+        userId: p.userId,
+        name: p.name || p.nickname || '',
+        phone: p.phone || '',
+        qywxUserid: p.qywx_userid || '',
+      }));
+
       return {
         total_count: total,
         submitted_count: submitted,
@@ -90,6 +114,7 @@ const SOURCES = {
         on_time_count: Number(r.on_time) || 0,
         late_count: Number(r.late) || 0,
         coverage: total > 0 ? Number((submitted / total).toFixed(4)) : 0,
+        missing_workers: missingWorkers,
       };
     },
   },
@@ -234,7 +259,7 @@ async function loadContext(timezone) {
 }
 
 /**
- * 获取数据源元信息（条件编辑器渲染）
+ * 获取数据源元信息（条件编辑器渲染；含可选的 people 人员名单能力）
  * @returns {Array} 数据源与字段元信息
  */
 function getSourceMeta() {
@@ -242,6 +267,7 @@ function getSourceMeta() {
     id: s.id,
     name: s.name,
     fields: s.fields,
+    people: s.people || [],
   }));
 }
 

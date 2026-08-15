@@ -149,8 +149,8 @@ async function execute(script, opts = {}) {
       return { skipped: true, reason: 'condition_fail', details: cond.details };
     }
 
-    // 6. @ 目标解析
-    const mentions = await mentionService.resolve(script);
+    // 6. @ 目标解析（filtered 模式从数据源人员名单动态筛选）
+    const mentions = await mentionService.resolve(script, context);
 
     // 7. 模板渲染
     const parts = dataSourceService.getDateParts(script.timezone);
@@ -289,7 +289,7 @@ async function testScript(scriptId, { dryRun, userId } = {}) {
   if (dryRun) {
     const { context, errors } = await dataSourceService.loadContext(script.timezone);
     const cond = conditionService.evaluate(script.condition_config, context);
-    const mentions = cond.passed ? await mentionService.resolve(script) : { names: [], detail: [] };
+    const mentions = cond.passed ? await mentionService.resolve(script, context) : { names: [], detail: [] };
     const parts = dataSourceService.getDateParts(script.timezone);
     const datesAgo = {};
     for (let n = 1; n <= 30; n++) datesAgo[n] = dataSourceService.minusDays(parts.date, n);
