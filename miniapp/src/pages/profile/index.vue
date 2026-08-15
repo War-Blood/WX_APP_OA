@@ -36,18 +36,6 @@
             class="setting-item"
             hover-class="setting-item-hover"
             :hover-stay-time="100"
-            @tap="openProfileEdit('phone')"
-          >
-            <text class="setting-label">手机号</text>
-            <view class="setting-right">
-              <text class="setting-value">{{ userStore.phone || '未填写' }}</text>
-              <text class="setting-arrow">›</text>
-            </view>
-          </view>
-          <view
-            class="setting-item"
-            hover-class="setting-item-hover"
-            :hover-stay-time="100"
             @tap="openProfileEdit('qywx_mobile')"
           >
             <text class="setting-label">企业微信手机号</text>
@@ -187,7 +175,6 @@ const popupFocusKey = ref('nickname')
 
 const profileFields = computed(() => [
   { key: 'nickname', label: '昵称', type: 'text', value: userStore.userName, placeholder: '请输入昵称', maxlength: 100, required: true },
-  { key: 'phone', label: '手机号', type: 'number', value: userStore.phone || '', placeholder: '请输入手机号', maxlength: 11, required: false },
   { key: 'qywx_mobile', label: '企业微信手机号', type: 'number', value: userStore.qywxMobile || '', placeholder: '请输入企业微信手机号', maxlength: 11, required: false, hint: '用于接收企业微信机器人消息 / @提醒' }
 ])
 
@@ -207,7 +194,6 @@ async function handleProfileSubmit(payload) {
   try {
     const body = {}
     if (payload.nickname !== undefined) body.nickname = payload.nickname
-    if (payload.phone !== undefined) body.phone = payload.phone || null
     if (payload.qywx_mobile !== undefined) body.qywx_mobile = payload.qywx_mobile || ''
     await authApi.updateProfile(body)
     const info = uni.getStorageSync('userInfo') || {}
@@ -216,7 +202,6 @@ async function handleProfileSubmit(payload) {
       next.nickName = body.nickname
       next.nickname = body.nickname
     }
-    if (body.phone !== undefined) next.phone = body.phone || ''
     if (body.qywx_mobile !== undefined) next.qywxMobile = body.qywx_mobile || ''
     uni.setStorageSync('userInfo', next)
     userStore.setUserInfo(next)

@@ -123,4 +123,4 @@ CREATE TABLE IF NOT EXISTS push_task_logs (
 | 日期 | 变更内容 | 变更人 |
 |------|---------|--------|
 | 2026-08-18 | 初始创建 | 殇血轮回 |
-| 2026-08-20 | users 表新增 `qywx_mobile`（企业微信手机号，小程序个人中心维护）：后续 text @ 可优先用企微手机号，或经企微 API user/get_by_mobile 反查 userid 扩展 markdown @；数据源名单可同步下发该字段 | 殇血轮回 |
+| 2026-08-20 | users 表新增 `qywx_mobile`（企业微信手机号，小程序个人中心维护）：text @ 已接入（qywx_mobile 优先，回退 phone）；数据源名单同步下发 qywxMobile；后续可经企微 API user/get_by_mobile 反查 userid 扩展 markdown @ | 殇血轮回 |

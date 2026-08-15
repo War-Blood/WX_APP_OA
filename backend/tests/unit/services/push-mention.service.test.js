@@ -15,24 +15,24 @@ describe('@ 目标解析 - 按条件筛选（filtered）', () => {
   });
 
   const people = [
-    { userId: 11, name: '张三', phone: '13800000001', qywxUserid: 'zhangsan' },
-    { userId: 12, name: '李四', phone: '13800000002', qywxUserid: '' },
-    { userId: 13, name: '王五', phone: '', qywxUserid: 'wangwu' },
+    { userId: 11, name: '张三', qywxMobile: '13911111111', phone: '13800000001', qywxUserid: 'zhangsan' },
+    { userId: 12, name: '李四', qywxMobile: '', phone: '13800000002', qywxUserid: '' },
+    { userId: 13, name: '王五', qywxMobile: '', phone: '', qywxUserid: 'wangwu' },
   ];
   const context = {
     daily_report: { missing_count: 3, missing_workers: people },
   };
 
   describe('filtered - 有人员名单', () => {
-    test('text 消息：手机号 @（无手机号跳过并记录）', async () => {
+    test('text 消息：企业微信手机号 @（qywx_mobile 优先，回退 phone，无号跳过）', async () => {
       const r = await mentionService.resolve(
         { mention_type: 'filtered', mention_source: 'daily_report', msgtype: 'text' },
         context
       );
-      expect(r.mobileList).toEqual(['13800000001', '13800000002']);
+      expect(r.mobileList).toEqual(['13911111111', '13800000002']);
       expect(r.useridList).toEqual([]);
       expect(r.names).toEqual(['张三', '李四', '王五']);
-      expect(r.detail.some((d) => d.reason && d.reason.includes('无手机号'))).toBe(true);
+      expect(r.detail.some((d) => d.reason && d.reason.includes('企业微信手机号'))).toBe(true);
       // filtered 不查 DB
       expect(db.query).not.toHaveBeenCalled();
     });
@@ -51,14 +51,14 @@ describe('@ 目标解析 - 按条件筛选（filtered）', () => {
       const ctx2 = {
         daily_report: {
           missing_workers: [],
-          today_missing_workers: [{ userId: 21, name: '出差甲', phone: '13700000001', qywxUserid: 'jia' }],
+          today_missing_workers: [{ userId: 21, name: '出差甲', qywxMobile: '13722222222', phone: '13700000001', qywxUserid: 'jia' }],
         },
       };
       const r = await mentionService.resolve(
         { mention_type: 'filtered', mention_source: 'daily_report.today_missing_workers', msgtype: 'text' },
         ctx2
       );
-      expect(r.mobileList).toEqual(['13700000001']);
+      expect(r.mobileList).toEqual(['13722222222']);
       expect(r.names).toEqual(['出差甲']);
     });
   });
@@ -112,14 +112,16 @@ describe('@ 目标解析 - 按条件筛选（filtered）', () => {
       expect(r.detail[0].reason).toContain('仅支持 text');
     });
 
-    test('all 查 DB（text 取手机号）', async () => {
+    test('all 查 DB（text 取企业微信手机号，回退 phone）', async () => {
       db.query.mockResolvedValue([
-        { id: 1, user_name: '甲', nickname: '', phone: '13900000000', qywx_userid: '' },
-        { id: 2, user_name: '乙', nickname: '', phone: '', qywx_userid: '' },
+        { id: 1, user_name: '甲', nickname: '', qywx_mobile: '13866666666', phone: '13900000000', qywx_userid: '' },
+        { id: 2, user_name: '乙', nickname: '', qywx_mobile: '', phone: '13700000000', qywx_userid: '' },
+        { id: 3, user_name: '丙', nickname: '', qywx_mobile: '', phone: '', qywx_userid: '' },
       ]);
       const r = await mentionService.resolve({ mention_type: 'all', msgtype: 'text' }, context);
-      expect(r.mobileList).toEqual(['13900000000']);
-      expect(r.names).toEqual(['甲', '乙']);
+      expect(r.mobileList).toEqual(['13866666666', '13700000000']);
+      expect(r.names).toEqual(['甲', '乙', '丙']);
+      expect(r.detail.some((d) => d.reason && d.reason.includes('企业微信手机号'))).toBe(true);
       expect(db.query).toHaveBeenCalledTimes(1);
     });
   });

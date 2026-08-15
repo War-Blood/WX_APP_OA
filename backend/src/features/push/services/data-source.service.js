@@ -101,7 +101,7 @@ const SOURCES = {
 
       // 昨日未提交人员名单
       const peopleRows = await db.query(
-        `SELECT u.id AS userId, u.user_name AS name, u.nickname, u.phone, u.qywx_userid
+        `SELECT u.id AS userId, u.user_name AS name, u.nickname, u.qywx_mobile, u.phone, u.qywx_userid
          FROM users u
          LEFT JOIN daily_reports dr
            ON dr.user_id = u.id AND dr.report_date = ?
@@ -115,6 +115,7 @@ const SOURCES = {
       const missingWorkers = peopleRows.map((p) => ({
         userId: p.userId,
         name: p.name || p.nickname || '',
+        qywxMobile: p.qywx_mobile || '',
         phone: p.phone || '',
         qywxUserid: p.qywx_userid || '',
       }));
@@ -124,7 +125,7 @@ const SOURCES = {
 
       // ===== 今日待工：昨日填报"明日待工"的人员 =====
       const waitingRows = await db.query(
-        `SELECT u.id AS userId, u.user_name AS name, u.nickname, u.phone, u.qywx_userid
+        `SELECT u.id AS userId, u.user_name AS name, u.nickname, u.qywx_mobile, u.phone, u.qywx_userid
          FROM daily_reports dr
          JOIN users u ON dr.user_id = u.id AND u.deleted_at IS NULL AND u.status = 'active'
          WHERE dr.report_date = ? AND dr.tomorrow_work_type = '待工'
@@ -135,6 +136,7 @@ const SOURCES = {
       const waitingWorkers = waitingRows.map((p) => ({
         userId: p.userId,
         name: p.name || p.nickname || '',
+        qywxMobile: p.qywx_mobile || '',
         phone: p.phone || '',
         qywxUserid: p.qywx_userid || '',
       }));
@@ -278,12 +280,12 @@ async function loadTodayStatus(today) {
     const missing = workers.filter((w) => w.status === 'missing');
     const ids = missing.map((w) => w.userId);
 
-    // 补查 @ 所需标识（phone / qywx_userid）
+    // 补查 @ 所需标识（qywx_mobile / phone / qywx_userid）
     let userMap = {};
     if (ids.length > 0) {
       const placeholders = ids.map(() => '?').join(',');
       const rows = await db.query(
-        `SELECT id, user_name, nickname, phone, qywx_userid FROM users WHERE id IN (${placeholders})`,
+        `SELECT id, user_name, nickname, qywx_mobile, phone, qywx_userid FROM users WHERE id IN (${placeholders})`,
         ids
       );
       rows.forEach((u) => { userMap[u.id] = u; });
@@ -291,6 +293,7 @@ async function loadTodayStatus(today) {
     const missingWorkers = missing.map((w) => ({
       userId: w.userId,
       name: w.userName || '',
+      qywxMobile: (userMap[w.userId] && userMap[w.userId].qywx_mobile) || '',
       phone: (userMap[w.userId] && userMap[w.userId].phone) || '',
       qywxUserid: (userMap[w.userId] && userMap[w.userId].qywx_userid) || '',
     }));

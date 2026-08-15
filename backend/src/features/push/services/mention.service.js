@@ -11,7 +11,7 @@ const db = require('../../../common/config/database');
  * - mobiles: 指定手机号（直接 mentioned_mobile_list；仅支持 text 消息）
  * - filtered: 按条件筛选——从数据源人员名单取"不满足人员"（动态，如 daily_report.today_missing_workers），
  *             名单为空（全员满足）→ 不触发 @
- * text 消息 → mentioned_mobile_list（users.phone）
+ * text 消息 → mentioned_mobile_list（users.qywx_mobile 优先，回退 users.phone）
  * markdown 消息 → mentioned_list（users.qywx_userid），内容中嵌入 <@userid>
  * 无对应标识的用户跳过并在 detail 记录原因。
  */
@@ -65,10 +65,11 @@ async function resolve(script, context) {
           detail.push({ id: p.userId, name, reason: '未绑定企业微信（无 qywx_userid），markdown @ 已跳过' });
         }
       } else {
-        if (p.phone) {
-          mobileList.push(p.phone);
+        const mobile = p.qywxMobile || p.phone;
+        if (mobile) {
+          mobileList.push(mobile);
         } else {
-          detail.push({ id: p.userId, name, reason: '无手机号，text @ 已跳过' });
+          detail.push({ id: p.userId, name, reason: '未填写企业微信手机号（无手机号可 @），text @ 已跳过' });
         }
       }
     });
@@ -91,7 +92,7 @@ async function resolve(script, context) {
   let rows = [];
   if (mentionType === 'all') {
     rows = await db.query(
-      `SELECT id, user_name, nickname, phone, qywx_userid
+      `SELECT id, user_name, nickname, qywx_mobile, phone, qywx_userid
        FROM users
        WHERE deleted_at IS NULL AND status = 'active' AND role NOT IN ('admin','superadmin')
        ORDER BY user_name`
@@ -101,7 +102,7 @@ async function resolve(script, context) {
     if (roles.length === 0) return { mobileList, useridList, names: [], detail };
     const placeholders = roles.map(() => '?').join(',');
     rows = await db.query(
-      `SELECT id, user_name, nickname, phone, qywx_userid
+      `SELECT id, user_name, nickname, qywx_mobile, phone, qywx_userid
        FROM users
        WHERE deleted_at IS NULL AND status = 'active' AND role IN (${placeholders})
        ORDER BY user_name`,
@@ -112,7 +113,7 @@ async function resolve(script, context) {
     if (ids.length === 0) return { mobileList, useridList, names: [], detail };
     const placeholders = ids.map(() => '?').join(',');
     rows = await db.query(
-      `SELECT id, user_name, nickname, phone, qywx_userid
+      `SELECT id, user_name, nickname, qywx_mobile, phone, qywx_userid
        FROM users
        WHERE deleted_at IS NULL AND status = 'active' AND id IN (${placeholders})
        ORDER BY user_name`,
@@ -134,10 +135,11 @@ async function resolve(script, context) {
         detail.push({ id: u.id, name, reason: '未绑定企业微信（无 qywx_userid），markdown @ 已跳过' });
       }
     } else {
-      if (u.phone) {
-        mobileList.push(u.phone);
+      const mobile = u.qywx_mobile || u.phone;
+      if (mobile) {
+        mobileList.push(mobile);
       } else {
-        detail.push({ id: u.id, name, reason: '无手机号，text @ 已跳过' });
+        detail.push({ id: u.id, name, reason: '未填写企业微信手机号（无手机号可 @），text @ 已跳过' });
       }
     }
   });

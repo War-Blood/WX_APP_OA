@@ -32,8 +32,8 @@
 6  模板渲染        template.service 替换 {{var}} → rendered_content
                    （内容可直接写固定文本，变量可选；text 超 2048 字节 / markdown 超 4096 字节 → 截断并记日志）
 7  解析 @ 目标     mention.service.resolve(script, context)
-                   none: 不@；all/roles/users: 查 users → text: mentioned_mobile_list(phone) / markdown: mentioned_list(qywx_userid)
-                   （users 表新增 qywx_mobile 企业微信手机号：后续 text @ 可优先用企微手机号，或经企微 API user/get_by_mobile 反查 userid 扩展 markdown @）
+                   none: 不@；all/roles/users: 查 users → text: mentioned_mobile_list(qywx_mobile 优先，回退 phone) / markdown: mentioned_list(qywx_userid)
+                   （users.qywx_mobile 企业微信手机号由小程序个人中心维护，text @ 直接使用；后续可经企微 API user/get_by_mobile 反查 userid 扩展 markdown @）
                    filtered: 从数据源人员名单（如 daily_report.missing_workers）动态取"不满足人员"
                      → 名单为空（全员满足）→ 不触发 @（detail 记录原因）
                    └─ 无对应标识的用户跳过，mention_detail 记录姓名与缺失原因
