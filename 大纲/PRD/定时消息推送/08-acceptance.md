@@ -16,8 +16,9 @@
 - [ ] 条件判定：满足 → 发送；不满足 → 不发送且日志 `condition_fail`；AND/OR 组合正确；空规则保存被拒（2706）。
 - [ ] 模板渲染：内置变量 + 数据源字段全部替换；超长内容截断；dryRun 可预览渲染结果。
 - [ ] @ 解析：text → mentioned_mobile_list（phone）；markdown → mentioned_list（qywx_userid）；缺失标识用户跳过并在 mention_detail 记录。
-- [ ] **按条件筛选 @（动态）**：mentionType='filtered' + mentionSource='daily_report' 时，@ 名单 = 昨日未提交人员（每天不同）；dryRun 与真实发送均验证名单正确。
-- [ ] **全员满足不触发 @**：所有应填人员昨日已提交 → missing_workers 为空 → 条件不满足（missing_count=0）整条不发送；或条件满足但名单为空时不 @。
+- [ ] **按条件筛选 @（动态）**：mentionType='filtered' + mentionSource（支持 `source` 或 `source.peopleField`）时，@ 名单 = 对应人员名单（如 `daily_report.today_missing_workers` = 当天还没填公出日志的出差人员，每天不同）；dryRun 与真实发送均验证名单正确。
+- [ ] **今日未填口径**：出差中（biz_trip 进行中）且当日无日报的在职外场人员计入 `today_missing_count`/`today_missing_workers`（与合规提醒一致）；姓名/手机号正确解析。
+- [ ] **全员满足不触发 @**：今日应填人员全部已填写 → 名单为空 → 条件不满足（today_missing_count=0）整条不发送；或条件满足但名单为空时不 @。
 - [ ] 时间触发：新建脚本 daily 模式默认 08:30 可直接保存；修改时间后保存生效（列表显示新时间）。
 - [ ] 手动测试：dryRun 不发送只预览；真实发送成功返回 sendStatus；脚本 disabled 时测试被拒（2708）。
 - [ ] 日志：列表筛选（脚本/状态/日期范围）；详情含条件明细、渲染内容、@ 目标、attempts。

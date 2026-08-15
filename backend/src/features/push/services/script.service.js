@@ -144,10 +144,16 @@ async function validateInput(data, excludeId) {
     if (!data.mentionSource) {
       throw new ValidationError('按条件筛选 @ 时请选择数据源');
     }
+    const parts = String(data.mentionSource).split('.');
+    const srcId = parts[0];
+    const peopleField = parts[1];
     const meta = require('./data-source.service').getSourceMeta();
-    const sourceMeta = meta.find((s) => s.id === data.mentionSource);
+    const sourceMeta = meta.find((s) => s.id === srcId);
     if (!sourceMeta || !sourceMeta.people || sourceMeta.people.length === 0) {
       throw new ValidationError('所选数据源不支持人员名单筛选');
+    }
+    if (peopleField && !sourceMeta.people.some((p) => p.id === peopleField)) {
+      throw new ValidationError('所选人员名单不存在');
     }
   }
   conditionService.assertValid(data.conditionConfig);

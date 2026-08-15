@@ -106,13 +106,13 @@ CREATE TABLE IF NOT EXISTS push_task_logs (
 
 | source | 说明 | 字段 | 人员名单（people） |
 |--------|------|------|-------------------|
-| `daily_report` | 昨日日报统计 | `submitted_count`、`missing_count`、`total_count`、`on_time_count`、`late_count`、`coverage`（提交率 0-1） | `missing_workers`：昨日未提交人员（userId/name/phone/qywx_userid，动态） |
+| `daily_report` | 公出日志（日报） | 昨日：`total_count`、`submitted_count`、`missing_count`、`on_time_count`、`late_count`、`coverage`；**今日：`today_total_count`、`today_submitted_count`、`today_missing_count`**（当日应填的出差/外场人员口径，与合规提醒同源） | `missing_workers`（昨日未提交）、**`today_missing_workers`（今日未填写——当天还没填公出日志的出差人员）** |
 | `compliance` | 昨日合规 | `missing_projects`、`checked_projects`、`missing_count` | — |
 | `attendance` | 今日考勤 | `is_workday`（bool）、`leave_count`、`biz_trip_count` | — |
 | `users` | 用户统计 | `active_count`、`pending_count` | — |
 | `system` | 系统日期 | `date`、`weekday`（1-7）、`day_of_month`、`month` | — |
 
-> `people` 名单能力：支持「按条件筛选 @」的数据源在元信息中声明 `people`（`getSourceMeta` 下发），发送时动态取该名单；名单为空（全员满足）→ 不触发 @。
+> `people` 名单能力：支持「按条件筛选 @」的数据源在元信息中声明 `people`（`getSourceMeta` 下发）；`mention_source` 格式为 `source` 或 `source.peopleField`（如 `daily_report.today_missing_workers`），发送时动态取该名单；名单为空（全员满足）→ 不触发 @。`today_missing_workers` 口径：出差中（`attendance_leave_requests` biz_trip 进行中）且当日无日报的在职外场人员（与合规提醒 `getDailyStatus` 的 `status='missing'` 一致）。
 
 > 字段元信息（名称/类型/说明）由 `/api/push/data-sources/list` 下发，前端条件编辑器动态渲染。
 

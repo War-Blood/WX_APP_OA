@@ -32,11 +32,20 @@ async function resolve(script, context) {
     return { mobileList, useridList, names: [], detail };
   }
 
-  // 按条件筛选：从数据源人员名单取"不满足人员"
+  // 按条件筛选：从数据源人员名单取"不满足人员"（mention_source 格式：source 或 source.peopleField）
   if (mentionType === 'filtered') {
-    const source = script.mention_source;
-    const sourceCtx = source && context ? context[source] : null;
-    const people = sourceCtx && Array.isArray(sourceCtx.missing_workers) ? sourceCtx.missing_workers : [];
+    const [srcId, peopleField] = String(script.mention_source || '').split('.');
+    const sourceCtx = srcId && context ? context[srcId] : null;
+    // 未指定名单字段时取该数据源声明的第一个 people 名单（向后兼容）
+    let field = peopleField;
+    if (!field) {
+      try {
+        const meta = require('./data-source.service').getSourceMeta();
+        const srcMeta = meta.find((s) => s.id === srcId);
+        field = srcMeta && srcMeta.people && srcMeta.people[0] ? srcMeta.people[0].id : null;
+      } catch { field = null; }
+    }
+    const people = sourceCtx && field && Array.isArray(sourceCtx[field]) ? sourceCtx[field] : [];
     if (people.length === 0) {
       detail.push({ reason: '全员满足，无触发 @ 人员' });
       return { mobileList, useridList, names: [], detail };

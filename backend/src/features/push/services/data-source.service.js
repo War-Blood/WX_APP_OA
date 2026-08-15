@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../../../common/config/database');
+const coreStatsService = require('../../../core/services/stats.service');
 
 /**
  * 预定义数据源注册表（条件判定 + 模板变量上下文）
@@ -53,23 +54,30 @@ function minusDays(dateStr, days) {
 const SOURCES = {
   daily_report: {
     id: 'daily_report',
-    name: '昨日日报',
+    name: '公出日志（日报）',
     fields: [
-      { id: 'total_count', name: '应填人数', type: 'number' },
-      { id: 'submitted_count', name: '已提交人数', type: 'number' },
-      { id: 'missing_count', name: '缺失人数', type: 'number' },
-      { id: 'on_time_count', name: '按时提交数', type: 'number' },
-      { id: 'late_count', name: '迟到提交数', type: 'number' },
-      { id: 'coverage', name: '提交率(0-1)', type: 'number' },
+      // 昨日口径
+      { id: 'total_count', name: '昨日应填人数', type: 'number' },
+      { id: 'submitted_count', name: '昨日已提交人数', type: 'number' },
+      { id: 'missing_count', name: '昨日缺失人数', type: 'number' },
+      { id: 'on_time_count', name: '昨日按时提交数', type: 'number' },
+      { id: 'late_count', name: '昨日迟到提交数', type: 'number' },
+      { id: 'coverage', name: '昨日提交率(0-1)', type: 'number' },
+      // 今日口径（当天应填的出差/外场人员）
+      { id: 'today_total_count', name: '今日应填人数', type: 'number' },
+      { id: 'today_submitted_count', name: '今日已填写人数', type: 'number' },
+      { id: 'today_missing_count', name: '今日未填写人数', type: 'number' },
     ],
     people: [
-      { id: 'missing_workers', name: '未提交人员名单（按条件筛选@）' },
+      { id: 'missing_workers', name: '昨日未提交人员' },
+      { id: 'today_missing_workers', name: '今日未填写人员（出差人员提醒）' },
     ],
     /**
-     * @param {string} yesterday - YYYY-MM-DD
+     * @param {{yesterday: string, today: string}} params - 日期参数
      * @returns {Promise<Object>}
      */
-    async loader(yesterday) {
+    async loader({ yesterday, today }) {
+      // ===== 昨日口径 =====
       const rows = await db.query(
         `SELECT COUNT(*) AS total,
                 SUM(CASE WHEN dr.id IS NOT NULL THEN 1 ELSE 0 END) AS submitted,
@@ -87,7 +95,7 @@ const SOURCES = {
       const total = Number(r.total) || 0;
       const submitted = Number(r.submitted) || 0;
 
-      // 未提交人员名单（动态 @ 用；与 missing_count 同口径）
+      // 昨日未提交人员名单
       const peopleRows = await db.query(
         `SELECT u.id AS userId, u.user_name AS name, u.nickname, u.phone, u.qywx_userid
          FROM users u
@@ -107,6 +115,9 @@ const SOURCES = {
         qywxUserid: p.qywx_userid || '',
       }));
 
+      // ===== 今日口径：当天应填的出差/外场人员（与合规提醒同源 getDailyStatus）=====
+      const todayStat = await loadTodayStatus(today);
+
       return {
         total_count: total,
         submitted_count: submitted,
@@ -115,6 +126,10 @@ const SOURCES = {
         late_count: Number(r.late) || 0,
         coverage: total > 0 ? Number((submitted / total).toFixed(4)) : 0,
         missing_workers: missingWorkers,
+        today_total_count: todayStat.total,
+        today_submitted_count: todayStat.submitted,
+        today_missing_count: todayStat.missing,
+        today_missing_workers: todayStat.missingWorkers,
       };
     },
   },
@@ -226,6 +241,48 @@ const SOURCES = {
 };
 
 /**
+ * 加载今日公出日志状态（与合规提醒同源：coreStatsService.getDailyStatus）
+ * "当天还未填写的出差/外场人员" = getDailyStatus(workers) 中 status='missing'
+ * @param {string} today - YYYY-MM-DD
+ * @returns {Promise<{total: number, submitted: number, missing: number, missingWorkers: Array}>}
+ */
+async function loadTodayStatus(today) {
+  try {
+    const dailyStatus = await coreStatsService.getDailyStatus(today);
+    const workers = (dailyStatus && dailyStatus.workers) || [];
+    const missing = workers.filter((w) => w.status === 'missing');
+    const ids = missing.map((w) => w.userId);
+
+    // 补查 @ 所需标识（phone / qywx_userid）
+    let userMap = {};
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = await db.query(
+        `SELECT id, user_name, nickname, phone, qywx_userid FROM users WHERE id IN (${placeholders})`,
+        ids
+      );
+      rows.forEach((u) => { userMap[u.id] = u; });
+    }
+    const missingWorkers = missing.map((w) => ({
+      userId: w.userId,
+      name: w.userName || '',
+      phone: (userMap[w.userId] && userMap[w.userId].phone) || '',
+      qywxUserid: (userMap[w.userId] && userMap[w.userId].qywx_userid) || '',
+    }));
+
+    return {
+      total: workers.length,
+      submitted: workers.filter((w) => w.status !== 'missing' && w.status !== 'leave').length,
+      missing: missing.length,
+      missingWorkers,
+    };
+  } catch (err) {
+    // 今日统计失败不影响昨日口径
+    return { total: 0, submitted: 0, missing: 0, missingWorkers: [] };
+  }
+}
+
+/**
  * 加载全部数据源上下文（失败的数据源以 null 记录，由条件引擎处理）
  * @param {string} timezone - IANA 时区名
  * @returns {Promise<{context: Object, errors: Object}>}
@@ -241,7 +298,7 @@ async function loadContext(timezone) {
 
   // attendance 与 daily_report/compliance 需要日期参数，system 已加载
   const loaders = [
-    ['daily_report', SOURCES.daily_report, yesterday],
+    ['daily_report', SOURCES.daily_report, { yesterday, today }],
     ['compliance', SOURCES.compliance, yesterday],
     ['attendance', SOURCES.attendance, today],
     ['users', SOURCES.users, null],

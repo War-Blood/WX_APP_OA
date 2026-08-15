@@ -46,6 +46,21 @@ describe('@ 目标解析 - 按条件筛选（filtered）', () => {
       expect(r.mobileList).toEqual([]);
       expect(r.detail.some((d) => d.reason && d.reason.includes('未绑定企业微信'))).toBe(true);
     });
+
+    test('mention_source 指定名单字段（source.peopleField）', async () => {
+      const ctx2 = {
+        daily_report: {
+          missing_workers: [],
+          today_missing_workers: [{ userId: 21, name: '出差甲', phone: '13700000001', qywxUserid: 'jia' }],
+        },
+      };
+      const r = await mentionService.resolve(
+        { mention_type: 'filtered', mention_source: 'daily_report.today_missing_workers', msgtype: 'text' },
+        ctx2
+      );
+      expect(r.mobileList).toEqual(['13700000001']);
+      expect(r.names).toEqual(['出差甲']);
+    });
   });
 
   describe('filtered - 全员满足/无名单', () => {

@@ -159,10 +159,15 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="form.mentionType === 'filtered'" label="筛选数据源">
-          <el-select v-model="form.mentionSource" placeholder="选择数据源（取其不满足人员名单）" style="width: 100%">
-            <el-option v-for="s in peopleSources" :key="s.id" :label="s.name" :value="s.id" />
-          </el-select>
-          <div class="sub-text">每次执行时动态取该数据源的不满足人员（如昨日未提交日报人员）；全员满足时名单为空 → 不触发 @</div>
+          <div class="filtered-row">
+            <el-select v-model="form.mentionSourceSource" placeholder="数据源" style="width: 180px" @change="onFilteredSourceChange">
+              <el-option v-for="s in peopleSources" :key="s.id" :label="s.name" :value="s.id" />
+            </el-select>
+            <el-select v-model="form.mentionSourceField" placeholder="人员名单" style="width: 200px">
+              <el-option v-for="p in filteredPeopleFields" :key="p.id" :label="p.name" :value="p.id" />
+            </el-select>
+          </div>
+          <div class="sub-text">每次执行时动态取该名单（如"今日未填写人员"= 当天还没填公出日志的出差人员）；全员满足时名单为空 → 不触发 @</div>
         </el-form-item>
         <el-form-item v-if="form.mentionType === 'roles'" label="@ 角色">
           <el-select v-model="form.mentionTargets" multiple placeholder="选择角色" style="width: 100%">
@@ -326,7 +331,8 @@ const emptyForm = () => ({
   templateContent: '',
   mentionType: 'none' as 'none' | 'all' | 'roles' | 'users' | 'filtered',
   mentionTargets: [] as Array<string | number>,
-  mentionSource: '',
+  mentionSourceSource: '',
+  mentionSourceField: '',
   conditionConfig: { logic: 'AND', rules: [] } as ConditionConfig,
   retryTimes: 2,
   retryInterval: 60,
@@ -346,6 +352,15 @@ const testVisible = ref(false)
 const testResult = ref<TestResult | null>(null)
 
 const peopleSources = computed(() => dataSources.value.filter((s) => s.people?.length))
+
+const filteredPeopleFields = computed(() => {
+  const src = peopleSources.value.find((s) => s.id === form.mentionSourceSource)
+  return src?.people || []
+})
+
+function onFilteredSourceChange() {
+  form.mentionSourceField = filteredPeopleFields.value[0]?.id || ''
+}
 
 async function loadData() {
   loading.value = true
@@ -410,7 +425,8 @@ async function openEdit(id: number) {
     templateContent: d.templateContent,
     mentionType: d.mentionType,
     mentionTargets: d.mentionTargets || [],
-    mentionSource: d.mentionSource || '',
+    mentionSourceSource: d.mentionSource?.split('.')[0] || '',
+    mentionSourceField: d.mentionSource?.split('.')[1] || '',
     conditionConfig: d.conditionConfig || { logic: 'AND', rules: [] },
     retryTimes: d.retryTimes,
     retryInterval: d.retryInterval,
@@ -460,7 +476,9 @@ async function handleSave() {
     templateContent: form.templateContent,
     mentionType: form.mentionType,
     mentionTargets: form.mentionTargets,
-    mentionSource: form.mentionType === 'filtered' ? form.mentionSource : undefined,
+    mentionSource: form.mentionType === 'filtered' && form.mentionSourceSource
+      ? (form.mentionSourceField ? `${form.mentionSourceSource}.${form.mentionSourceField}` : form.mentionSourceSource)
+      : undefined,
     conditionConfig: {
       logic: form.conditionConfig.logic,
       rules: form.conditionConfig.rules.map((r) => ({
@@ -627,6 +645,11 @@ onMounted(() => {
   line-height: 1.6;
 }
 .rule-list {
+  width: 100%;
+}
+.filtered-row {
+  display: flex;
+  gap: 8px;
   width: 100%;
 }
 .rule-row {
