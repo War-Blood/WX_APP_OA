@@ -59,7 +59,7 @@ export interface PushScriptDetail {
   webhookId: number
   msgtype: 'text' | 'markdown'
   templateContent: string
-  mentionType: 'none' | 'all' | 'roles' | 'users' | 'filtered'
+  mentionType: 'none' | 'all' | 'roles' | 'users' | 'mobiles' | 'filtered'
   mentionTargets: string[] | number[]
   mentionSource: string
   conditionConfig: ConditionConfig
@@ -175,7 +175,7 @@ export interface PushScriptPayload {
   webhookId: number
   msgtype: 'text' | 'markdown'
   templateContent: string
-  mentionType: 'none' | 'all' | 'roles' | 'users' | 'filtered'
+  mentionType: 'none' | 'all' | 'roles' | 'users' | 'mobiles' | 'filtered'
   mentionTargets?: Array<string | number>
   mentionSource?: string
   conditionConfig: ConditionConfig

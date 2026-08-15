@@ -131,7 +131,7 @@ async function validateInput(data, excludeId) {
   if (!data.templateContent || !String(data.templateContent).trim()) {
     throw new BusinessError('消息模板不能为空', null, ErrorCode.PUSH_INVALID_TEMPLATE);
   }
-  if (!['none', 'all', 'roles', 'users', 'filtered'].includes(data.mentionType)) {
+  if (!['none', 'all', 'roles', 'users', 'mobiles', 'filtered'].includes(data.mentionType)) {
     throw new ValidationError('@ 方式非法');
   }
   if (data.mentionType === 'roles' && (!Array.isArray(data.mentionTargets) || data.mentionTargets.length === 0)) {
@@ -139,6 +139,16 @@ async function validateInput(data, excludeId) {
   }
   if (data.mentionType === 'users' && (!Array.isArray(data.mentionTargets) || data.mentionTargets.length === 0)) {
     throw new ValidationError('指定人员 @ 时至少选择一人');
+  }
+  if (data.mentionType === 'mobiles') {
+    if (!Array.isArray(data.mentionTargets) || data.mentionTargets.length === 0) {
+      throw new ValidationError('指定手机号 @ 时至少填写一个手机号');
+    }
+    data.mentionTargets.forEach((m) => {
+      if (!/^1\d{10}$/.test(String(m))) {
+        throw new ValidationError(`手机号格式非法: ${m}`);
+      }
+    });
   }
   if (data.mentionType === 'filtered') {
     if (!data.mentionSource) {

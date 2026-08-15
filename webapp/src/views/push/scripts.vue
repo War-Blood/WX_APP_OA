@@ -155,8 +155,21 @@
             <el-radio value="all">@ 所有人（在职员工）</el-radio>
             <el-radio value="roles">按角色</el-radio>
             <el-radio value="users">指定人员</el-radio>
+            <el-radio value="mobiles">指定手机号</el-radio>
             <el-radio value="filtered">按条件筛选（不满足人员）</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="form.mentionType === 'mobiles'" label="手机号">
+          <el-select
+            v-model="form.mentionTargets"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="输入手机号后回车添加（可多个）"
+            style="width: 100%"
+          />
+          <div class="sub-text">直接 @ 指定手机号（text 消息）；如 15658773152</div>
         </el-form-item>
         <el-form-item v-if="form.mentionType === 'filtered'" label="筛选数据源">
           <div class="filtered-row">
@@ -329,7 +342,7 @@ const emptyForm = () => ({
   webhookId: undefined as number | undefined,
   msgtype: 'text' as 'text' | 'markdown',
   templateContent: '',
-  mentionType: 'none' as 'none' | 'all' | 'roles' | 'users' | 'filtered',
+  mentionType: 'none' as 'none' | 'all' | 'roles' | 'users' | 'mobiles' | 'filtered',
   mentionTargets: [] as Array<string | number>,
   mentionSourceSource: '',
   mentionSourceField: '',

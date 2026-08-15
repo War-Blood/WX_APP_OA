@@ -8,7 +8,8 @@ const db = require('../../../common/config/database');
  * - all: 所有在职员工
  * - roles: 指定角色
  * - users: 指定用户
- * - filtered: 按条件筛选——从数据源人员名单取"不满足人员"（动态，如 daily_report.missing_workers），
+ * - mobiles: 指定手机号（直接 mentioned_mobile_list；仅支持 text 消息）
+ * - filtered: 按条件筛选——从数据源人员名单取"不满足人员"（动态，如 daily_report.today_missing_workers），
  *             名单为空（全员满足）→ 不触发 @
  * text 消息 → mentioned_mobile_list（users.phone）
  * markdown 消息 → mentioned_list（users.qywx_userid），内容中嵌入 <@userid>
@@ -72,6 +73,19 @@ async function resolve(script, context) {
       }
     });
     return { mobileList, useridList, names: nameSet, detail };
+  }
+
+  // 指定手机号（直接 mentioned_mobile_list；markdown 不支持手机号 @）
+  if (mentionType === 'mobiles') {
+    const mobiles = Array.isArray(script.mention_targets) ? script.mention_targets.map(String).filter(Boolean) : [];
+    if (script.msgtype === 'markdown') {
+      detail.push({ reason: '指定手机号 @ 仅支持 text 消息（markdown 需企微 userid），已跳过' });
+      return { mobileList, useridList, names: [], detail };
+    }
+    mobiles.forEach((m) => {
+      if (!mobileList.includes(m)) mobileList.push(m);
+    });
+    return { mobileList, useridList, names: [], detail };
   }
 
   let rows = [];

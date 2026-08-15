@@ -94,6 +94,24 @@ describe('@ 目标解析 - 按条件筛选（filtered）', () => {
       expect(r.mobileList).toEqual([]);
     });
 
+    test('mobiles：指定手机号直接 @（text）', async () => {
+      const r = await mentionService.resolve(
+        { mention_type: 'mobiles', mention_targets: ['15658773152', '13900000000'], msgtype: 'text' },
+        context
+      );
+      expect(r.mobileList).toEqual(['15658773152', '13900000000']);
+      expect(r.names).toEqual([]);
+    });
+
+    test('mobiles：markdown 不支持手机号 @，跳过并记录', async () => {
+      const r = await mentionService.resolve(
+        { mention_type: 'mobiles', mention_targets: ['15658773152'], msgtype: 'markdown' },
+        context
+      );
+      expect(r.mobileList).toEqual([]);
+      expect(r.detail[0].reason).toContain('仅支持 text');
+    });
+
     test('all 查 DB（text 取手机号）', async () => {
       db.query.mockResolvedValue([
         { id: 1, user_name: '甲', nickname: '', phone: '13900000000', qywx_userid: '' },

@@ -67,10 +67,14 @@ const SOURCES = {
       { id: 'today_total_count', name: '今日应填人数', type: 'number' },
       { id: 'today_submitted_count', name: '今日已填写人数', type: 'number' },
       { id: 'today_missing_count', name: '今日未填写人数', type: 'number' },
+      // 今日待工口径（昨日填写明日计划=待工的人员）
+      { id: 'today_waiting_count', name: '今日待工人数', type: 'number' },
+      { id: 'today_waiting_names', name: '今日待工人员姓名', type: 'string' },
     ],
     people: [
       { id: 'missing_workers', name: '昨日未提交人员' },
       { id: 'today_missing_workers', name: '今日未填写人员（出差人员提醒）' },
+      { id: 'today_waiting_workers', name: '今日待工人员（昨日填报明日待工）' },
     ],
     /**
      * @param {{yesterday: string, today: string}} params - 日期参数
@@ -118,6 +122,24 @@ const SOURCES = {
       // ===== 今日口径：当天应填的出差/外场人员（与合规提醒同源 getDailyStatus）=====
       const todayStat = await loadTodayStatus(today);
 
+      // ===== 今日待工：昨日填报"明日待工"的人员 =====
+      const waitingRows = await db.query(
+        `SELECT u.id AS userId, u.user_name AS name, u.nickname, u.phone, u.qywx_userid
+         FROM daily_reports dr
+         JOIN users u ON dr.user_id = u.id AND u.deleted_at IS NULL AND u.status = 'active'
+         WHERE dr.report_date = ? AND dr.tomorrow_work_type = '待工'
+           AND dr.deleted_at IS NULL AND dr.status IN ('submitted','approved')
+         ORDER BY u.user_name`,
+        [yesterday]
+      );
+      const waitingWorkers = waitingRows.map((p) => ({
+        userId: p.userId,
+        name: p.name || p.nickname || '',
+        phone: p.phone || '',
+        qywxUserid: p.qywx_userid || '',
+      }));
+      const waitingNames = waitingWorkers.map((w) => w.name).filter(Boolean);
+
       return {
         total_count: total,
         submitted_count: submitted,
@@ -130,6 +152,9 @@ const SOURCES = {
         today_submitted_count: todayStat.submitted,
         today_missing_count: todayStat.missing,
         today_missing_workers: todayStat.missingWorkers,
+        today_waiting_count: waitingNames.length,
+        today_waiting_names: waitingNames.join('、'),
+        today_waiting_workers: waitingWorkers,
       };
     },
   },

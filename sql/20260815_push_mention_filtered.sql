@@ -17,7 +17,7 @@ SET @s = (SELECT IF(
 ));
 PREPARE stmt FROM @s; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- mention_type 枚举增加 filtered
-ALTER TABLE push_scripts MODIFY mention_type ENUM('none','all','roles','users','filtered') NOT NULL DEFAULT 'none' COMMENT '@ 方式（filtered=按条件筛选不满足人员）';
+-- mention_type 枚举增加 filtered / mobiles
+ALTER TABLE push_scripts MODIFY mention_type ENUM('none','all','roles','users','mobiles','filtered') NOT NULL DEFAULT 'none' COMMENT '@ 方式（filtered=按条件筛选不满足人员；mobiles=指定手机号）';
 
 SELECT 'v2.6.2 push_scripts mention_source 迁移完成!' AS message;
