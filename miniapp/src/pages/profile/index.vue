@@ -19,36 +19,6 @@
       </view>
 
       <view class="section">
-        <view class="settings-list">
-          <view
-            class="setting-item"
-            hover-class="setting-item-hover"
-            :hover-stay-time="100"
-            @tap="openProfileEdit('nickname')"
-          >
-            <text class="setting-label">昵称</text>
-            <view class="setting-right">
-              <text class="setting-value">{{ userStore.userName }}</text>
-              <text class="setting-arrow">›</text>
-            </view>
-          </view>
-          <view
-            class="setting-item"
-            hover-class="setting-item-hover"
-            :hover-stay-time="100"
-            @tap="openProfileEdit('qywx_mobile')"
-          >
-            <text class="setting-label">企业微信手机号</text>
-            <view class="setting-right">
-              <text class="setting-value">{{ userStore.qywxMobile || '未填写' }}</text>
-              <text class="setting-arrow">›</text>
-            </view>
-          </view>
-          <view class="setting-hint">企业微信手机号用于接收企业微信机器人消息 / @提醒</view>
-        </view>
-      </view>
-
-      <view class="section">
         <view class="stats-row">
           <view
             v-for="stat in stats"
@@ -499,13 +469,6 @@ onShareAppMessage(() => {
   font-size: 32rpx;
   color: $text-placeholder;
   line-height: 1;
-}
-
-.setting-hint {
-  font-size: $font-xs;
-  color: $text-secondary;
-  line-height: 1.4;
-  padding: 12rpx 24rpx 20rpx;
 }
 
 /* === Invite Button === */
