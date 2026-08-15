@@ -106,7 +106,18 @@ async function listLogs({ page = 1, pageSize = 20, scriptId, status, startDate, 
     [...params, Number(pageSize), offset]
   );
 
-  return { list: rows, total };
+  const listData = rows.map((r) => ({
+    id: r.id,
+    scriptId: r.script_id,
+    scriptName: r.script_name || '',
+    scheduleKey: r.schedule_key,
+    conditionResult: r.condition_result,
+    sendStatus: r.send_status,
+    errorMessage: r.error_message || '',
+    durationMs: r.duration_ms,
+    createdAt: r.created_at,
+  }));
+  return { list: listData, total };
 }
 
 /**
