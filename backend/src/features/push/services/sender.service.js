@@ -2,7 +2,6 @@
 
 const crypto = require('crypto');
 const axios = require('axios');
-const config = require('../../../common/config/env');
 const logger = require('../../../common/utils/logger');
 const { BusinessError } = require('../../../common/utils/errors');
 const { ErrorCode } = require('../../../common/utils/constants');
@@ -18,25 +17,22 @@ const WEBHOOK_BASE = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send';
 const CREDENTIAL_RE = /^[A-Za-z0-9\-_]{8,}$/;
 
 /**
- * 读取指定机器人的 env 凭证
- * @param {string} envName - push_webhooks.env_name
- * @returns {{key: string, secret: string}|null} 凭证；缺失返回 null
+ * 读取机器人凭证（界面直输模式：push_webhooks.webhook_key 存库，secret 可选加签）
+ * @param {Object} webhook - push_webhooks 行（含 webhook_key / secret）
+ * @returns {{key: string, secret: string}|null} 凭证；key 缺失返回 null
  */
-function getCredential(envName) {
-  const robot = config.wecomGroupRobot && config.wecomGroupRobot.robots
-    ? config.wecomGroupRobot.robots[envName]
-    : null;
-  if (!robot || !robot.key || !robot.secret) return null;
-  return { key: robot.key, secret: robot.secret };
+function getCredential(webhook) {
+  if (!webhook || !webhook.webhook_key) return null;
+  return { key: webhook.webhook_key, secret: webhook.secret || '' };
 }
 
 /**
- * 判断机器人是否已配置凭证
- * @param {string} envName - env 引用名
+ * 判断机器人是否已配置凭证（key 存在即可用；secret 可选）
+ * @param {Object} webhook - push_webhooks 行
  * @returns {boolean}
  */
-function isConfigured(envName) {
-  return getCredential(envName) !== null;
+function isConfigured(webhook) {
+  return getCredential(webhook) !== null;
 }
 
 /**
@@ -63,14 +59,17 @@ function maskUrl(url) {
 }
 
 /**
- * 校验凭证格式（防注入）
+ * 校验凭证格式（防注入）；secret 可选，填了必须合法
  * @param {string} key - webhook key
- * @param {string} secret - 加签密钥
+ * @param {string} [secret] - 加签密钥（可选）
  * @throws {BusinessError} 格式非法时
  */
 function assertCredentialFormat(key, secret) {
-  if (!CREDENTIAL_RE.test(key) || !CREDENTIAL_RE.test(secret)) {
-    throw new BusinessError('机器人凭证格式非法，请检查 .env 配置', null, ErrorCode.PUSH_WEBHOOK_NOT_CONFIGURED);
+  if (!CREDENTIAL_RE.test(key)) {
+    throw new BusinessError('机器人凭证格式非法，请检查配置', null, ErrorCode.PUSH_WEBHOOK_NOT_CONFIGURED);
+  }
+  if (secret && !CREDENTIAL_RE.test(secret)) {
+    throw new BusinessError('加签密钥格式非法（至少 8 位字母/数字/下划线/连字符）', null, ErrorCode.PUSH_WEBHOOK_NOT_CONFIGURED);
   }
 }
 
@@ -104,22 +103,26 @@ function buildBody(msgtype, content, mentions) {
 
 /**
  * 单次发送
- * @param {Object} webhook - {envName, name}
+ * @param {Object} webhook - push_webhooks 行
  * @param {string} msgtype - 'text' | 'markdown'
  * @param {string} content - 渲染后内容
  * @param {Object} mentions - {mobileList, useridList}
  * @returns {Promise<{httpStatus: number, errcode: number, errmsg: string, msgid: string, durationMs: number}>}
  */
 async function sendOnce(webhook, msgtype, content, mentions) {
-  const credential = getCredential(webhook.env_name);
+  const credential = getCredential(webhook);
   if (!credential) {
-    throw new BusinessError(`群机器人「${webhook.name}」未配置 env 凭证`, null, ErrorCode.PUSH_WEBHOOK_NOT_CONFIGURED);
+    throw new BusinessError(`群机器人「${webhook.name || ''}」未配置凭证`, null, ErrorCode.PUSH_WEBHOOK_NOT_CONFIGURED);
   }
   assertCredentialFormat(credential.key, credential.secret);
 
-  const timestamp = Math.floor(Date.now() / 1000);
-  const sign = computeSign(credential.secret, timestamp);
-  const url = `${WEBHOOK_BASE}?key=${encodeURIComponent(credential.key)}&timestamp=${timestamp}&sign=${encodeURIComponent(sign)}`;
+  let url = `${WEBHOOK_BASE}?key=${encodeURIComponent(credential.key)}`;
+  // 加签：secret 配置了才带 sign（未配置时企微忽略，兼容未开启加签的机器人）
+  if (credential.secret) {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const sign = computeSign(credential.secret, timestamp);
+    url += `&timestamp=${timestamp}&sign=${encodeURIComponent(sign)}`;
+  }
   const body = buildBody(msgtype, content, mentions);
 
   const start = Date.now();

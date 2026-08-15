@@ -5,7 +5,7 @@ import request from '@/utils/request'
 export interface PushWebhookItem {
   id: number
   name: string
-  envName: string
+  maskedKey: string
   enabled: boolean
   configured: boolean
   remark: string
@@ -119,7 +119,9 @@ export function getPushWebhookList(params: {
 
 export function createPushWebhook(data: {
   name: string
-  envName: string
+  webhookUrl?: string
+  webhookKey?: string
+  secret?: string
   enabled?: boolean
   remark?: string
 }): Promise<{ id: number }> {
@@ -129,7 +131,9 @@ export function createPushWebhook(data: {
 export function updatePushWebhook(data: {
   id: number
   name: string
-  envName: string
+  webhookUrl?: string
+  webhookKey?: string
+  secret?: string
   enabled?: boolean
   remark?: string
 }): Promise<{ id: number }> {

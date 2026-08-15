@@ -47,15 +47,22 @@
 ```json
 { "page": 1, "pageSize": 20, "keyword": "" }
 ```
-响应项：`id, name, envName, enabled, configured, remark, createdAt`（configured = 服务端 env 存在对应凭证）。
+响应项：`id, name, maskedKey, enabled, configured, remark, createdAt`。**不含任何完整凭证**（仅脱敏 key）。
 
-**POST /api/push/webhooks/create** — 新建（不收凭证）
+**POST /api/push/webhooks/create** — 新建（名称 + Webhook）
+
 ```json
-{ "name": "生产日报群", "envName": "DAILY", "enabled": true, "remark": "" }
+{
+  "name": "生产日报群",
+  "webhookUrl": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=5a90...14213",
+  "secret": "",            // 可选：加签密钥（有值则发送带 sign）
+  "enabled": true,
+  "remark": ""
+}
 ```
-校验：envName 必填且格式 `^[A-Za-z0-9_]{2,50}$`；`configured=false` 时禁止 enabled=true（返回 2709）。
+校验：`webhookUrl`（或 `webhookKey`）必填且能解析出合法 key（格式 `^[A-Za-z0-9\-_]{8,}$`，URL 限企微 webhook 地址）；`secret` 填了须合法；`enabled=true` 且凭证不可用时返回 2709。
 
-**POST /api/push/webhooks/update** — 编辑：`{ "id": 1, "name": "...", "envName": "...", "enabled": true, "remark": "..." }`
+**POST /api/push/webhooks/update** — 编辑：同 create 结构 + `id`；**key/secret 留空 = 保持原值**（零回显，无法从响应得知现值）。
 
 **POST /api/push/webhooks/delete** — 删除：`{ "id": 1 }`；被脚本引用时拒绝（提示先改脚本）。
 

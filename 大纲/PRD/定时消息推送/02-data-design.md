@@ -9,14 +9,12 @@
 
 定义 3 张新表的 DDL 与约束，以及凭证存储策略（服务端 env，不入库）。
 
-## 1. 凭证存储策略（对齐 WPS）
+## 1. 凭证存储策略（2026-08-15 定稿）
 
-- webhook `key` / `secret` **不建表存储**，仅存在于服务端环境变量：
-  - `WECOM_ROBOT_<NAME>_KEY` — 企微群机器人 webhook key
-  - `WECOM_ROBOT_<NAME>_SECRET` — 加签密钥（必填）
-- `backend/src/common/config/env.js` 启动时扫描 `WECOM_ROBOT_` 前缀自动构建凭证注册表。
-- DB `push_webhooks.env_name` 仅存 `<NAME>` 引用（如 `DAILY`）；凭证缺失时 `configured=false`。
-- 新增群机器人 = 运维在 `.env` 增加两组变量 + 页面登记引用名（不提供页面录入凭证）。
+- **群机器人设置仅需「名称 + Webhook 地址（或 Key）」**（用户确认：后台不提供 env 等其它设置方式）。
+- `webhook_key` 存库（`push_webhooks.webhook_key`）；**零回显**——任何 API 响应只返回脱敏摘要（`maskedKey`，保留后 4 位），编辑时留空表示保持原值；日志/异常同样脱敏。
+- 可选**加签密钥**（`secret`，高级安全设置）：配置了发送带 sign（HMAC-SHA256），未配置则普通发送（企微未开启加签时自动兼容）。
+- 发送端解析：`sender.service.getCredential(webhook)` 直接读 `webhook_key` / `secret`。
 
 ## 2. 表结构
 
@@ -26,13 +24,15 @@
 CREATE TABLE IF NOT EXISTS push_webhooks (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(50) NOT NULL COMMENT '展示名（如：生产日报群）',
-  env_name VARCHAR(50) NOT NULL COMMENT 'env 引用名，对应 WECOM_ROBOT_<env_name>_KEY/_SECRET',
   enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '启用；凭证缺失时强制不可启用',
   remark VARCHAR(255) DEFAULT '' COMMENT '备注',
+  credential_type ENUM('direct','env') NOT NULL DEFAULT 'direct' COMMENT '恒为 direct（保留列，历史兼容）',
+  webhook_key VARCHAR(128) DEFAULT NULL COMMENT '企微 webhook key（脱敏零回显）',
+  secret VARCHAR(128) DEFAULT NULL COMMENT '可选加签密钥（有值则发送带 sign）',
+  env_name VARCHAR(50) DEFAULT NULL COMMENT '历史 env 引用列（不再使用）',
   created_at DATETIME DEFAULT NOW(),
-  updated_at DATETIME DEFAULT NOW() ON UPDATE NOW(),
-  UNIQUE KEY uk_env_name (env_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='企微群机器人配置（凭证存服务端 env）';
+  updated_at DATETIME DEFAULT NOW() ON UPDATE NOW()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='企微群机器人配置（名称+Webhook，凭证存库零回显）';
 ```
 
 ### 2.2 `push_scripts` — 推送脚本

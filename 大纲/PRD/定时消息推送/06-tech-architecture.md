@@ -53,16 +53,11 @@ sender ──> env 凭证注册表（env.js）          （读 key/secret，不�
 executor ──> db（push_task_logs / messages 告警）/ redis（锁与计数）
 ```
 
-## 4. 环境变量（新增，运维交付）
+## 4. 凭证与环境变量（2026-08-15 定稿）
 
-```bash
-# 每个群机器人一组（<NAME> 与 push_webhooks.env_name 对应）
-WECOM_ROBOT_DAILY_KEY=xxxx-xxxx        # 企微群机器人 webhook key
-WECOM_ROBOT_DAILY_SECRET=yyyyyyyy      # 加签密钥（必填，≥8 位）
-```
+群机器人设置**仅需「名称 + Webhook 地址（或 Key）」**：凭证存库（`push_webhooks.webhook_key`，可选 `secret` 加签），**零回显**（API 仅脱敏摘要，编辑留空不覆盖）。不依赖任何环境变量；`WECOM_ROBOT_*` 环境变量方案已移除（用户确认后台不提供 env 设置方式）。
 
-- 启动时 env.js 扫描 `WECOM_ROBOT_` 前缀（`_KEY` / `_SECRET` 成对），构建 `config.wecomGroupRobot.robots` 注册表。
-- 凭证缺失的机器人：`configured=false`，保存启用被拒、发送直接失败并告警。
+> 历史说明：曾支持 env 模式（凭证存服务端 `.env`，对齐 WPS），2026-08-15 按用户要求移除，后台只保留名称 + Webhook。
 
 ## 5. 部署拓扑
 

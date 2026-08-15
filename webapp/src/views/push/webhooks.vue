@@ -4,8 +4,8 @@
       type="info"
       :closable="false"
       show-icon
-      title="凭证安全说明"
-      description="webhook 的 key/secret 由服务端 .env 统一管理（对齐 WPS），不会入库、不会在此页面展示。每个群机器人对应 .env 中的 WECOM_ROBOT_<名称>_KEY 与 WECOM_ROBOT_<名称>_SECRET 两组变量，请运维在 .env 配置后重启服务。"
+      title="使用说明"
+      description="填写群机器人名称与企微群机器人 Webhook 地址即可使用；Webhook 保存后仅显示脱敏摘要，不会完整回显。建议在企微群机器人「安全设置」中开启加签并填入密钥，同时配置可信 IP 白名单。"
       style="margin-bottom: 16px"
     />
 
@@ -19,9 +19,9 @@
       <div class="filters">
         <el-input
           v-model="filters.keyword"
-          placeholder="搜索名称 / env 引用名"
+          placeholder="搜索名称 / 备注"
           clearable
-          style="width: 240px"
+          style="width: 220px"
           @clear="handleSearch"
           @keyup.enter="handleSearch"
         />
@@ -31,20 +31,19 @@
 
       <el-table :data="list" v-loading="loading" stripe border style="margin-top: 16px">
         <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
-        <el-table-column label="env 引用名" min-width="160">
+        <el-table-column label="Webhook" min-width="180">
           <template #default="{ row }">
-            <code>{{ row.envName }}</code>
+            <code v-if="row.maskedKey">{{ row.maskedKey }}</code>
+            <span v-else class="sub-text">未配置</span>
           </template>
         </el-table-column>
-        <el-table-column label="凭证状态" width="120" align="center">
+        <el-table-column label="凭证状态" width="110" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.configured" type="success" size="small">已配置</el-tag>
-            <el-tooltip v-else content="请运维在 .env 配置 WECOM_ROBOT_<name>_KEY/_SECRET 后重启" placement="top">
-              <el-tag type="danger" size="small">未配置</el-tag>
-            </el-tooltip>
+            <el-tag v-else type="danger" size="small">未配置</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
             <el-switch
               :model-value="row.enabled"
@@ -53,7 +52,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="primary" @click="openEdit(row)">编辑</el-button>
@@ -75,16 +74,35 @@
       />
     </el-card>
 
-    <el-dialog v-model="editVisible" :title="editingId ? '编辑群机器人' : '新建群机器人'" width="520px" destroy-on-close>
+    <el-dialog v-model="editVisible" :title="editingId ? '编辑群机器人' : '新建群机器人'" width="560px" destroy-on-close>
       <el-form :model="form" :rules="rules" ref="formRef" label-width="110px">
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" placeholder="如：生产日报群" maxlength="50" show-word-limit />
         </el-form-item>
-        <el-form-item label="env 引用名" prop="envName">
-          <el-input v-model="form.envName" placeholder="如：DAILY" maxlength="50" />
-          <div class="field-tip">对应 .env 中 WECOM_ROBOT_<b>{{ form.envName || '名称' }}</b>_KEY 与 _SECRET</div>
+
+        <el-form-item label="Webhook" prop="webhookUrl">
+          <el-input
+            v-model="form.webhookUrl"
+            :placeholder="editingId && form.maskedKey ? '留空保持不变（当前：' + form.maskedKey + '）' : 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx'"
+          />
+          <div class="field-tip">支持粘贴完整 Webhook 地址或直接填 Key</div>
         </el-form-item>
-        <el-form-item label="启用">
+
+        <el-collapse class="advanced-collapse" v-model="advancedOpen">
+          <el-collapse-item title="高级安全设置（选填）" name="security">
+            <el-form-item label="加签密钥" class="secret-item">
+              <el-input
+                v-model="form.secret"
+                type="password"
+                show-password
+                :placeholder="editingId && form.hasSecret ? '留空保持不变（已配置加签）' : '选填：企微机器人加签密钥'"
+              />
+              <div class="field-tip">在企微「安全设置」开启加签后填写；未开启可不填（系统自动兼容）</div>
+            </el-form-item>
+          </el-collapse-item>
+        </el-collapse>
+
+        <el-form-item label="启用" class="enable-item">
           <el-switch v-model="form.enabled" />
         </el-form-item>
         <el-form-item label="备注">
@@ -123,18 +141,30 @@ const filters = reactive({ keyword: '' })
 const editVisible = ref(false)
 const editingId = ref<number | null>(null)
 const formRef = ref<FormInstance>()
+const advancedOpen = ref<string[]>([])
 const form = reactive({
   name: '',
-  envName: '',
+  webhookUrl: '',
+  secret: '',
   enabled: true,
   remark: '',
+  maskedKey: '',
+  hasSecret: false,
 })
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  envName: [
-    { required: true, message: '请输入 env 引用名', trigger: 'blur' },
-    { pattern: /^[A-Za-z0-9_]{2,50}$/, message: '2-50 位字母/数字/下划线', trigger: 'blur' },
+  webhookUrl: [
+    {
+      validator: (_rule, value: string, callback) => {
+        if (editingId.value && form.maskedKey && !value) return callback()
+        if (value && (value.includes('qyapi.weixin.qq.com/cgi-bin/webhook/send?key=') || /^[A-Za-z0-9\-_]{8,}$/.test(value.trim()))) {
+          return callback()
+        }
+        callback(new Error('请填写有效的企微群机器人 Webhook 地址或 Key'))
+      },
+      trigger: 'blur',
+    },
   ],
 }
 
@@ -163,13 +193,23 @@ function handleSizeChange() {
 
 function openCreate() {
   editingId.value = null
-  Object.assign(form, { name: '', envName: '', enabled: true, remark: '' })
+  Object.assign(form, { name: '', webhookUrl: '', secret: '', enabled: true, remark: '', maskedKey: '', hasSecret: false })
+  advancedOpen.value = []
   editVisible.value = true
 }
 
 function openEdit(row: PushWebhookItem) {
   editingId.value = row.id
-  Object.assign(form, { name: row.name, envName: row.envName, enabled: row.enabled, remark: row.remark })
+  Object.assign(form, {
+    name: row.name,
+    webhookUrl: '',
+    secret: '',
+    enabled: row.enabled,
+    remark: row.remark,
+    maskedKey: row.maskedKey,
+    hasSecret: row.configured,
+  })
+  advancedOpen.value = []
   editVisible.value = true
 }
 
@@ -182,11 +222,18 @@ async function handleSave() {
   }
   saving.value = true
   try {
+    const payload = {
+      name: form.name,
+      webhookUrl: form.webhookUrl || undefined,
+      secret: form.secret || undefined,
+      enabled: form.enabled,
+      remark: form.remark,
+    }
     if (editingId.value) {
-      await updatePushWebhook({ id: editingId.value, ...form })
+      await updatePushWebhook({ id: editingId.value, ...payload })
       toast.success('已保存')
     } else {
-      await createPushWebhook(form)
+      await createPushWebhook(payload)
       toast.success('已创建')
     }
     editVisible.value = false
@@ -236,6 +283,24 @@ onMounted(loadData)
   font-size: 12px;
   color: #909399;
   line-height: 1.6;
+  margin-top: 4px;
+}
+.sub-text {
+  font-size: 12px;
+  color: #909399;
+}
+.advanced-collapse {
+  margin-bottom: 8px;
+  border: none;
+}
+.advanced-collapse :deep(.el-collapse-item__header) {
+  font-size: 13px;
+  color: #909399;
+}
+.secret-item {
+  margin-bottom: 8px;
+}
+.enable-item {
   margin-top: 4px;
 }
 </style>

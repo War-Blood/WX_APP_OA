@@ -1,9 +1,5 @@
 'use strict';
 
-// 在 require env.js 之前注入测试凭证（jest 每文件独立模块缓存）
-process.env.WECOM_ROBOT_UNITTEST_KEY = 'abcdefgh-1234-5678';
-process.env.WECOM_ROBOT_UNITTEST_SECRET = 'unittest-secret-1';
-
 const senderService = require('../../../src/features/push/services/sender.service');
 
 describe('推送发送器（安全件）', () => {
@@ -59,25 +55,24 @@ describe('推送发送器（安全件）', () => {
   });
 
   describe('getCredential / isConfigured', () => {
-    test('env 已配置的机器人返回凭证', () => {
-      const cred = senderService.getCredential('UNITTEST');
-      expect(cred).not.toBeNull();
-      expect(cred.key).toBe('abcdefgh-1234-5678');
-      expect(cred.secret).toBe('unittest-secret-1');
-      expect(senderService.isConfigured('UNITTEST')).toBe(true);
+    test('webhook_key 存在即可用（secret 可选）', () => {
+      const webhook = { webhook_key: 'direct-key-123456', secret: null };
+      const cred = senderService.getCredential(webhook);
+      expect(cred.key).toBe('direct-key-123456');
+      expect(cred.secret).toBe('');
+      expect(senderService.isConfigured(webhook)).toBe(true);
     });
 
-    test('未配置的机器人返回 null', () => {
-      expect(senderService.getCredential('NOT_EXIST')).toBeNull();
-      expect(senderService.isConfigured('NOT_EXIST')).toBe(false);
+    test('含 secret 时返回 secret（加签）', () => {
+      const webhook = { webhook_key: 'direct-key-123456', secret: 'sign-secret-abc' };
+      expect(senderService.getCredential(webhook).secret).toBe('sign-secret-abc');
     });
 
-    test('缺 secret 视为未配置', () => {
-      // 直接验证：构造只有 key 的场景（通过删除 secret env 再 require 不可行，改用逻辑断言）
-      // getCredential 要求 key 与 secret 均存在
-      process.env.WECOM_ROBOT_NOSECRET_KEY = 'abcdefgh-1234-5678';
-      // env.js 已在文件顶部扫描，此处仅验证现有行为（UNITTEST 同时具备 key/secret）
-      expect(senderService.isConfigured('UNITTEST')).toBe(true);
+    test('无 key 视为未配置', () => {
+      const webhook = { webhook_key: null, secret: null };
+      expect(senderService.getCredential(webhook)).toBeNull();
+      expect(senderService.isConfigured(webhook)).toBe(false);
+      expect(senderService.getCredential(null)).toBeNull();
     });
   });
 });

@@ -47,8 +47,11 @@ async function webhookList(req, res, next) {
 /** 新建 */
 async function webhookCreate(req, res, next) {
   try {
-    const { name, envName, enabled, remark } = req.body;
-    const result = await webhookService.create({ name, envName, enabled, remark }, req.user.userId);
+    const { name, webhookUrl, webhookKey, secret, enabled, remark } = req.body;
+    const result = await webhookService.create(
+      { name, webhookUrl, webhookKey, secret, enabled, remark },
+      req.user.userId
+    );
     await audit(req.user.userId, 'push_webhook_create', 'push_webhook', result.id, `新建群机器人 ${name}`);
     res.json(success(result, '群机器人已创建'));
   } catch (err) { next(err); }
@@ -57,8 +60,8 @@ async function webhookCreate(req, res, next) {
 /** 编辑 */
 async function webhookUpdate(req, res, next) {
   try {
-    const { id, name, envName, enabled, remark } = req.body;
-    const result = await webhookService.update(id, { name, envName, enabled, remark });
+    const { id, name, webhookUrl, webhookKey, secret, enabled, remark } = req.body;
+    const result = await webhookService.update(id, { name, webhookUrl, webhookKey, secret, enabled, remark });
     await audit(req.user.userId, 'push_webhook_update', 'push_webhook', id, `编辑群机器人 ${name}`);
     res.json(success(result));
   } catch (err) { next(err); }

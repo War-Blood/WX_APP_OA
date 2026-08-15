@@ -35,13 +35,13 @@
                    text: mentioned_mobile_list(phone)；markdown: mentioned_list(qywx_userid)
                    └─ 无对应标识的用户跳过，mention_detail 记录姓名与缺失原因
 8  安全发送        sender.service.send(webhook, msgtype, content, mentions)
-                   a. 读 env 凭证（key/secret）→ 缺失 → 抛 PUSH_WEBHOOK_NOT_CONFIGURED
-                   b. 格式校验 key/secret（^[A-Za-z0-9\-_]{8,}$）
+                   a. 读凭证（push_webhooks.webhook_key/secret）→ key 缺失 → 抛 PUSH_WEBHOOK_NOT_CONFIGURED
+                   b. 格式校验 key（secret 有值也校验）
                    c. 固定拼 URL：https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=<key>
-                   d. sign = base64(HMAC-SHA256(secret, timestamp+"\n"+secret))，timestamp=秒
-                   e. URL 追加 &timestamp=&sign=
-                   f. axios POST（timeout 30s）→ errcode===0 视为成功
-                   g. 失败按 retry_times 指数退避重试（间隔 retry_interval * 2^n）
+                   d. secret 有值 → sign = base64(HMAC-SHA256(secret, timestamp+"\n"+secret))，URL 追加 &timestamp=&sign=
+                      （无 secret 则普通发送，企微未开启加签时自动兼容）
+                   e. axios POST（timeout 30s）→ errcode===0 视为成功
+                   f. 失败按 retry_times 指数退避重试（间隔 retry_interval * 2^n）
 9  落库与熔断      更新 push_task_logs（send_status/attempts/error_message/duration_ms）
                    └─ 成功 → consecutive_failures=0
                    └─ 失败 → consecutive_failures+1；≥3 → status='disabled'（自动熔断）
@@ -67,8 +67,8 @@
 
 | # | 规则 | 实现 |
 |---|------|------|
-| 1 | 凭证零暴露 | env 扫描注入；API/日志/前端无完整 key；错误信息 URL 脱敏（key 替换 `***`） |
-| 2 | 强制加签 | secret 缺失禁止启用机器人（2709）；sign 计算见 §2-8d |
+| 1 | 凭证零回显 | key 存库但 API 只返回脱敏摘要（保留后 4 位）；编辑留空不修改；日志/错误 URL 脱敏（key 替换 `***`） |
+| 2 | 加签（可选） | secret 有值则发送带 sign（HMAC-SHA256）；未开启加签的机器人自动兼容（sign 被企微忽略） |
 | 3 | 固定出站 URL | 不接受自定义 URL；key/secret 格式校验防注入 |
 | 4 | 熔断 | 连续失败 ≥3 自动 disabled + 告警 |
 | 5 | 限流 | 每日上限（Redis 计数）+ 测试端点每分钟 ≤3（Redis 计数） |
