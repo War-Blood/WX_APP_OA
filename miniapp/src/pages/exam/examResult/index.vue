@@ -2,11 +2,42 @@
   <view class="page">
     <nav-bar :title="title" :showBack="true" />
     <scroll-view class="content" scroll-y v-if="questions.length">
-      <view class="score-card">
-        <text class="score-num">{{ score ?? '-' }}</text>
-        <text class="score-total">/ {{ totalScore }}</text>
-        <text class="score-label">{{ statusLabel }}</text>
+      <!-- 分数概览：平铺数字 + 通过/未通过徽标 + 占比进度条 + 用时 -->
+      <view class="hero" :class="heroTone">
+        <view class="hero-top">
+          <view class="score-left">
+            <text class="score-num">{{ score ?? '-' }}</text>
+            <text class="score-total">/ {{ totalScore }}</text>
+          </view>
+          <text class="hero-badge">{{ badgeText }}</text>
+        </view>
+        <view class="hero-bar">
+          <view class="hero-bar-fill" :style="{ width: scorePct + '%' }" />
+        </view>
+        <view class="hero-foot">
+          <text class="hero-time">⏱ 用时 {{ useTimeText }}</text>
+          <text v-if="passText" class="hero-pass">{{ passText }}</text>
+        </view>
       </view>
+
+      <!-- 答题统计：正确 / 错误 / 未答 -->
+      <view class="summary">
+        <view class="sum-item">
+          <text class="sum-n pass">{{ correctCount }}</text>
+          <text class="sum-l">正确</text>
+        </view>
+        <view class="sum-divide" />
+        <view class="sum-item">
+          <text class="sum-n fail">{{ wrongCount }}</text>
+          <text class="sum-l">错误</text>
+        </view>
+        <view class="sum-divide" />
+        <view class="sum-item">
+          <text class="sum-n">{{ unansweredCount }}</text>
+          <text class="sum-l">未答</text>
+        </view>
+      </view>
+
       <view class="detail-list">
         <view v-for="(item, i) in questions" :key="i" class="detail-item">
           <question-card
@@ -14,6 +45,7 @@
             :selected="item.userAnswer"
             :interactive="false"
             :show-answer="true"
+            :index="i + 1"
           />
         </view>
       </view>
@@ -47,6 +79,8 @@ const score = ref(null)
 const totalScore = ref(0)
 const status = ref('')
 const passScore = ref(null)
+const isPass = ref(null)
+const useTime = ref(0)
 const questions = ref([])
 const loading = ref(false)
 const loadError = ref('')
@@ -54,12 +88,75 @@ const recordIdRef = ref(null)
 const mode = ref('')
 const categoryId = ref(0)
 
-const statusLabel = computed(() => {
+// 分数占比(0~100)，用于 hero 进度条
+const scorePct = computed(() => {
+  if (!totalScore.value || score.value == null) return 0
+  return Math.max(0, Math.min(100, Math.round((score.value / totalScore.value) * 100)))
+})
+
+// 逐题判分统计：正确/错误/未答(错误含部分得分题；未答=完全未作答)
+const correctCount = computed(() => {
+  let c = 0, w = 0, u = 0
+  questions.value.forEach((it) => {
+    const empty = !it.userAnswer || it.userAnswer === '' || it.userAnswer.trim?.() === ''
+    // question-card 内部按 answer 判定 correctness，结果与 quality 同口径
+    const q = it.question
+    const correctKeys = String(q?.answer || '').split(',').map((s) => s.trim()).filter(Boolean)
+    const uKeys = String(it.userAnswer || '').split(',').map((s) => s.trim()).filter(Boolean)
+    if (!uKeys.length || empty) { u += 1; return }
+    let right = false
+    if (q?.type === 'multiple') {
+      right = correctKeys.length === uKeys.length && uKeys.every((k) => correctKeys.includes(k))
+    } else {
+      right = uKeys.length > 0 && uKeys[0] === q.answer
+    }
+    if (right) c += 1; else w += 1
+  })
+  return c
+})
+const wrongCount = computed(() => {
+  let w = 0
+  questions.value.forEach((it) => {
+    const uKeys = String(it.userAnswer || '').split(',').map((s) => s.trim()).filter(Boolean)
+    if (!uKeys.length) return
+    const q = it.question
+    const correctKeys = String(q?.answer || '').split(',').map((s) => s.trim()).filter(Boolean)
+    let right = false
+    if (q?.type === 'multiple') {
+      right = correctKeys.length === uKeys.length && uKeys.every((k) => correctKeys.includes(k))
+    } else {
+      right = uKeys[0] === q.answer
+    }
+    if (!right) w += 1
+  })
+  return w
+})
+const unansweredCount = computed(() => Math.max(0, questions.value.length - correctCount.value - wrongCount.value))
+
+// 用时文案：秒 → m分s秒 / m分
+const useTimeText = computed(() => {
+  const s = Number(useTime.value) || 0
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  if (!m) return r + '秒'
+  if (!r) return m + '分'
+  return m + '分' + r + '秒'
+})
+
+// 徽标文案 + 色调
+const badgeText = computed(() => {
   if (status.value === 'timeout') return '⏰ 已超时'
   if (score.value == null) return '—'
-  // 通过判定统一口径：正式考试按人工设置的合格线(passScore)；练习/模拟无合格线时按总分 60% 兜底
-  const pass = passScore.value != null ? passScore.value : Math.round(totalScore.value * 0.6)
-  return score.value >= pass ? '✅ 通过' : '❌ 未通过'
+  return isPass.value === false ? '❌ 未通过' : '✅ 通过'
+})
+const heroTone = computed(() => {
+  if (status.value === 'timeout') return 'tone-warn'
+  if (score.value == null) return ''
+  return isPass.value === false ? 'tone-fail' : 'tone-pass'
+})
+const passText = computed(() => {
+  if (status.value === 'timeout' || passScore.value == null) return ''
+  return '合格线 ' + passScore.value + '分'
 })
 
 function parseOptions(opts) {
@@ -78,10 +175,17 @@ async function loadByRecord(recordId) {
     totalScore.value = d.totalScore
     status.value = d.status
     passScore.value = d.passScore ?? null
+    // 优先采用后端统一判定的 isPass，无则按合格线本地兜底
+    if (d.isPass != null) isPass.value = !!d.isPass
+    else if (d.status === 'submitted' && d.score != null) {
+      const pass = d.passScore != null ? d.passScore : Math.round(d.totalScore * 0.6)
+      isPass.value = d.score >= pass
+    } else isPass.value = null
+    useTime.value = d.useTime || 0
     mode.value = d.mode || ''
     categoryId.value = d.categoryId || 0
     title.value = { practice: '练习结果', mock: '模拟考试结果', exam: '正式考试结果' }[d.mode] || '答题结果'
-    questions.value = (d.details || []).map(dt => ({
+    questions.value = (d.details || []).map((dt) => ({
       userAnswer: dt.userAnswer,
       question: {
         id: dt.questionId, type: dt.type, title: dt.title,
@@ -114,10 +218,35 @@ function goRecord() { uni.navigateTo({ url: '/pages/exam/record/index' }) }
 <style lang="scss" scoped>
 .page { width: 100%; height: 100vh; background: #F0F2F8; display: flex; flex-direction: column; }
 .content { flex: 1; height: 0; padding: 24rpx; }
-.score-card { background: #FFF; border-radius: 16rpx; padding: 48rpx 0; display: flex; align-items: baseline; justify-content: center; gap: 8rpx; margin-bottom: 24rpx; }
-.score-num { font-size: 80rpx; font-weight: 700; color: #2B6DE8; font-variant-numeric: tabular-nums; }
-.score-total { font-size: 32rpx; color: #909399; }
-.score-label { display: block; width: 100%; text-align: center; font-size: 26rpx; color: #666; margin-top: 8rpx; }
+
+/* 分数概览 */
+.hero { background: #FFF; border-radius: 16rpx; padding: 40rpx 32rpx 28rpx; margin-bottom: 20rpx; }
+.hero-top { display: flex; align-items: flex-end; justify-content: space-between; }
+.score-left { display: flex; align-items: baseline; gap: 6rpx; }
+.score-num { font-size: 84rpx; font-weight: 700; color: #2B6DE8; font-variant-numeric: tabular-nums; line-height: 1; }
+.score-total { font-size: 30rpx; color: #909399; }
+.hero-badge { font-size: 28rpx; font-weight: 600; color: #16A34A; background: #F0FDF4; padding: 8rpx 24rpx; border-radius: 28rpx; }
+.hero.tone-fail .score-num { color: #DC2626; }
+.hero.tone-fail .hero-badge { color: #DC2626; background: #FEF2F2; }
+.hero.tone-warn .score-num { color: #D97706; }
+.hero.tone-warn .hero-badge { color: #D97706; background: #FFF7E6; }
+.hero-bar { margin-top: 24rpx; height: 16rpx; border-radius: 8rpx; background: #F1F5F9; overflow: hidden; }
+.hero-bar-fill { height: 100%; border-radius: 8rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); transition: width .4s ease; }
+.hero.tone-fail .hero-bar-fill { background: linear-gradient(135deg, #DC2626, #F87171); }
+.hero.tone-warn .hero-bar-fill { background: linear-gradient(135deg, #D97706, #FBBF24); }
+.hero-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 16rpx; }
+.hero-time { font-size: 24rpx; color: #909399; }
+.hero-pass { font-size: 24rpx; color: #909399; }
+
+/* 答题统计三宫格 */
+.summary { display: flex; align-items: center; background: #FFF; border-radius: 16rpx; padding: 28rpx 0; margin-bottom: 24rpx; }
+.sum-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
+.sum-n { font-size: 44rpx; font-weight: 700; color: #1E293B; font-variant-numeric: tabular-nums; }
+.sum-n.pass { color: #16A34A; }
+.sum-n.fail { color: #DC2626; }
+.sum-l { font-size: 24rpx; color: #909399; }
+.sum-divide { width: 1rpx; height: 56rpx; background: #F0F2F5; }
+
 .detail-list { display: flex; flex-direction: column; gap: 24rpx; }
 .empty { text-align: center; padding: 120rpx 0; font-size: 28rpx; color: #999; }
 .loading-state text { color: #2B6DE8; }

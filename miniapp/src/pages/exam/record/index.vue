@@ -4,7 +4,7 @@
     <scroll-view class="content" scroll-y @scrolltolower="loadMore">
       <view v-for="item in list" :key="item.id" class="rec-card" @tap="goResult(item)">
         <view class="rec-head">
-          <text class="rec-cat">{{ item.categoryName }}</text>
+          <text class="rec-cat">{{ recTitle(item) }}</text>
           <text class="rec-mode" :class="item.mode">{{ modeLabel(item.mode) }}</text>
         </view>
         <view class="rec-body">
@@ -33,6 +33,11 @@ const loading = ref(false)
 const hasMore = ref(true)
 
 const modeLabel = (m) => ({ practice: '练习', exam: '正式考试', mock: '模拟考试' }[m] || m)
+// 正式考试(试卷制)优先显示试卷标题，无试卷标题再回退分类名
+const recTitle = (item) => {
+  if (item.mode === 'exam' && item.paperTitle) return item.paperTitle
+  return item.categoryName || '未分类'
+}
 const statusLabel = (s) => ({ doing: '进行中', submitted: '已提交', timeout: '已超时' }[s] || s)
 
 async function load(append = false) {

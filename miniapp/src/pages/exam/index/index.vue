@@ -2,6 +2,24 @@
   <view class="page">
     <nav-bar title="答题中心" :showBack="true" />
     <scroll-view class="content" scroll-y>
+      <!-- 我的统计 -->
+      <view class="stats-card">
+        <view class="stat-item" @tap="go('/pages/exam/record/index')">
+          <text class="stat-n">{{ stats.records }}</text>
+          <text class="stat-l">答题记录</text>
+        </view>
+        <view class="stat-divide" />
+        <view class="stat-item" @tap="go('/pages/exam/wrong/index')">
+          <text class="stat-n">{{ stats.wrong }}</text>
+          <text class="stat-l">错题本</text>
+        </view>
+        <view class="stat-divide" />
+        <view class="stat-item" @tap="go('/pages/exam/errorStar/index')">
+          <text class="stat-n">{{ stats.fav }}</text>
+          <text class="stat-l">收藏</text>
+        </view>
+      </view>
+
       <!-- 模式入口 -->
       <view class="grid">
         <view class="grid-item" @tap="goCategory('learn')">
@@ -59,6 +77,8 @@ import { showError } from '@/utils/toast'
 
 const categories = ref([])
 const useLearn = ref(true)
+// 我的统计：记录/错题/收藏计数（复用既列表接口取 total，失败不阻断）
+const stats = ref({ records: 0, wrong: 0, fav: 0 })
 
 async function load() {
   try {
@@ -69,6 +89,16 @@ async function load() {
     const s = await examApi.getSettings()
     useLearn.value = s.data?.use_learn !== '0'
   } catch { /* */ }
+  try {
+    const [r, w, f] = await Promise.all([
+      examApi.myRecords({ page: 1, pageSize: 1 }),
+      examApi.wrongList({ page: 1, pageSize: 1 }),
+      examApi.favoriteList({ page: 1, pageSize: 1 }),
+    ])
+    stats.value.records = Number(r.data?.total) || 0
+    stats.value.wrong = Number(w.data?.total) || 0
+    stats.value.fav = Number(f.data?.total) || 0
+  } catch { /* 统计为辅助信息，失败不阻断主流程 */ }
 }
 
 function goCategory(mode, categoryId) {
@@ -94,6 +124,11 @@ onShow(load)
 <style lang="scss" scoped>
 .page { width: 100%; height: 100vh; background: #F0F2F8; display: flex; flex-direction: column; }
 .content { flex: 1; height: 0; padding: 24rpx; }
+.stats-card { display: flex; align-items: center; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); border-radius: 16rpx; padding: 32rpx 0; margin-bottom: 24rpx; }
+.stat-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6rpx; }
+.stat-n { font-size: 44rpx; font-weight: 700; color: #FFF; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat-l { font-size: 22rpx; color: rgba(255,255,255,.85); }
+.stat-divide { width: 1rpx; height: 56rpx; background: rgba(255,255,255,.25); }
 .grid { display: flex; flex-wrap: wrap; gap: 20rpx; margin-bottom: 24rpx; }
 .grid-item { width: calc(50% - 10rpx); background: #FFF; border-radius: 16rpx; padding: 32rpx 0; display: flex; flex-direction: column; align-items: center; gap: 12rpx; }
 .icon { font-size: 48rpx; }

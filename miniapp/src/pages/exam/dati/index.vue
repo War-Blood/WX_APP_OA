@@ -13,12 +13,17 @@
         <text>{{ saveFailed ? '保存失败，点击重试' : savedTip }}</text>
       </view>
       <scroll-view class="content" scroll-y v-if="questions.length">
-        <view class="progress"><text>第 {{ current + 1 }}/{{ questions.length }} 题</text></view>
+        <view class="answer-progress">
+          <text class="ap-text">已答 {{ answeredCount }}/{{ questions.length }}</text>
+          <view class="ap-bar"><view class="ap-fill" :style="{ width: progressPct + '%' }" /></view>
+          <text class="ap-cur">第 {{ current + 1 }} 题</text>
+        </view>
         <question-card
           :question="questions[current]"
           :selected="answers[questions[current].id] || ''"
           :interactive="!submitted"
           :show-answer="false"
+          :index="current + 1"
           @update:selected="onSelect"
         />
       </scroll-view>
@@ -61,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { onLoad, onHide, onUnload } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import QuestionCard from '@/components/question-card/index.vue'
@@ -75,6 +80,18 @@ const types = ref([])
 const count = ref(20)
 const backMemorize = ref(false)
 const drawMode = ref('random')
+
+// 已答数(非空答案题数)与作答进度百分比
+const answeredCount = computed(() =>
+  questions.value.filter((q) => {
+    const v = answers.value[q.id]
+    return v != null && String(v) !== ''
+  }).length
+)
+const progressPct = computed(() => {
+  if (!questions.value.length) return 0
+  return Math.round((answeredCount.value / questions.value.length) * 100)
+})
 
 const loading = ref(false)
 const questions = ref([])
@@ -213,7 +230,11 @@ async function submit() {
 .save-tip { margin: 16rpx 24rpx 0; padding: 12rpx 24rpx; background: #EFFDF5; color: #22C55E; border-radius: 12rpx; font-size: 24rpx; text-align: center; }
 .save-tip--fail { background: #FFF0F0; color: #EF4444; }
 .back-list { display: flex; flex-direction: column; gap: 24rpx; }
-.progress { font-size: 24rpx; color: #909399; margin-bottom: 16rpx; }
+.answer-progress { display: flex; align-items: center; gap: 16rpx; margin-bottom: 16rpx; }
+.ap-text { font-size: 24rpx; color: #606266; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ap-bar { flex: 1; height: 12rpx; border-radius: 6rpx; background: #F1F5F9; overflow: hidden; }
+.ap-fill { height: 100%; border-radius: 6rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); transition: width .3s ease; }
+.ap-cur { font-size: 24rpx; color: #2B6DE8; white-space: nowrap; font-weight: 600; }
 .empty { text-align: center; padding: 120rpx 0; font-size: 28rpx; color: #999; }
 .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 20rpx 24rpx; padding-bottom: calc(20rpx + env(safe-area-inset-bottom)); background: #FFF; display: flex; gap: 16rpx; }
 .btn-nav { flex: 1; height: 84rpx; display: flex; align-items: center; justify-content: center; background: #F0F2F5; border-radius: 42rpx; }

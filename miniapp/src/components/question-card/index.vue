@@ -2,6 +2,7 @@
   <view class="q-card">
     <view class="q-head">
       <text class="q-type">{{ typeLabel }}</text>
+      <text v-if="index" class="q-index">第{{ index }}题</text>
       <text class="q-score">{{ question.score }}分</text>
     </view>
     <view class="q-title">{{ question.title }}</view>
@@ -43,6 +44,8 @@ const props = defineProps({
   interactive: { type: Boolean, default: true },
   /** 是否揭示正确答案与解析 */
   showAnswer: { type: Boolean, default: false },
+  /** 题号（1 起序号，用于"第N题"展示；0/不传则不显示题号） */
+  index: { type: Number, default: 0 },
 })
 const emit = defineEmits(['update:selected'])
 
@@ -106,6 +109,7 @@ function onTap(key) {
 .q-card { background: #FFF; border-radius: 16rpx; padding: 24rpx; }
 .q-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
 .q-type { font-size: 22rpx; color: #2B6DE8; background: #EDF2FF; padding: 4rpx 16rpx; border-radius: 20rpx; }
+.q-index { font-size: 22rpx; color: #606266; margin-left: 12rpx; }
 .q-score { font-size: 22rpx; color: #909399; }
 .q-title { font-size: 30rpx; font-weight: 600; color: #1E293B; line-height: 1.6; margin-bottom: 20rpx; }
 .q-options { display: flex; flex-direction: column; gap: 16rpx; }

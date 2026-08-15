@@ -31,8 +31,11 @@
     <template v-else>
       <view class="top-bar">
         <text class="countdown" :class="{ urgent: remaining <= 60, 'time-urgent': remaining <= 10 }">{{ formatTime(remaining) }}</text>
-        <text class="top-progress">{{ current + 1 }}/{{ questions.length }}</text>
         <view class="card-btn" @tap="cardVisible = true"><text>答题卡</text></view>
+      </view>
+      <view class="exam-progress" v-if="questions.length">
+        <text class="ep-text">已答 {{ answeredCount }}/{{ questions.length }}</text>
+        <view class="ep-bar"><view class="ep-fill" :style="{ width: progressPct + '%' }" /></view>
       </view>
       <!-- 保存状态轻提示（成功淡出 / 失败可点击重试） -->
       <view v-if="savedTip || saveFailed" class="save-tip" :class="{ 'save-tip--fail': saveFailed }" @tap="saveFailed && saveProgress(true)">
@@ -44,6 +47,7 @@
           :selected="answers[questions[current].id] || ''"
           :interactive="!submitted"
           :show-answer="false"
+          :index="current + 1"
           @update:selected="onSelect"
         />
       </scroll-view>
@@ -75,7 +79,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { onLoad, onUnload, onHide, onShow } from '@dcloudio/uni-app'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import QuestionCard from '@/components/question-card/index.vue'
@@ -100,6 +104,15 @@ const startError = ref('')
 const lastPaperId = ref(null)
 const savedTip = ref('')
 const saveFailed = ref(false)
+
+// 已答数与作答进度(用于顶部进度条)
+const answeredCount = computed(() => questions.value.filter((q) => {
+  const v = answers.value[q.id]
+  return v != null && String(v) !== ''
+}).length)
+const progressPct = computed(() => questions.value.length
+  ? Math.round((answeredCount.value / questions.value.length) * 100) : 0)
+
 let timer = null
 let saveTimer = null
 let advanceTimer = null
@@ -294,7 +307,10 @@ onUnload(() => {
 .countdown.urgent { color: #DC2626; }
 .countdown.time-urgent { animation: blink 1s infinite; }
 @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
-.top-progress { font-size: 26rpx; color: #909399; }
+.exam-progress { display: flex; align-items: center; gap: 16rpx; padding: 6rpx 24rpx 14rpx; background: #FFF; }
+.ep-text { font-size: 22rpx; color: #606266; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ep-bar { flex: 1; height: 12rpx; border-radius: 6rpx; background: #F1F5F9; overflow: hidden; }
+.ep-fill { height: 100%; border-radius: 6rpx; background: linear-gradient(135deg, #2B6DE8, #4A8AF4); transition: width .3s ease; }
 .save-tip { margin: 16rpx 24rpx 0; padding: 12rpx 24rpx; background: #EFFDF5; color: #22C55E; border-radius: 12rpx; font-size: 24rpx; text-align: center; }
 .save-tip--fail { background: #FFF0F0; color: #EF4444; }
 .loading-state text { color: #2B6DE8; }
