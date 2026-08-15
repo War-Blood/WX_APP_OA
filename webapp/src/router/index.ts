@@ -271,6 +271,36 @@ const router = createRouter({
           name: 'Announcement',
           component: () => import('@/views/announcement/index.vue'),
           meta: { title: '公告管理', icon: 'Bell', roles: ['admin', 'superadmin'] }
+        },
+        {
+          path: 'push',
+          name: 'Push',
+          redirect: '/push/scripts',
+          meta: {
+            title: '消息推送',
+            icon: 'ChatDotRound',
+            roles: ['admin', 'superadmin']
+          },
+          children: [
+            {
+              path: 'scripts',
+              name: 'PushScripts',
+              component: () => import('@/views/push/scripts.vue'),
+              meta: { title: '脚本管理' }
+            },
+            {
+              path: 'webhooks',
+              name: 'PushWebhooks',
+              component: () => import('@/views/push/webhooks.vue'),
+              meta: { title: '群机器人' }
+            },
+            {
+              path: 'logs',
+              name: 'PushLogs',
+              component: () => import('@/views/push/logs.vue'),
+              meta: { title: '执行日志' }
+            }
+          ]
         }
       ]
     },

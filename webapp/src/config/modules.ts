@@ -124,6 +124,18 @@ export const modules: ModuleConfig[] = [
     children: [{ title: '公告管理', path: '/announcement' }],
   },
   {
+    key: 'push',
+    icon: 'ChatDotRound',
+    title: '消息推送',
+    path: '/push',
+    roles: ['admin', 'superadmin'],
+    children: [
+      { title: '脚本管理', path: '/push/scripts' },
+      { title: '群机器人', path: '/push/webhooks' },
+      { title: '执行日志', path: '/push/logs' },
+    ],
+  },
+  {
     key: 'settings',
     icon: 'Setting',
     title: '设置',

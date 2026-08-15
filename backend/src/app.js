@@ -138,6 +138,10 @@ app.use('/api/attendance', attendanceRoutes);
 const examRoutes = require('./features/exam/routes/exam.routes');
 app.use('/api/exam', examRoutes);
 
+// 条件化定时消息推送路由（admin+）
+const pushRoutes = require('./features/push/routes/push.routes');
+app.use('/api/push', pushRoutes);
+
 // 10. 上传文件静态服务(题目图片等)
 const path = require('path');
 const uploadsRoot = path.join(__dirname, '..', 'uploads');

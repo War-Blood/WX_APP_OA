@@ -118,6 +118,26 @@ const config = {
   wecomSmartSheet: {
     webhookKey: process.env.WECOM_SMARTSHEET_WEBHOOK_KEY || '',
   },
+
+  // 企业微信群机器人 Webhook 凭证（对齐 WPS：凭证仅存服务端 env，不入库/不出前端）
+  // 约定：WECOM_ROBOT_<NAME>_KEY + WECOM_ROBOT_<NAME>_SECRET 成对配置，
+  //       push_webhooks.env_name 引用 <NAME>。
+  wecomGroupRobot: {
+    robots: (() => {
+      const robots = {};
+      Object.keys(process.env).forEach((k) => {
+        const m = /^WECOM_ROBOT_([A-Za-z0-9_]+)_KEY$/.exec(k);
+        if (m && process.env[k]) {
+          const name = m[1];
+          robots[name] = {
+            key: process.env[k],
+            secret: process.env[`WECOM_ROBOT_${name}_SECRET`] || '',
+          };
+        }
+      });
+      return robots;
+    })(),
+  },
 };
 
 module.exports = config;

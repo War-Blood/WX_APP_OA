@@ -73,6 +73,12 @@ cron.schedule('*/5 * * * *', async () => {
   timezone: 'Asia/Shanghai'
 });
 
+// 条件化定时推送：动态注册（启动时加载 enabled 脚本，CRUD 后由 script.service 重同步）
+const pushTask = require('./push.task');
+pushTask.syncScripts().catch((err) => {
+  logger.error('[Scheduler] Push scripts sync failed:', err);
+});
+
 logger.info('[Scheduler] 所有定时任务已注册');
 
 module.exports = { scheduler: null };

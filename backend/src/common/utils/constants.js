@@ -113,7 +113,16 @@ const ErrorCode = {
 
   // ──── WPS (2600-2699) — 暂未使用 ────
 
-  // ──── 消息 (2700-2799) — 暂未使用 ────
+  // ──── 消息推送 (2700-2799) ────
+  PUSH_SCRIPT_NOT_FOUND: 2701,          // 推送脚本不存在
+  PUSH_WEBHOOK_NOT_FOUND: 2702,         // 群机器人不存在
+  PUSH_WEBHOOK_DISABLED: 2703,          // 群机器人已停用
+  PUSH_INVALID_CRON: 2704,              // cron 表达式非法
+  PUSH_INVALID_TEMPLATE: 2705,          // 模板非法（空/变量非法）
+  PUSH_CONDITION_ERROR: 2706,           // 条件配置非法（空规则/未知字段）
+  PUSH_SEND_FAILED: 2707,               // 发送失败（测试发送时）
+  PUSH_SCRIPT_DISABLED: 2708,           // 脚本已停用（不可测试）
+  PUSH_WEBHOOK_NOT_CONFIGURED: 2709,    // env 凭证缺失（未配置 .env）
 
   // ──── 考勤 (2800-2899) ────
   ATTENDANCE_SCHEDULE_CONFLICT: 2801,

@@ -26,6 +26,7 @@ const DEFAULT_MODULES = [
   { key: 'settings',      name: '设置',     icon: 'Setting',      route: '/settings',                            visible: true,  platforms: ['web'],           roles: ['superadmin'], sort: 18 },
   { key: 'announcement',  name: '公告管理', icon: 'Bell',         route: '/announcement',                      visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 19 },
   { key: 'logs',          name: '操作日志', icon: 'Tickets',      route: '/logs',                               visible: true,  platforms: ['web'],           roles: ['superadmin'], sort: 20 },
+  { key: 'push',          name: '消息推送', icon: 'ChatDotRound', route: '/push',                               visible: true,  platforms: ['web'],           roles: ['admin', 'superadmin'], sort: 21 },
 ];
 
 /**
