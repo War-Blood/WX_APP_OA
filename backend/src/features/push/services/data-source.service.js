@@ -123,23 +123,72 @@ const SOURCES = {
       // ===== 今日口径：当天应填的出差/外场人员（与合规提醒同源 getDailyStatus）=====
       const todayStat = await loadTodayStatus(today);
 
-      // ===== 今日待工：昨日填报"明日待工"的人员 =====
+      // ===== 今日待工：昨日填报"明日待工"的人员（本人 + 被代填 + workers 文本兜底）=====
+      const waitingMap = new Map(); // userId → {userId, name, qywxMobile, phone, qywxUserid}
+
+      // 路径 1+2：本人填报 或 代填关联表（daily_report_workers）
       const waitingRows = await db.query(
-        `SELECT u.id AS userId, u.user_name AS name, u.nickname, u.qywx_mobile, u.phone, u.qywx_userid
+        `SELECT DISTINCT u.id AS userId, u.user_name AS name, u.nickname, u.qywx_mobile, u.phone, u.qywx_userid
          FROM daily_reports dr
-         JOIN users u ON dr.user_id = u.id AND u.deleted_at IS NULL AND u.status = 'active'
+         LEFT JOIN daily_report_workers drw ON drw.report_id = dr.id
+         JOIN users u ON (dr.user_id = u.id OR drw.worker_uid = u.id)
          WHERE dr.report_date = ? AND dr.tomorrow_work_type = '待工'
            AND dr.deleted_at IS NULL AND dr.status IN ('submitted','approved')
+           AND u.deleted_at IS NULL AND u.status = 'active'
          ORDER BY u.user_name`,
         [yesterday]
       );
-      const waitingWorkers = waitingRows.map((p) => ({
-        userId: p.userId,
-        name: p.name || p.nickname || '',
-        qywxMobile: p.qywx_mobile || '',
-        phone: p.phone || '',
-        qywxUserid: p.qywx_userid || '',
-      }));
+      waitingRows.forEach((p) => {
+        if (!waitingMap.has(p.userId)) {
+          waitingMap.set(p.userId, {
+            userId: p.userId,
+            name: p.name || p.nickname || '',
+            qywxMobile: p.qywx_mobile || '',
+            phone: p.phone || '',
+            qywxUserid: p.qywx_userid || '',
+          });
+        }
+      });
+
+      // 路径 3：workers 文本兜底（被列名但无关联表记录，如代填人未建 drw 行）
+      const textRows = await db.query(
+        `SELECT workers FROM daily_reports
+         WHERE report_date = ? AND tomorrow_work_type = '待工'
+           AND deleted_at IS NULL AND status IN ('submitted','approved')
+           AND workers IS NOT NULL AND workers != ''`,
+        [yesterday]
+      );
+      const pendingNames = [];
+      textRows.forEach((r) => {
+        String(r.workers).split(/[、,，\s\/\n]+/).forEach((n) => {
+          const t = n.trim();
+          if (t) pendingNames.push(t);
+        });
+      });
+      const uniqueNames = [...new Set(pendingNames)];
+      if (uniqueNames.length > 0) {
+        const placeholders = uniqueNames.map(() => '?').join(',');
+        const userRows = await db.query(
+          `SELECT id AS userId, user_name AS name, nickname, qywx_mobile, phone, qywx_userid
+           FROM users
+           WHERE (user_name IN (${placeholders}) OR nickname IN (${placeholders}))
+             AND deleted_at IS NULL AND status = 'active'`,
+          [...uniqueNames, ...uniqueNames]
+        );
+        userRows.forEach((u) => {
+          if (!waitingMap.has(u.userId)) {
+            waitingMap.set(u.userId, {
+              userId: u.userId,
+              name: u.name || u.nickname || '',
+              qywxMobile: u.qywx_mobile || '',
+              phone: u.phone || '',
+              qywxUserid: u.qywx_userid || '',
+            });
+          }
+        });
+      }
+
+      const waitingWorkers = [...waitingMap.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh'));
       const waitingNames = waitingWorkers.map((w) => w.name).filter(Boolean);
 
       return {
