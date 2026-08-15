@@ -12,9 +12,51 @@
             <text class="user-name">{{ userStore.userName }}</text>
             <text class="user-role">{{ roleLabel }}<text v-if="userStore.department"> · {{ userStore.department }}</text></text>
           </view>
-          <view class="edit-btn" hover-class="edit-btn-hover" @tap="editNickname">
+          <view class="edit-btn" hover-class="edit-btn-hover" @tap="openProfileEdit('nickname')">
             <text class="edit-icon">✎</text>
           </view>
+        </view>
+      </view>
+
+      <view class="section">
+        <view class="settings-list">
+          <view
+            class="setting-item"
+            hover-class="setting-item-hover"
+            :hover-stay-time="100"
+            @tap="openProfileEdit('nickname')"
+          >
+            <text class="setting-label">昵称</text>
+            <view class="setting-right">
+              <text class="setting-value">{{ userStore.userName }}</text>
+              <text class="setting-arrow">›</text>
+            </view>
+          </view>
+          <view
+            class="setting-item"
+            hover-class="setting-item-hover"
+            :hover-stay-time="100"
+            @tap="openProfileEdit('phone')"
+          >
+            <text class="setting-label">手机号</text>
+            <view class="setting-right">
+              <text class="setting-value">{{ userStore.phone || '未填写' }}</text>
+              <text class="setting-arrow">›</text>
+            </view>
+          </view>
+          <view
+            class="setting-item"
+            hover-class="setting-item-hover"
+            :hover-stay-time="100"
+            @tap="openProfileEdit('qywx_mobile')"
+          >
+            <text class="setting-label">企业微信手机号</text>
+            <view class="setting-right">
+              <text class="setting-value">{{ userStore.qywxMobile || '未填写' }}</text>
+              <text class="setting-arrow">›</text>
+            </view>
+          </view>
+          <view class="setting-hint">企业微信手机号用于接收企业微信机器人消息 / @提醒</view>
         </view>
       </view>
 
@@ -74,6 +116,15 @@
       </view>
     </scroll-view>
     <TabBar activeTab="profile" />
+    <EditProfilePopup
+      v-model:visible="popupVisible"
+      title="修改个人信息"
+      :fields="profileFields"
+      :focus-key="popupFocusKey"
+      :loading="popupLoading"
+      :error="popupError"
+      @submit="handleProfileSubmit"
+    />
   </view>
 </template>
 
@@ -86,6 +137,7 @@ import { authApi } from '@/services/modules/auth'
 import { renewDailyReminder } from '@/utils/subscribe'
 import NavBar from '@/components/nav-bar/nav-bar.vue'
 import TabBar from '@/components/tab-bar/tab-bar.vue'
+import EditProfilePopup from '@/components/edit-profile-popup/index.vue'
 import { APP_NAME, APP_VERSION } from '@/config/version'
 
 const userStore = useUserStore()
@@ -128,25 +180,53 @@ onMounted(async () => {
   }
 })
 
-function editNickname() {
-  uni.showModal({
-    title: '修改昵称',
-    content: '请输入新的昵称',
-    editable: true,
-    placeholderText: userStore.userName || '请输入昵称',
-    success: async (modalRes) => {
-      if (modalRes.confirm && modalRes.content?.trim()) {
-        try {
-          await authApi.updateProfile({ nickname: modalRes.content.trim() })
-          const info = uni.getStorageSync('userInfo') || {}
-          info.nickName = modalRes.content.trim()
-          uni.setStorageSync('userInfo', info)
-          userStore.setUserInfo(info)
-          showSuccess('昵称修改成功')
-        } catch { showError('修改失败') }
-      }
+const popupVisible = ref(false)
+const popupLoading = ref(false)
+const popupError = ref('')
+const popupFocusKey = ref('nickname')
+
+const profileFields = computed(() => [
+  { key: 'nickname', label: '昵称', type: 'text', value: userStore.userName, placeholder: '请输入昵称', maxlength: 100, required: true },
+  { key: 'phone', label: '手机号', type: 'number', value: userStore.phone || '', placeholder: '请输入手机号', maxlength: 11, required: false },
+  { key: 'qywx_mobile', label: '企业微信手机号', type: 'number', value: userStore.qywxMobile || '', placeholder: '请输入企业微信手机号', maxlength: 11, required: false, hint: '用于接收企业微信机器人消息 / @提醒' }
+])
+
+function openProfileEdit(focusKey = 'nickname') {
+  popupFocusKey.value = focusKey
+  popupError.value = ''
+  popupVisible.value = true
+}
+
+async function handleProfileSubmit(payload) {
+  if (!Object.keys(payload).length) {
+    popupVisible.value = false
+    return
+  }
+  popupLoading.value = true
+  popupError.value = ''
+  try {
+    const body = {}
+    if (payload.nickname !== undefined) body.nickname = payload.nickname
+    if (payload.phone !== undefined) body.phone = payload.phone || null
+    if (payload.qywx_mobile !== undefined) body.qywx_mobile = payload.qywx_mobile || ''
+    await authApi.updateProfile(body)
+    const info = uni.getStorageSync('userInfo') || {}
+    const next = { ...info }
+    if (body.nickname !== undefined) {
+      next.nickName = body.nickname
+      next.nickname = body.nickname
     }
-  })
+    if (body.phone !== undefined) next.phone = body.phone || ''
+    if (body.qywx_mobile !== undefined) next.qywxMobile = body.qywx_mobile || ''
+    uni.setStorageSync('userInfo', next)
+    userStore.setUserInfo(next)
+    showSuccess('保存成功')
+    popupVisible.value = false
+  } catch (err) {
+    popupError.value = err.message || '保存失败，请重试'
+  } finally {
+    popupLoading.value = false
+  }
 }
 
 async function loadStats() {
@@ -159,8 +239,6 @@ async function loadStats() {
 
     const data = statsRes.data
     const unreadCount = unreadRes.data?.count || 0
-    console.log('[Profile] statsRes.data:', JSON.stringify(data))
-    console.log('[Profile] submitCount:', data.submitCount)
 
     if (role === 'admin') {
       stats.value = [
@@ -436,6 +514,13 @@ onShareAppMessage(() => {
   font-size: 32rpx;
   color: $text-placeholder;
   line-height: 1;
+}
+
+.setting-hint {
+  font-size: $font-xs;
+  color: $text-secondary;
+  line-height: 1.4;
+  padding: 12rpx 24rpx 20rpx;
 }
 
 /* === Invite Button === */

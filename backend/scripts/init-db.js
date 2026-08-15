@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS \`users\` (
   \`nickname\` VARCHAR(100) DEFAULT NULL COMMENT '微信昵称',
   \`avatar_url\` VARCHAR(500) DEFAULT NULL COMMENT '微信头像 URL',
   \`phone\` VARCHAR(20) DEFAULT NULL COMMENT '手机号',
+  \`qywx_mobile\` VARCHAR(20) DEFAULT NULL COMMENT '企业微信手机号（供企微机器人通知/@）',
   \`email\` VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
   \`user_name\` VARCHAR(50) NOT NULL COMMENT '真实姓名/用户名',
   \`department\` VARCHAR(100) DEFAULT NULL COMMENT '所属部门名称',
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS \`users\` (
   PRIMARY KEY (\`id\`),
   UNIQUE KEY \`uk_openid\` (\`openid\`),
   KEY \`idx_department\` (\`department\`),
+  KEY \`idx_qywx_mobile\` (\`qywx_mobile\`),
   KEY \`idx_role\` (\`role\`),
   KEY \`idx_status\` (\`status\`),
   KEY \`idx_created_at\` (\`created_at\`)

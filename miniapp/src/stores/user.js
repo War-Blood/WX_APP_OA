@@ -21,6 +21,8 @@ export const useUserStore = defineStore('user', () => {
   const isAdmin = computed(() => role.value === 'admin' || role.value === 'superadmin')
   const isEmployee = computed(() => role.value === 'employee')
   const department = computed(() => userInfo.value?.department || '')
+  const phone = computed(() => userInfo.value?.phone || '')
+  const qywxMobile = computed(() => userInfo.value?.qywxMobile || '')
   const permissions = computed(() => PERMISSIONS_MAP[role.value] || PERMISSIONS_MAP.employee)
 
   function hasPermission(permission) {
@@ -48,6 +50,8 @@ export const useUserStore = defineStore('user', () => {
           nickName: res.data.nickname || userInfo.value?.nickName,
           role: res.data.role,
           department: res.data.department,
+          phone: res.data.phone || '',
+          qywxMobile: res.data.qywx_mobile || ''
         })
       }
     } catch { /* network error, keep cached */ }
@@ -71,6 +75,8 @@ export const useUserStore = defineStore('user', () => {
     isAdmin,
     isEmployee,
     department,
+    phone,
+    qywxMobile,
     permissions,
     hasPermission,
     setUserInfo,

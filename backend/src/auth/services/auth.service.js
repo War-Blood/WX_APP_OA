@@ -234,9 +234,28 @@ async function getProfile(userId) {
   return profile;
 }
 
+const QYWX_MOBILE_RE = /^1[3-9]\d{9}$/;
+
+/**
+ * 校验并规整企业微信手机号
+ * undefined → 不更新；'' / null → 清空（存 NULL）；其余须为 11 位大陆手机号
+ * @param {*} value - 待校验值
+ * @returns {{skip: boolean, value: (string|null)}} 规整结果
+ * @throws {BusinessError} 格式不合法时抛出
+ */
+function normalizeQywxMobile(value) {
+  if (value === undefined) return { skip: true };
+  if (value === null || value === '') return { skip: false, value: null };
+  const trimmed = String(value).trim();
+  if (!QYWX_MOBILE_RE.test(trimmed)) {
+    throw new BusinessError('企业微信手机号格式不正确');
+  }
+  return { skip: false, value: trimmed };
+}
+
 /**
  * 更新用户资料
- * 只允许更新 nickname, avatar_url, phone, email, department, position
+ * 只允许更新 nickname, user_name, avatar_url, phone, email, department, position, qywx_mobile
  * @param {number} userId - 用户 ID
  * @param {Object} data - 要更新的字段
  * @returns {Promise<Object>} 更新后的用户资料
@@ -251,6 +270,22 @@ async function updateProfile(userId, data) {
       updates[field] = data[field];
     }
   }
+
+  // 企业微信手机号：独立校验（格式 + 唯一性；空串/ null 视为清空）
+  const qywxMobile = normalizeQywxMobile(data.qywx_mobile);
+  if (!qywxMobile.skip) {
+    if (qywxMobile.value !== null) {
+      const dup = await db.query(
+        'SELECT id FROM users WHERE qywx_mobile = ? AND id != ? AND deleted_at IS NULL',
+        [qywxMobile.value, userId]
+      );
+      if (dup.length > 0) {
+        throw new BusinessError('该企业微信手机号已被其他用户绑定');
+      }
+    }
+    updates.qywx_mobile = qywxMobile.value;
+  }
+
   // nickname 同步更新 user_name
   if (data.nickname && !data.user_name) {
     updates.user_name = data.nickname

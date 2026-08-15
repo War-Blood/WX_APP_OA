@@ -112,6 +112,8 @@ CREATE TABLE IF NOT EXISTS push_task_logs (
 | `users` | 用户统计 | `active_count`、`pending_count` | — |
 | `system` | 系统日期 | `date`、`weekday`（1-7）、`day_of_month`、`month` | — |
 
+> 名单人员字段（userId/name/phone/qywx_userid，及新增 qywx_mobile 企业微信手机号）由数据源查询下发，供 @ 解析与后续企微机器人发送使用。
+
 > `people` 名单能力：支持「按条件筛选 @」的数据源在元信息中声明 `people`（`getSourceMeta` 下发）；`mention_source` 格式为 `source` 或 `source.peopleField`（如 `daily_report.today_missing_workers`），发送时动态取该名单；名单为空（全员满足）→ 不触发 @。`today_missing_workers` 口径：出差中（`attendance_leave_requests` biz_trip 进行中）且当日无日报的在职外场人员（与合规提醒 `getDailyStatus` 的 `status='missing'` 一致）。
 
 > 字段元信息（名称/类型/说明）由 `/api/push/data-sources/list` 下发，前端条件编辑器动态渲染。
@@ -121,3 +123,4 @@ CREATE TABLE IF NOT EXISTS push_task_logs (
 | 日期 | 变更内容 | 变更人 |
 |------|---------|--------|
 | 2026-08-18 | 初始创建 | 殇血轮回 |
+| 2026-08-20 | users 表新增 `qywx_mobile`（企业微信手机号，小程序个人中心维护）：后续 text @ 可优先用企微手机号，或经企微 API user/get_by_mobile 反查 userid 扩展 markdown @；数据源名单可同步下发该字段 | 殇血轮回 |
