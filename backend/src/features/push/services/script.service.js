@@ -4,7 +4,6 @@ const cron = require('node-cron');
 const db = require('../../../common/config/database');
 const webhookService = require('./webhook.service');
 const conditionService = require('./condition.service');
-const pushTask = require('../../../common/tasks/push.task');
 const { ValidationError, NotFoundError, BusinessError } = require('../../../common/utils/errors');
 const { ErrorCode } = require('../../../common/utils/constants');
 
@@ -78,6 +77,17 @@ async function list({ page = 1, pageSize = 20, keyword, status } = {}) {
 }
 
 /**
+ * 兼容 JSON 列解析（mysql2 对 JSON 列自动反序列化为对象；旧数据可能是字符串）
+ * @param {*} v - 字段值
+ * @returns {*} 解析后的对象或 null
+ */
+function parseJsonField(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'object') return v;
+  try { return JSON.parse(v); } catch { return null; }
+}
+
+/**
  * 按 ID 查询
  * @param {number} id - 脚本 ID
  * @returns {Promise<Object|null>} 原始行（含 JSON 解析）
@@ -86,11 +96,8 @@ async function getById(id) {
   const rows = await db.query('SELECT * FROM push_scripts WHERE id = ?', [id]);
   if (rows.length === 0) return null;
   const r = rows[0];
-  ['mention_targets', 'condition_config'].forEach((k) => {
-    if (r[k]) {
-      try { r[k] = JSON.parse(r[k]); } catch { r[k] = null; }
-    }
-  });
+  r.mention_targets = parseJsonField(r.mention_targets);
+  r.condition_config = parseJsonField(r.condition_config);
   return r;
 }
 
@@ -173,7 +180,7 @@ function buildFields(data, userId) {
  */
 async function create(data, userId) {
   await validateInput(data);
-  const result = await db.execute(
+  const [result] = await db.execute(
     `INSERT INTO push_scripts
        (name, description, status, schedule_type, schedule_value, timezone, webhook_id,
         msgtype, template_content, mention_type, mention_targets, condition_config,
@@ -181,6 +188,8 @@ async function create(data, userId) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     buildFields(data, userId)
   );
+  // 延迟 require 避免与 push.task → executor 循环依赖
+  const pushTask = require('../../../common/tasks/push.task');
   await pushTask.syncScripts();
   return { id: result.insertId };
 }
@@ -203,6 +212,7 @@ async function update(id, data) {
      WHERE id = ?`,
     [...buildFields(data, script.created_by).slice(0, 16), id]
   );
+  const pushTask = require('../../../common/tasks/push.task');
   await pushTask.syncScripts();
   return { id };
 }
@@ -216,6 +226,7 @@ async function remove(id) {
   const script = await getById(id);
   if (!script) throw new NotFoundError('推送脚本不存在');
   await db.execute('DELETE FROM push_scripts WHERE id = ?', [id]);
+  const pushTask = require('../../../common/tasks/push.task');
   await pushTask.syncScripts();
   return { deleted: true };
 }
@@ -233,6 +244,7 @@ async function toggle(id, enabled) {
     'UPDATE push_scripts SET status = ?, consecutive_failures = ? WHERE id = ?',
     [enabled ? 'enabled' : 'disabled', enabled ? 0 : script.consecutive_failures || 0, id]
   );
+  const pushTask = require('../../../common/tasks/push.task');
   await pushTask.syncScripts();
   return { id, enabled: !!enabled };
 }

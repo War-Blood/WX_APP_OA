@@ -26,7 +26,7 @@ const UPDATABLE = [
  * @returns {Promise<{id: number, inserted: boolean}>}
  */
 async function createLog(scriptId, scheduleKey) {
-  const result = await db.execute(
+  const [result] = await db.execute(
     `INSERT IGNORE INTO push_task_logs (script_id, schedule_key)
      VALUES (?, ?)`,
     [scriptId, scheduleKey]
@@ -110,6 +110,17 @@ async function listLogs({ page = 1, pageSize = 20, scriptId, status, startDate, 
 }
 
 /**
+ * 兼容 JSON 列解析（mysql2 对 JSON 列自动反序列化为对象；旧数据可能是字符串）
+ * @param {*} v - 字段值
+ * @returns {*} 解析后的对象或 null
+ */
+function parseJsonField(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'object') return v;
+  try { return JSON.parse(v); } catch { return null; }
+}
+
+/**
  * 日志详情（含 JSON 明细）
  * @param {number} id - 日志 ID
  * @returns {Promise<Object|null>}
@@ -124,11 +135,9 @@ async function getLog(id) {
   );
   if (rows.length === 0) return null;
   const r = rows[0];
-  ['condition_detail', 'mention_detail', 'attempts'].forEach((k) => {
-    if (r[k]) {
-      try { r[k] = JSON.parse(r[k]); } catch { r[k] = null; }
-    }
-  });
+  r.condition_detail = parseJsonField(r.condition_detail);
+  r.mention_detail = parseJsonField(r.mention_detail);
+  r.attempts = parseJsonField(r.attempts);
   return r;
 }
 

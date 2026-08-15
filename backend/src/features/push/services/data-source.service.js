@@ -30,7 +30,7 @@ function getDateParts(timezone) {
   return {
     date: dateStr,
     weekday: weekdayMap[map.weekday] || new Date(dateStr + 'T00:00:00Z').getUTCDay() + 1,
-    dayOfMonth: parseInt(map.day, 10),
+    day_of_month: parseInt(map.day, 10),
     month: parseInt(map.month, 10),
   };
 }

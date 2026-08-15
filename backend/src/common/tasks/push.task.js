@@ -26,17 +26,25 @@ function dailyToCron(hhmm) {
 }
 
 /**
+ * 兼容 JSON 列解析（mysql2 对 JSON 列自动反序列化为对象；旧数据可能是字符串）
+ * @param {*} v - 字段值
+ * @returns {*} 解析后的对象或 null
+ */
+function parseJsonField(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'object') return v;
+  try { return JSON.parse(v); } catch { return null; }
+}
+
+/**
  * 加载全部启用脚本（JSON 字段解析）
  * @returns {Promise<Array>}
  */
 async function loadEnabledScripts() {
   const rows = await db.query("SELECT * FROM push_scripts WHERE status = 'enabled'");
   return rows.map((r) => {
-    ['mention_targets', 'condition_config'].forEach((k) => {
-      if (r[k]) {
-        try { r[k] = JSON.parse(r[k]); } catch { r[k] = null; }
-      }
-    });
+    r.mention_targets = parseJsonField(r.mention_targets);
+    r.condition_config = parseJsonField(r.condition_config);
     return r;
   });
 }
@@ -85,11 +93,8 @@ async function runScript(scriptId) {
     const rows = await db.query('SELECT * FROM push_scripts WHERE id = ? AND status = ?', [scriptId, 'enabled']);
     if (rows.length === 0) return;
     const script = rows[0];
-    ['mention_targets', 'condition_config'].forEach((k) => {
-      if (script[k]) {
-        try { script[k] = JSON.parse(script[k]); } catch { script[k] = null; }
-      }
-    });
+    script.mention_targets = parseJsonField(script.mention_targets);
+    script.condition_config = parseJsonField(script.condition_config);
     const result = await executor.execute(script);
     logger.info('[PushTask] 脚本执行完成', {
       module: 'PUSH',

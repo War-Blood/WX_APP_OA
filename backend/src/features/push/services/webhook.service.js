@@ -97,7 +97,7 @@ async function create(data, userId) {
   if (exist.length > 0) {
     throw new BusinessError('该 env 引用名已被使用', null, ErrorCode.PUSH_WEBHOOK_NOT_FOUND);
   }
-  const result = await db.execute(
+  const [result] = await db.execute(
     `INSERT INTO push_webhooks (name, env_name, enabled, remark)
      VALUES (?, ?, ?, ?)`,
     [String(data.name).trim(), data.envName, data.enabled ? 1 : 0, data.remark || '']
