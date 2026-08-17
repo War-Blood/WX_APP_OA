@@ -772,6 +772,11 @@ onMounted(async () => {
     } catch { /* ignore */ }
   }
 
+  // 工作日报：打开页面时编写日期跳转到当天（覆盖草稿恢复的历史日期）
+  if (currentTab.value === 'office') {
+    reportDate.value = formatToday()
+  }
+
   // 无草稿时从上次提交预填
   if (!autoDraft) {
     try {
@@ -867,6 +872,8 @@ function switchTab(key) {
   if (key === 'office') {
     selectedWorkType.value = ''
     selectedWorkerIds.value = []
+    // 工作日报：打开时编写日期跳转到当天
+    reportDate.value = formatToday()
     // B 策略：清空公出/补公出专属字段，防止残留默认值随工作日报一起上传
     formData.value.project = ''
     formData.value.area = ''
