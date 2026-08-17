@@ -867,6 +867,21 @@ function switchTab(key) {
   if (key === 'office') {
     selectedWorkType.value = ''
     selectedWorkerIds.value = []
+    // B 策略：清空公出/补公出专属字段，防止残留默认值随工作日报一起上传
+    formData.value.project = ''
+    formData.value.area = ''
+    formData.value.relatedParty = ''
+    formData.value.workContent = ''
+    formData.value.requiredQty = 0
+    formData.value.completedQty = 0
+    formData.value.entryDate = ''
+    formData.value.initialBizTripDate = ''
+    formData.value.tomorrowWorkType = ''
+    formData.value.tomorrowWork = ''
+    formData.value.remark = ''
+    formData.value.supplementDate = ''
+    formData.value.supplementReason = ''
+    machineModels.value = []
     // 工作日报同样显示「已提交」状态提示条，防止重复提交
     showSubstituteMsg.value = false
     checkTodayStatus()
@@ -975,16 +990,18 @@ function selectProject(name) {
 // ===== 保存草稿 =====
 async function saveDraft() {
   uni.showLoading({ title: '保存草稿...' })
+  // A 策略：工作日报草稿不携带公出/补公出专属字段（防残留默认值）
+  const isOfficeDraft = currentTab.value === 'office'
   const payload = {
     ...formData.value,
     userId: userStore.userInfo?.id,
     reportType: currentTab.value,
     reportDate: reportDate.value,
-    todayWorkType: selectedWorkType.value,
-    tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
-    entryDate: formData.value.entryDate || userStore.entryDate,
-    initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
-    workerIds: selectedWorkerIds.value,
+    todayWorkType: isOfficeDraft ? '' : selectedWorkType.value,
+    tomorrowWorkType: isOfficeDraft ? '' : (formData.value.tomorrowWorkType || selectedWorkType.value),
+    entryDate: isOfficeDraft ? '' : (formData.value.entryDate || userStore.entryDate),
+    initialBizTripDate: isOfficeDraft ? '' : (formData.value.initialBizTripDate || userStore.entryDate),
+    workerIds: isOfficeDraft ? [] : selectedWorkerIds.value,
     leaveStartDate: undefined,
     leaveEndDate: undefined
   }
@@ -1084,29 +1101,42 @@ async function handleSubmit() {
       ? formData.value.supplementDate
       : reportDate.value
 
-    const payload = {
-      reportType: currentTab.value,
-      reportDate: effectiveDate,
-      todayWorkType: selectedWorkType.value,
-      tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
-      entryDate: formData.value.entryDate || userStore.entryDate,
-      initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
-      workerIds: selectedWorkerIds.value,
-      project: isLeave.value ? selectedWorkType.value : formData.value.project,
-      area: formData.value.area,
-      relatedParty: formData.value.relatedParty,
-      machineModel: machineModels.value.join(','),
-      workContent: formData.value.workContent,
-      requiredQty: formData.value.requiredQty,
-      completedQty: formData.value.completedQty,
-      remark: formData.value.remark,
-      todayWork: formData.value.todayWork,
-      tomorrowPlan: formData.value.tomorrowWork || formData.value.tomorrowPlan,
-      supplementDate: formData.value.supplementDate,
-      supplementReason: formData.value.supplementReason,
-      issues: formData.value.issues,
-      coordination: formData.value.coordination
-    }
+    // A 策略：按日志类型裁剪 payload——工作日报（office）不携带公出/补公出专属字段，
+    // 避免残留默认值（workContent/entryDate/initialBizTripDate/数量/明日类型等）随工作日报上传
+    const isOfficeSubmit = currentTab.value === 'office'
+    const payload = isOfficeSubmit
+      ? {
+          reportType: 'office',
+          reportDate: effectiveDate,
+          remark: formData.value.remark,
+          todayWork: formData.value.todayWork,
+          tomorrowPlan: formData.value.tomorrowWork || formData.value.tomorrowPlan,
+          issues: formData.value.issues,
+          coordination: formData.value.coordination
+        }
+      : {
+          reportType: currentTab.value,
+          reportDate: effectiveDate,
+          todayWorkType: selectedWorkType.value,
+          tomorrowWorkType: formData.value.tomorrowWorkType || selectedWorkType.value,
+          entryDate: formData.value.entryDate || userStore.entryDate,
+          initialBizTripDate: formData.value.initialBizTripDate || userStore.entryDate,
+          workerIds: selectedWorkerIds.value,
+          project: isLeave.value ? selectedWorkType.value : formData.value.project,
+          area: formData.value.area,
+          relatedParty: formData.value.relatedParty,
+          machineModel: machineModels.value.join(','),
+          workContent: formData.value.workContent,
+          requiredQty: formData.value.requiredQty,
+          completedQty: formData.value.completedQty,
+          remark: formData.value.remark,
+          todayWork: formData.value.todayWork,
+          tomorrowPlan: formData.value.tomorrowWork || formData.value.tomorrowPlan,
+          supplementDate: formData.value.supplementDate,
+          supplementReason: formData.value.supplementReason,
+          issues: formData.value.issues,
+          coordination: formData.value.coordination
+        }
 
     const res = await reportApi.submit(payload)
     uni.hideLoading()

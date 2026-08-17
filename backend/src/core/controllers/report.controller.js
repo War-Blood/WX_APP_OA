@@ -32,6 +32,37 @@ async function resolveEntryDate(userId, entryDate) {
   return null;
 }
 
+/**
+ * 工作日报（office）归一化：固定业务字段 + 清理公出专属字段
+ * - project 固定「公司日报」、todayWorkType 固定「公司」
+ * - area 从 system_config 配置读取（非硬编码），未配置则为空
+ * - 公出日志/补公出的残留字段一律清空，避免旧客户端携带的默认值落库
+ * @param {Object} data - 待归一化的提交数据
+ * @returns {Promise<void>}
+ */
+async function normalizeOfficeReport(data) {
+  data.project = '公司日报';
+  data.relatedParty = '';
+  if (!data.todayWorkType) data.todayWorkType = '公司';
+  // 清理公出专属字段（前端 A/B 策略的兜底，防旧版本客户端残留值落库）
+  data.workContent = '';
+  data.machineModel = '';
+  data.entryDate = '';
+  data.initialBizTripDate = '';
+  data.tomorrowWorkType = '';
+  data.requiredQty = undefined;
+  data.completedQty = undefined;
+  data.workerIds = [];
+  data.supplementDate = '';
+  data.supplementReason = '';
+  // area 从系统配置接口读取（system_config.office_report_area），未配置则留空
+  const [cfgRow] = await db.query(
+    'SELECT config_value FROM system_config WHERE config_key = ?',
+    ['office_report_area']
+  );
+  data.area = (cfgRow && cfgRow.config_value) || '';
+}
+
 // ==============================
 // 基础 CRUD
 // ==============================
@@ -113,12 +144,17 @@ async function submit(req, res, next) {
       }
     }
 
-    // 工作日报（office）：固定默认值（项目为公司日报；区域固定；无相关方；工作类型默认公司）
+    // 工作日报（office）：固定默认值 + 清理公出专属字段（防残留值落库）
     if (reportType === 'office') {
-      data.project = '公司日报';
-      data.area = '浙江-温州-乐清';
-      data.relatedParty = '';
-      if (!data.todayWorkType) data.todayWorkType = '公司';
+      await normalizeOfficeReport(data);
+    } else {
+      // ---- 自动补充 entryDate（仅公出/补公出；工作日报无入场概念） ----
+      data.entryDate = await resolveEntryDate(userId, data.entryDate);
+
+      // ---- 自动补充 initialBizTripDate（默认同 entryDate） ----
+      if (!data.initialBizTripDate && data.entryDate) {
+        data.initialBizTripDate = data.entryDate;
+      }
     }
 
     const isLeave = data.todayWorkType === '请假';
@@ -172,13 +208,8 @@ async function submit(req, res, next) {
       }
     }
 
-    // ---- 自动补充 entryDate ----
-    data.entryDate = await resolveEntryDate(userId, data.entryDate);
-
-    // ---- 自动补充 initialBizTripDate（默认同 entryDate） ----
-    if (!data.initialBizTripDate && data.entryDate) {
-      data.initialBizTripDate = data.entryDate;
-    }
+    // 公出/补公出的 entryDate / initialBizTripDate 补充已在上面分支完成
+    // （office 已在 normalizeOfficeReport 中清空，避免再次被 users.entry_date 污染）
 
     const result = await reportService.submit(data, userId);
 
@@ -201,8 +232,13 @@ async function saveDraft(req, res, next) {
       throw new ValidationError('日报日期不能为空');
     }
 
-    // 自动补充 entryDate
-    data.entryDate = await resolveEntryDate(userId, data.entryDate);
+    // 工作日报草稿同样归一化（清理公出残留字段），且不补充 entryDate
+    if (data.reportType === 'office') {
+      await normalizeOfficeReport(data);
+    } else {
+      // 自动补充 entryDate
+      data.entryDate = await resolveEntryDate(userId, data.entryDate);
+    }
 
     const result = await reportService.submit(data, userId);
 
