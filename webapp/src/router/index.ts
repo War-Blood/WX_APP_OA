@@ -127,6 +127,12 @@ const router = createRouter({
               meta: { title: '员工当日状态', roles: ['admin', 'superadmin'] }
             },
             {
+              path: 'work-board',
+              name: 'ReportWorkBoard',
+              component: () => import('@/views/report/work-board.vue'),
+              meta: { title: '工作内容看板' }
+            },
+            {
               path: 'monthly-summary',
               name: 'ReportMonthlySummary',
               component: () => import('@/views/report/monthly-summary.vue'),
