@@ -3,7 +3,12 @@ import { ref, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { getProjectProgress, getReportList, type ProjectProgressItem } from '@/api/report'
 import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
+import { useTableColumnResize } from '@/composables/useTableColumnResize'
 import SectionCard from '@/components/SectionCard.vue'
+
+// 列宽持久化（项目进展表 / 项目日志弹窗表）
+const { bindRef: progBindRef, onHeaderDragEnd: progDragEnd } = useTableColumnResize('project-progress')
+const { bindRef: detailBindRef, onHeaderDragEnd: detailDragEnd } = useTableColumnResize('project-progress-detail')
 
 const progLoading = ref(false)
 const progList = ref<ProjectProgressItem[]>([])
@@ -69,7 +74,7 @@ onMounted(loadProjects)
         <el-button size="small" @click="nextProgMonth">›</el-button>
         <el-button :icon="Refresh" size="small" text @click="loadProjects">刷新</el-button>
       </template>
-      <el-table :data="progList" v-loading="progLoading" stripe border @row-click="openProjLogs" highlight-current-row style="cursor:pointer">
+      <el-table :data="progList" v-loading="progLoading" stripe border :ref="progBindRef" allow-drag-last-column @header-dragend="progDragEnd" @row-click="openProjLogs" highlight-current-row style="cursor:pointer">
         <el-table-column prop="project" label="项目名称" min-width="140" show-overflow-tooltip />
         <el-table-column label="区域" width="80">
           <template #default="{ row }">{{ row.area || '—' }}</template>
@@ -92,7 +97,7 @@ onMounted(loadProjects)
       <el-empty v-if="!progLoading && !progList.length" description="本月暂无项目数据" />
 
       <el-dialog v-model="projLogVisible" :title="'项目日志：' + projLogTitle" width="800px" destroy-on-close>
-        <el-table :data="projLogList" v-loading="projLogLoading" stripe border max-height="500">
+        <el-table :data="projLogList" v-loading="projLogLoading" stripe border max-height="500" :ref="detailBindRef" allow-drag-last-column @header-dragend="detailDragEnd">
           <el-table-column prop="reportDate" label="日期" width="110" />
           <el-table-column label="填写人" width="100">
             <template #default="{ row }">{{ row.submitter || (row as any).userName || '-' }}</template>

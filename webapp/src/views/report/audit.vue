@@ -3,6 +3,10 @@ import { toast } from '@/utils/toast'
 import { ref, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { getPendingReviews, reviewSupplement, type PendingReviewItem } from '@/api/report'
+import { useTableColumnResize } from '@/composables/useTableColumnResize'
+
+// 列宽持久化（补公出审核表）
+const { bindRef, onHeaderDragEnd } = useTableColumnResize('audit')
 
 // Tab 状态筛选
 const auditTab = ref<'all' | 'pending' | 'reviewed'>('all')
@@ -104,7 +108,7 @@ onMounted(() => {
     </div>
 
     <!-- 表格 -->
-    <el-table :data="list" v-loading="loading" stripe border>
+    <el-table :data="list" v-loading="loading" stripe border :ref="bindRef" allow-drag-last-column @header-dragend="onHeaderDragEnd">
       <el-table-column prop="reportDate" label="提交日期" width="110" />
       <el-table-column prop="supplementDate" label="补录日期" width="110" />
       <el-table-column prop="submitterName" label="提交人" width="100" />

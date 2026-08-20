@@ -9,6 +9,7 @@ import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreRe
 import type { ReportUpdateResult } from '@/api/report'
 import type { AllStatsResponse } from '@/api/report'
 import { currentMonthInBeijing } from '@/utils/date'
+import { useTableColumnResize } from '@/composables/useTableColumnResize'
 import ReportStatsPanel from '@/components/ReportStatsPanel.vue'
 import ReportWorkersPanel from '@/components/ReportWorkersPanel.vue'
 import ReportTrashPanel from '@/components/ReportTrashPanel.vue'
@@ -20,6 +21,9 @@ const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
 const activeTab = ref('query')
 const loading = ref(false)
 const statsLoading = ref(true)
+
+// 列宽持久化（日报查询表）
+const { bindRef, onHeaderDragEnd } = useTableColumnResize('query')
 
 // 统计看板 — v2.0 对接 getStats('all')
 const stats = ref<AllStatsResponse | null>(null)
@@ -487,6 +491,9 @@ onMounted(() => { loadStats(); loadReports() })
         stripe
         border
         highlight-current-row
+        :ref="bindRef"
+        allow-drag-last-column
+        @header-dragend="onHeaderDragEnd"
         @row-click="showDetail"
         style="cursor:pointer"
       >

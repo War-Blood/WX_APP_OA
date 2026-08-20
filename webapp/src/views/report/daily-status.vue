@@ -13,8 +13,13 @@ import { CHART_COLORS } from '@/utils/chart'
 import type { StatsViewFilter } from '@/api/statsView'
 import { createStatsView } from '@/api/statsView'
 import FilterDialog from '@/components/FilterDialog.vue'
+import { useTableColumnResize } from '@/composables/useTableColumnResize'
 import { useUserStore } from '@/stores/user'
 import { toast } from '@/utils/toast'
+
+// 列宽持久化（今日状态表 / 明日分组表，分组表多实例共享宽度）
+const { bindRef: statusBindRef, onHeaderDragEnd: statusDragEnd } = useTableColumnResize('daily-status')
+const { bindRef: groupBindRef, onHeaderDragEnd: groupDragEnd } = useTableColumnResize('daily-status-group')
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -286,7 +291,7 @@ onMounted(() => {
     </div>
 
     <!-- 今日模式:表格 -->
-    <el-table v-if="mode === 'today'" :data="filteredWorkers" v-loading="loading" stripe border :row-class-name="rowClassName">
+    <el-table v-if="mode === 'today'" :data="filteredWorkers" v-loading="loading" stripe border :ref="statusBindRef" allow-drag-last-column @header-dragend="statusDragEnd" :row-class-name="rowClassName">
       <el-table-column prop="userName" label="姓名" width="100" />
       <el-table-column prop="project" label="项目" min-width="140" show-overflow-tooltip>
         <template #default="{ row }">
@@ -332,7 +337,7 @@ onMounted(() => {
             <span class="tomorrow-group-name">{{ g.label }}</span>
             <el-tag size="small" type="primary">{{ g.workers.length }}人</el-tag>
           </div>
-          <el-table :data="g.workers" size="small" stripe border>
+          <el-table :data="g.workers" size="small" stripe border :ref="groupBindRef" allow-drag-last-column @header-dragend="groupDragEnd">
             <el-table-column prop="userName" label="姓名" width="120" />
             <el-table-column prop="project" label="项目" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">

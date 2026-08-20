@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { Search, Refresh } from '@element-plus/icons-vue'
+import { useTableColumnResize } from '@/composables/useTableColumnResize'
+
+// 列宽持久化（人员看板表）
+const { bindRef, onHeaderDragEnd } = useTableColumnResize('workers')
 
 defineProps<{
   workerList: Record<string, unknown>[]
@@ -32,7 +36,7 @@ defineEmits<{
       <el-button :icon="Refresh" @click="$emit('refresh')">刷新</el-button>
     </div>
   </div>
-  <el-table :data="workerList" v-loading="loading" stripe border>
+  <el-table :data="workerList" v-loading="loading" stripe border :ref="bindRef" allow-drag-last-column @header-dragend="onHeaderDragEnd">
     <el-table-column prop="name" label="人员" width="120" />
     <el-table-column prop="total" label="日报总数" width="100" align="center" sortable />
     <el-table-column prop="monthCount" label="本月数" width="100" align="center" sortable />

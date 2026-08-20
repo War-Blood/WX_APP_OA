@@ -111,3 +111,10 @@ body,
   display: flex;
   justify-content: flex-end;
 }
+
+// 表格列宽拖拽分隔线高亮（拖动时跟随鼠标的竖线）
+.el-table .el-table__column-resize-proxy {
+  width: 2px;
+  background: $primary-color;
+  box-shadow: 0 0 6px rgba($primary-color, 0.6);
+}

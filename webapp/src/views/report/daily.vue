@@ -6,6 +6,10 @@ import { Search, Refresh, Delete } from '@element-plus/icons-vue'
 import { getReportList, getReportDetail, deleteReport, restoreReport, updateReport } from '@/api/report'
 import type { ReportUpdateResult } from '@/api/report'
 import ReportDetailDialog from '@/components/ReportDetailDialog.vue'
+import { useTableColumnResize } from '@/composables/useTableColumnResize'
+
+// 列宽持久化（工作日报表）
+const { bindRef, onHeaderDragEnd } = useTableColumnResize('daily')
 
 const loading = ref(false)
 const list = ref<Record<string, unknown>[]>([])
@@ -187,6 +191,9 @@ onMounted(() => { loadReports() })
       stripe
       border
       highlight-current-row
+      :ref="bindRef"
+      allow-drag-last-column
+      @header-dragend="onHeaderDragEnd"
       @row-click="showDetail"
       style="cursor:pointer"
     >

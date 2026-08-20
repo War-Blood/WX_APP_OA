@@ -6,8 +6,12 @@ import type { StatsViewFilter } from '@/api/statsView'
 import { createStatsView } from '@/api/statsView'
 import FilterDialog from '@/components/FilterDialog.vue'
 import SectionCard from '@/components/SectionCard.vue'
+import { useTableColumnResize } from '@/composables/useTableColumnResize'
 import { useUserStore } from '@/stores/user'
 import { toast } from '@/utils/toast'
+
+// 列宽持久化（人员明细表）
+const { bindRef, onHeaderDragEnd } = useTableColumnResize('worker-dimension')
 
 const userStore = useUserStore()
 const workerLoading = ref(true)
@@ -54,7 +58,7 @@ onMounted(loadWorkers)
         <el-button v-if="userStore.isAdmin" size="small" @click="showFilter = true">筛选</el-button>
         <el-button :icon="Refresh" size="small" text @click="loadWorkers">刷新</el-button>
       </template>
-      <el-table :data="workerList" v-loading="workerLoading" stripe border>
+      <el-table :data="workerList" v-loading="workerLoading" stripe border :ref="bindRef" allow-drag-last-column @header-dragend="onHeaderDragEnd">
         <el-table-column prop="name" label="人员" width="120" />
         <el-table-column prop="total" label="总条数" width="100" align="center" sortable />
         <el-table-column prop="monthCount" label="本月" width="80" align="center" sortable />

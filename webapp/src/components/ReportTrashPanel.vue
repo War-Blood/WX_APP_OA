@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { toast } from '@/utils/toast'
+import { useTableColumnResize } from '@/composables/useTableColumnResize'
 import { getDeletedReports, restoreReport, purgeReport } from '@/api/report'
 
 interface TrashItem {
@@ -20,6 +21,9 @@ const trashLoading = ref(false)
 const trashPage = ref(1)
 const trashTotal = ref(0)
 const emit = defineEmits<{ restored: [] }>()
+
+// 列宽持久化（回收站表）
+const { bindRef, onHeaderDragEnd } = useTableColumnResize('trash')
 
 async function loadTrash() {
   trashLoading.value = true
@@ -81,7 +85,7 @@ onMounted(loadTrash)
   <div class="toolbar">
     <el-button :icon="Refresh" @click="loadTrash">刷新</el-button>
   </div>
-  <el-table :data="trashList" v-loading="trashLoading" stripe border>
+  <el-table :data="trashList" v-loading="trashLoading" stripe border :ref="bindRef" allow-drag-last-column @header-dragend="onHeaderDragEnd">
     <el-table-column prop="report_date" label="日期" width="110" />
     <el-table-column prop="userName" label="填写人" width="100" />
     <el-table-column prop="project" label="项目" min-width="160" show-overflow-tooltip />

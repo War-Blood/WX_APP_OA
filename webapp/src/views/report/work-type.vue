@@ -7,8 +7,12 @@ import type { StatsViewFilter } from '@/api/statsView'
 import { createStatsView } from '@/api/statsView'
 import FilterDialog from '@/components/FilterDialog.vue'
 import SectionCard from '@/components/SectionCard.vue'
+import { useTableColumnResize } from '@/composables/useTableColumnResize'
 import { useUserStore } from '@/stores/user'
 import { toast } from '@/utils/toast'
+
+// 列宽持久化（工作类型分布表）
+const { bindRef, onHeaderDragEnd } = useTableColumnResize('work-type')
 
 const userStore = useUserStore()
 const workTypeLoading = ref(false)
@@ -94,7 +98,7 @@ onMounted(loadWorkTypes)
         <el-button size="small" @click="nextWorkTypeMonth">›</el-button>
         <el-button :icon="Refresh" size="small" text @click="loadWorkTypes">刷新</el-button>
       </template>
-      <el-table :data="workTypeList" v-loading="workTypeLoading" stripe border>
+      <el-table :data="workTypeList" v-loading="workTypeLoading" stripe border :ref="bindRef" allow-drag-last-column @header-dragend="onHeaderDragEnd">
         <!-- 汇总行 -->
         <template #append>
           <tr class="wt-summary">
