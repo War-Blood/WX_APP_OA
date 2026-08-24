@@ -871,24 +871,10 @@ function switchTab(key) {
   currentTab.value = key
   if (key === 'office') {
     selectedWorkType.value = ''
-    selectedWorkerIds.value = []
     // 工作日报：打开时编写日期跳转到当天
     reportDate.value = formatToday()
-    // B 策略：清空公出/补公出专属字段，防止残留默认值随工作日报一起上传
-    formData.value.project = ''
-    formData.value.area = ''
-    formData.value.relatedParty = ''
-    formData.value.workContent = ''
-    formData.value.requiredQty = 0
-    formData.value.completedQty = 0
-    formData.value.entryDate = ''
-    formData.value.initialBizTripDate = ''
-    formData.value.tomorrowWorkType = ''
-    formData.value.tomorrowWork = ''
-    formData.value.remark = ''
-    formData.value.supplementDate = ''
-    formData.value.supplementReason = ''
-    machineModels.value = []
+    // 注意：不再清空公出/补公出表单字段与已选作业人员——工作日报提交已由 A 策略（payload 按类型
+    // 裁剪）+ 后端 normalizeOfficeReport 兜底清理；物理清空会导致切回公出时已填内容丢失、破坏回填。
     // 工作日报同样显示「已提交」状态提示条，防止重复提交
     showSubstituteMsg.value = false
     checkTodayStatus()
@@ -1174,15 +1160,17 @@ async function handleSubmit() {
       machineModels.value.forEach(m => saveMachineToHistory(m))
     }
 
-    // 保存上次提交用于回填
-    uni.setStorageSync('report_last_submission', JSON.stringify({
-      project: formData.value.project,
-      area: formData.value.area,
-      relatedParty: formData.value.relatedParty,
-      machineModel: machineModels.value.join(','),
-      workContent: formData.value.workContent,
-      todayWorkType: selectedWorkType.value
-    }))
+    // 保存上次提交用于回填（仅公出/补公出：工作日报提交会清空公出字段，避免空值覆盖缓存导致下次预填"内容丢失"）
+    if (currentTab.value !== 'office') {
+      uni.setStorageSync('report_last_submission', JSON.stringify({
+        project: formData.value.project,
+        area: formData.value.area,
+        relatedParty: formData.value.relatedParty,
+        machineModel: machineModels.value.join(','),
+        workContent: formData.value.workContent,
+        todayWorkType: selectedWorkType.value
+      }))
+    }
 
     const msg = currentTab.value === 'biz_trip_supplement' ? '已提交，等待管理员审核' : '提交成功'
     showSuccess(msg)
