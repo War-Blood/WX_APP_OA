@@ -1138,11 +1138,30 @@ async function exportStatusBoardCSV(month, restDaysInput) {
     : null;
 
   // 1. Get all active workers (exclude admin/test accounts)
+  //    仅保留浙江贝良人员：department_id 沿部门树上溯，根节点为 departments.id=23（浙江贝良）
+  const deptRows = await db.query(
+    'SELECT id, parent_id FROM departments WHERE deleted_at IS NULL'
+  );
+  const parentMap = {};
+  deptRows.forEach(d => { parentMap[d.id] = d.parent_id; });
+  const BEILIANG_ROOT = 23;
+  const beiliangDeptIds = [];
+  deptRows.forEach(d => {
+    let cur = d.id;
+    let guard = 0;
+    while (cur != null && guard < 50) { // guard 防脏数据自引用死循环
+      if (cur === BEILIANG_ROOT) { beiliangDeptIds.push(d.id); break; }
+      cur = parentMap[cur];
+      guard++;
+    }
+  });
+
   const workerList = await db.query(
     `SELECT id, user_name FROM users
      WHERE worker_status = 'active' AND deleted_at IS NULL AND status = 'active'
        AND role NOT IN ('admin', 'superadmin')
        AND openid IS NOT NULL AND openid != ''
+       AND department_id IN (${beiliangDeptIds.length > 0 ? beiliangDeptIds.join(',') : '0'})
      ORDER BY id`
   );
   const nameToId = {};
@@ -1187,33 +1206,18 @@ async function exportStatusBoardCSV(month, restDaysInput) {
     if (r.author_uid && r.author_uid !== r.uid) setInfo(r.author_uid, r);
   });
   rows2.forEach(r => setInfo(r.uid, r));
-  // Path3: match ALL names, unmatched ones get synthetic entries
-  const externalWorkers = {}; // name -> { day -> { ... } }
-  let extIdCounter = -1;
+  // Path3: 仅匹配用户表内人员（浙江贝良）；外部/非贝良人员不进入加班表
   for (const r of rows3) {
     const names = r.workers.split(/[、,，\s]+/).filter(n => n);
     for (const n of names) {
       const uid = nameToId[n];
-      if (uid) { setInfo(uid, r); continue; }
-      // External worker: track by name
-      const key = n;
-      if (!externalWorkers[key]) externalWorkers[key] = {};
-      const day = r.report_date instanceof Date ? r.report_date.getDate() : new Date(r.report_date).getDate();
-      if (!externalWorkers[key][day]) {
-        externalWorkers[key][day] = {
-          date: r.report_date,
-          project: r.project || r.area || '',
-          status: r.today_work_type || '',
-        };
-      }
+      if (uid) setInfo(uid, r);
     }
   }
 
-  // 3. Filter: keep workers with data + external workers
+  // 3. Filter: keep workers with data（外部人员已剔除，仅浙江贝良正式人员）
   const activeWorkers = workerList.filter(w => workerMap[w.id] && Object.keys(workerMap[w.id]).length > 0);
-  const extEntries = Object.entries(externalWorkers).filter(([,v]) => Object.keys(v).length > 0)
-    .map(([name, data]) => ({ id: extIdCounter--, user_name: name, _ext: true, _data: data }));
-  const allWorkers = [...activeWorkers, ...extEntries];
+  const allWorkers = [...activeWorkers];
   if (allWorkers.length === 0) throw new BusinessError('No worker data for this month');
 
   // 4. Query company schedules (only needed if no user-adjusted restDays)
@@ -1285,7 +1289,7 @@ async function exportStatusBoardCSV(month, restDaysInput) {
   days.forEach(dateStr => {
     const rowData = [];
     allWorkers.forEach(w => {
-      const info = w._ext ? w._data[parseInt(dateStr.slice(-2))] : workerMap[w.id]?.[parseInt(dateStr.slice(-2))];
+      const info = workerMap[w.id]?.[parseInt(dateStr.slice(-2))];
       const rest = isRestDay(dateStr);
 
       let displayDate = '', displayProject = '', displayStatus = '';
@@ -1302,12 +1306,12 @@ async function exportStatusBoardCSV(month, restDaysInput) {
       const OVERTIME_TYPES = new Set(['工作（陆）', '工作（海）', '在途']);
       const otStatus = String(info ? info.status : '').trim();
       const otNormalized = (otStatus === '工作' || otStatus === '作业') ? '工作（陆）' : otStatus; // 兼容旧短名
-      if (rest && info && OVERTIME_TYPES.has(otNormalized)) { const kid = w._ext ? w.user_name : w.id; overtime[kid] = (overtime[kid] || 0) + 1; }
+      if (rest && info && OVERTIME_TYPES.has(otNormalized)) { overtime[w.id] = (overtime[w.id] || 0) + 1; }
     });
 
     const dataRow = ws1.addRow(rowData);
     allWorkers.forEach((w, i) => {
-      const rest = w._ext ? false : isRestDay(dateStr);
+      const rest = isRestDay(dateStr);
       // Only rest day cells get formatting
       if (rest) {
         const projectCell = dataRow.getCell(i * 3 + 2);
@@ -1343,7 +1347,7 @@ async function exportStatusBoardCSV(month, restDaysInput) {
     c.alignment = { horizontal: 'center' };
   });
   const overtimeList = allWorkers
-    .map((w, i) => ({ idx: i + 1, name: w.user_name, days: overtime[w._ext ? w.user_name : w.id] || 0 }))
+    .map((w, i) => ({ idx: i + 1, name: w.user_name, days: overtime[w.id] || 0 }))
     .filter(x => x.days > 0)
     .sort((a, b) => b.days - a.days);
   overtimeList.forEach(x => {
