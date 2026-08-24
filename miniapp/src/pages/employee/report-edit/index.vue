@@ -520,6 +520,8 @@ const machineInputText = ref('')
 const machineModels = ref([])
 // 提交成功后置位，防止 onUnload/onHide 的 autoSaveDraft 把已提交表单重新写回草稿
 const justSubmitted = ref(false)
+// 已回填最近记录的 tab（避免编辑中切 tab 时重复覆盖当前内容）
+const refilledTabs = new Set()
 
 const formData = ref({
   project: '',
@@ -769,6 +771,8 @@ onMounted(async () => {
       if (saved.machineModel) {
         machineModels.value = saved.machineModel.split(/[,，、]+/).filter(Boolean)
       }
+      // 草稿优先：当前 tab 视为已回填，避免随后被最近记录覆盖
+      refilledTabs.add(currentTab.value)
     } catch { /* ignore */ }
   }
 
@@ -777,34 +781,19 @@ onMounted(async () => {
     reportDate.value = formatToday()
   }
 
-  // 无草稿时从上次提交预填
-  if (!autoDraft) {
-    try {
-      const lastSub = uni.getStorageSync('report_last_submission')
-      if (lastSub) {
-        const saved = JSON.parse(lastSub)
-        if (saved.project) formData.value.project = saved.project
-        if (saved.area) {
-          formData.value.area = saved.area
-          areaRegion.value = saved.area.split('-')
-        }
-        if (saved.relatedParty) formData.value.relatedParty = saved.relatedParty
-        if (saved.workContent) formData.value.workContent = saved.workContent
-        if (saved.todayWorkType) selectedWorkType.value = saved.todayWorkType
-        if (saved.machineModel) {
-          machineModels.value = saved.machineModel.split(/[,，、]+/).filter(Boolean)
-        }
-      }
-    } catch { /* ignore */ }
-  }
-
-  // 加载花名册缓存
+  // 加载花名册缓存（回填作业人员名字→userId 映射需要）
   try {
     const res = await adminApi.getWorkerList({ pageSize: 200 })
     if (res.code === 0) {
       workerListCache.value = res.data.list || []
     }
   } catch { /* ignore */ }
+
+  // 无草稿时：按当前 tab 对应策略，调取最近一次该类型记录回填
+  if (!autoDraft) {
+    refilledTabs.add(currentTab.value)
+    await loadLastReport(currentTab.value || 'biz_trip')
+  }
 
   // 加载项目列表
   loadProjects()
@@ -877,12 +866,16 @@ function switchTab(key) {
     // 裁剪）+ 后端 normalizeOfficeReport 兜底清理；物理清空会导致切回公出时已填内容丢失、破坏回填。
     // 工作日报同样显示「已提交」状态提示条，防止重复提交
     showSubstituteMsg.value = false
-    checkTodayStatus()
   } else {
     // 公出/补公出默认选第一个工作类型
     if (!selectedWorkType.value) selectedWorkType.value = workTypes[0]
-    checkTodayStatus()
   }
+  // 首次进入该 tab 时，按对应策略回填最近一次该类型记录
+  if (!refilledTabs.has(key)) {
+    refilledTabs.add(key)
+    loadLastReport(key)
+  }
+  checkTodayStatus()
 }
 
 function onDateChange(e) {
@@ -978,6 +971,58 @@ function selectProject(name) {
   formData.value.project = name
   showProjectPicker.value = false
   projectSearchKeyword.value = ''
+}
+
+// ===== 最近记录回填（按 tab 类型对应策略） =====
+/**
+ * 调取最近一次指定类型日报记录并回填表单
+ * @param {string} type - biz_trip / biz_trip_supplement / office
+ */
+async function loadLastReport(type) {
+  try {
+    // 传当前登录用户 id：保证回填的是「每个人自己」最近一次填写记录（后端 list 支持自己查自己）
+    const res = await reportApi.getList({ pageSize: 1, reportType: type, userId: userStore.userInfo?.id })
+    if (res.code !== 0 || !res.data?.list || res.data.list.length === 0) return
+    const r = res.data.list[0]
+
+    if (type === 'office') {
+      // 工作日报：回填四个核心字段
+      formData.value.todayWork = r.todayWork || ''
+      formData.value.tomorrowPlan = r.tomorrowPlan || ''
+      formData.value.issues = r.issues || ''
+      formData.value.coordination = r.coordination || ''
+      if (r.todayWork) todayWorkLength.value = r.todayWork.length
+      return
+    }
+
+    // 公出 / 补公出：回填公出专属字段
+    formData.value.project = r.project || ''
+    formData.value.area = r.area || ''
+    areaRegion.value = (r.area || '').split('-').filter(Boolean)
+    formData.value.relatedParty = r.relatedParty || ''
+    formData.value.workContent = r.workContent || ''
+    formData.value.requiredQty = r.requiredQty != null ? r.requiredQty : 0
+    formData.value.completedQty = r.completedQty != null ? r.completedQty : 0
+    formData.value.entryDate = r.entryDate || ''
+    formData.value.initialBizTripDate = r.initialBizTripDate || ''
+    formData.value.tomorrowWorkType = r.tomorrowWorkType || ''
+    formData.value.tomorrowWork = r.tomorrowPlan || ''
+    formData.value.remark = r.remark || ''
+    if (r.todayWorkType) selectedWorkType.value = r.todayWorkType
+    machineModels.value = (r.machineModel || '').split(/[,，、]+/).filter(Boolean)
+    // 作业人员：名字字符串 → userId（依赖 workerListCache）
+    if (r.workers) {
+      const names = r.workers.split(/[、,，\s\/]+/).filter(Boolean)
+      selectedWorkerIds.value = names
+        .map(n => workerListCache.value.find(w => w.userName === n)?.userId)
+        .filter(Boolean)
+    }
+    // 补公出额外字段
+    if (type === 'biz_trip_supplement') {
+      formData.value.supplementDate = r.supplementDate || ''
+      formData.value.supplementReason = r.supplementReason || ''
+    }
+  } catch { /* ignore */ }
 }
 
 // ===== 保存草稿 =====

@@ -73,10 +73,16 @@ async function normalizeOfficeReport(data) {
  */
 async function list(req, res, next) {
   try {
-    const { page = 1, pageSize = 50, status, reportType, startDate, endDate, keyword } = req.body;
+    const { page = 1, pageSize = 50, status, reportType, startDate, endDate, keyword, userId: requestedUserId } = req.body;
     const role = req.user.role;
-    // admin/superadmin 看全部，普通用户只看自己的
-    const userId = (role === 'admin' || role === 'superadmin') ? 0 : req.user.userId;
+    // 任何用户均可查询自己的记录（前端回填「最近一次填写」用）；
+    // 未显式传 userId（或传的不是自己）时按原规则：admin/superadmin 看全部，普通用户只看自己
+    let userId;
+    if (requestedUserId !== undefined && Number(requestedUserId) === req.user.userId) {
+      userId = req.user.userId;
+    } else {
+      userId = (role === 'admin' || role === 'superadmin') ? 0 : req.user.userId;
+    }
 
     const { list: reportList, total } = await reportService.list(userId, {
       page: Number(page),
