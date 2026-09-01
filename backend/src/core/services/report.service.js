@@ -1299,6 +1299,11 @@ async function exportStatusBoardCSV(month, restDaysInput) {
         displayDate = dateStr;  // 直接用日报对应的日期，避免 Date 对象格式化错误
         displayProject = info.project;
         displayStatus = info.status;
+        // 空出差项目：项目与状态均填充为"公司"
+        if (!displayProject) {
+          displayProject = '公司';
+          displayStatus = '公司';
+        }
       }
       // Leave empty when no report (no auto-fill)
       rowData.push(displayDate, displayProject, displayStatus);
@@ -1307,7 +1312,9 @@ async function exportStatusBoardCSV(month, restDaysInput) {
       // 加班天数（新口径）: 休息日 + 公出日志除请假外均计入（含待工）
       const SUBSIDY_TYPES = new Set(['工作（陆）', '工作（海）', '在途']);
       const otStatus = String(info ? info.status : '').trim();
-      const otNormalized = (otStatus === '工作' || otStatus === '作业') ? '工作（陆）' : otStatus;
+      let otNormalized = (otStatus === '工作' || otStatus === '作业') ? '工作（陆）' : otStatus;
+      // 空出差项目日报视为"公司"状态：计入加班（≠请假），不计补贴（非现场）
+      if (info && !info.project) otNormalized = '公司';
       if (rest && info && otNormalized && otNormalized !== '请假') {
         overtime[w.id] = (overtime[w.id] || 0) + 1;
         if (SUBSIDY_TYPES.has(otNormalized)) subsidy[w.id] = (subsidy[w.id] || 0) + 1;

@@ -253,14 +253,16 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
       const report = reportMap[rKey];
       const schedStatus = schedMap[date];
 
-      // 出差地：取自 daily_reports.area（PRD 4.5 字段映射）
-      const location = report ? report.area : '';
+      // 出差地：取自 daily_reports.area（PRD 4.5 字段映射）；空则填充"公司"
+      const location = report && String(report.area || '').trim() ? report.area : (report ? '公司' : '');
 
       // 状态判定：公出日志 > 排班 > 默认休息（PRD 4.5 优先级）
       let status;
       if (report) {
-        status = mapExportWorkType(report.workType);
-        const wt = String(report.workType || '').trim();
+        const areaEmpty = !String(report.area || '').trim();
+        status = areaEmpty ? '公司' : mapExportWorkType(report.workType);
+        // 空出差地日报视为"公司"：计入加班（≠请假），不计补贴（非现场）
+        const wt = areaEmpty ? '公司' : String(report.workType || '').trim();
         // 仅休息日计入：加班=除请假外（含待工）；补贴=工作（陆/海）/在途
         if (rest && wt && wt !== '请假') {
           overtime[p.id] = (overtime[p.id] || 0) + 1;
