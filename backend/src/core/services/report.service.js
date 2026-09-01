@@ -1304,8 +1304,13 @@ async function exportStatusBoardCSV(month, restDaysInput) {
           displayProject = '公司';
           displayStatus = '公司';
         }
+      } else {
+        // 无日报：日期 + 出差项目 + 状态均显示"公司"（默认坐班，不计入加班/补贴）
+        displayDate = dateStr;
+        displayProject = '公司';
+        displayStatus = '公司';
       }
-      // Leave empty when no report (no auto-fill)
+      // Leave empty when no report (no auto-fill) —— 已改为无日报也填充"公司/公司"
       rowData.push(displayDate, displayProject, displayStatus);
 
       // 补贴天数（原"加班天数"口径）: 休息日 + 工作（陆/海）/在途（兼容旧短名 工作/作业）

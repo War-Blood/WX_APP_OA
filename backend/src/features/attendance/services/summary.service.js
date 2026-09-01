@@ -254,9 +254,10 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
       const schedStatus = schedMap[date];
 
       // 出差地：取自 daily_reports.area（PRD 4.5 字段映射）；空则填充"公司"
-      const location = report && String(report.area || '').trim() ? report.area : (report ? '公司' : '');
+      const location = report && String(report.area || '').trim() ? report.area : (report ? '公司' : '公司');
 
       // 状态判定：公出日志 > 排班 > 默认休息（PRD 4.5 优先级）
+      // 无日报时统一显示"公司/公司"（默认坐班），不计入加班/补贴
       let status;
       if (report) {
         const areaEmpty = !String(report.area || '').trim();
@@ -271,19 +272,9 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
           }
         }
       } else if (schedStatus) {
-        status = mapExportSchedule(schedStatus);
-        // 休息日无公出日志：不计入加班/补贴
+        status = '公司';
       } else {
-        // 出差期间无公出日志：标记为"未提交"（PRD 4.3 出差未提交检测）
-        const inTrip = tripLeaves.some(t =>
-          t.request_type === 'biz_trip' && t.status === 'in_progress' &&
-          t.applicant_id === p.id && new Date(t.trip_started_at) <= new Date(date)
-        );
-        const inLeave = tripLeaves.some(t =>
-          t.request_type === 'leave' && t.status === 'active' &&
-          t.applicant_id === p.id && date >= fmtDate(t.start_date) && date <= fmtDate(t.end_date)
-        );
-        status = inTrip && !inLeave ? '未提交' : '休息';
+        status = '公司';
       }
 
       rowData.push(date, location, status, '');
