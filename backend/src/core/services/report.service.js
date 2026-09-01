@@ -1245,14 +1245,14 @@ async function exportStatusBoardCSV(month, restDaysInput) {
 
   // 5. Build Workbook
   const wb = new ExcelJS.Workbook();
-  wb.creator = '\u6280\u672f\u5de5\u7a0b\u4e2d\u5fc3';
+  wb.creator = '浙江贝良';
   const pers = allWorkers.length;
   const totalCols = pers * 3;
   const ws1 = wb.addWorksheet('\u516c\u51fa\u539f\u59cb\u8bb0\u5f55');
   [12, 25, 10].forEach((w, i) => { for (let j = 0; j < pers; j++) ws1.getColumn(j * 3 + i + 1).width = w; });
 
   // R1: Title
-  const titleRow = ws1.addRow(['\u6280\u672f\u5de5\u7a0b\u4e2d\u5fc3\u516c\u51fa\u52a0\u73ed\u7edf\u8ba1\u8868']);
+  const titleRow = ws1.addRow(['浙江贝良公出加班统计表']);
   ws1.mergeCells(1, 1, 1, totalCols);
   titleRow.eachCell(c => {
     c.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
@@ -1282,7 +1282,8 @@ async function exportStatusBoardCSV(month, restDaysInput) {
   });
 
   // 6. Fill daily data
-  const overtime = {};
+  const overtime = {};   // 加班天数：休息日 + 公出日志（除请假外，含待工）
+  const subsidy = {};    // 补贴天数：休息日 + 工作（陆/海）/在途（原"加班天数"口径）
   const days = [];
   for (let d = 1; d <= daysInMonth; d++) days.push(month + '-' + String(d).padStart(2, '0'));
 
@@ -1302,11 +1303,15 @@ async function exportStatusBoardCSV(month, restDaysInput) {
       // Leave empty when no report (no auto-fill)
       rowData.push(displayDate, displayProject, displayStatus);
 
-      // Overtime: rest day + 工作类日志 = 加班（请假/待工/调休不计入，考勤 PRD 860-881）
-      const OVERTIME_TYPES = new Set(['工作（陆）', '工作（海）', '在途']);
+      // 补贴天数（原"加班天数"口径）: 休息日 + 工作（陆/海）/在途（兼容旧短名 工作/作业）
+      // 加班天数（新口径）: 休息日 + 公出日志除请假外均计入（含待工）
+      const SUBSIDY_TYPES = new Set(['工作（陆）', '工作（海）', '在途']);
       const otStatus = String(info ? info.status : '').trim();
-      const otNormalized = (otStatus === '工作' || otStatus === '作业') ? '工作（陆）' : otStatus; // 兼容旧短名
-      if (rest && info && OVERTIME_TYPES.has(otNormalized)) { overtime[w.id] = (overtime[w.id] || 0) + 1; }
+      const otNormalized = (otStatus === '工作' || otStatus === '作业') ? '工作（陆）' : otStatus;
+      if (rest && info && otNormalized && otNormalized !== '请假') {
+        overtime[w.id] = (overtime[w.id] || 0) + 1;
+        if (SUBSIDY_TYPES.has(otNormalized)) subsidy[w.id] = (subsidy[w.id] || 0) + 1;
+      }
     });
 
     const dataRow = ws1.addRow(rowData);
@@ -1331,27 +1336,27 @@ async function exportStatusBoardCSV(month, restDaysInput) {
   });
 
   // 7. Sheet2 - Overtime summary
-  const ws2 = wb.addWorksheet('\u52a0\u73ed\u6c47\u603b');
-  [6, 18, 16].forEach((w, i) => ws2.getColumn(i + 1).width = w);
-  const s2Title = ws2.addRow(['\u6280\u672f\u5de5\u7a0b\u4e2d\u5fc3\u516c\u51fa\u52a0\u73ed\u7edf\u8ba1\u8868']);
-  ws2.mergeCells(1, 1, 1, 3);
+  const ws2 = wb.addWorksheet('加班汇总');
+  [6, 18, 16, 16].forEach((w, i) => ws2.getColumn(i + 1).width = w);
+  const s2Title = ws2.addRow(['浙江贝良公出加班统计表']);
+  ws2.mergeCells(1, 1, 1, 4);
   s2Title.eachCell(c => {
     c.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2B579A' } };
     c.alignment = { horizontal: 'center' };
   });
-  const s2Hdr = ws2.addRow(['\u5e8f\u53f7', '\u59d3\u540d', '\u52a0\u73ed\u5929\u6570']);
+  const s2Hdr = ws2.addRow(['序号', '姓名', '补贴天数', '加班天数']);
   s2Hdr.eachCell(c => {
     c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
     c.alignment = { horizontal: 'center' };
   });
   const overtimeList = allWorkers
-    .map((w, i) => ({ idx: i + 1, name: w.user_name, days: overtime[w.id] || 0 }))
-    .filter(x => x.days > 0)
-    .sort((a, b) => b.days - a.days);
+    .map((w, i) => ({ idx: i + 1, name: w.user_name, sub: subsidy[w.id] || 0, ot: overtime[w.id] || 0 }))
+    .filter(x => x.sub > 0 || x.ot > 0)
+    .sort((a, b) => (b.ot - a.ot) || (b.sub - a.sub));
   overtimeList.forEach(x => {
-    const r = ws2.addRow([x.idx, x.name, x.days]);
+    const r = ws2.addRow([x.idx, x.name, x.sub, x.ot]);
     r.eachCell(c => {
       c.border = { top: { style: 'thin', color: { argb: 'FFD0D0D0' } }, bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } } };
       c.alignment = { horizontal: 'center' };
@@ -1359,7 +1364,7 @@ async function exportStatusBoardCSV(month, restDaysInput) {
   });
 
   const buffer = await wb.xlsx.writeBuffer();
-  return { buffer, filename: y + '\u5e74' + mStr + '\u6708\u6280\u672f\u5de5\u7a0b\u4e2d\u5fc3\u516c\u51fa\u52a0\u73ed\u7edf\u8ba1\u8868.xlsx' };
+  return { buffer, filename: y + '年' + mStr + '月浙江贝良公出加班统计表.xlsx' };
 }
 
 /**

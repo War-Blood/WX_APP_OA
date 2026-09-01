@@ -257,7 +257,7 @@ async function handleExportStatusBoard() {
     const holidayCount = allRestDays.length - weekendCount
     const msg = `${month}\n\n工作日 ${data.workDays} 天 · 休息日 ${data.restDays} 天`
       + (holidayCount > 0 ? `\n其中节假日 ${holidayCount} 天（非周末休息日）` : '')
-      + '\n\n休息日有公出日志即算加班，确认导出？'
+      + '\n\n休息日公出日志（除请假外）计入加班天数，工作/在途另计补贴天数，确认导出？'
 
     await ElMessageBox.confirm(msg, '加班表 — 出勤日历排班', {
       confirmButtonText: '确认导出',
@@ -275,7 +275,7 @@ async function handleExportStatusBoard() {
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = month + '技术工程中心公出加班统计表.xlsx'
+    a.href = url; a.download = month + '浙江贝良公出加班统计表.xlsx'
     a.click(); URL.revokeObjectURL(url)
     toast.success('导出成功')
   } catch (e) {
