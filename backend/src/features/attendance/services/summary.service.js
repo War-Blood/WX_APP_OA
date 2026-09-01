@@ -16,9 +16,32 @@ function fmtDate(d) {
  * 考勤汇总服务
  */
 
+/**
+ * 浙江贝良部门树（根节点 departments.id=23）：返回含自身及全部子部门的 id 列表
+ * 沿 parent_id 上溯，带 guard 防脏数据自引用死循环
+ */
+async function getBeiliangDeptIds() {
+  const deptRows = await db.query('SELECT id, parent_id FROM departments WHERE deleted_at IS NULL');
+  const parentMap = {};
+  deptRows.forEach(d => { parentMap[d.id] = d.parent_id; });
+  const BEILIANG_ROOT = 23;
+  const ids = [];
+  deptRows.forEach(d => {
+    let cur = d.id;
+    let guard = 0;
+    while (cur != null && guard < 50) {
+      if (cur === BEILIANG_ROOT) { ids.push(d.id); break; }
+      cur = parentMap[cur];
+      guard++;
+    }
+  });
+  return ids;
+}
+
 async function list({ startDate, endDate, departmentId, userId, page = 1, pageSize = 50 }) {
-  // 1. 查在职人员
-  const userConditions = ["u.status = 'active'", 'u.deleted_at IS NULL'];
+  // 1. 查在职人员（范围限定：仅浙江贝良部门树下）
+  const beiliangIds = await getBeiliangDeptIds();
+  const userConditions = ["u.status = 'active'", 'u.deleted_at IS NULL', `u.department_id IN (${beiliangIds.length ? beiliangIds.join(',') : '0'})`];
   const userParams = [];
   if (departmentId) { userConditions.push('u.department_id = ?'); userParams.push(departmentId); }
   if (userId) { userConditions.push('u.id = ?'); userParams.push(userId); }
@@ -53,7 +76,7 @@ async function list({ startDate, endDate, departmentId, userId, page = 1, pageSi
     [...userIds, startDate, endDate]
   ) : [];
   const reportMap = {};
-  reports.forEach(r => { const k = `${r.user_id}_${r.report_date.toISOString().slice(0,10)}`; reportMap[k] = r.today_work_type; });
+  reports.forEach(r => { const k = `${r.user_id}_${fmtDate(r.report_date)}`; reportMap[k] = r.today_work_type; });
 
   // 4. 查出差/请假
   const tripLeaves = userIds.length > 0 ? await db.query(
@@ -68,13 +91,14 @@ async function list({ startDate, endDate, departmentId, userId, page = 1, pageSi
     const end = beijingDate(endDate);
 
     while (cur <= end) {
-      const ds = cur.toISOString().slice(0, 10);
+      const ds = fmtDate(cur);
       const rKey = `${u.id}_${ds}`;
       const schedStatus = schedMap[ds];
 
       let displayStatus;
-      if (reportType) {
-        displayStatus = mapWorkType(reportType);
+      const dayReport = reportMap[rKey];
+      if (dayReport) {
+        displayStatus = mapWorkType(dayReport);
       } else if (schedStatus) {
         displayStatus = mapSchedule(schedStatus);
       } else {
@@ -90,8 +114,8 @@ async function list({ startDate, endDate, departmentId, userId, page = 1, pageSi
 
       // 未提交检测：处于出差中 + 无公出日志 + 无请假
       const inTrip = tripLeaves.some(t => t.request_type === 'biz_trip' && t.status === 'in_progress' && t.applicant_id === u.id && new Date(t.trip_started_at) <= cur);
-      const inLeave = tripLeaves.some(t => t.request_type === 'leave' && t.status === 'active' && t.applicant_id === u.id && ds >= t.start_date.toISOString().slice(0,10) && ds <= t.end_date.toISOString().slice(0,10));
-      if (inTrip && !reportType && !inLeave) missingDays++;
+      const inLeave = tripLeaves.some(t => t.request_type === 'leave' && t.status === 'active' && t.applicant_id === u.id && ds >= fmtDate(t.start_date) && ds <= fmtDate(t.end_date));
+      if (inTrip && !reportMap[rKey] && !inLeave) missingDays++;
 
       cur.setDate(cur.getDate() + 1);
     }
@@ -109,13 +133,16 @@ async function list({ startDate, endDate, departmentId, userId, page = 1, pageSi
  * 数据优先级: 公出日志(daily_reports) > 排班(attendance_schedules)
  * 公出日志 today_work_type 映射: 工作(陆)→现场(陆) / 工作(海)→现场(海) / 在途→在途 / 待工→待工 / 请假→请假
  * 排班 status 映射: work→现场(陆) / rest→休息 / biz_trip→在途 / leave→请假
- * 加班天数公式: 工作日(现场+在途) + 休息日(现场+在途) ≥ 当月工作日 → 超出部分为加班
+ * 补贴天数公式: 休息日 且 状态为 工作(陆/海)/在途（原"加班天数"口径）
+ * 加班天数公式: 休息日 且 有公出日志且状态≠请假（含待工）
+ * 人员范围: 仅浙江贝良部门树（departments.id=23）下人员
  */
 async function exportExcel({ startDate, endDate, departmentId, userId }) {
   const ExcelJS = require('exceljs');
 
-  // 1. 获取人员列表
-  const userConditions = ["u.status = 'active'", 'u.deleted_at IS NULL'];
+  // 1. 获取人员列表（范围限定：仅浙江贝良部门树下）
+  const beiliangIds = await getBeiliangDeptIds();
+  const userConditions = ["u.status = 'active'", 'u.deleted_at IS NULL', `u.department_id IN (${beiliangIds.length ? beiliangIds.join(',') : '0'})`];
   const userParams = [];
   if (departmentId) { userConditions.push('u.department_id = ?'); userParams.push(departmentId); }
   if (userId) { userConditions.push('u.id = ?'); userParams.push(userId); }
@@ -131,7 +158,7 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
   const days = [];
   const cur = new Date(startDate);
   const end = new Date(endDate);
-  while (cur <= end) { days.push(cur.toISOString().slice(0, 10)); cur.setDate(cur.getDate() + 1); }
+  while (cur <= end) { days.push(fmtDate(cur)); cur.setDate(cur.getDate() + 1); }
 
   // 3. 查询排班（公司级）
   const schedules = await db.query(
@@ -155,7 +182,7 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
   ) : [];
   const reportMap = {};
   reports.forEach(r => {
-    reportMap[`${r.user_id}_${r.report_date.toISOString().slice(0, 10)}`] = {
+    reportMap[`${r.user_id}_${fmtDate(r.report_date)}`] = {
       workType: r.today_work_type,
       area: r.area || ''
     };
@@ -169,13 +196,13 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
 
   // 6. 构建 Workbook
   const wb = new ExcelJS.Workbook();
-  wb.creator = '技术工程中心';
+  wb.creator = '浙江贝良';
   const ws1 = wb.addWorksheet('公出原始记录');
   const totalCols = persons.length * 4;
   [12, 25, 10, 1].forEach((w, i) => { for (let j = 0; j < persons.length; j++) ws1.getColumn(j * 4 + i + 1).width = w; });
 
   // R1: 标题行 — 白字深蓝底
-  const titleRow = ws1.addRow(['技术工程中心公出加班统计表']);
+  const titleRow = ws1.addRow(['浙江贝良公出加班统计表']);
   ws1.mergeCells(1, 1, 1, totalCols);
   titleRow.eachCell(c => {
     c.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
@@ -205,11 +232,22 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
   });
 
   // 7. 逐日逐人填充数据（核心逻辑 — PRD 4.5/8 公出日志>排班优先级）
+  // 补贴天数（原"加班天数"口径）: 休息日 + 工作（陆/海）/在途（兼容旧短名 工作）
+  // 加班天数（新口径）: 休息日 + 公出日志除请假外均计入（含待工）
   const overtime = {};
-  persons.forEach(p => { overtime[p.userId] = 0; });
+  const subsidy = {};
+  persons.forEach(p => { overtime[p.userId] = 0; subsidy[p.userId] = 0; });
+
+  // 休息日判定：排班 rest；无排班记录时按周末（与 /report/export-status-board 一致）
+  function isRestDay(dateStr) {
+    const s = schedMap[dateStr];
+    if (s) return s === 'rest';
+    return [0, 6].includes(new Date(dateStr).getDay());
+  }
 
   days.forEach(date => {
     const rowData = [];
+    const rest = isRestDay(date);
     persons.forEach(p => {
       const rKey = `${p.id}_${date}`;
       const report = reportMap[rKey];
@@ -222,16 +260,17 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
       let status;
       if (report) {
         status = mapExportWorkType(report.workType);
-        // 统计加班：工作或出差状态计入"现场/在途"
-        if (status === '现场（陆）' || status === '现场（海）' || status === '在途') {
+        const wt = String(report.workType || '').trim();
+        // 仅休息日计入：加班=除请假外（含待工）；补贴=工作（陆/海）/在途
+        if (rest && wt && wt !== '请假') {
           overtime[p.id] = (overtime[p.id] || 0) + 1;
+          if (wt === '工作（陆）' || wt === '工作（海）' || wt === '在途' || wt === '工作') {
+            subsidy[p.id] = (subsidy[p.id] || 0) + 1;
+          }
         }
       } else if (schedStatus) {
         status = mapExportSchedule(schedStatus);
-        // 排班的工作日出差计入加班统计
-        if (schedStatus === 'work' || schedStatus === 'biz_trip') {
-          overtime[p.id] = (overtime[p.id] || 0) + 1;
-        }
+        // 休息日无公出日志：不计入加班/补贴
       } else {
         // 出差期间无公出日志：标记为"未提交"（PRD 4.3 出差未提交检测）
         const inTrip = tripLeaves.some(t =>
@@ -240,7 +279,7 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
         );
         const inLeave = tripLeaves.some(t =>
           t.request_type === 'leave' && t.status === 'active' &&
-          t.applicant_id === p.id && date >= t.start_date.toISOString().slice(0, 10) && date <= t.end_date.toISOString().slice(0, 10)
+          t.applicant_id === p.id && date >= fmtDate(t.start_date) && date <= fmtDate(t.end_date)
         );
         status = inTrip && !inLeave ? '未提交' : '休息';
       }
@@ -259,27 +298,31 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
   });
 
   // 8. Sheet2 — 加班记录统计表
-  const ws2 = wb.addWorksheet('加班记录统计表');
-  [6, 18, 16].forEach((w, i) => { ws2.getColumn(i + 1).width = w; });
+  const ws2 = wb.addWorksheet('加班汇总');
+  [6, 18, 16, 16].forEach((w, i) => { ws2.getColumn(i + 1).width = w; });
 
-  const sTitle = ws2.addRow(['技术工程中心公出加班统计表']);
-  ws2.mergeCells(1, 1, 1, 3);
+  const sTitle = ws2.addRow(['浙江贝良公出加班统计表']);
+  ws2.mergeCells(1, 1, 1, 4);
   sTitle.eachCell(c => {
     c.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2B579A' } };
     c.alignment = { horizontal: 'center' };
   });
 
-  const sHdr = ws2.addRow(['序号', '姓名', '加班天数']);
+  const sHdr = ws2.addRow(['序号', '姓名', '补贴天数', '加班天数']);
   sHdr.eachCell(c => {
     c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
     c.alignment = { horizontal: 'center' };
   });
 
-  // 加班天数 = total overtime days（PRD 4.5 公式：工作日天数合计）
-  persons.forEach((p, i) => {
-    const r = ws2.addRow([i + 1, p.userName, overtime[p.id] || 0]);
+  // 只列出有补贴或加班的人员，按加班天数降序（与 /report/export-status-board 一致）
+  const statList = persons
+    .map((p, i) => ({ idx: i + 1, name: p.userName, sub: subsidy[p.id] || 0, ot: overtime[p.id] || 0 }))
+    .filter(x => x.sub > 0 || x.ot > 0)
+    .sort((a, b) => (b.ot - a.ot) || (b.sub - a.sub));
+  statList.forEach(x => {
+    const r = ws2.addRow([x.idx, x.name, x.sub, x.ot]);
     r.eachCell(c => {
       c.border = {
         top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
@@ -291,7 +334,7 @@ async function exportExcel({ startDate, endDate, departmentId, userId }) {
 
   const buffer = await wb.xlsx.writeBuffer();
   const [y, m] = startDate.split('-');
-  return { buffer, filename: `${y}年${parseInt(m)}月技术工程中心公出加班统计表.xlsx` };
+  return { buffer, filename: `${y}年${parseInt(m)}月浙江贝良公出加班统计表.xlsx` };
 }
 
 function mapExportWorkType(wt) {
@@ -347,7 +390,7 @@ async function mySummary({ userId, startDate, endDate }) {
   );
   const reportMap = {};
   reports.forEach(r => {
-    reportMap[r.report_date.toISOString().slice(0, 10)] = { workType: r.today_work_type, area: r.area, note: r.work_content };
+    reportMap[fmtDate(r.report_date)] = { workType: r.today_work_type, area: r.area, note: r.work_content };
   });
 
   // 3. 查出差/请假记录
@@ -363,7 +406,7 @@ async function mySummary({ userId, startDate, endDate }) {
   const end = new Date(endDate);
 
   while (cur <= end) {
-    const ds = cur.toISOString().slice(0, 10);
+    const ds = fmtDate(cur);
     const report = reportMap[ds];
     const sched = schedMap[ds];
 
