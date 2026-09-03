@@ -585,20 +585,22 @@ async function getDailyStatus(dateStr, viewParams, statKey) {
   const userScopeSql = vf.clauses.length ? ` AND ${vf.clauses.join(' AND ')}` : '';
   const deptParams = vf.params;
 
-  // 从当日报告反查涉及的人员（排除管理员；按视图筛选展示范围）
+  // 从当日报告反查涉及的人员（来源=当日已有日报/被代填记录，填了日报即参与工作；
+  // 不按角色排除，使登录角色虽是 admin 但实际填报/被代填的员工也能计入，
+  // 按视图筛选展示范围；纯管理账号因 INNER JOIN 无日报不会进入）
   const allUserRows = await db.query(
     `SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
      FROM users u
      INNER JOIN daily_reports dr ON u.id = dr.user_id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}
+       AND u.deleted_at IS NULL${userScopeSql}
      UNION
      SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code, u.worker_status
      FROM users u
      INNER JOIN daily_report_workers drw ON u.id = drw.worker_uid
      INNER JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.report_date = ? AND dr.status != 'draft' AND dr.deleted_at IS NULL
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}
+       AND u.deleted_at IS NULL${userScopeSql}
      ORDER BY id ASC`,
     [date, ...deptParams, date, ...deptParams]
   );
@@ -689,10 +691,11 @@ async function getDailyStatus(dateStr, viewParams, statKey) {
   });
 
   // 兜底：从 workers 文本字段解析被代填人（daily_report_workers 表为空时的后备方案）
-  // 姓名映射从「范围内全部在职用户」构建（而非仅已有报告者），使 text-only 代填人员也能被恢复（修复数据缺失）
+  // 姓名映射从「范围内全部在职用户」构建（而非仅已有报告者），使 text-only 代填人员也能被恢复（修复数据缺失）；
+  // 不按角色排除，与 allUserRows 口径一致（范围内已填报/被代填的 admin 角色员工也能被解析）
   const allScopeUsers = await db.query(
     `SELECT u.id, u.nickname, u.user_name FROM users u
-     WHERE u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}`,
+     WHERE u.deleted_at IS NULL${userScopeSql}`,
     deptParams
   );
   const nameToUser = {};
@@ -826,7 +829,10 @@ async function getTomorrowStatus(date, viewParams, statKey) {
 
   // 与今日状态保持同一人员口径：取 N-1 日“全员当日状态”展示的人员集合（同一 statKey 视图）
   const dailyStatus = await getDailyStatus(prevDate, viewParams, statKey);
-  const dailyWorkers = dailyStatus.workers || [];
+  // 明日安排只记录出差人员：剔除 N-1 日提交“工作日报(office)”的坐班者（status='office'）；
+  // 出差(提交/被代填/补公出)、出差在途(未提交)、请假人员保留；
+  // 其中未填明日计划者由前端归入「未填写」分组提示
+  const dailyWorkers = (dailyStatus.workers || []).filter(u => u.status !== 'office');
 
   // N-1 日日报中填写的明日工作类型（本人提交，含工作日报）
   const ownRows = await db.query(
@@ -1045,6 +1051,9 @@ async function getDailyCounts(month, viewParams) {
   const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
 
   const data = [];
+  // 视图范围(RLS)内的用户白名单：submitted 与 total 须同口径，否则员工端(self/部门)会出现
+  // 「已提交数超出需提交基数」的错乱(如员工日历只能看本人，却把全公司已提交人都计入)
+  const activeUid = new Set(activeUsers.map(u => Number(u.id)));
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     // total = 当天在出差的在职人员数(且已入场) + 当天填写了工作日报的提交者
@@ -1054,10 +1063,11 @@ async function getDailyCounts(month, viewParams) {
       !(leaveDateSet[dateStr] && leaveDateSet[dateStr].has(Number(u.id)))
     ).map(u => u.id));
     if (officeDateSet[dateStr]) {
-      officeDateSet[dateStr].forEach(uid => totalSet.add(uid));
+      officeDateSet[dateStr].forEach(uid => { if (activeUid.has(uid)) totalSet.add(uid); });
     }
     const total = totalSet.size;
-    const submitted = submittedSet[dateStr] ? submittedSet[dateStr].size : 0;
+    // 已提交人数同样限定在视图范围内，保证 submitted ≤ total 且口径一致
+    const submitted = (submittedSet[dateStr] ? [...submittedSet[dateStr]].filter(uid => activeUid.has(uid)).length : 0);
     data.push({ date: dateStr, submitted, total });
   }
 
@@ -1152,7 +1162,7 @@ async function getWorkerWorkTypes(month, viewParams) {
      INNER JOIN daily_reports dr ON u.id = dr.user_id
      WHERE dr.status = 'approved'
        AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}
+       AND u.deleted_at IS NULL${userScopeSql}
      UNION
      SELECT DISTINCT u.id, u.nickname, u.user_name, u.worker_code
      FROM users u
@@ -1160,7 +1170,7 @@ async function getWorkerWorkTypes(month, viewParams) {
      INNER JOIN daily_reports dr ON drw.report_id = dr.id
      WHERE dr.status = 'approved' AND dr.report_type != 'office'
        AND DATE_FORMAT(dr.report_date, '%Y-%m') = ?
-       AND u.deleted_at IS NULL AND u.role NOT IN ('admin', 'superadmin')${userScopeSql}
+       AND u.deleted_at IS NULL${userScopeSql}
      ORDER BY id ASC`,
     [month, ...deptParams, month, ...deptParams]
   );
@@ -1230,7 +1240,7 @@ async function getWorkerWorkTypes(month, viewParams) {
 
   // 名字→用户ID 查找表：从「范围内全部在职用户」构建（而非仅 activeWorkers），
   // 使只出现在 workers 文本列、无 daily_report_workers 行的代填人员也能被恢复（修复数据缺失）
-  const scopeWhere = ['u.deleted_at IS NULL', "u.role NOT IN ('admin','superadmin')", ...vf.clauses];
+  const scopeWhere = ['u.deleted_at IS NULL', ...vf.clauses];
   const allScopeUsers = await db.query(
     `SELECT u.id, u.nickname, u.user_name FROM users u WHERE ${scopeWhere.join(' AND ')}`,
     vf.params
