@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { toast } from '@/utils/toast'
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Search, Refresh, Download, Delete } from '@element-plus/icons-vue'
+import { Search, RefreshLeft, Download, Delete, ArrowDown } from '@element-plus/icons-vue'
 import { getStats } from '@/api/report'
 import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreReport, updateReport, exportToWecomSheet } from '@/api/report'
 import type { ReportUpdateResult } from '@/api/report'
@@ -28,7 +28,7 @@ const { bindRef, onHeaderDragEnd } = useTableColumnResize('query')
 // 统计看板 — v2.0 对接 getStats('all')
 const stats = ref<AllStatsResponse | null>(null)
 
-// 日报查询 — 新增筛选
+// 日报查询 — 筛选条件
 const route = useRoute()
 const keyword = ref(typeof route.query.keyword === 'string' ? route.query.keyword : '')
 const statusFilter = ref('')
@@ -36,12 +36,27 @@ const reportTypeFilter = ref('')
 const workTypeFilter = ref('')
 const startDate = ref('')
 const endDate = ref('')
-const attendanceMonth = ref(currentMonthInBeijing())
 const wecomExporting = ref(false)
 const reportList = ref<Record<string, unknown>[]>([])
 const reportTotal = ref(0)
 const reportPage = ref(1)
 const reportPageSize = ref(50)
+
+// 日期区间（单个控件，内部同步 startDate/endDate）
+const dateRange = computed<[string, string] | null>({
+  get: (): [string, string] | null =>
+    startDate.value && endDate.value ? [startDate.value, endDate.value] : null,
+  set: (val: [string, string] | null) => {
+    startDate.value = val?.[0] || ''
+    endDate.value = val?.[1] || ''
+  }
+})
+
+// 已应用的筛选条件数量（用于结果区提示）
+const activeFilterCount = computed(() =>
+  [keyword.value, statusFilter.value, reportTypeFilter.value, workTypeFilter.value, startDate.value || endDate.value]
+    .filter(Boolean).length
+)
 
 // 人员看板
 const workerKeyword = ref('')
@@ -183,6 +198,20 @@ function handleSearchWithValidation() {
   handleSearch()
 }
 
+// 重置筛选：清空条件 + 排序，回到第一页
+function handleResetFilters() {
+  keyword.value = ''
+  statusFilter.value = ''
+  reportTypeFilter.value = ''
+  workTypeFilter.value = ''
+  startDate.value = ''
+  endDate.value = ''
+  sortBy.value = ''
+  sortOrder.value = ''
+  reportPage.value = 1
+  loadReports()
+}
+
 // 表头点击排序（Element Plus order: ascending / descending / null）
 function handleSortChange({ prop, order }: { prop: string | null; order: string | null }) {
   if (!prop || !order) {
@@ -203,6 +232,14 @@ function handleFilterChange(filters: Record<string, string[]>) {
   if ('todayWorkType' in filters) workTypeFilter.value = filters.todayWorkType?.[0] || ''
   reportPage.value = 1
   loadReports()
+}
+
+// 导出菜单分发（4 类导出收进一个下拉，避免按钮堆叠）
+function handleExportCommand(command: string) {
+  if (command === 'csv') handleExport()
+  else if (command === 'attendance') handleExportAttendance()
+  else if (command === 'statusBoard') handleExportStatusBoard()
+  else if (command === 'wecom') handleExportWecom()
 }
 
 async function handleExport() {
@@ -233,19 +270,33 @@ async function handleExport() {
 }
 
 async function handleExportAttendance() {
-  if (!attendanceMonth.value) { toast.warning('请选择月份'); return }
+  // 月份改为导出时询问，工具栏不再常驻月份选择器
+  let month = ''
+  try {
+    const { value } = await ElMessageBox.prompt('选择要导出的月份', '导出月度考勤', {
+      confirmButtonText: '导出',
+      cancelButtonText: '取消',
+      inputType: 'month',
+      inputPlaceholder: '选择月份',
+      inputValue: currentMonthInBeijing(),
+    })
+    month = value || ''
+  } catch {
+    return
+  }
+  if (!month) { toast.warning('请选择月份'); return }
   try {
     const token = localStorage.getItem('token') || ''
     const res = await fetch(`${apiBase}/report/export-attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ month: attendanceMonth.value })
+      body: JSON.stringify({ month })
     })
     if (!res.ok) throw new Error('导出失败')
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = 'attendance-' + attendanceMonth.value + '.csv'
+    a.href = url; a.download = 'attendance-' + month + '.csv'
     a.click(); URL.revokeObjectURL(url)
     toast.success('考勤导出成功')
   } catch {
@@ -496,44 +547,74 @@ onMounted(() => { loadStats(); loadReports() })
 
 <template>
   <div class="report-page">
-    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-      <el-tab-pane v-for="t in tabItems" :key="t.name" :label="t.label" :name="t.name" />
-    </el-tabs>
+    <!-- 页签导航 -->
+    <div class="tabs-bar">
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+        <el-tab-pane v-for="t in tabItems" :key="t.name" :label="t.label" :name="t.name" />
+      </el-tabs>
+    </div>
 
     <!-- ====== Tab 1: 统计看板 ====== -->
-    <template v-if="activeTab === 'stats'">
-      <ReportStatsPanel :stats="stats" :loading="statsLoading" />
-    </template>
+    <ReportStatsPanel v-if="activeTab === 'stats'" :stats="stats" :loading="statsLoading" />
 
     <!-- ====== Tab 2: 日报查询 ====== -->
-    <template v-if="activeTab === 'query'">
-      <div class="toolbar">
-        <div class="toolbar-row">
-          <el-input v-model="keyword" placeholder="搜索项目/人员/工作内容" clearable :prefix-icon="Search" style="width:240px" @clear="handleSearchWithValidation" @keyup.enter="handleSearchWithValidation" />
-          <el-select v-model="statusFilter" placeholder="状态" style="width:110px" @change="handleSearch">
+    <el-card v-if="activeTab === 'query'" class="panel" shadow="never">
+      <!-- 筛选条件 + 导出操作 -->
+      <div class="filter-bar">
+        <div class="filter-fields">
+          <el-input
+            v-model="keyword"
+            class="f-search"
+            placeholder="搜索项目/人员/工作内容"
+            clearable
+            :prefix-icon="Search"
+            @clear="handleSearchWithValidation"
+            @keyup.enter="handleSearchWithValidation"
+          />
+          <el-select v-model="statusFilter" class="f-select" placeholder="状态" @change="handleSearch">
             <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
-          <el-select v-model="reportTypeFilter" placeholder="日志类型" style="width:130px" @change="handleSearch">
+          <el-select v-model="reportTypeFilter" class="f-select" placeholder="日志类型" @change="handleSearch">
             <el-option v-for="o in reportTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
-          <el-select v-model="workTypeFilter" placeholder="工作类型" style="width:130px" @change="handleSearch">
+          <el-select v-model="workTypeFilter" class="f-select" placeholder="工作类型" @change="handleSearch">
             <el-option v-for="o in workTypeOptions" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
-          <el-date-picker v-model="startDate" type="date" placeholder="开始日期" style="width:140px" @change="handleSearchWithValidation" value-format="YYYY-MM-DD" />
-          <el-date-picker v-model="endDate" type="date" placeholder="结束日期" style="width:140px" @change="handleSearchWithValidation" value-format="YYYY-MM-DD" />
+          <el-date-picker
+            v-model="dateRange"
+            class="f-date"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            @change="handleSearchWithValidation"
+          />
         </div>
-        <div class="toolbar-row">
-          <el-button :icon="Refresh" @click="handleSearchWithValidation">刷新</el-button>
-          <el-button type="success" :icon="Download" @click="handleExport">导出CSV</el-button>
-          <el-date-picker v-model="attendanceMonth" type="month" placeholder="选择月份" style="width:140px" format="YYYY-MM" value-format="YYYY-MM" />
-          <el-button type="primary" :icon="Download" @click="handleExportAttendance">导出考勤</el-button>
-          <el-button type="danger" :icon="Download" @click="handleExportStatusBoard">导出加班表</el-button>
-          <el-button type="warning" :icon="Download" :loading="wecomExporting" @click="handleExportWecom">导出到企微表格</el-button>
+
+        <div class="filter-actions">
+          <el-button type="primary" :icon="Search" @click="handleSearchWithValidation">查询</el-button>
+          <el-button :icon="RefreshLeft" @click="handleResetFilters">重置</el-button>
+          <el-dropdown trigger="click" class="export-dropdown" @command="handleExportCommand">
+            <el-button :icon="Download" :loading="wecomExporting">
+              导出<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="csv">导出 CSV</el-dropdown-item>
+                <el-dropdown-item command="attendance">导出月度考勤</el-dropdown-item>
+                <el-dropdown-item command="statusBoard">导出加班表</el-dropdown-item>
+                <el-dropdown-item command="wecom">导出到企微表格</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
+
       <el-table
         :data="reportList"
         v-loading="loading"
+        class="report-table"
         stripe
         border
         highlight-current-row
@@ -543,14 +624,13 @@ onMounted(() => { loadStats(); loadReports() })
         @sort-change="handleSortChange"
         @filter-change="handleFilterChange"
         @row-click="showDetail"
-        style="cursor:pointer"
       >
-        <el-table-column prop="reportDate" label="日报时间" width="110" fixed="left" sortable="custom" :sort-orders="['descending', 'ascending', null]" />
+        <el-table-column prop="reportDate" label="日报时间" width="104" fixed="left" sortable="custom" :sort-orders="['descending', 'ascending', null]" />
         <el-table-column
           prop="reportType"
           column-key="reportType"
           label="日志类型"
-          width="100"
+          width="96"
           align="center"
           sortable="custom"
           :filters="reportTypeHeaderFilters"
@@ -562,27 +642,27 @@ onMounted(() => { loadStats(); loadReports() })
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="submitter" label="填写人" width="100" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="entryDate" label="入场时间" width="110" sortable="custom" :sort-orders="['descending', 'ascending', null]" />
-        <el-table-column prop="project" label="项目名称" min-width="180" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="submitter" label="填写人" width="92" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="entryDate" label="入场时间" width="104" sortable="custom" :sort-orders="['descending', 'ascending', null]" />
+        <el-table-column prop="project" label="项目名称" min-width="200" sortable="custom" show-overflow-tooltip />
         <el-table-column
           prop="todayWorkType"
           column-key="todayWorkType"
           label="工作类型"
-          width="100"
+          width="96"
           sortable="custom"
           :filters="workTypeHeaderFilters"
           :filtered-value="workTypeFilter ? [workTypeFilter] : []"
         />
-        <el-table-column prop="workers" label="作业人员" width="130" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="workContent" label="工作内容" min-width="140" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="todayWork" label="今日工作" min-width="160" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="tomorrowPlan" label="明日计划" min-width="140" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="workers" label="作业人员" width="120" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="workContent" label="工作内容" min-width="130" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="todayWork" label="今日工作" min-width="150" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="tomorrowPlan" label="明日计划" min-width="130" sortable="custom" show-overflow-tooltip />
         <el-table-column
           prop="status"
           column-key="status"
           label="状态"
-          width="80"
+          width="76"
           align="center"
           sortable="custom"
           :filters="statusHeaderFilters"
@@ -594,31 +674,47 @@ onMounted(() => { loadStats(); loadReports() })
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="110" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="warning" link @click.stop="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" link :icon="Delete" @click.stop="handleDelete(row)" />
           </template>
         </el-table-column>
+
+        <template #empty>
+          <el-empty
+            :description="activeFilterCount > 0 ? '没有符合条件的日报，试试调整筛选条件' : '暂无日报数据'"
+            :image-size="70"
+          >
+            <el-button v-if="activeFilterCount > 0" size="small" @click="handleResetFilters">清除筛选</el-button>
+          </el-empty>
+        </template>
       </el-table>
-      <el-empty v-if="!loading && !reportList.length" description="暂无符合条件的日报" />
-      <div class="pagination-wrap">
-        <span class="total-text">共 {{ reportTotal }} 条</span>
+
+      <div class="table-footer">
+        <div class="footer-left">
+          <span class="total-text">共 <b>{{ reportTotal }}</b> 条</span>
+          <template v-if="activeFilterCount > 0">
+            <el-divider direction="vertical" />
+            <span class="filter-hint">已筛选 {{ activeFilterCount }} 项</span>
+            <el-button link type="primary" size="small" @click="handleResetFilters">清除筛选</el-button>
+          </template>
+        </div>
         <el-pagination
           v-model:current-page="reportPage"
           v-model:page-size="reportPageSize"
           :page-sizes="[20, 50, 100]"
           :total="reportTotal"
-          layout="total, sizes, prev, pager, next"
+          layout="sizes, prev, pager, next, jumper"
           background
           @current-change="handleReportPageChange"
           @size-change="handleReportSizeChange"
         />
       </div>
-    </template>
+    </el-card>
 
     <!-- ====== Tab 3: 人员看板 ====== -->
-    <template v-if="activeTab === 'workers'">
+    <el-card v-if="activeTab === 'workers'" class="panel" shadow="never">
       <ReportWorkersPanel
         v-model:worker-keyword="workerKeyword"
         :worker-list="workerList"
@@ -628,12 +724,12 @@ onMounted(() => { loadStats(); loadReports() })
         @refresh="handleWorkerSearch"
         @view-reports="searchPersonReports"
       />
-    </template>
+    </el-card>
 
     <!-- ====== Tab 4: 回收站 ====== -->
-    <template v-if="activeTab === 'trash'">
+    <el-card v-if="activeTab === 'trash'" class="panel" shadow="never">
       <ReportTrashPanel @restored="loadReports" />
-    </template>
+    </el-card>
 
     <!-- 详情弹窗 -->
     <ReportDetailDialog
@@ -646,7 +742,7 @@ onMounted(() => { loadStats(); loadReports() })
     <!-- 编辑弹窗 -->
     <el-dialog v-model="editVisible" title="编辑公出日志" width="750px" destroy-on-close>
       <template v-if="editVisible">
-        <el-descriptions :column="3" border size="small" class="edit-readonly">
+        <el-descriptions :column="2" border size="small" class="edit-readonly">
           <el-descriptions-item label="填写人">{{ editData.submitter }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusTag(editData.status as string).type || 'info'" size="small">
@@ -782,9 +878,113 @@ onMounted(() => { loadStats(); loadReports() })
 </template>
 
 <style scoped lang="scss">
-.toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-.toolbar-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.toolbar-left { display: flex; gap: 12px; align-items: center; }
-.pagination-wrap { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; .total-text { font-size: 14px; color: $text-secondary; } }
-.edit-readonly { margin-bottom: 8px; }
+// 页面骨架：页签导航 + 内容面板，统一 16px 节奏
+.report-page {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-medium;
+}
+
+// 页签导航（白色条，与内容面板同宽）
+.tabs-bar {
+  background: $bg-white;
+  border: 1px solid $border-lighter;
+  border-radius: $border-radius-large;
+  padding: 0 $spacing-medium;
+
+  :deep(.el-tabs__header) {
+    margin: 0;
+  }
+
+  :deep(.el-tabs__item) {
+    height: 48px;
+    line-height: 48px;
+    font-size: $font-size-base;
+  }
+}
+
+// 内容面板
+.panel {
+  border-radius: $border-radius-large;
+
+  :deep(.el-card__body) {
+    padding: $spacing-medium;
+  }
+}
+
+// 筛选区：条件一行、动作一行，动作行导出按钮靠右
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-base;
+  margin-bottom: $spacing-medium;
+}
+
+.filter-fields {
+  display: flex;
+  align-items: center;
+  gap: $spacing-small $spacing-base;
+  flex-wrap: wrap;
+
+  .f-search { width: 260px; }
+  .f-select { width: 132px; }
+  .f-date { width: 260px; }
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-small;
+
+  .export-dropdown {
+    margin-left: auto;
+  }
+}
+
+// 表格
+.report-table {
+  width: 100%;
+
+  :deep(.el-table__row) {
+    cursor: pointer;
+  }
+}
+
+// 结果区：左统计、右分页
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-base;
+  flex-wrap: wrap;
+  margin-top: $spacing-medium;
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: $spacing-small;
+    font-size: $font-size-small;
+    color: $text-secondary;
+
+    b {
+      color: $text-primary;
+      font-weight: 600;
+    }
+
+    .filter-hint {
+      color: $primary-color;
+    }
+  }
+}
+
+.edit-readonly {
+  margin-bottom: $spacing-small;
+}
+
+@media (max-width: 768px) {
+  .filter-fields {
+    .f-search,
+    .f-date { width: 100%; }
+  }
+}
 </style>
