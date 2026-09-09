@@ -110,13 +110,44 @@ function tryParseJSON(str) {
 // 基础 CRUD
 // ==============================
 
+/** 工作类型筛选别名：旧版数据存 '工作'/'作业'，统一归入「工作（陆）」 */
+const WORK_TYPE_ALIASES = {
+  '工作（陆）': ['工作（陆）', '工作', '作业'],
+};
+
+/**
+ * 追加工作类型筛选条件（含旧版别名兼容）
+ * @param {string[]} conditions - SQL 条件数组
+ * @param {Array} params - SQL 参数数组
+ * @param {string} workType - 工作类型
+ * @returns {void}
+ */
+function pushWorkTypeCondition(conditions, params, workType) {
+  const aliases = WORK_TYPE_ALIASES[workType];
+  if (aliases) {
+    conditions.push(`dr.today_work_type IN (${aliases.map(() => '?').join(', ')})`);
+    params.push(...aliases);
+  } else {
+    conditions.push('dr.today_work_type = ?');
+    params.push(workType);
+  }
+}
+
 /**
  * 日报列表（分页+筛选）
  * @param {number} userId - 用户 ID
  * @param {Object} params - 查询参数
+ * @param {number} params.page - 页码
+ * @param {number} params.pageSize - 每页条数
+ * @param {string} [params.status] - 状态（pending 同时匹配 pending / pending_review）
+ * @param {string} [params.reportType] - 日志类型
+ * @param {string} [params.workType] - 工作类型（今日工作类型）
+ * @param {string} [params.startDate] - 起始日期 YYYY-MM-DD
+ * @param {string} [params.endDate] - 结束日期 YYYY-MM-DD
+ * @param {string} [params.keyword] - 关键字（项目/作业人员/工作内容/今日工作）
  * @returns {Promise<{list: Array, total: number}>}
  */
-async function list(userId, { page, pageSize, status, reportType, startDate, endDate, keyword }) {
+async function list(userId, { page, pageSize, status, reportType, workType, startDate, endDate, keyword }) {
   const conditions = ['dr.deleted_at IS NULL'];
   const params = [];
 
@@ -127,12 +158,20 @@ async function list(userId, { page, pageSize, status, reportType, startDate, end
   }
 
   if (status) {
-    conditions.push('dr.status = ?');
-    params.push(status);
+    if (status === 'pending' || status === 'pending_review') {
+      // 待审核：兼容旧版 'pending' 与 v2.0 补公出 'pending_review'
+      conditions.push("dr.status IN ('pending', 'pending_review')");
+    } else {
+      conditions.push('dr.status = ?');
+      params.push(status);
+    }
   }
   if (reportType) {
     conditions.push('dr.report_type = ?');
     params.push(reportType);
+  }
+  if (workType) {
+    pushWorkTypeCondition(conditions, params, workType);
   }
   if (startDate) {
     conditions.push('dr.report_date >= ?');
@@ -987,10 +1026,28 @@ async function getWorkerStats({ keyword, viewId, role, userId }) {
 
 /**
  * 导出 CSV（旧版兼容）
+ * @param {Object} params - 筛选参数
+ * @param {string} [params.status] - 状态（缺省 approved；pending 同时匹配 pending / pending_review）
+ * @param {string} [params.reportType] - 日志类型
+ * @param {string} [params.workType] - 工作类型
+ * @param {string} [params.startDate] - 起始日期 YYYY-MM-DD
+ * @param {string} [params.endDate] - 结束日期 YYYY-MM-DD
+ * @param {string} [params.keyword] - 关键字
+ * @param {string} [params.worker] - 作业人员
+ * @returns {Promise<string>} CSV 字符串
  */
-async function exportCSV({ status, startDate, endDate, keyword, worker }) {
-  const conditions = ['dr.status = ?'];
-  const params = [status || 'approved'];
+async function exportCSV({ status, reportType, workType, startDate, endDate, keyword, worker }) {
+  const conditions = [];
+  const params = [];
+  const effectiveStatus = status || 'approved';
+  if (effectiveStatus === 'pending' || effectiveStatus === 'pending_review') {
+    conditions.push("dr.status IN ('pending', 'pending_review')");
+  } else {
+    conditions.push('dr.status = ?');
+    params.push(effectiveStatus);
+  }
+  if (reportType) { conditions.push('dr.report_type = ?'); params.push(reportType); }
+  if (workType) { pushWorkTypeCondition(conditions, params, workType); }
   if (startDate) { conditions.push('dr.report_date >= ?'); params.push(startDate); }
   if (endDate) { conditions.push('dr.report_date <= ?'); params.push(endDate); }
   if (keyword) {

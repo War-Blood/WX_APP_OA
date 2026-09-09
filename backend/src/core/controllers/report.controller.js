@@ -73,7 +73,7 @@ async function normalizeOfficeReport(data) {
  */
 async function list(req, res, next) {
   try {
-    const { page = 1, pageSize = 50, status, reportType, startDate, endDate, keyword, userId: requestedUserId } = req.body;
+    const { page = 1, pageSize = 50, status, reportType, workType, startDate, endDate, keyword, userId: requestedUserId } = req.body;
     const role = req.user.role;
     // 任何用户均可查询自己的记录（前端回填「最近一次填写」用）；
     // 未显式传 userId（或传的不是自己）时按原规则：admin/superadmin 看全部，普通用户只看自己
@@ -89,6 +89,7 @@ async function list(req, res, next) {
       pageSize: Number(pageSize),
       status,
       reportType,
+      workType,
       startDate,
       endDate,
       keyword,
@@ -597,8 +598,8 @@ async function workerStats(req, res, next) {
  */
 async function exportCSV(req, res, next) {
   try {
-    const { status, startDate, endDate, keyword, worker } = req.body;
-    const csv = await reportService.exportCSV({ status, startDate, endDate, keyword, worker });
+    const { status, reportType, workType, startDate, endDate, keyword, worker } = req.body;
+    const csv = await reportService.exportCSV({ status, reportType, workType, startDate, endDate, keyword, worker });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename=report.csv');
     res.send('﻿' + csv);
