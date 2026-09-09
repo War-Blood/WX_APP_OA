@@ -103,6 +103,32 @@ describe('日报列表 — 筛选条件生成', () => {
     expect(db.query.mock.calls[0][0]).toContain('dr.user_id = ?');
     expect(db.query.mock.calls[0][1]).toEqual([7]);
   });
+
+  test('未传排序：默认按创建时间倒序 + id 次级排序', async () => {
+    const { dataSql } = await runList({});
+    expect(dataSql).toContain('ORDER BY dr.created_at DESC, dr.id DESC');
+  });
+
+  test('排序：白名单列 + asc', async () => {
+    const { dataSql } = await runList({ sortBy: 'reportDate', sortOrder: 'asc' });
+    expect(dataSql).toContain('ORDER BY dr.report_date ASC, dr.id DESC');
+  });
+
+  test('排序：白名单列 + desc', async () => {
+    const { dataSql } = await runList({ sortBy: 'project', sortOrder: 'desc' });
+    expect(dataSql).toContain('ORDER BY dr.project DESC, dr.id DESC');
+  });
+
+  test('排序：非白名单字段回落到 created_at（防注入）', async () => {
+    const { dataSql } = await runList({ sortBy: 'dr.id; DROP TABLE users', sortOrder: 'asc' });
+    expect(dataSql).toContain('ORDER BY dr.created_at ASC, dr.id DESC');
+    expect(dataSql).not.toContain('DROP TABLE');
+  });
+
+  test('排序：未知方向按 desc 处理', async () => {
+    const { dataSql } = await runList({ sortBy: 'status', sortOrder: 'weird' });
+    expect(dataSql).toContain('ORDER BY dr.status DESC, dr.id DESC');
+  });
 });
 
 describe('日报导出 CSV — 筛选条件生成', () => {

@@ -115,6 +115,21 @@ const WORK_TYPE_ALIASES = {
   '工作（陆）': ['工作（陆）', '工作', '作业'],
 };
 
+/** 列表排序字段白名单（前端列 prop → 数据库列）；未命中回落到 created_at */
+const SORT_COLUMNS = {
+  reportDate: 'dr.report_date',
+  reportType: 'dr.report_type',
+  submitter: 'dr.submitter_name',
+  entryDate: 'dr.entry_date',
+  project: 'dr.project',
+  todayWorkType: 'dr.today_work_type',
+  workers: 'dr.workers',
+  workContent: 'dr.work_content',
+  todayWork: 'dr.today_work',
+  tomorrowPlan: 'dr.tomorrow_plan',
+  status: 'dr.status',
+};
+
 /**
  * 追加工作类型筛选条件（含旧版别名兼容）
  * @param {string[]} conditions - SQL 条件数组
@@ -145,9 +160,11 @@ function pushWorkTypeCondition(conditions, params, workType) {
  * @param {string} [params.startDate] - 起始日期 YYYY-MM-DD
  * @param {string} [params.endDate] - 结束日期 YYYY-MM-DD
  * @param {string} [params.keyword] - 关键字（项目/作业人员/工作内容/今日工作）
+ * @param {string} [params.sortBy] - 排序字段（SORT_COLUMNS 白名单，如 reportDate）
+ * @param {string} [params.sortOrder] - 排序方向 asc/desc（缺省 desc）
  * @returns {Promise<{list: Array, total: number}>}
  */
-async function list(userId, { page, pageSize, status, reportType, workType, startDate, endDate, keyword }) {
+async function list(userId, { page, pageSize, status, reportType, workType, startDate, endDate, keyword, sortBy, sortOrder }) {
   const conditions = ['dr.deleted_at IS NULL'];
   const params = [];
 
@@ -193,12 +210,15 @@ async function list(userId, { page, pageSize, status, reportType, workType, star
   const total = countRows[0].total;
 
   const offset = (page - 1) * pageSize;
+  // 排序：白名单列 + asc/desc，默认按创建时间倒序；id 作为稳定分页的次级排序
+  const orderColumn = SORT_COLUMNS[sortBy] || 'dr.created_at';
+  const orderDirection = String(sortOrder).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
   const dataSql = `
     SELECT dr.*, u.nickname AS userName, u.department
     FROM daily_reports dr
     LEFT JOIN users u ON dr.user_id = u.id
     ${whereClause}
-    ORDER BY dr.created_at DESC
+    ORDER BY ${orderColumn} ${orderDirection}, dr.id DESC
     LIMIT ? OFFSET ?
   `;
   const rows = await db.query(dataSql, [...params, pageSize, offset]);

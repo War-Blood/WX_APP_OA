@@ -73,7 +73,7 @@ async function normalizeOfficeReport(data) {
  */
 async function list(req, res, next) {
   try {
-    const { page = 1, pageSize = 50, status, reportType, workType, startDate, endDate, keyword, userId: requestedUserId } = req.body;
+    const { page = 1, pageSize = 50, status, reportType, workType, startDate, endDate, keyword, sortBy, sortOrder, userId: requestedUserId } = req.body;
     const role = req.user.role;
     // 任何用户均可查询自己的记录（前端回填「最近一次填写」用）；
     // 未显式传 userId（或传的不是自己）时按原规则：admin/superadmin 看全部，普通用户只看自己
@@ -93,6 +93,8 @@ async function list(req, res, next) {
       startDate,
       endDate,
       keyword,
+      sortBy,
+      sortOrder,
     });
 
     res.json(paginated(reportList, total, Number(page), Number(pageSize)));
