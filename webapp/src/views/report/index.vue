@@ -652,7 +652,7 @@ onMounted(() => { loadStats(); loadReports() })
         </el-table-column>
         <el-table-column prop="submitter" label="填写人" width="92" sortable="custom" show-overflow-tooltip />
         <el-table-column prop="entryDate" label="入场时间" width="104" sortable="custom" :sort-orders="['descending', 'ascending', null]" />
-        <el-table-column prop="project" label="项目名称" min-width="200" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="project" label="项目名称" min-width="220" sortable="custom" show-overflow-tooltip />
         <el-table-column
           prop="todayWorkType"
           column-key="todayWorkType"
@@ -663,15 +663,16 @@ onMounted(() => { loadStats(); loadReports() })
           :filtered-value="workTypeFilter ? [workTypeFilter] : []"
         />
         <el-table-column prop="workers" label="作业人员" width="120" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="workContent" label="工作内容" min-width="130" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="todayWork" label="今日工作" min-width="150" sortable="custom" show-overflow-tooltip />
-        <el-table-column prop="tomorrowPlan" label="明日计划" min-width="130" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="workContent" label="工作内容" min-width="160" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="todayWork" label="今日工作" min-width="180" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="tomorrowPlan" label="明日计划" min-width="140" sortable="custom" show-overflow-tooltip />
         <el-table-column
           prop="status"
           column-key="status"
           label="状态"
           width="76"
           align="center"
+          fixed="right"
           sortable="custom"
           :filters="statusHeaderFilters"
           :filtered-value="statusFilter ? [statusFilter] : []"
@@ -913,6 +914,7 @@ onMounted(() => { loadStats(); loadReports() })
   }
 }
 
+
 // 内容面板
 .panel {
   border-radius: $border-radius-large;
@@ -936,7 +938,12 @@ onMounted(() => { loadStats(); loadReports() })
   gap: $spacing-small $spacing-base;
   flex-wrap: wrap;
 
-  .f-search { width: 220px; }
+  // 搜索框弹性伸展，条件行不留大段空白
+  .f-search {
+    flex: 1 1 220px;
+    min-width: 200px;
+    max-width: 420px;
+  }
   .f-select { width: 120px; }
   .f-date { width: 240px; }
 }
@@ -993,14 +1000,30 @@ onMounted(() => { loadStats(); loadReports() })
 }
 
 @media (max-width: 768px) {
+  // 窄屏：筛选控件统一整行，避免「两列一排 + 整行」交替的零碎节奏
   .filter-fields {
     .f-search,
-    .f-date { width: 100%; }
+    .f-select,
+    .f-date { width: 100%; max-width: none; }
   }
 
   // 窄屏动作行整体换行，导出按钮不再右推
   .filter-actions {
     .export-dropdown { margin-left: 0; }
+  }
+
+  // 窄屏页签可横向滚动，避免最后一项被裁切
+  .tabs-bar {
+    :deep(.el-tabs__nav-wrap) {
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar { display: none; }
+    }
+
+    :deep(.el-tabs__nav) { white-space: nowrap; }
+    :deep(.el-tabs__item) { padding: 0 12px; }
   }
 }
 </style>
