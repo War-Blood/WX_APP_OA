@@ -926,15 +926,16 @@ onMounted(() => { loadStats(); loadReports() })
   gap: $spacing-small $spacing-base;
   flex-wrap: wrap;
 
-  .f-search { width: 260px; }
-  .f-select { width: 132px; }
-  .f-date { width: 260px; }
+  .f-search { width: 220px; }
+  .f-select { width: 120px; }
+  .f-date { width: 240px; }
 }
 
 .filter-actions {
   display: flex;
   align-items: center;
   gap: $spacing-small;
+  flex-wrap: wrap;
 
   .export-dropdown {
     margin-left: auto;
@@ -985,6 +986,17 @@ onMounted(() => { loadStats(); loadReports() })
   .filter-fields {
     .f-search,
     .f-date { width: 100%; }
+  }
+
+  // 窄屏动作行整体换行，导出按钮不再右推
+  .filter-actions {
+    .export-dropdown { margin-left: 0; }
+  }
+
+  // 窄屏分页只保留翻页，去掉每页条数与跳页（否则溢出面板）
+  .table-footer {
+    :deep(.el-pagination__sizes),
+    :deep(.el-pagination__jump) { display: none; }
   }
 }
 </style>
