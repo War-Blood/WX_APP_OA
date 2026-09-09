@@ -9,6 +9,7 @@ import { getReportList, getReportDetail, getWorkerStats, deleteReport, restoreRe
 import type { ReportUpdateResult } from '@/api/report'
 import type { AllStatsResponse } from '@/api/report'
 import { currentMonthInBeijing } from '@/utils/date'
+import { useAppStore } from '@/stores/app'
 import { useTableColumnResize } from '@/composables/useTableColumnResize'
 import ReportStatsPanel from '@/components/ReportStatsPanel.vue'
 import ReportWorkersPanel from '@/components/ReportWorkersPanel.vue'
@@ -57,6 +58,13 @@ const activeFilterCount = computed(() =>
   [keyword.value, statusFilter.value, reportTypeFilter.value, workTypeFilter.value, startDate.value || endDate.value]
     .filter(Boolean).length
 )
+
+// 窄屏分页：只保留翻页，并减少页码按钮，避免溢出面板
+const appStore = useAppStore()
+const paginationLayout = computed(() =>
+  appStore.isMobile ? 'prev, pager, next' : 'sizes, prev, pager, next, jumper'
+)
+const paginationPagerCount = computed(() => (appStore.isMobile ? 5 : 7))
 
 // 人员看板
 const workerKeyword = ref('')
@@ -705,7 +713,9 @@ onMounted(() => { loadStats(); loadReports() })
           v-model:page-size="reportPageSize"
           :page-sizes="[20, 50, 100]"
           :total="reportTotal"
-          layout="sizes, prev, pager, next, jumper"
+          :layout="paginationLayout"
+          :pager-count="paginationPagerCount"
+          :small="appStore.isMobile"
           background
           @current-change="handleReportPageChange"
           @size-change="handleReportSizeChange"
@@ -991,12 +1001,6 @@ onMounted(() => { loadStats(); loadReports() })
   // 窄屏动作行整体换行，导出按钮不再右推
   .filter-actions {
     .export-dropdown { margin-left: 0; }
-  }
-
-  // 窄屏分页只保留翻页，去掉每页条数与跳页（否则溢出面板）
-  .table-footer {
-    :deep(.el-pagination__sizes),
-    :deep(.el-pagination__jump) { display: none; }
   }
 }
 </style>
