@@ -1014,7 +1014,7 @@ onMounted(() => { loadStats(); loadReports() })
 
   // 窄屏页签可横向滚动，避免最后一项被裁切
   .tabs-bar {
-    :deep(.el-tabs__nav-wrap) {
+    :deep(.el-tabs__nav-scroll) {
       overflow-x: auto;
       overflow-y: hidden;
       scrollbar-width: none;
