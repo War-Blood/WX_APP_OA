@@ -84,6 +84,15 @@ const workTypeOptions = [
   { label: '请假', value: '请假' }
 ]
 
+// 表头筛选选项（与工具栏下拉共用同一筛选状态）
+const statusHeaderFilters = statusOptions.filter(o => o.value).map(o => ({ text: o.label, value: o.value }))
+const reportTypeHeaderFilters = reportTypeOptions.filter(o => o.value).map(o => ({ text: o.label, value: o.value }))
+const workTypeHeaderFilters = workTypeOptions.filter(o => o.value).map(o => ({ text: o.label, value: o.value }))
+
+// 排序（服务端排序：点击表头触发，全量生效而非仅当前页）
+const sortBy = ref('')
+const sortOrder = ref('')
+
 const tabItems = [
   { label: '统计看板', name: 'stats' },
   { label: '日报查询', name: 'query' },
@@ -142,6 +151,7 @@ async function loadReports() {
     if (workTypeFilter.value) params.workType = workTypeFilter.value
     if (startDate.value) params.startDate = startDate.value
     if (endDate.value) params.endDate = endDate.value
+    if (sortBy.value) { params.sortBy = sortBy.value; params.sortOrder = sortOrder.value }
     const res = await getReportList(params)
     reportList.value = (res.list || []) as unknown as Record<string, unknown>[]
     reportTotal.value = res.total || 0
@@ -171,6 +181,28 @@ function validateDateRange() {
 function handleSearchWithValidation() {
   if (!validateDateRange()) return
   handleSearch()
+}
+
+// 表头点击排序（Element Plus order: ascending / descending / null）
+function handleSortChange({ prop, order }: { prop: string | null; order: string | null }) {
+  if (!prop || !order) {
+    sortBy.value = ''
+    sortOrder.value = ''
+  } else {
+    sortBy.value = prop
+    sortOrder.value = order === 'ascending' ? 'asc' : 'desc'
+  }
+  reportPage.value = 1
+  loadReports()
+}
+
+// 表头筛选（与工具栏下拉双向同步）
+function handleFilterChange(filters: Record<string, string[]>) {
+  if ('status' in filters) statusFilter.value = filters.status?.[0] || ''
+  if ('reportType' in filters) reportTypeFilter.value = filters.reportType?.[0] || ''
+  if ('todayWorkType' in filters) workTypeFilter.value = filters.todayWorkType?.[0] || ''
+  reportPage.value = 1
+  loadReports()
 }
 
 async function handleExport() {
@@ -508,26 +540,54 @@ onMounted(() => { loadStats(); loadReports() })
         :ref="bindRef"
         allow-drag-last-column
         @header-dragend="onHeaderDragEnd"
+        @sort-change="handleSortChange"
+        @filter-change="handleFilterChange"
         @row-click="showDetail"
         style="cursor:pointer"
       >
-        <el-table-column prop="reportDate" label="日报时间" width="110" fixed="left" />
-        <el-table-column label="日志类型" width="100" align="center">
+        <el-table-column prop="reportDate" label="日报时间" width="110" fixed="left" sortable="custom" :sort-orders="['descending', 'ascending', null]" />
+        <el-table-column
+          prop="reportType"
+          column-key="reportType"
+          label="日志类型"
+          width="100"
+          align="center"
+          sortable="custom"
+          :filters="reportTypeHeaderFilters"
+          :filtered-value="reportTypeFilter ? [reportTypeFilter] : []"
+        >
           <template #default="{ row }">
             <el-tag :type="getReportTypeTag(row.reportType as string).type || 'info'" size="small">
               {{ getReportTypeTag(row.reportType as string).text }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="submitter" label="填写人" width="100" show-overflow-tooltip />
-        <el-table-column prop="entryDate" label="入场时间" width="110" />
-        <el-table-column prop="project" label="项目名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="todayWorkType" label="工作类型" width="100" />
-        <el-table-column prop="workers" label="作业人员" width="130" show-overflow-tooltip />
-        <el-table-column prop="workContent" label="工作内容" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="todayWork" label="今日工作" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="tomorrowPlan" label="明日计划" min-width="140" show-overflow-tooltip />
-        <el-table-column label="状态" width="80" align="center">
+        <el-table-column prop="submitter" label="填写人" width="100" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="entryDate" label="入场时间" width="110" sortable="custom" :sort-orders="['descending', 'ascending', null]" />
+        <el-table-column prop="project" label="项目名称" min-width="180" sortable="custom" show-overflow-tooltip />
+        <el-table-column
+          prop="todayWorkType"
+          column-key="todayWorkType"
+          label="工作类型"
+          width="100"
+          sortable="custom"
+          :filters="workTypeHeaderFilters"
+          :filtered-value="workTypeFilter ? [workTypeFilter] : []"
+        />
+        <el-table-column prop="workers" label="作业人员" width="130" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="workContent" label="工作内容" min-width="140" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="todayWork" label="今日工作" min-width="160" sortable="custom" show-overflow-tooltip />
+        <el-table-column prop="tomorrowPlan" label="明日计划" min-width="140" sortable="custom" show-overflow-tooltip />
+        <el-table-column
+          prop="status"
+          column-key="status"
+          label="状态"
+          width="80"
+          align="center"
+          sortable="custom"
+          :filters="statusHeaderFilters"
+          :filtered-value="statusFilter ? [statusFilter] : []"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusTag(row.status as string).type || 'info'" size="small">
               {{ getStatusTag(row.status as string).text }}
