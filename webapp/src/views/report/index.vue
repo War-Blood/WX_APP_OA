@@ -60,8 +60,9 @@ const editSaving = ref(false)
 
 const statusOptions = [
   { label: '全部', value: '' },
+  { label: '草稿', value: 'draft' },
   { label: '已提交', value: 'submitted' },
-  { label: '待审核', value: 'pending' },
+  { label: '待审核', value: 'pending_review' },
   { label: '已通过', value: 'approved' },
   { label: '已驳回', value: 'rejected' }
 ]
@@ -102,6 +103,19 @@ function getReportTypeTag(reportType: string): { text: string; type: '' | 'succe
   return map[reportType] || { text: reportType, type: '' }
 }
 
+// 状态 tag 映射（pending_review 为 v2.0 补公出待审核，pending 为旧版遗留值）
+function getStatusTag(status: string): { text: string; type: '' | 'success' | 'warning' | 'info' | 'danger' } {
+  const map: Record<string, { text: string; type: '' | 'success' | 'warning' | 'info' | 'danger' }> = {
+    draft: { text: '草稿', type: 'info' },
+    submitted: { text: '已提交', type: 'info' },
+    pending: { text: '待审核', type: 'warning' },
+    pending_review: { text: '待审核', type: 'warning' },
+    approved: { text: '已通过', type: 'success' },
+    rejected: { text: '已驳回', type: 'danger' }
+  }
+  return map[status] || { text: status, type: '' }
+}
+
 // --- 统计看板 ---
 async function loadStats() {
   statsLoading.value = true
@@ -118,7 +132,7 @@ async function loadStats() {
 async function loadReports() {
   loading.value = true
   try {
-    const params: Record<string, unknown> = {
+    const params: Parameters<typeof getReportList>[0] = {
       page: reportPage.value,
       pageSize: reportPageSize.value
     }
@@ -128,7 +142,7 @@ async function loadReports() {
     if (workTypeFilter.value) params.workType = workTypeFilter.value
     if (startDate.value) params.startDate = startDate.value
     if (endDate.value) params.endDate = endDate.value
-    const res = await getReportList(params as Parameters<typeof getReportList>[0])
+    const res = await getReportList(params)
     reportList.value = (res.list || []) as unknown as Record<string, unknown>[]
     reportTotal.value = res.total || 0
   } catch {
@@ -515,11 +529,9 @@ onMounted(() => { loadStats(); loadReports() })
         <el-table-column prop="tomorrowPlan" label="明日计划" min-width="140" show-overflow-tooltip />
         <el-table-column label="状态" width="80" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 'submitted'" type="info" size="small">已提交</el-tag>
-            <el-tag v-else-if="row.status === 'pending'" type="warning" size="small">待审核</el-tag>
-            <el-tag v-else-if="row.status === 'approved'" type="success" size="small">已通过</el-tag>
-            <el-tag v-else-if="row.status === 'rejected'" type="danger" size="small">已驳回</el-tag>
-            <el-tag v-else size="small">{{ row.status }}</el-tag>
+            <el-tag :type="getStatusTag(row.status as string).type || 'info'" size="small">
+              {{ getStatusTag(row.status as string).text }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
@@ -577,11 +589,9 @@ onMounted(() => { loadStats(); loadReports() })
         <el-descriptions :column="3" border size="small" class="edit-readonly">
           <el-descriptions-item label="填写人">{{ editData.submitter }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag v-if="editData.status === 'approved'" type="success" size="small">已通过</el-tag>
-            <el-tag v-else-if="editData.status === 'submitted'" type="info" size="small">已提交</el-tag>
-            <el-tag v-else-if="editData.status === 'pending'" type="warning" size="small">待审核</el-tag>
-            <el-tag v-else-if="editData.status === 'rejected'" type="danger" size="small">已驳回</el-tag>
-            <el-tag v-else size="small">{{ editData.status }}</el-tag>
+            <el-tag :type="getStatusTag(editData.status as string).type || 'info'" size="small">
+              {{ getStatusTag(editData.status as string).text }}
+            </el-tag>
           </el-descriptions-item>
         </el-descriptions>
 
