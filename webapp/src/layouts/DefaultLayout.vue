@@ -53,9 +53,11 @@ const contentMarginLeft = computed(() => {
 })
 
 const breadcrumbs = computed(() => {
-  return route.matched
+  const titles = route.matched
     .filter(item => item.meta.title)
     .map(item => item.meta.title as string)
+  // 父模块与默认子页同名时（如「日报管理 / 日报管理」）去掉相邻重复层级
+  return titles.filter((title, index) => index === 0 || title !== titles[index - 1])
 })
 
 function handleModuleSelect(key: string) {
