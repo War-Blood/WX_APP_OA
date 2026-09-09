@@ -1012,8 +1012,10 @@ onMounted(() => { loadStats(); loadReports() })
     .export-dropdown { margin-left: 0; }
   }
 
-  // 窄屏页签可横向滚动，避免最后一项被裁切
+  // 窄屏页签：压缩内边距让 4 个页签一屏可见，仍保留横向滚动兜底
   .tabs-bar {
+    padding: 0 $spacing-small;
+
     :deep(.el-tabs__nav-scroll) {
       overflow-x: auto;
       overflow-y: hidden;
@@ -1023,7 +1025,7 @@ onMounted(() => { loadStats(); loadReports() })
     }
 
     :deep(.el-tabs__nav) { white-space: nowrap; }
-    :deep(.el-tabs__item) { padding: 0 12px; }
+    :deep(.el-tabs__item) { padding: 0 10px; }
   }
 }
 </style>
