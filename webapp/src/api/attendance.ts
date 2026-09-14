@@ -73,7 +73,7 @@ export function getAdminBizTripStatusList(params: {
   pageSize?: number
   keyword?: string
   status?: string
-}): Promise<{ list: BizTripUserStatus[]; total: number }> {
+}): Promise<{ list: BizTripUserStatus[]; total: number; summary?: { inProgress: number; none: number } }> {
   return request.get('/attendance/admin/biz-trip/status-list', { params })
 }
 

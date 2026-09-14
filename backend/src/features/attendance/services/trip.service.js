@@ -581,6 +581,15 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
      LEFT JOIN departments d ON u.department_id = d.id ${where}`,
     params
   );
+
+  // 汇总（不受筛选影响）：实时掌握出差中 / 未出差人数
+  const summaryRows = await db.query(
+    `SELECT
+       SUM(CASE WHEN (${activeAttendanceSql} OR ${activeComplianceSql}) THEN 1 ELSE 0 END) AS inProgress,
+       SUM(CASE WHEN (NOT ${activeAttendanceSql} AND NOT ${activeComplianceSql}) THEN 1 ELSE 0 END) AS none
+     FROM users u
+     WHERE u.status = 'active' AND u.deleted_at IS NULL`
+  );
   const rows = await db.query(
     `SELECT u.id, u.nickname, u.user_name, u.worker_code, u.position, d.name AS departmentName
      FROM users u
@@ -669,6 +678,10 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
     page: parseInt(page),
     pageSize: parseInt(pageSize),
     totalPages: Math.ceil(countRows[0].total / parseInt(pageSize)) || 0,
+    summary: {
+      inProgress: Number(summaryRows[0].inProgress) || 0,
+      none: Number(summaryRows[0].none) || 0,
+    },
   };
 }
 

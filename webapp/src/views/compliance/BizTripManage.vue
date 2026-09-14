@@ -34,7 +34,22 @@
             <el-button type="primary" @click="openStartDialog()">开始出差</el-button>
           </div>
 
-          <el-table :data="statusList" v-loading="statusLoading" stripe style="margin-top: 16px">
+          <div class="status-summary">
+            <span class="summary-item">
+              出差中
+              <b class="summary-num warning">{{ statusSummary.inProgress }}</b>
+              人
+            </span>
+            <el-divider direction="vertical" />
+            <span class="summary-item">
+              未出差
+              <b class="summary-num">{{ statusSummary.none }}</b>
+              人
+            </span>
+            <span class="summary-tip">数据为当前在职人员实时统计</span>
+          </div>
+
+          <el-table :data="statusList" v-loading="statusLoading" stripe>
             <el-table-column label="员工" min-width="150">
               <template #default="{ row }">
                 <div class="user-cell">
@@ -43,46 +58,49 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="departmentName" label="部门" min-width="110">
+            <el-table-column prop="departmentName" label="部门" width="140">
               <template #default="{ row }">{{ row.departmentName || '-' }}</template>
             </el-table-column>
-            <el-table-column label="状态" width="120">
+            <el-table-column label="状态" width="130">
               <template #default="{ row }">
                 <el-tag :type="statusTagType(row.tripStatus)" size="small">
                   {{ statusLabel(row.tripStatus) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="项目/备注" min-width="150" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.projectName || '-' }}</template>
+            <el-table-column label="项目/备注" min-width="200">
+              <template #default="{ row }">
+                <span class="cell-text" :title="row.projectName || ''">{{ displayText(row.projectName) }}</span>
+              </template>
             </el-table-column>
             <el-table-column label="开始日期" width="110">
               <template #default="{ row }">{{ formatStart(row.tripStartedAt) }}</template>
             </el-table-column>
-            <el-table-column label="已持续" width="90">
+            <el-table-column label="已持续" width="90" align="center">
               <template #default="{ row }">{{ row.tripDays ? `${row.tripDays} 天` : '-' }}</template>
             </el-table-column>
             <el-table-column label="来源" width="100">
               <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" width="120" fixed="right">
               <template #default="{ row }">
                 <el-button
-                  v-if="row.tripStatus !== 'in_progress'"
+                  v-if="row.tripStatus === 'compliance_only'"
                   size="small"
                   type="primary"
                   @click="openStartDialog(row)"
                 >
-                  {{ row.tripStatus === 'compliance_only' ? '补录考勤' : '开始出差' }}
+                  补录考勤
                 </el-button>
                 <el-button
-                  v-if="row.tripStatus !== 'none'"
+                  v-else-if="row.tripStatus === 'in_progress'"
                   size="small"
                   type="warning"
                   @click="openEndDialog(row)"
                 >
                   结束出差
                 </el-button>
+                <span v-else class="row-placeholder">-</span>
               </template>
             </el-table-column>
           </el-table>
@@ -126,7 +144,7 @@
               value-format="YYYY-MM-DD"
               start-placeholder="开始日期从"
               end-placeholder="开始日期至"
-              style="width: 260px"
+              style="flex: none; width: 270px"
               @change="handleRecordSearch"
             />
             <el-button @click="handleRecordSearch">查询</el-button>
@@ -135,7 +153,7 @@
             <el-button type="primary" @click="openStartDialog()">开始出差</el-button>
           </div>
 
-          <el-table :data="tripList" v-loading="loading" stripe style="margin-top: 16px">
+          <el-table :data="tripList" v-loading="loading" stripe class="record-table">
             <el-table-column label="员工" min-width="150">
               <template #default="{ row }">
                 <div class="user-cell">
@@ -144,11 +162,13 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="departmentName" label="部门" min-width="100">
+            <el-table-column prop="departmentName" label="部门" width="140">
               <template #default="{ row }">{{ row.departmentName || '-' }}</template>
             </el-table-column>
-            <el-table-column label="项目/备注" min-width="160" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.projectName || '-' }}</template>
+            <el-table-column label="项目/备注" min-width="200">
+              <template #default="{ row }">
+                <span class="cell-text" :title="row.projectName || ''">{{ displayText(row.projectName) }}</span>
+              </template>
             </el-table-column>
             <el-table-column prop="startDate" label="开始日期" width="110" />
             <el-table-column label="结束日期" width="110">
@@ -157,7 +177,7 @@
                 <span v-else class="ongoing">出差中</span>
               </template>
             </el-table-column>
-            <el-table-column label="天数" width="80">
+            <el-table-column label="天数" width="90" align="center">
               <template #default="{ row }">{{ row.tripDays ? `${row.tripDays} 天` : '-' }}</template>
             </el-table-column>
             <el-table-column label="状态" width="130">
@@ -177,7 +197,7 @@
             <el-table-column label="来源" width="100">
               <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column label="操作" width="140" fixed="right">
               <template #default="{ row }">
                 <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
                 <el-button
@@ -382,6 +402,7 @@ const statusFilters = ref({ keyword: '', status: '' })
 const statusPage = ref(1)
 const statusPageSize = ref(20)
 const statusTotal = ref(0)
+const statusSummary = ref({ inProgress: 0, none: 0 })
 
 const userOptions = ref<BizTripUserStatus[]>([])
 const userOptionsLoading = ref(false)
@@ -456,6 +477,10 @@ async function loadStatusList() {
     })
     statusList.value = res.list || []
     statusTotal.value = res.total || 0
+    statusSummary.value = {
+      inProgress: res.summary?.inProgress ?? 0,
+      none: res.summary?.none ?? 0,
+    }
   } catch (err) {
     toast.error(getErrorMessage(err, '加载员工出差状态失败'))
   } finally {
@@ -611,6 +636,11 @@ function formatStart(value?: string | null) {
   return value ? String(value).slice(0, 10) : '-'
 }
 
+function displayText(text?: string | null, max = 16) {
+  if (!text) return '-'
+  return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
 async function loadTripList() {
   loading.value = true
   try {
@@ -738,10 +768,66 @@ async function handleEndRecordTrip(row: BizTripRecord) {
   flex-wrap: wrap;
 }
 
+.record-table {
+  margin-top: 16px;
+}
+
+.status-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 8px 12px;
+  background: #f7f9fc;
+  border-radius: 6px;
+  color: #606266;
+  font-size: 13px;
+}
+
+.status-summary + .el-table {
+  margin-top: 8px;
+}
+
+.summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.summary-num {
+  color: #303133;
+  font-size: 15px;
+}
+
+.summary-num.warning {
+  color: #f59e0b;
+}
+
+.summary-tip {
+  margin-left: auto;
+  color: #a8abb2;
+  font-size: 12px;
+}
+
+.row-placeholder {
+  color: #c0c4cc;
+}
+
+.cell-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  cursor: default;
+}
+
 .user-cell {
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .user-name {
