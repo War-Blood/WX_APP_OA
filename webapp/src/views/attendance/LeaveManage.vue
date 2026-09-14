@@ -8,24 +8,35 @@
       </template>
 
       <!-- 筛选栏 -->
-      <div class="filters">
-        <el-select v-model="filters.requestType" placeholder="类型" clearable style="width:140px" @change="loadData">
+      <div class="page-toolbar">
+        <el-input
+          v-model="filters.keyword"
+          class="toolbar-search"
+          placeholder="搜索申请人"
+          clearable
+          :prefix-icon="Search"
+          @clear="handleFilterChange"
+          @keyup.enter="handleFilterChange"
+        />
+        <el-select v-model="filters.requestType" placeholder="类型" clearable style="width:130px" @change="handleFilterChange">
           <el-option label="全部" value="" />
           <el-option label="请假" value="leave" />
           <el-option label="出差" value="biz_trip" />
         </el-select>
-        <el-select v-model="filters.status" placeholder="状态" clearable style="width:140px;margin-left:12px" @change="loadData">
+        <el-select v-model="filters.status" placeholder="状态" clearable style="width:130px" @change="handleFilterChange">
           <el-option label="全部" value="" />
           <el-option label="生效中" value="active" />
           <el-option label="进行中" value="in_progress" />
           <el-option label="已结束" value="ended" />
           <el-option label="已撤销" value="cancelled" />
         </el-select>
-        <el-input v-model="filters.keyword" placeholder="搜索申请人" clearable style="width:160px;margin-right:12px" @clear="loadData" @keyup.enter="loadData" />
-        <el-button @click="loadData">搜索</el-button>
-        <el-select v-model="filters.departmentId" placeholder="部门" clearable style="width:160px;margin-left:12px" @change="loadData">
+        <el-select v-model="filters.departmentId" placeholder="部门" clearable filterable style="width:160px" @change="handleFilterChange">
           <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
         </el-select>
+        <el-select v-model="filters.sort" style="width:190px" @change="handleFilterChange">
+          <el-option v-for="opt in sortOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
+        <el-button @click="handleFilterChange">搜索</el-button>
       </div>
 
       <!-- 表格 -->
@@ -87,6 +98,7 @@
 import { toast } from '@/utils/toast'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { getLeaveList, deleteLeave, type LeaveRequest } from '@/api/attendance'
 import { getDepartmentList, type DepartmentItem } from '@/api/user'
 
@@ -105,17 +117,36 @@ const statusLabel = (s: string) => statusMap[s] || s
 const loading = ref(false)
 const deptOptions = ref<DepartmentItem[]>([])
 const tableData = ref<LeaveRequest[]>([])
-const filters = reactive({ requestType: '', status: '', keyword: '', departmentId: null as number | null })
+const filters = reactive({
+  requestType: '',
+  status: '',
+  keyword: '',
+  departmentId: null as number | null,
+  sort: 'createdAt_desc',
+})
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
+
+const sortOptions = [
+  { label: '提交时间：新 → 旧', value: 'createdAt_desc' },
+  { label: '提交时间：旧 → 新', value: 'createdAt_asc' },
+  { label: '开始日期：新 → 旧', value: 'startDate_desc' },
+  { label: '开始日期：旧 → 新', value: 'startDate_asc' },
+]
 
 function fmt(t: string | null) {
   if (!t) return ''
   return t.slice(0, 16).replace('T', ' ')
 }
 
+function handleFilterChange() {
+  pagination.page = 1
+  loadData()
+}
+
 async function loadData() {
   loading.value = true
   try {
+    const [sortBy, sortOrder] = filters.sort.split('_')
     const params: {
       page: number
       pageSize: number
@@ -123,7 +154,9 @@ async function loadData() {
       status?: string
       departmentId?: number
       keyword?: string
-    } = { page: pagination.page, pageSize: pagination.pageSize }
+      sortBy?: string
+      sortOrder?: string
+    } = { page: pagination.page, pageSize: pagination.pageSize, sortBy, sortOrder }
     if (filters.requestType) params.requestType = filters.requestType
     if (filters.status) params.status = filters.status
     if (filters.departmentId) params.departmentId = filters.departmentId
@@ -165,5 +198,4 @@ onMounted(() => {
 .leave-manage-page { padding: 20px; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; }
 .title { font-size: 18px; font-weight: 600; }
-.filters { display: flex; align-items: center; }
 </style>

@@ -67,8 +67,8 @@ const visibleModules = computed(() => {
     }
 
     &.active {
-      background: #2B6DE8;
-      color: #fff;
+      background: #E6F1FB;
+      color: #2B6DE8;
     }
   }
 }

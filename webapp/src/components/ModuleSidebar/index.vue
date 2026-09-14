@@ -84,33 +84,34 @@ function handleMenuClick() {
   }
 
   .module-menu {
-    padding: 4px 0;
+    padding: 4px 8px 8px;
   }
 
   .menu-group-label {
-    padding: 12px 16px 4px;
-    font-size: 11px;
+    padding: 14px 12px 4px;
+    font-size: 12px;
     font-weight: 600;
     color: #909399;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-top: 1px solid #EBEEF5;
+    letter-spacing: 0.3px;
+    border-top: 1px solid #F0F2F5;
     margin-top: 4px;
 
     &:first-child {
       border-top: none;
       margin-top: 0;
+      padding-top: 4px;
     }
   }
 
   .menu-item {
     display: block;
-    padding: 10px 16px;
+    padding: 9px 12px;
+    margin-bottom: 2px;
     font-size: 13px;
     color: #606266;
     text-decoration: none;
-    border-left: 3px solid transparent;
-    transition: background 0.15s, color 0.15s, border-color 0.2s;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
     cursor: pointer;
 
     &:hover {
@@ -118,15 +119,9 @@ function handleMenuClick() {
       color: #303133;
     }
 
-    &:active {
-      background: #E6F1FB;
-      color: #2B6DE8;
-    }
-
     &.active {
       background: #E6F1FB;
       color: #2B6DE8;
-      border-left-color: #2B6DE8;
       font-weight: 500;
     }
   }

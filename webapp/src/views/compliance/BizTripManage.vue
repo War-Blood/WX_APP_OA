@@ -9,12 +9,13 @@
 
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
         <el-tab-pane label="员工出差状态" name="status">
-          <div class="filters">
+          <div class="page-toolbar">
             <el-input
               v-model="statusFilters.keyword"
+              class="toolbar-search"
               placeholder="搜索姓名/工号/部门"
               clearable
-              style="width: 220px"
+              :prefix-icon="Search"
               @clear="handleStatusSearch"
               @keyup.enter="handleStatusSearch"
             />
@@ -22,12 +23,34 @@
               v-model="statusFilters.status"
               placeholder="状态"
               clearable
-              style="width: 150px"
+              style="width: 130px"
               @change="handleStatusSearch"
             >
               <el-option label="全部" value="" />
               <el-option label="出差中" value="in_progress" />
               <el-option label="未出差" value="none" />
+            </el-select>
+            <el-select
+              v-model="statusFilters.departmentId"
+              placeholder="部门"
+              clearable
+              filterable
+              style="width: 160px"
+              @change="handleStatusSearch"
+            >
+              <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
+            </el-select>
+            <el-select
+              v-model="statusFilters.sort"
+              style="width: 180px"
+              @change="handleStatusSearch"
+            >
+              <el-option
+                v-for="opt in statusSortOptions"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
             </el-select>
             <el-button @click="handleStatusSearch">搜索</el-button>
             <el-button :loading="statusLoading" @click="loadStatusList">刷新</el-button>
@@ -118,7 +141,16 @@
         </el-tab-pane>
 
         <el-tab-pane label="出差记录" name="records">
-          <div class="filters">
+          <div class="page-toolbar">
+            <el-input
+              v-model="recordFilters.keyword"
+              class="toolbar-search"
+              placeholder="搜索姓名/工号/部门/项目"
+              clearable
+              :prefix-icon="Search"
+              @clear="handleRecordSearch"
+              @keyup.enter="handleRecordSearch"
+            />
             <el-select
               v-model="recordFilters.status"
               placeholder="状态"
@@ -130,28 +162,43 @@
               <el-option label="出差中" value="in_progress" />
               <el-option label="已结束" value="ended" />
             </el-select>
-            <el-input
-              v-model="recordFilters.keyword"
-              placeholder="搜索姓名/工号/部门/项目"
+            <el-select
+              v-model="recordFilters.departmentId"
+              placeholder="部门"
               clearable
-              style="width: 220px"
-              @clear="handleRecordSearch"
-              @keyup.enter="handleRecordSearch"
-            />
+              filterable
+              style="width: 160px"
+              @change="handleRecordSearch"
+            >
+              <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
+            </el-select>
             <el-date-picker
               v-model="recordFilters.dateRange"
               type="daterange"
               value-format="YYYY-MM-DD"
               start-placeholder="开始日期从"
               end-placeholder="开始日期至"
-              style="flex: none; width: 270px"
+              style="flex: none; width: 250px"
               @change="handleRecordSearch"
             />
+            <el-select
+              v-model="recordFilters.sort"
+              style="width: 200px"
+              @change="handleRecordSearch"
+            >
+              <el-option
+                v-for="opt in recordSortOptions"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-select>
             <el-button @click="handleRecordSearch">查询</el-button>
             <el-button @click="resetRecordFilters">重置</el-button>
             <el-button :loading="loading" @click="loadTripList">刷新</el-button>
             <el-button type="primary" @click="openStartDialog()">开始出差</el-button>
           </div>
+          <div class="toolbar-count">共 {{ total }} 条记录</div>
 
           <el-table :data="tripList" v-loading="loading" stripe class="record-table">
             <el-table-column label="员工" min-width="150">
@@ -361,7 +408,7 @@
 import { toast } from '@/utils/toast'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { WarningFilled } from '@element-plus/icons-vue'
+import { WarningFilled, Search } from '@element-plus/icons-vue'
 import {
   getAdminBizTripStatusList,
   getAdminBizTripRecords,
@@ -371,6 +418,7 @@ import {
   type BizTripUserStatus,
   type BizTripRecord,
 } from '@/api/attendance'
+import { getDepartmentList, type DepartmentItem } from '@/api/user'
 import { currentDateInBeijing } from '@/utils/date'
 
 interface StartForm {
@@ -398,11 +446,39 @@ function getErrorMessage(err: unknown, fallback: string) {
 const activeTab = ref('status')
 const statusList = ref<BizTripUserStatus[]>([])
 const statusLoading = ref(false)
-const statusFilters = ref({ keyword: '', status: '' })
+const statusFilters = ref({
+  keyword: '',
+  status: '',
+  departmentId: null as number | null,
+  sort: 'default',
+})
 const statusPage = ref(1)
 const statusPageSize = ref(20)
 const statusTotal = ref(0)
 const statusSummary = ref({ inProgress: 0, none: 0 })
+const deptOptions = ref<DepartmentItem[]>([])
+
+const statusSortOptions = [
+  { label: '默认排序（工号）', value: 'default' },
+  { label: '开始日期：新 → 旧', value: 'startDate_desc' },
+  { label: '开始日期：旧 → 新', value: 'startDate_asc' },
+  { label: '出差时长：长 → 短', value: 'days_desc' },
+  { label: '出差时长：短 → 长', value: 'days_asc' },
+]
+
+const recordSortOptions = [
+  { label: '开始日期：新 → 旧', value: 'startDate_desc' },
+  { label: '开始日期：旧 → 新', value: 'startDate_asc' },
+  { label: '出差时长：长 → 短', value: 'days_desc' },
+  { label: '出差时长：短 → 长', value: 'days_asc' },
+  { label: '工号顺序', value: 'workerCode_asc' },
+]
+
+function parseSort(sort: string): { sortBy?: string; sortOrder?: string } {
+  if (!sort || sort === 'default') return {}
+  const [sortBy, sortOrder] = sort.split('_')
+  return { sortBy, sortOrder }
+}
 
 const userOptions = ref<BizTripUserStatus[]>([])
 const userOptionsLoading = ref(false)
@@ -426,10 +502,18 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
-const recordFilters = ref<{ status: string; keyword: string; dateRange: [string, string] | null }>({
+const recordFilters = ref<{
+  status: string
+  keyword: string
+  departmentId: number | null
+  dateRange: [string, string] | null
+  sort: string
+}>({
   status: '',
   keyword: '',
+  departmentId: null,
   dateRange: null,
+  sort: 'startDate_desc',
 })
 
 const editTarget = ref<BizTripRecord | null>(null)
@@ -459,6 +543,9 @@ const editTargetSource = computed(() => sourceLabel(editTarget.value?.source))
 onMounted(() => {
   loadStatusList()
   loadTripList()
+  getDepartmentList()
+    .then(res => { deptOptions.value = res || [] })
+    .catch(() => {})
 })
 
 function handleTabChange(name: string | number) {
@@ -474,6 +561,8 @@ async function loadStatusList() {
       pageSize: statusPageSize.value,
       keyword: statusFilters.value.keyword || undefined,
       status: statusFilters.value.status || undefined,
+      departmentId: statusFilters.value.departmentId || undefined,
+      ...parseSort(statusFilters.value.sort),
     })
     statusList.value = res.list || []
     statusTotal.value = res.total || 0
@@ -650,6 +739,8 @@ async function loadTripList() {
       keyword: recordFilters.value.keyword || undefined,
       startDate: range?.[0] || undefined,
       endDate: range?.[1] || undefined,
+      departmentId: recordFilters.value.departmentId || undefined,
+      ...parseSort(recordFilters.value.sort),
       page: currentPage.value,
       pageSize: pageSize.value,
     })
@@ -668,7 +759,13 @@ function handleRecordSearch() {
 }
 
 function resetRecordFilters() {
-  recordFilters.value = { status: '', keyword: '', dateRange: null }
+  recordFilters.value = {
+    status: '',
+    keyword: '',
+    departmentId: null,
+    dateRange: null,
+    sort: 'startDate_desc',
+  }
   handleRecordSearch()
 }
 
@@ -758,14 +855,6 @@ async function handleEndRecordTrip(row: BizTripRecord) {
   align-items: center;
   font-weight: bold;
   font-size: 16px;
-}
-
-.filters,
-.record-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .record-table {

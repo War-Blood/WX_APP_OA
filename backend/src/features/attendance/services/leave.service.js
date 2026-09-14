@@ -144,9 +144,47 @@ async function myList({ applicantId, requestType, status, page = 1, pageSize = 1
 }
 
 /**
- * 管理员查询全员请假/出差记录
+ * 展开部门及全部子部门 ID（沿 parent_id 向下遍历，带 guard 防脏数据死循环）
+ * @param {number} departmentId - 部门 ID
+ * @returns {Promise<number[]>} 含自身与全部子部门的 ID 列表
  */
-async function adminList({ requestType, status, keyword, page = 1, pageSize = 20 }) {
+async function expandDepartmentIds(departmentId) {
+  const rows = await db.query('SELECT id, parent_id FROM departments WHERE deleted_at IS NULL');
+  const childrenMap = {};
+  rows.forEach(d => {
+    if (d.parent_id != null) {
+      if (!childrenMap[d.parent_id]) childrenMap[d.parent_id] = [];
+      childrenMap[d.parent_id].push(d.id);
+    }
+  });
+  const result = [];
+  const seen = new Set();
+  const stack = [Number(departmentId)];
+  let guard = 0;
+  while (stack.length > 0 && guard < 500) {
+    const id = stack.pop();
+    guard++;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    result.push(id);
+    (childrenMap[id] || []).forEach(cid => stack.push(cid));
+  }
+  return result;
+}
+
+/**
+ * 管理员查询全员请假/出差记录
+ * @param {Object} params - 查询参数
+ * @param {string} [params.requestType] - leave / biz_trip
+ * @param {string} [params.status] - 状态
+ * @param {string} [params.keyword] - 申请人关键字
+ * @param {number} [params.departmentId] - 部门（含子部门）
+ * @param {string} [params.sortBy] - createdAt（默认）/ startDate
+ * @param {string} [params.sortOrder] - asc / desc（默认 desc）
+ * @param {number} [params.page] - 页码
+ * @param {number} [params.pageSize] - 每页条数
+ */
+async function adminList({ requestType, status, keyword, departmentId, sortBy, sortOrder, page = 1, pageSize = 20 }) {
   const conditions = [];
   const params = [];
   if (requestType) { conditions.push('lr.request_type = ?'); params.push(requestType); }
@@ -155,6 +193,16 @@ async function adminList({ requestType, status, keyword, page = 1, pageSize = 20
     conditions.push('(u.nickname LIKE ? OR u.user_name LIKE ?)');
     const kw = `%${keyword}%`; params.push(kw, kw);
   }
+  if (departmentId) {
+    const deptIds = await expandDepartmentIds(departmentId);
+    conditions.push(`u.department_id IN (${deptIds.map(() => '?').join(',')})`);
+    params.push(...deptIds);
+  }
+
+  const order = String(sortOrder).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  const orderBy = sortBy === 'startDate'
+    ? `COALESCE(lr.start_date, DATE(lr.trip_started_at)) ${order}, lr.id DESC`
+    : `lr.created_at ${order}, lr.id DESC`;
 
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
   const offset = (page - 1) * pageSize;
@@ -165,7 +213,7 @@ async function adminList({ requestType, status, keyword, page = 1, pageSize = 20
   const list = await db.query(
     `SELECT lr.*, u.nickname AS applicantName FROM attendance_leave_requests lr
      JOIN users u ON lr.applicant_id = u.id
-     ${where} ORDER BY lr.created_at DESC LIMIT ? OFFSET ?`,
+     ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
     [...params, pageSize, offset]
   );
 
@@ -331,4 +379,14 @@ async function deleteRequest(requestId) {
   });
 }
 
-module.exports = { apply, cancel, myList, adminList, detail, calcMissingDates, updateRequest, deleteRequest };
+module.exports = {
+  apply,
+  cancel,
+  myList,
+  adminList,
+  detail,
+  calcMissingDates,
+  updateRequest,
+  deleteRequest,
+  expandDepartmentIds,
+};

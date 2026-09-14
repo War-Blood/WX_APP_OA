@@ -3,7 +3,7 @@
 const db = require('../../../common/config/database');
 const { BusinessError } = require('../../../common/utils/errors');
 const { ErrorCode } = require('../../../common/utils/constants');
-const { calcMissingDates } = require('./leave.service');
+const { calcMissingDates, expandDepartmentIds } = require('./leave.service');
 const { beijingDate, beijingToday, beijingNow } = require('../../../common/utils/date');
 
 /**
@@ -327,11 +327,14 @@ async function adminEndTrip({ userId, reason, endDate }) {
  * @param {string} [params.keyword] - 姓名/工号/部门/项目/备注关键字
  * @param {string} [params.startDate] - 开始日期范围（起）
  * @param {string} [params.endDate] - 开始日期范围（止）
+ * @param {number} [params.departmentId] - 部门（含子部门）
+ * @param {string} [params.sortBy] - startDate（默认）/ days / workerCode
+ * @param {string} [params.sortOrder] - asc / desc（默认 desc）
  * @param {number} [params.page=1] - 页码
  * @param {number} [params.pageSize=20] - 每页条数
  * @returns {Promise<Object>} { list, total, page, pageSize }
  */
-async function adminTripRecords({ status, keyword, startDate, endDate, page = 1, pageSize = 20 }) {
+async function adminTripRecords({ status, keyword, startDate, endDate, departmentId, sortBy, sortOrder, page = 1, pageSize = 20 }) {
   const conditions = [];
   const params = [];
 
@@ -346,6 +349,11 @@ async function adminTripRecords({ status, keyword, startDate, endDate, page = 1,
   }
   if (startDate) { conditions.push('DATE(t.startAt) >= ?'); params.push(startDate); }
   if (endDate) { conditions.push('DATE(t.startAt) <= ?'); params.push(endDate); }
+  if (departmentId) {
+    const deptIds = await expandDepartmentIds(departmentId);
+    conditions.push(`t.userId IN (${deptIds.map(() => '?').join(',')})`);
+    params.push(...deptIds);
+  }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const currentPage = parseInt(page) || 1;
@@ -387,9 +395,17 @@ async function adminTripRecords({ status, keyword, startDate, endDate, page = 1,
       )
   `;
 
+  const order = String(sortOrder).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  let orderBy = `t.startAt ${order}, t.recordId DESC`;
+  if (sortBy === 'days') {
+    orderBy = `DATEDIFF(COALESCE(DATE(t.endAt), CURDATE()), DATE(t.startAt)) ${order}, t.startAt DESC`;
+  } else if (sortBy === 'workerCode') {
+    orderBy = 't.workerCode IS NULL, t.workerCode, t.recordId DESC';
+  }
+
   const countRows = await db.query(`SELECT COUNT(*) AS total FROM (${unionSql}) t ${where}`, params);
   const rows = await db.query(
-    `SELECT * FROM (${unionSql}) t ${where} ORDER BY t.startAt DESC, t.recordId DESC LIMIT ? OFFSET ?`,
+    `SELECT * FROM (${unionSql}) t ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
     [...params, size, offset]
   );
 
@@ -546,8 +562,17 @@ async function adminUpdateTripRecord({ recordType, recordId, startDate, endDate,
 
 /**
  * 管理员查看全员出差状态。
+ * @param {Object} params - 查询参数
+ * @param {string} [params.keyword] - 姓名/工号/部门关键字
+ * @param {string} [params.status] - in_progress / none
+ * @param {number} [params.departmentId] - 部门（含子部门）
+ * @param {string} [params.sortBy] - default（工号）/ startDate / days
+ * @param {string} [params.sortOrder] - asc / desc（默认 desc）
+ * @param {number} [params.page=1] - 页码
+ * @param {number} [params.pageSize=20] - 每页条数
+ * @returns {Promise<Object>} { list, total, page, pageSize, summary }
  */
-async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 }) {
+async function adminTripStatusList({ keyword, status, departmentId, sortBy, sortOrder, page = 1, pageSize = 20 }) {
   const conditions = ["u.status = 'active'", 'u.deleted_at IS NULL'];
   const params = [];
 
@@ -555,6 +580,11 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
     conditions.push('(u.nickname LIKE ? OR u.user_name LIKE ? OR u.worker_code LIKE ? OR d.name LIKE ?)');
     const kw = `%${keyword}%`;
     params.push(kw, kw, kw, kw);
+  }
+  if (departmentId) {
+    const deptIds = await expandDepartmentIds(departmentId);
+    conditions.push(`u.department_id IN (${deptIds.map(() => '?').join(',')})`);
+    params.push(...deptIds);
   }
 
   // 有效出差条件与列表 tripStatus 计算口径一致：
@@ -590,11 +620,30 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
      FROM users u
      WHERE u.status = 'active' AND u.deleted_at IS NULL`
   );
+  // 排序：默认工号；可按出差开始日期 / 已持续天数（口径与列表展示一致）
+  const order = String(sortOrder).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  const tripStartExpr = `COALESCE(
+    (SELECT MAX(a.trip_started_at) FROM attendance_leave_requests a
+     WHERE a.applicant_id = u.id AND a.request_type = 'biz_trip' AND a.status = 'in_progress'),
+    (SELECT MAX(b.start_date) FROM biz_trip_status b
+     WHERE b.user_id = u.id AND b.status = 'active'
+       AND NOT EXISTS (SELECT 1 FROM attendance_leave_requests a2
+                       WHERE a2.applicant_id = u.id AND a2.request_type = 'biz_trip'
+                         AND a2.status = 'ended'
+                         AND b.start_date BETWEEN DATE(a2.trip_started_at) AND COALESCE(DATE(a2.trip_ended_at), CURDATE())))
+  )`;
+  let orderBy = 'u.worker_code IS NULL, u.worker_code, u.id';
+  if (sortBy === 'startDate') {
+    orderBy = `(${tripStartExpr}) IS NULL, (${tripStartExpr}) ${order}, u.id`;
+  } else if (sortBy === 'days') {
+    orderBy = `(${tripStartExpr}) IS NULL, DATEDIFF(CURDATE(), (${tripStartExpr})) ${order}, u.id`;
+  }
+
   const rows = await db.query(
     `SELECT u.id, u.nickname, u.user_name, u.worker_code, u.position, d.name AS departmentName
      FROM users u
      LEFT JOIN departments d ON u.department_id = d.id
-     ${where} ORDER BY u.worker_code, u.id LIMIT ? OFFSET ?`,
+     ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
     [...params, parseInt(pageSize), offset]
   );
 

@@ -13,6 +13,16 @@
         </el-icon>
       </el-button>
       <div class="logo">OA</div>
+      <div class="page-locate">
+        <el-icon v-if="activeModule" :size="16" class="locate-icon">
+          <component :is="activeModule.icon" />
+        </el-icon>
+        <span class="module-name">{{ activeModule?.title || '' }}</span>
+        <template v-if="pageTitle && pageTitle !== activeModule?.title">
+          <span class="locate-sep">/</span>
+          <span class="page-name">{{ pageTitle }}</span>
+        </template>
+      </div>
     </div>
     <div class="topbar-center">
       <div
@@ -90,12 +100,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { useModuleStore } from '@/stores/module'
-import { modules, getVisibleChildren } from '@/config/modules'
+import { modules, getVisibleChildren, getActiveModule } from '@/config/modules'
 import { Search, ArrowDown, Expand, Fold } from '@element-plus/icons-vue'
 
 interface SearchItem {
@@ -105,9 +115,18 @@ interface SearchItem {
 }
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const appStore = useAppStore()
 const moduleStore = useModuleStore()
+
+const activeModule = computed(() => getActiveModule(route.path))
+const pageTitle = computed(() => {
+  const titles = route.matched
+    .filter(item => item.meta.title)
+    .map(item => item.meta.title as string)
+  return titles[titles.length - 1] || ''
+})
 
 const searchVisible = ref(false)
 const searchQuery = ref('')
@@ -217,10 +236,11 @@ onUnmounted(() => {
   gap: 16px;
 
   .topbar-left {
-    width: 96px;
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
+    flex-shrink: 1;
 
     .collapse-btn {
       width: 32px;
@@ -239,6 +259,40 @@ onUnmounted(() => {
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .page-locate {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 4px;
+      min-width: 0;
+
+      .locate-icon {
+        color: #606266;
+        flex-shrink: 0;
+      }
+
+      .module-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #303133;
+        white-space: nowrap;
+      }
+
+      .locate-sep {
+        color: #DCDFE6;
+        font-size: 13px;
+      }
+
+      .page-name {
+        font-size: 13px;
+        color: #909399;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
     }
   }
 

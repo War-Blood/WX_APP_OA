@@ -52,14 +52,6 @@ const contentMarginLeft = computed(() => {
   return appStore.sidebarCollapsed ? 56 : 236
 })
 
-const breadcrumbs = computed(() => {
-  const titles = route.matched
-    .filter(item => item.meta.title)
-    .map(item => item.meta.title as string)
-  // 父模块与默认子页同名时（如「日报管理 / 日报管理」）去掉相邻重复层级
-  return titles.filter((title, index) => index === 0 || title !== titles[index - 1])
-})
-
 function handleModuleSelect(key: string) {
   const target = modules.find(m => m.key === key)
   if (target) router.push(target.path)
@@ -86,14 +78,6 @@ function handleModuleSelect(key: string) {
       :style="{ marginLeft: contentMarginLeft + 'px' }"
       :key="route.fullPath"
     >
-      <div class="page-header">
-        <el-breadcrumb separator="/">
-          <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
-          <el-breadcrumb-item v-for="title in breadcrumbs" :key="title">
-            {{ title }}
-          </el-breadcrumb-item>
-        </el-breadcrumb>
-      </div>
       <router-view />
     </div>
   </div>
@@ -110,10 +94,6 @@ function handleModuleSelect(key: string) {
   min-height: calc(100vh - 48px);
   padding: 20px;
   transition: margin-left 0.2s ease-out;
-
-  .page-header {
-    margin-bottom: 16px;
-  }
 }
 
 .layout-worktile.is-mobile {

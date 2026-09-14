@@ -1,0 +1,198 @@
+// Element Plus 视觉覆盖 — Worktile 风格（在 element-plus 官方 CSS 之后加载）
+
+:root {
+  --el-color-primary: #2B6DE8;
+  --el-color-primary-light-3: #6B96EF;
+  --el-color-primary-light-5: #95B4F4;
+  --el-color-primary-light-7: #BFD2F8;
+  --el-color-primary-light-8: #D4E1FB;
+  --el-color-primary-light-9: #E6F1FB;
+  --el-color-primary-dark-2: #1A5AD4;
+
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+
+  --el-border-color: #DCDFE6;
+  --el-border-color-light: #E4E7ED;
+  --el-border-color-lighter: #EBEEF5;
+
+  --el-text-color-primary: #303133;
+  --el-text-color-regular: #606266;
+  --el-text-color-secondary: #909399;
+
+  --el-bg-color-page: #F5F7FA;
+  --el-fill-color-light: #F5F7FA;
+  --el-fill-color-lighter: #FAFAFA;
+
+  --el-table-header-bg-color: #F5F7FA;
+  --el-table-header-text-color: #606266;
+  --el-table-text-color: #303133;
+  --el-table-border-color: #EBEEF5;
+  --el-table-row-hover-bg-color: #F5F7FA;
+
+  --el-box-shadow-light: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+// 按钮
+.el-button {
+  border-radius: $wt-radius;
+}
+
+// 输入 / 选择
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  border-radius: $wt-radius;
+}
+
+// 卡片
+.el-card {
+  border: 1px solid $wt-border;
+  border-radius: $wt-radius-card;
+  box-shadow: $wt-card-shadow;
+
+  .el-card__header {
+    padding: 14px 20px;
+    border-bottom: 1px solid $wt-bg-hover;
+  }
+
+  .el-card__body {
+    padding: 20px;
+  }
+}
+
+// 表格
+.el-table {
+  font-size: 13px;
+
+  th.el-table__cell {
+    font-weight: 600;
+    background: $wt-table-header-bg;
+    color: #606266;
+  }
+
+  .el-table__cell {
+    padding: 10px 0;
+  }
+
+  // 表格内操作按钮呈链接样式（Worktile 风格）
+  .el-button:not(.is-circle) {
+    height: 26px;
+    padding: 0 8px;
+    border-color: transparent;
+    background: transparent;
+    color: $primary-color;
+
+    &:hover {
+      color: $primary-color;
+      background: $wt-bg-active;
+      border-color: transparent;
+    }
+
+    &.el-button--danger {
+      color: #EF4444;
+
+      &:hover {
+        color: #EF4444;
+        background: #FEF0F0;
+      }
+    }
+
+    &.el-button--warning {
+      color: #E6A23C;
+
+      &:hover {
+        color: #E6A23C;
+        background: #FDF6EC;
+      }
+    }
+
+    &.el-button--success {
+      color: #22C55E;
+
+      &:hover {
+        color: #22C55E;
+        background: #F0F9EB;
+      }
+    }
+
+    &.is-disabled {
+      color: #C0C4CC;
+      background: transparent;
+    }
+  }
+}
+
+// 标签
+.el-tag {
+  border-radius: 4px;
+}
+
+// 分页
+.el-pagination {
+  --el-pagination-button-bg-color: transparent;
+
+  .el-pager li,
+  .btn-prev,
+  .btn-next {
+    border-radius: 6px;
+    font-weight: 400;
+  }
+}
+
+// 弹窗
+.el-dialog {
+  border-radius: $wt-radius-card;
+
+  .el-dialog__header {
+    padding: 16px 20px;
+    margin-right: 0;
+    border-bottom: 1px solid $wt-bg-hover;
+  }
+
+  .el-dialog__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  .el-dialog__body {
+    padding: 20px;
+  }
+
+  .el-dialog__footer {
+    padding: 12px 20px 16px;
+    border-top: 1px solid $wt-bg-hover;
+  }
+}
+
+// 页签
+.el-tabs__item {
+  font-size: 14px;
+}
+
+// 表单
+.el-form-item__label {
+  color: $text-regular;
+}
+
+// 页面工具栏（Worktile：搜索 + 筛选 + 排序 + 统计）
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  .toolbar-search {
+    width: 220px;
+  }
+
+  .toolbar-spacer {
+    flex: 1;
+  }
+}
+
+.toolbar-count {
+  color: $text-secondary;
+  font-size: 12px;
+}

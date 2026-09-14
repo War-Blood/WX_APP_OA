@@ -56,13 +56,23 @@ export interface BizTripRecordQuery {
   keyword?: string
   startDate?: string
   endDate?: string
+  departmentId?: number
+  sortBy?: string
+  sortOrder?: string
   page?: number
   pageSize?: number
 }
 
 // 请假/出差管理
 export function getLeaveList(params: {
-  page?: number; pageSize?: number; requestType?: string; status?: string; departmentId?: number; keyword?: string
+  page?: number
+  pageSize?: number
+  requestType?: string
+  status?: string
+  departmentId?: number
+  keyword?: string
+  sortBy?: string
+  sortOrder?: string
 }) { return request.post('/attendance/leave/all-list', params) }
 
 export function deleteLeave(requestId: number) { return request.post('/attendance/leave/delete', { requestId }) }
@@ -73,6 +83,9 @@ export function getAdminBizTripStatusList(params: {
   pageSize?: number
   keyword?: string
   status?: string
+  departmentId?: number
+  sortBy?: string
+  sortOrder?: string
 }): Promise<{ list: BizTripUserStatus[]; total: number; summary?: { inProgress: number; none: number } }> {
   return request.get('/attendance/admin/biz-trip/status-list', { params })
 }

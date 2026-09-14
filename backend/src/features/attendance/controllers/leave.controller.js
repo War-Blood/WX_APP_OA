@@ -88,10 +88,13 @@ async function adminEndTrip(req, res, next) {
 
 async function adminTripStatusList(req, res, next) {
   try {
-    const { keyword, status, page = 1, pageSize = 20 } = req.query;
+    const { keyword, status, departmentId, sortBy, sortOrder, page = 1, pageSize = 20 } = req.query;
     const result = await tripService.adminTripStatusList({
       keyword,
       status,
+      departmentId: departmentId ? parseInt(departmentId) : undefined,
+      sortBy,
+      sortOrder,
       page: parseInt(page) || 1,
       pageSize: parseInt(pageSize) || 20,
     });
@@ -103,12 +106,15 @@ async function adminTripStatusList(req, res, next) {
 
 async function adminTripRecords(req, res, next) {
   try {
-    const { status, keyword, startDate, endDate, page = 1, pageSize = 20 } = req.query;
+    const { status, keyword, startDate, endDate, departmentId, sortBy, sortOrder, page = 1, pageSize = 20 } = req.query;
     const result = await tripService.adminTripRecords({
       status,
       keyword,
       startDate,
       endDate,
+      departmentId: departmentId ? parseInt(departmentId) : undefined,
+      sortBy,
+      sortOrder,
       page: parseInt(page) || 1,
       pageSize: parseInt(pageSize) || 20,
     });
@@ -153,8 +159,17 @@ async function deleteRequest(req, res, next) {
 
 async function adminList(req, res, next) {
   try {
-    const { requestType, status, keyword, page = 1, pageSize = 20 } = req.body;
-    const result = await leaveService.adminList({ requestType, status, keyword, page, pageSize });
+    const { requestType, status, keyword, departmentId, sortBy, sortOrder, page = 1, pageSize = 20 } = req.body;
+    const result = await leaveService.adminList({
+      requestType,
+      status,
+      keyword,
+      departmentId: departmentId ? parseInt(departmentId) : undefined,
+      sortBy,
+      sortOrder,
+      page,
+      pageSize,
+    });
     res.json(paginated(result.list, result.total, Number(page), Number(pageSize)));
   } catch (err) { next(err); }
 }

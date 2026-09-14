@@ -58,6 +58,16 @@ $topbar-height: 48px;
 $primary-nav-width: 56px;
 $module-sidebar-width: 180px;
 
+// Worktile 视觉令牌
+$wt-bg-hover: #F0F2F5;
+$wt-bg-active: #E6F1FB;
+$wt-border: #EBEEF5;
+$wt-border-base: #E4E7ED;
+$wt-table-header-bg: #F5F7FA;
+$wt-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+$wt-radius: 6px;
+$wt-radius-card: 8px;
+
 // 侧边栏 (Worktile 风格：白色)
 $sidebar-width: 220px;            // 旧布局兼容
 $sidebar-collapsed-width: 64px;   // 旧布局兼容

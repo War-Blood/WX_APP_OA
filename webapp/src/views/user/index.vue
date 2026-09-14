@@ -841,13 +841,16 @@ onMounted(() => {
 .user-page { padding: 0; }
 .toolbar {
   display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   margin-bottom: 16px;
   .toolbar-left {
     display: flex; align-items: center; gap: 12px;
-    h3 { margin: 0; font-size: 18px; font-weight: 600; color: #303133; }
-    .total-hint { font-size: 13px; color: #909399; }
+    flex-shrink: 0;
+    h3 { margin: 0; font-size: 18px; font-weight: 600; color: #303133; white-space: nowrap; }
+    .total-hint { font-size: 13px; color: #909399; white-space: nowrap; }
   }
-  .toolbar-right { display: flex; align-items: center; gap: 8px; }
+  .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 }
 
 .user-cell {
