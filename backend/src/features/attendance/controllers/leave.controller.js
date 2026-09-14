@@ -95,7 +95,9 @@ async function adminTripStatusList(req, res, next) {
       page: parseInt(page) || 1,
       pageSize: parseInt(pageSize) || 20,
     });
-    res.json(paginated(result.list, result.total, result.page, result.pageSize));
+    const response = paginated(result.list, result.total, result.page, result.pageSize);
+    response.data.summary = result.summary;
+    res.json(response);
   } catch (err) { next(err); }
 }
 
