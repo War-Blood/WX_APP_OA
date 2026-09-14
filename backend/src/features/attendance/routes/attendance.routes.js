@@ -33,8 +33,10 @@ router.post('/biz-trip/end', authenticate, leaveController.endTrip);
 
 // ===== 后台出差管理（管理员） =====
 router.get('/admin/biz-trip/status-list', authenticate, requireRole('admin', 'superadmin'), leaveController.adminTripStatusList);
+router.get('/admin/biz-trip/records', authenticate, requireRole('admin', 'superadmin'), leaveController.adminTripRecords);
 router.post('/admin/biz-trip/start', authenticate, requireRole('admin', 'superadmin'), leaveController.adminStartTrip);
 router.post('/admin/biz-trip/end', authenticate, requireRole('admin', 'superadmin'), leaveController.adminEndTrip);
+router.post('/admin/biz-trip/update', authenticate, requireRole('admin', 'superadmin'), leaveController.adminUpdateTripRecord);
 
 // ===== 考勤汇总（管理员） =====
 router.post('/summary/list', authenticate, requireRole('admin', 'superadmin'), summaryController.list);

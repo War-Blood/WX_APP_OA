@@ -99,6 +99,37 @@ async function adminTripStatusList(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function adminTripRecords(req, res, next) {
+  try {
+    const { status, keyword, startDate, endDate, page = 1, pageSize = 20 } = req.query;
+    const result = await tripService.adminTripRecords({
+      status,
+      keyword,
+      startDate,
+      endDate,
+      page: parseInt(page) || 1,
+      pageSize: parseInt(pageSize) || 20,
+    });
+    res.json(paginated(result.list, result.total, result.page, result.pageSize));
+  } catch (err) { next(err); }
+}
+
+async function adminUpdateTripRecord(req, res, next) {
+  try {
+    const { recordType, recordId, startDate, endDate, remark } = req.body;
+    if (!recordId) throw new ValidationError('记录标识不能为空');
+    if (!startDate) throw new ValidationError('开始日期不能为空');
+    const result = await tripService.adminUpdateTripRecord({
+      recordType,
+      recordId,
+      startDate,
+      endDate,
+      remark,
+    });
+    res.json(success(result, '出差记录已更新'));
+  } catch (err) { next(err); }
+}
+
 async function updateRequest(req, res, next) {
   try {
     const { requestId, leaveSubtype, startDate, endDate, reason } = req.body;
@@ -137,6 +168,8 @@ module.exports = {
   adminStartTrip,
   adminEndTrip,
   adminTripStatusList,
+  adminTripRecords,
+  adminUpdateTripRecord,
   updateRequest,
   deleteRequest,
 };

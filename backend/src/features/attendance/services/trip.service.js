@@ -133,6 +133,33 @@ function toDateTimeStr(value) {
 }
 
 /**
+ * 取 DateTime 值的时分秒部分（按北京时间）
+ * @param {Date|string} value - DateTime 值
+ * @returns {string} HH:mm:ss
+ */
+function timePart(value) {
+  if (!value) return '00:00:00';
+  if (value instanceof Date) {
+    const offset = value.getTimezoneOffset() + 480;
+    const bj = new Date(value.getTime() + offset * 60000);
+    return `${String(bj.getHours()).padStart(2, '0')}:${String(bj.getMinutes()).padStart(2, '0')}:${String(bj.getSeconds()).padStart(2, '0')}`;
+  }
+  const parts = String(value).split(' ');
+  return parts[1] || '00:00:00';
+}
+
+/**
+ * 计算出差天数（含首尾两天）
+ * @param {string} startDate - YYYY-MM-DD
+ * @param {string} endDate - YYYY-MM-DD
+ * @returns {number}
+ */
+function calcTripDays(startDate, endDate) {
+  if (!startDate || !endDate) return 0;
+  return Math.floor((beijingDate(endDate).getTime() - beijingDate(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+}
+
+/**
  * 管理员直接为任意员工开始出差，不依赖员工发起出差申请。
  * 以 attendance_leave_requests 为主数据，并同步 biz_trip_status。
  */
@@ -293,6 +320,231 @@ async function adminEndTrip({ userId, reason, endDate }) {
 }
 
 /**
+ * 出差记录合并列表。
+ * 以考勤出差记录为准，合并合规出差记录；与考勤记录已配对的合规记录（同日开始且状态一致）不重复展示。
+ * @param {Object} params - 查询参数
+ * @param {string} [params.status] - in_progress / ended，空为全部
+ * @param {string} [params.keyword] - 姓名/工号/部门/项目/备注关键字
+ * @param {string} [params.startDate] - 开始日期范围（起）
+ * @param {string} [params.endDate] - 开始日期范围（止）
+ * @param {number} [params.page=1] - 页码
+ * @param {number} [params.pageSize=20] - 每页条数
+ * @returns {Promise<Object>} { list, total, page, pageSize }
+ */
+async function adminTripRecords({ status, keyword, startDate, endDate, page = 1, pageSize = 20 }) {
+  const conditions = [];
+  const params = [];
+
+  if (status === 'in_progress' || status === 'ended') {
+    conditions.push('t.tripStatus = ?');
+    params.push(status);
+  }
+  if (keyword) {
+    conditions.push('(t.nickname LIKE ? OR t.userName LIKE ? OR t.workerCode LIKE ? OR t.departmentName LIKE ? OR t.projectName LIKE ?)');
+    const kw = `%${keyword}%`;
+    params.push(kw, kw, kw, kw, kw);
+  }
+  if (startDate) { conditions.push('DATE(t.startAt) >= ?'); params.push(startDate); }
+  if (endDate) { conditions.push('DATE(t.startAt) <= ?'); params.push(endDate); }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const currentPage = parseInt(page) || 1;
+  const size = parseInt(pageSize) || 20;
+  const offset = (currentPage - 1) * size;
+
+  // 考勤出差记录 + 未配对的合规出差记录
+  const unionSql = `
+    SELECT a.id AS recordId, 'attendance' AS recordType, a.applicant_id AS userId,
+           u.nickname AS nickname, u.user_name AS userName, u.worker_code AS workerCode,
+           d.name AS departmentName, a.trip_started_at AS startAt, a.trip_ended_at AS endAt,
+           a.reason AS projectName,
+           CASE WHEN a.status = 'in_progress' THEN 'in_progress' ELSE 'ended' END AS tripStatus,
+           a.source AS source, 0 AS inconsistent
+    FROM attendance_leave_requests a
+    JOIN users u ON u.id = a.applicant_id
+    LEFT JOIN departments d ON u.department_id = d.id
+    WHERE a.request_type = 'biz_trip' AND a.status <> 'cancelled'
+    UNION ALL
+    SELECT b.id, 'compliance', b.user_id,
+           u.nickname, u.user_name, u.worker_code, d.name,
+           b.start_date, b.end_date, b.project_name,
+           CASE WHEN b.status = 'active' THEN 'in_progress' ELSE 'ended' END,
+           'compliance',
+           CASE WHEN b.status = 'active' AND EXISTS (
+             SELECT 1 FROM attendance_leave_requests a2
+             WHERE a2.applicant_id = b.user_id AND a2.request_type = 'biz_trip' AND a2.status = 'ended'
+               AND b.start_date BETWEEN DATE(a2.trip_started_at) AND COALESCE(DATE(a2.trip_ended_at), CURDATE())
+           ) THEN 1 ELSE 0 END
+    FROM biz_trip_status b
+    JOIN users u ON u.id = b.user_id
+    LEFT JOIN departments d ON u.department_id = d.id
+    WHERE b.status <> 'cancelled'
+      AND NOT EXISTS (
+        SELECT 1 FROM attendance_leave_requests a3
+        WHERE a3.applicant_id = b.user_id AND a3.request_type = 'biz_trip'
+          AND DATE(a3.trip_started_at) = b.start_date
+          AND a3.status = CASE WHEN b.status = 'active' THEN 'in_progress' ELSE 'ended' END
+      )
+  `;
+
+  const countRows = await db.query(`SELECT COUNT(*) AS total FROM (${unionSql}) t ${where}`, params);
+  const rows = await db.query(
+    `SELECT * FROM (${unionSql}) t ${where} ORDER BY t.startAt DESC, t.recordId DESC LIMIT ? OFFSET ?`,
+    [...params, size, offset]
+  );
+
+  const list = rows.map(row => {
+    const startDateStr = toDateStr(row.startAt);
+    const endDateStr = row.endAt ? toDateStr(row.endAt) : null;
+    return {
+      recordId: row.recordId,
+      recordType: row.recordType,
+      userId: row.userId,
+      userName: row.nickname || row.userName || '',
+      workerCode: row.workerCode || '',
+      departmentName: row.departmentName || '',
+      startDate: startDateStr,
+      endDate: endDateStr,
+      tripDays: row.tripStatus === 'in_progress'
+        ? calcTripDays(startDateStr, beijingToday())
+        : calcTripDays(startDateStr, endDateStr),
+      tripStatus: row.tripStatus,
+      projectName: row.projectName || null,
+      source: row.source,
+      inconsistent: !!row.inconsistent,
+    };
+  });
+
+  return { list, total: countRows[0].total, page: currentPage, pageSize: size };
+}
+
+/**
+ * 管理员修正出差记录的起止日期与项目/备注，并同步配对记录。
+ * 结束日期留空表示仍在出差中；填写结束日期即结束该次出差。
+ * @param {Object} params - 修正参数
+ * @param {string} params.recordType - attendance（考勤记录）/ compliance（合规记录）
+ * @param {number} params.recordId - 记录 ID
+ * @param {string} params.startDate - 开始日期 YYYY-MM-DD
+ * @param {string} [params.endDate] - 结束日期 YYYY-MM-DD，留空表示出差中
+ * @param {string} [params.remark] - 项目名称/备注
+ * @returns {Promise<Object>} 修正后的记录摘要
+ */
+async function adminUpdateTripRecord({ recordType, recordId, startDate, endDate, remark }) {
+  if (!['attendance', 'compliance'].includes(recordType)) {
+    throw new BusinessError('记录类型不正确');
+  }
+  if (!isValidDateStr(startDate)) {
+    throw new BusinessError('开始日期格式不正确', null, ErrorCode.ATTENDANCE_DATE_INVALID);
+  }
+  if (endDate && !isValidDateStr(endDate)) {
+    throw new BusinessError('结束日期格式不正确', null, ErrorCode.ATTENDANCE_DATE_INVALID);
+  }
+  if (endDate && endDate < startDate) {
+    throw new BusinessError('结束日期不能早于开始日期', null, ErrorCode.ATTENDANCE_DATE_INVALID);
+  }
+
+  const hasRemark = remark !== undefined && remark !== null;
+  const remarkValue = hasRemark ? (String(remark).trim() || null) : null;
+  const newStatus = endDate ? 'ended' : 'in_progress';
+  const endedAt = endDate ? `${endDate} 23:59:59` : null;
+
+  if (recordType === 'attendance') {
+    const rows = await db.query(
+      `SELECT id, applicant_id, trip_started_at FROM attendance_leave_requests
+       WHERE id = ? AND request_type = 'biz_trip'`,
+      [recordId]
+    );
+    if (!rows.length) throw new BusinessError('出差记录不存在', null, ErrorCode.ATTENDANCE_LEAVE_NOT_FOUND);
+    const record = rows[0];
+    const oldStart = toDateStr(record.trip_started_at);
+
+    if (!endDate) {
+      const conflict = await db.query(
+        `SELECT id FROM attendance_leave_requests
+         WHERE applicant_id = ? AND request_type = 'biz_trip' AND status = 'in_progress' AND id <> ? LIMIT 1`,
+        [record.applicant_id, recordId]
+      );
+      if (conflict.length > 0) {
+        throw new BusinessError('该员工已有其他进行中的出差，请先结束', null, ErrorCode.ATTENDANCE_TRIP_ALREADY_ACTIVE);
+      }
+    }
+
+    await db.transaction(async (conn) => {
+      await conn.execute(
+        `UPDATE attendance_leave_requests
+         SET trip_started_at = ?, trip_ended_at = ?, status = ?, reason = ${hasRemark ? '?' : 'reason'}
+         WHERE id = ?`,
+        [`${startDate} ${timePart(record.trip_started_at)}`, endedAt, newStatus, ...(hasRemark ? [remarkValue] : []), recordId]
+      );
+
+      const pairedResult = await conn.execute(
+        `SELECT id FROM biz_trip_status
+         WHERE user_id = ? AND start_date = ? AND status <> 'cancelled' LIMIT 1`,
+        [record.applicant_id, oldStart]
+      );
+      const paired = pairedResult[0];
+      if (paired.length > 0) {
+        await conn.execute(
+          `UPDATE biz_trip_status
+           SET start_date = ?, end_date = ?, status = ?, project_name = ${hasRemark ? '?' : 'project_name'}, updated_at = NOW()
+           WHERE id = ?`,
+          [startDate, endDate || null, endDate ? 'completed' : 'active', ...(hasRemark ? [remarkValue] : []), paired[0].id]
+        );
+      }
+    });
+
+    return { recordType, recordId, startDate, endDate: endDate || null, status: newStatus };
+  }
+
+  const rows = await db.query(
+    'SELECT id, user_id, start_date FROM biz_trip_status WHERE id = ?',
+    [recordId]
+  );
+  if (!rows.length) throw new BusinessError('出差记录不存在', null, ErrorCode.ATTENDANCE_LEAVE_NOT_FOUND);
+  const record = rows[0];
+  const oldStart = toDateStr(record.start_date);
+
+  const pairedRows = await db.query(
+    `SELECT id, trip_started_at FROM attendance_leave_requests
+     WHERE applicant_id = ? AND request_type = 'biz_trip' AND DATE(trip_started_at) = ? AND status <> 'cancelled'
+     LIMIT 1`,
+    [record.user_id, oldStart]
+  );
+  const paired = pairedRows.length ? pairedRows[0] : null;
+
+  if (!endDate) {
+    const conflict = await db.query(
+      `SELECT id FROM attendance_leave_requests
+       WHERE applicant_id = ? AND request_type = 'biz_trip' AND status = 'in_progress' AND id <> ? LIMIT 1`,
+      [record.user_id, paired ? paired.id : 0]
+    );
+    if (conflict.length > 0) {
+      throw new BusinessError('该员工已有其他进行中的出差，请先结束', null, ErrorCode.ATTENDANCE_TRIP_ALREADY_ACTIVE);
+    }
+  }
+
+  await db.transaction(async (conn) => {
+    await conn.execute(
+      `UPDATE biz_trip_status
+       SET start_date = ?, end_date = ?, status = ?, project_name = ${hasRemark ? '?' : 'project_name'}, updated_at = NOW()
+       WHERE id = ?`,
+      [startDate, endDate || null, endDate ? 'completed' : 'active', ...(hasRemark ? [remarkValue] : []), recordId]
+    );
+
+    if (paired) {
+      await conn.execute(
+        `UPDATE attendance_leave_requests
+         SET trip_started_at = ?, trip_ended_at = ?, status = ?, reason = ${hasRemark ? '?' : 'reason'}
+         WHERE id = ?`,
+        [`${startDate} ${timePart(paired.trip_started_at)}`, endedAt, newStatus, ...(hasRemark ? [remarkValue] : []), paired.id]
+      );
+    }
+  });
+
+  return { recordType, recordId, startDate, endDate: endDate || null, status: newStatus };
+}
+
+/**
  * 管理员查看全员出差状态。
  */
 async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 }) {
@@ -305,20 +557,21 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
     params.push(kw, kw, kw, kw);
   }
 
+  // 有效出差条件与列表 tripStatus 计算口径一致：
+  // 出差中 = 进行中的考勤出差，或未被已结束考勤出差覆盖的有效合规出差（排除残留）
+  const activeAttendanceSql = `EXISTS (SELECT 1 FROM attendance_leave_requests a
+    WHERE a.applicant_id = u.id AND a.request_type = 'biz_trip' AND a.status = 'in_progress')`;
+  const activeComplianceSql = `EXISTS (SELECT 1 FROM biz_trip_status b
+    WHERE b.user_id = u.id AND b.status = 'active'
+      AND NOT EXISTS (SELECT 1 FROM attendance_leave_requests a2
+                      WHERE a2.applicant_id = u.id AND a2.request_type = 'biz_trip'
+                        AND a2.status = 'ended'
+                        AND b.start_date BETWEEN DATE(a2.trip_started_at) AND COALESCE(DATE(a2.trip_ended_at), CURDATE())))`;
+
   if (status === 'in_progress') {
-    conditions.push(`(
-      EXISTS (SELECT 1 FROM attendance_leave_requests a
-              WHERE a.applicant_id = u.id AND a.request_type = 'biz_trip' AND a.status = 'in_progress')
-      OR EXISTS (SELECT 1 FROM biz_trip_status b
-                 WHERE b.user_id = u.id AND b.status = 'active')
-    )`);
+    conditions.push(`(${activeAttendanceSql} OR ${activeComplianceSql})`);
   } else if (status === 'none') {
-    conditions.push(`(
-      NOT EXISTS (SELECT 1 FROM attendance_leave_requests a
-                  WHERE a.applicant_id = u.id AND a.request_type = 'biz_trip' AND a.status = 'in_progress')
-      AND NOT EXISTS (SELECT 1 FROM biz_trip_status b
-                      WHERE b.user_id = u.id AND b.status = 'active')
-    )`);
+    conditions.push(`(NOT ${activeAttendanceSql} AND NOT ${activeComplianceSql})`);
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
@@ -339,7 +592,7 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
   const ids = rows.map(r => r.id);
   const tripMap = {};
   const complianceMap = {};
-  const endedTripMap = {}; // 用户最近一条已结束的考勤出差（用于残留判定）
+  const endedTripMap = {}; // 用户已结束的考勤出差列表（用于残留判定）
   if (ids.length > 0) {
     const trips = await db.query(
       `SELECT id, applicant_id, trip_started_at, reason, source
@@ -370,7 +623,8 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
       ids
     );
     endedTrips.forEach(t => {
-      if (!endedTripMap[t.applicant_id]) endedTripMap[t.applicant_id] = t;
+      if (!endedTripMap[t.applicant_id]) endedTripMap[t.applicant_id] = [];
+      endedTripMap[t.applicant_id].push(t);
     });
   }
 
@@ -380,14 +634,18 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
     let tripStatus = trip ? 'in_progress' : (compliance ? 'compliance_only' : 'none');
     // 残留守卫：无进行中考勤出差，但合规记录的开始日期被已结束考勤出差覆盖 → 合规记录为残留，不显示「出差中」
     if (!trip && compliance) {
-      const endedTrip = endedTripMap[row.id];
-      if (endedTrip) {
-        const cs = String(compliance.start_date).slice(0, 10);
-        const es = endedTrip.trip_started_at ? String(endedTrip.trip_started_at).slice(0, 10) : '';
-        const ee = endedTrip.trip_ended_at ? String(endedTrip.trip_ended_at).slice(0, 10) : '';
-        if (cs >= es && cs <= ee) tripStatus = 'none';
-      }
+      const endedTrips = endedTripMap[row.id] || [];
+      const cs = toDateStr(compliance.start_date);
+      const isResidual = cs && endedTrips.some(t => {
+        const es = toDateStr(t.trip_started_at);
+        const ee = toDateStr(t.trip_ended_at) || beijingToday();
+        return es && cs >= es && cs <= ee;
+      });
+      if (isResidual) tripStatus = 'none';
     }
+    const tripStartDate = trip
+      ? toDateStr(trip.trip_started_at)
+      : (compliance ? toDateStr(compliance.start_date) : null);
     return {
       userId: row.id,
       userName: row.nickname || row.user_name || '',
@@ -399,8 +657,9 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
       complianceId: compliance ? compliance.id : null,
       projectName: trip?.reason || compliance?.project_name || null,
       tripStartedAt: trip ? toDateTimeStr(trip.trip_started_at) : (compliance ? toDateStr(compliance.start_date) : null),
+      tripDays: tripStartDate && tripStatus !== 'none' ? calcTripDays(tripStartDate, beijingToday()) : null,
       reason: trip ? trip.reason : null,
-      source: trip ? trip.source : null,
+      source: trip ? trip.source : (compliance ? 'compliance' : null),
     };
   });
 
@@ -413,4 +672,12 @@ async function adminTripStatusList({ keyword, status, page = 1, pageSize = 20 })
   };
 }
 
-module.exports = { startTrip, endTrip, adminStartTrip, adminEndTrip, adminTripStatusList };
+module.exports = {
+  startTrip,
+  endTrip,
+  adminStartTrip,
+  adminEndTrip,
+  adminTripStatusList,
+  adminTripRecords,
+  adminUpdateTripRecord,
+};
