@@ -18,21 +18,39 @@ const userStore = useUserStore()
 const workTypeLoading = ref(false)
 const workTypeList = ref<WorkerWorkTypeItem[]>([])
 const workTypeMonth = ref(currentMonthInBeijing())
-const WT_LABELS = ['工作（陆）','工作（海）','待工','在途','请假']
+const WT_LABELS = ['工作（陆）', '工作（海）', '待工', '在途', '请假']
 const showFilter = ref(false)
 
 // 汇总行：各列合计 + 补录合计 + 工作日报合计 + 总计
 const wtSummary = computed(() => {
   const s: Record<string, number> = { supplement: 0, office: 0, total: 0 }
-  WT_LABELS.forEach(l => { s[l] = 0 })
-  workTypeList.value.forEach(w => {
-    WT_LABELS.forEach(l => { s[l] += (w as any).workTypes?.[l] || 0 })
+  WT_LABELS.forEach((l) => {
+    s[l] = 0
+  })
+  workTypeList.value.forEach((w) => {
+    WT_LABELS.forEach((l) => {
+      s[l] += (w as any).workTypes?.[l] || 0
+    })
     s.supplement += w.supplementCount || 0
     s.office += w.officeCount || 0
     s.total += w.total || 0
   })
   return s
 })
+
+// 汇总行：交给 el-table 的 footer 渲染（与表头共用 colgroup，列宽严格对齐）
+// 第 0 列返回「汇总」文案；其余按 column.property 取合计值
+function wtSummaryMethod({ columns }: { columns: Array<{ property?: string }> }): string[] {
+  const s = wtSummary.value
+  return columns.map((col, index) => {
+    if (index === 0) return '汇总'
+    const key = col.property
+    if (!key) return ''
+    if (key === 'supplementCount') return String(s.supplement)
+    if (key === 'officeCount') return String(s.office)
+    return key in s ? String(s[key]) : ''
+  })
+}
 
 async function loadWorkTypes() {
   workTypeLoading.value = true
@@ -53,7 +71,7 @@ async function onFilterApply(filter: StatsViewFilter) {
       statKey: 'worktypes',
       conditions: filter.conditions || [],
       roleConditions: filter.roleConditions || {},
-      visibility: filter.visibility,
+      visibility: filter.visibility
     })
     toast.success('视图已保存')
   } catch {
@@ -74,7 +92,7 @@ function nextWorkTypeMonth() {
 }
 
 function maxInColumn(key: string) {
-  return Math.max(1, ...workTypeList.value.map(w => (w as any).workTypes?.[key] || 0))
+  return Math.max(1, ...workTypeList.value.map((w) => (w as any).workTypes?.[key] || 0))
 }
 
 function cellClass(val: number, maxVal: number): number {
@@ -98,33 +116,44 @@ onMounted(loadWorkTypes)
         <el-button size="small" @click="nextWorkTypeMonth">›</el-button>
         <el-button :icon="Refresh" size="small" text @click="loadWorkTypes">刷新</el-button>
       </template>
-      <el-table :data="workTypeList" v-loading="workTypeLoading" stripe border :ref="bindRef" allow-drag-last-column @header-dragend="onHeaderDragEnd">
-        <!-- 汇总行 -->
-        <template #append>
-          <tr class="wt-summary">
-            <td class="wt-sum-cell wt-sum-name">汇总</td>
-            <td class="wt-sum-cell wt-sum-supp">{{ wtSummary.supplement }}</td>
-            <td class="wt-sum-cell wt-sum-office">{{ wtSummary.office }}</td>
-            <td v-for="wt in WT_LABELS" :key="wt" class="wt-sum-cell">{{ wtSummary[wt] }}</td>
-            <td class="wt-sum-cell wt-sum-total">{{ wtSummary.total }}</td>
-          </tr>
-        </template>
+      <el-table
+        :data="workTypeList"
+        v-loading="workTypeLoading"
+        stripe
+        border
+        :ref="bindRef"
+        allow-drag-last-column
+        show-summary
+        :summary-method="wtSummaryMethod"
+        @header-dragend="onHeaderDragEnd"
+      >
         <el-table-column prop="userName" label="姓名" width="90" />
-        <el-table-column label="补" width="60" align="center">
+        <el-table-column prop="supplementCount" label="补" width="60" align="center">
           <template #default="{ row }">
             <span class="wt-supp">{{ (row as any).supplementCount || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="公" width="60" align="center">
+        <el-table-column prop="officeCount" label="公" width="60" align="center">
           <template #default="{ row }">
             <span class="wt-office">{{ (row as WorkerWorkTypeItem).officeCount || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-for="wt in WT_LABELS" :key="wt" :label="wt.replace('工作（','').replace('）','')" width="76" align="center">
+        <el-table-column
+          v-for="wt in WT_LABELS"
+          :key="wt"
+          :prop="wt"
+          :label="wt.replace('工作（', '').replace('）', '')"
+          width="76"
+          align="center"
+        >
           <template #default="{ row }">
             <span
-              :class="['cell-heat', `cell-heat--${cellClass((row as any).workTypes?.[wt] || 0, maxInColumn(wt))}`]"
-            >{{ (row as any).workTypes?.[wt] || 0 }}</span>
+              :class="[
+                'cell-heat',
+                `cell-heat--${cellClass((row as any).workTypes?.[wt] || 0, maxInColumn(wt))}`
+              ]"
+              >{{ (row as any).workTypes?.[wt] || 0 }}</span
+            >
           </template>
         </el-table-column>
         <el-table-column prop="total" label="总计" width="70" align="center">
@@ -140,27 +169,31 @@ onMounted(loadWorkTypes)
 </template>
 
 <style scoped lang="scss">
-.wt-summary {
-  background: $primary-bg;
+// 汇总行由 el-table 的 footer 渲染（tfoot 与表头共用 colgroup）
+:deep(.el-table__footer .el-table__cell) {
+  padding: 8px 0;
+  text-align: center;
+  color: $text-primary;
   font-weight: 600;
+  background: $primary-bg;
+}
 
-  .wt-sum-cell {
-    padding: 8px 0;
-    text-align: center;
-    color: $text-primary;
-    border-bottom: 1px solid $border-color;
-  }
+:deep(.el-table__footer .el-table__cell:first-child) {
+  padding-left: 12px;
+  text-align: left;
+}
 
-  .wt-sum-name {
-    padding-left: 12px;
-    text-align: left;
-  }
+:deep(.el-table__footer .el-table__cell:nth-child(2)) {
+  color: $warning-color;
+}
 
-  .wt-sum-supp { color: $warning-color; }
+:deep(.el-table__footer .el-table__cell:nth-child(3)) {
+  color: $success-color;
+}
 
-  .wt-sum-office { color: $success-color; }
-
-  .wt-sum-total { color: $primary-color; font-weight: 700; }
+:deep(.el-table__footer .el-table__cell:last-child) {
+  color: $primary-color;
+  font-weight: 700;
 }
 
 .wt-supp {
@@ -180,8 +213,16 @@ onMounted(loadWorkTypes)
   color: $text-primary;
 }
 
-.cell-heat--0 { background: transparent; }
-.cell-heat--1 { background: #E8F5E9; }
-.cell-heat--2 { background: #A5D6A7; }
-.cell-heat--3 { background: #66BB6A; }
+.cell-heat--0 {
+  background: transparent;
+}
+.cell-heat--1 {
+  background: #e8f5e9;
+}
+.cell-heat--2 {
+  background: #a5d6a7;
+}
+.cell-heat--3 {
+  background: #66bb6a;
+}
 </style>
