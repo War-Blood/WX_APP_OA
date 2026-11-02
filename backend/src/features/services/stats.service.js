@@ -245,8 +245,9 @@ async function getMonthlyMissing(month, viewParams) {
         userId: id,
         userName: (user && (user.nickname || user.user_name)) || `用户${id}`,
         workerCode: (user && user.worker_code) || '',
-        project: (latest && latest.project) || '',
-        area: (latest && latest.area) ? String(latest.area).split('-')[0] : '',
+        // 项目名在库里可能带换行/空格，去掉后避免表格里出现空行
+        project: (latest && latest.project) ? String(latest.project).trim() : '',
+        area: (latest && latest.area) ? String(latest.area).split('-')[0].trim() : '',
         missingDates: dates,
         missingCount: dates.length,
       });
