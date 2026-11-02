@@ -102,6 +102,19 @@ async function dailyCounts(req, res, next) {
 }
 
 /**
+ * 月度未提交清单（提交日历下方催办表）
+ * POST /api/stats/monthly-missing
+ */
+async function monthlyMissing(req, res, next) {
+  try {
+    const { month } = req.body;
+    const viewParams = { role: req.user.role, userId: req.user.userId };
+    const result = await statsService.getMonthlyMissing(month, viewParams);
+    res.json(success(result));
+  } catch (err) { next(err); }
+}
+
+/**
  * 项目进展看板
  * POST /api/stats/project-progress
  */
@@ -173,6 +186,7 @@ module.exports = {
   profile,
   reportStats,
   dailyCounts,
+  monthlyMissing,
   projectProgress,
   workerWorkTypes,
   areaDistribution,

@@ -6,7 +6,11 @@ import {
   type DailyCountItem,
   getDailyStatus,
   type DailyStatusWorker,
-  type DailyStatusSummary
+  type DailyStatusSummary,
+  getMonthlyMissing,
+  type MonthlyMissingItem,
+  type MonthlyMissingSummary,
+  type MonthlyMissingResponse
 } from '@/api/report'
 import { currentMonthInBeijing, shiftMonth } from '@/utils/date'
 import type { StatsViewFilter } from '@/api/statsView'
@@ -25,6 +29,18 @@ const calMonth = ref(currentMonthInBeijing())
 const calChartRef = ref<HTMLElement>()
 const { setOption, instance } = useECharts(calChartRef)
 const showFilter = ref(false)
+
+// ===== 日历下方：本月未提交清单（与日历格子同口径） =====
+const missingLoading = ref(false)
+const missingData = ref<MonthlyMissingResponse | null>(null)
+const missingList = computed<MonthlyMissingItem[]>(() => missingData.value?.list ?? [])
+const missingSummary = computed<MonthlyMissingSummary>(
+  () => missingData.value?.summary ?? { userCount: 0, dayCount: 0, personDays: 0 }
+)
+const missingSubtitle = computed(() => {
+  if (!missingData.value) return ''
+  return `统计至 ${missingData.value.cutoff}`
+})
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
@@ -50,6 +66,8 @@ function countOf(date: string): DailyCountItem | undefined {
 
 async function loadCalendar() {
   calLoading.value = true
+  // 未提交清单与日历并行加载，互不阻塞
+  void loadMissing()
   try {
     const res = await getDailyCounts(calMonth.value)
     calData.value = res.data
@@ -58,6 +76,22 @@ async function loadCalendar() {
     calData.value = []
   } finally {
     calLoading.value = false
+  }
+}
+
+/** 日历下方「未提交清单」：本月每人未提交日期（与日历格子同口径） */
+let missingSeq = 0
+async function loadMissing() {
+  const seq = ++missingSeq
+  const month = calMonth.value
+  missingLoading.value = true
+  try {
+    const res = await getMonthlyMissing(month)
+    if (seq === missingSeq) missingData.value = res
+  } catch {
+    if (seq === missingSeq) missingData.value = null
+  } finally {
+    if (seq === missingSeq) missingLoading.value = false
   }
 }
 
@@ -287,8 +321,66 @@ onMounted(() => {
         <el-button size="small" @click="nextCalendarMonth">›</el-button>
         <el-button :icon="Refresh" size="small" text @click="loadCalendar">刷新</el-button>
       </template>
-      <div class="calendar-hint">点击任意日期，查看当天人员提交情况（未提交人员置顶）</div>
+      <div class="calendar-hint">
+        点击任意日期，查看当天人员提交情况（未提交人员置顶）；本月未提交清单见下方
+      </div>
       <div ref="calChartRef" v-loading="calLoading" style="height: 360px"></div>
+    </SectionCard>
+
+    <SectionCard title="未提交清单" :subtitle="missingSubtitle">
+      <template #actions>
+        <el-button :icon="Refresh" size="small" text @click="loadMissing">刷新</el-button>
+      </template>
+      <div v-if="missingData" class="missing-bar">
+        <span class="missing-stat">
+          <b class="is-danger">{{ missingSummary.userCount }}</b> 人未提交
+        </span>
+        <span class="missing-stat">
+          <b>{{ missingSummary.personDays }}</b> 人次
+        </span>
+        <span class="missing-stat">
+          <b>{{ missingSummary.dayCount }}</b> 天有缺报
+        </span>
+        <span class="missing-tip">与上方日历同口径：当天应出差/在岗但未提交日报</span>
+      </div>
+      <el-table
+        :data="missingList"
+        v-loading="missingLoading"
+        size="small"
+        stripe
+        border
+        max-height="420"
+      >
+        <el-table-column prop="userName" label="姓名" width="100" />
+        <el-table-column prop="workerCode" label="工号" width="110" />
+        <el-table-column label="项目" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.project || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="missingCount" label="未提交" width="100" align="center" sortable>
+          <template #default="{ row }">
+            <span class="missing-count">{{ row.missingCount }}</span> 天
+          </template>
+        </el-table-column>
+        <el-table-column label="未提交日期（点击查看当天情况）" min-width="420">
+          <template #default="{ row }">
+            <el-tag
+              v-for="d in row.missingDates"
+              :key="d"
+              class="missing-date"
+              size="small"
+              type="danger"
+              effect="plain"
+              @click="openDay(d)"
+            >
+              {{ d.slice(5) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty
+        v-if="!missingLoading && missingData && !missingList.length"
+        :description="`${calMonth} 没有未提交人员`"
+      />
     </SectionCard>
 
     <el-dialog v-model="dayVisible" :title="dayTitle" width="860px" destroy-on-close>
@@ -350,10 +442,54 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
+.calendar-page {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-medium;
+}
+
 .calendar-hint {
   margin-bottom: 4px;
   color: $text-secondary;
   font-size: $font-size-base;
+}
+
+.missing-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  color: $text-secondary;
+  font-size: $font-size-base;
+
+  .missing-stat b {
+    margin-right: 2px;
+    color: $text-primary;
+    font-size: 16px;
+    font-weight: 700;
+
+    &.is-danger {
+      color: $danger-color;
+    }
+  }
+
+  .missing-tip {
+    margin-left: auto;
+    color: $text-placeholder;
+    font-size: $font-size-small;
+  }
+}
+
+.missing-count {
+  color: $danger-color;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.missing-date {
+  margin: 2px 4px 2px 0;
+  cursor: pointer;
 }
 
 .day-panel {

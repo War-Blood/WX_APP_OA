@@ -2,6 +2,8 @@
 
 const db = require('../../common/config/database');
 const messageService = require('../../core/services/message.service');
+const { BusinessError } = require('../../common/utils/errors');
+const { beijingToday } = require('../../common/utils/date');
 
 /**
  * 数据统计服务
@@ -173,6 +175,97 @@ async function getMissingDetails(userId, role, month) {
   }
 
   return { month: monthStr, total: list.length, list };
+}
+
+/**
+ * 月度未提交清单（与「提交日历」同口径）
+ * 按人员聚合当月「当天应出差/在岗但未提交日报」的日期，供日历下方催办清单展示；
+ * 人员范围与日历完全一致（同视图筛选 + RLS），只统计到北京时间当天，未来日期不计入。
+ * @param {string} month - 月份 YYYY-MM
+ * @param {Object} [viewParams] - { role, userId } 视图筛选 + 数据范围
+ * @returns {Promise<{month: string, cutoff: string, summary: {userCount: number, dayCount: number, personDays: number}, list: Array}>}
+ */
+async function getMonthlyMissing(month, viewParams) {
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    throw new BusinessError('month 必填，格式 YYYY-MM');
+  }
+
+  // 懒加载：与 getMissingDetails 一致，避免服务间循环依赖
+  const coreStatsService = require('../../core/services/stats.service');
+  const { data = [] } = await coreStatsService.getDailyCounts(month, viewParams);
+  const cutoff = beijingToday();
+
+  // userId -> 未提交日期列表（只保留 cutoff 及之前的日期，未来日期不算缺报）
+  const dateMap = new Map();
+  let dayCount = 0;
+  data.forEach((day) => {
+    if (!day || !day.date || day.date > cutoff) return;
+    const ids = Array.isArray(day.missingUserIds) ? day.missingUserIds : [];
+    if (!ids.length) return;
+    dayCount += 1;
+    ids.forEach((id) => {
+      const key = Number(id);
+      if (!dateMap.has(key)) dateMap.set(key, []);
+      dateMap.get(key).push(day.date);
+    });
+  });
+
+  const userIds = [...dateMap.keys()];
+  const list = [];
+  if (userIds.length) {
+    const placeholders = userIds.map(() => '?').join(',');
+
+    // 姓名/工号
+    const userRows = await db.query(
+      `SELECT id, nickname, user_name, worker_code FROM users WHERE id IN (${placeholders})`,
+      userIds
+    );
+    const userMap = new Map(userRows.map((u) => [Number(u.id), u]));
+
+    // 最近一条日报的项目/区域：方便催办时定位所属项目（本月无日报时取历史最近一条）
+    const projectRows = await db.query(
+      `SELECT dr.user_id, dr.project, dr.area
+       FROM daily_reports dr
+       JOIN (
+         SELECT user_id, MAX(id) AS max_id
+         FROM daily_reports
+         WHERE status != 'draft' AND deleted_at IS NULL
+           AND user_id IN (${placeholders})
+         GROUP BY user_id
+       ) latest ON latest.max_id = dr.id`,
+      userIds
+    );
+    const projectMap = new Map(projectRows.map((r) => [Number(r.user_id), r]));
+
+    userIds.forEach((id) => {
+      const user = userMap.get(id);
+      const latest = projectMap.get(id);
+      const dates = dateMap.get(id).sort();
+      list.push({
+        userId: id,
+        userName: (user && (user.nickname || user.user_name)) || `用户${id}`,
+        workerCode: (user && user.worker_code) || '',
+        project: (latest && latest.project) || '',
+        area: (latest && latest.area) ? String(latest.area).split('-')[0] : '',
+        missingDates: dates,
+        missingCount: dates.length,
+      });
+    });
+  }
+
+  // 未提交天数多的排前面（催办优先）
+  list.sort((a, b) => b.missingCount - a.missingCount || a.userName.localeCompare(b.userName, 'zh-Hans-CN'));
+
+  return {
+    month,
+    cutoff,
+    summary: {
+      userCount: list.length,
+      dayCount,
+      personDays: list.reduce((sum, item) => sum + item.missingCount, 0),
+    },
+    list,
+  };
 }
 
 /**
@@ -397,6 +490,7 @@ async function getReportStats() {
 module.exports = {
   getHomeStats,
   getMissingDetails,
+  getMonthlyMissing,
   getActivities,
   getProfileStats,
   getReportStats,

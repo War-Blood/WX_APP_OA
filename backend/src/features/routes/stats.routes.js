@@ -50,6 +50,9 @@ router.post('/stats/reportStats', authenticate, statsController.reportStats);
 // POST /api/stats/daily-counts — 月度每日提交人次
 router.post('/stats/daily-counts', authenticate, statsController.dailyCounts);
 
+// POST /api/stats/monthly-missing — 月度未提交清单（提交日历下方催办）
+router.post('/stats/monthly-missing', authenticate, statsController.monthlyMissing);
+
 // POST /api/stats/project-progress — 项目进展看板
 router.post('/stats/project-progress', authenticate, statsController.projectProgress);
 

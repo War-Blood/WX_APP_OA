@@ -411,6 +411,41 @@ export function getDailyCounts(month: string, viewId?: number): Promise<DailyCou
   return request.post('/stats/daily-counts', { month, viewId })
 }
 
+/** 月度未提交清单条目（与提交日历同口径） */
+export interface MonthlyMissingItem {
+  userId: number
+  userName: string
+  workerCode: string
+  project: string
+  area: string
+  missingCount: number
+  /** 未提交日期（YYYY-MM-DD，升序） */
+  missingDates: string[]
+}
+
+/** 月度未提交清单汇总 */
+export interface MonthlyMissingSummary {
+  /** 未提交人数 */
+  userCount: number
+  /** 有缺报的日期数 */
+  dayCount: number
+  /** 未提交总人次 */
+  personDays: number
+}
+
+export interface MonthlyMissingResponse {
+  month: string
+  /** 统计截止日（北京时间当天），其后的日期不计入 */
+  cutoff: string
+  summary: MonthlyMissingSummary
+  list: MonthlyMissingItem[]
+}
+
+/** 月度未提交人员清单（提交日历下方催办表） */
+export function getMonthlyMissing(month: string): Promise<MonthlyMissingResponse> {
+  return request.post('/stats/monthly-missing', { month })
+}
+
 /** 项目进展项 */
 export interface ProjectProgressItem {
   project: string

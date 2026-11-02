@@ -925,7 +925,8 @@ function formatDateTime(d) {
  * 每格返回当天去重已提交人数 submitted 与当天在职人数 total，
  * 供日历展示「已提交/总人数」及全员提交淡绿背景
  * @param {string} month - 月份 (YYYY-MM)
- * @returns {Promise<Object>} { month, data: [{ date, submitted, total }] }
+ * @param {Object} [viewParams] - { role, userId } 视图筛选 + 数据范围
+ * @returns {Promise<Object>} { month, data: [{ date, submitted, total, missingUserIds }] }
  */
 async function getDailyCounts(month, viewParams) {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
@@ -1068,7 +1069,13 @@ async function getDailyCounts(month, viewParams) {
     const total = totalSet.size;
     // 已提交人数同样限定在视图范围内，保证 submitted ≤ total 且口径一致
     const submitted = (submittedSet[dateStr] ? [...submittedSet[dateStr]].filter(uid => activeUid.has(uid)).length : 0);
-    data.push({ date: dateStr, submitted, total });
+    // 当日未提交人员 id = 应提交(total) - 已提交(submitted)，与格子数字同口径，
+    // 供「提交日历」下方的未提交清单按月聚合（人员范围已受视图筛选/RLS 限制）
+    const daySubmittedIds = submittedSet[dateStr] || new Set();
+    const missingUserIds = [...totalSet]
+      .filter(uid => !daySubmittedIds.has(Number(uid)))
+      .map(uid => Number(uid));
+    data.push({ date: dateStr, submitted, total, missingUserIds });
   }
 
   return { month, data };
