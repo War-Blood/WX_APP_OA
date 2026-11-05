@@ -1,0 +1,24 @@
+# frpc 客户端配置 — 内网 Linux（172.15.20.20）
+# 放置位置：/home/admin123/oa/frpc-oa.toml（chmod 600）
+# 对应云侧 frps：/etc/frp/frps.toml（7000/token/TLS/allowPorts）
+
+serverAddr = "111.229.107.123"
+serverPort = 7000
+user = "oa"
+
+auth.method = "token"
+# 与云侧 frps.toml 的 auth.token 保持一致，切勿提交真实值
+auth.token = "<FRPS_TOKEN>"
+
+transport.tls.enable = true
+
+log.to = "/home/admin123/oa/logs/frpc.log"
+log.level = "info"
+log.maxDays = 7
+
+[[proxies]]
+name = "oa-api-lan"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 3000
+remotePort = 13000

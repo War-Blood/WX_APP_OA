@@ -1,0 +1,75 @@
+# OA 内网栈 — MySQL + Redis + Backend（不含 Nginx，TLS 终结仍在云服务器）
+# 目录布局：/home/admin123/oa/{backend,init,uploads,logs}
+name: oa
+
+services:
+  oa-mysql:
+    image: mysql:8.0
+    container_name: oa-mysql
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:13306:3306"
+    volumes:
+      - oa-mysql-data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  oa-redis:
+    image: redis:7-alpine
+    container_name: oa-redis
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - oa-redis-data:/data
+    command: redis-server --appendonly yes
+
+  oa-backend:
+    build: ./backend
+    image: oa-backend:tunnel
+    container_name: oa-backend
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - ./backend/.env
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      oa-mysql:
+        condition: service_healthy
+      oa-redis:
+        condition: service_started
+
+volumes:
+  oa-mysql-data:
+  oa-redis-data:

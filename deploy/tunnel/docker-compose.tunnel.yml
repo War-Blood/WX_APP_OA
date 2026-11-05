@@ -1,0 +1,18 @@
+# 隧道容器 — 单独文件，避免与主栈一起启动
+# 用法：docker compose -f docker-compose.tunnel.yml up -d
+name: oa
+
+services:
+  oa-tunnel:
+    build: ./frp
+    image: oa-frpc:0.71.0
+    container_name: oa-tunnel
+    restart: unless-stopped
+    network_mode: host
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - ./frpc-oa.toml:/etc/frpc/frpc-oa.toml:ro
