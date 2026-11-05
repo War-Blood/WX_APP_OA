@@ -12,7 +12,7 @@ auth.token = "<FRPS_TOKEN>"
 
 transport.tls.enable = true
 
-log.to = "/home/admin123/oa/logs/frpc.log"
+log.to = "console"
 log.level = "info"
 log.maxDays = 7
 

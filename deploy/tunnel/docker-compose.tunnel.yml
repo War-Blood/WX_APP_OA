@@ -16,3 +16,4 @@ services:
         max-file: "3"
     volumes:
       - ./frpc-oa.toml:/etc/frpc/frpc-oa.toml:ro
+      - ./logs:/home/admin123/oa/logs
