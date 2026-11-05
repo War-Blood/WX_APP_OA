@@ -8,8 +8,8 @@
 set -euo pipefail
 
 LOCAL_DIR="/d/SQL/db"
-SERVER_HOST="wx-app-server"
-SERVER_DIR="/var/www/wx-app-oa/backups/db"
+SERVER_HOST="srv"
+SERVER_DIR="/home/admin123/oa/backups/db"
 
 mkdir -p "$LOCAL_DIR"
 
