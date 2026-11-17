@@ -29,6 +29,9 @@ const MAX_TODAY = 100;
 const MAX_PLAN = 20;
 /** 不写进日报的内容（自动化本身） */
 const EXCLUDE = /帮我写|写日$|日报注入|注入日报|日报补全|补全.{0,6}日报|日报工具|日报上传|日报生成|日报记录|日报页面|写日报|自动日报|日报机器人|日报自动|导入到对应账号|注入数据库|注入器|daily-report|daily_report|workbuddy 日志|DSH 会话/;
+/** 自动化/定时任务的执行记录，不算个人工作 */
+const AUTO_RUN = /自动化|定时任务|定时同步|每日同步|总同步|管线\s*[HHRRP]|批次\s*RADAR|RADAR-\d{8}|重试\s*\d|04:40/;
+
 /** 候选工作日志根目录 */
 const LOG_ROOTS = ['D:/Projects', 'D:/AI-Work'];
 
@@ -125,6 +128,8 @@ function collectBuddy(dirs, date) {
       const h = /^#{2,3}\s+(.+)$/.exec(line);
       if (h) {
         current = h[1].replace(/^\d+[.、)]\s*/, '').trim();
+        // 自动化执行记录（每日同步/定时任务）不是个人工作，直接跳过整节
+        if (AUTO_RUN.test(current)) { current = null; continue; }
         if (/待办|下一步|明日|遗留|未完成|续/.test(current)) plans.push(current.replace(/^[-*]\s*/, ''));
         else if (!EXCLUDE.test(current) && current.length >= 6 && !/^(经验|交付物|说明|结果|数据源|脚本|明细|踩过|关键|任务|目录)/.test(current)) {
           items.push(current.startsWith(project) ? current : project + '·' + current);
@@ -284,7 +289,8 @@ async function main() {
       }
     } catch { /* ignore */ }
   }
-  const planSrc = (buddy.plans.find(p => !EXCLUDE.test(p)) || nextTopic || '完成当日遗留事项并跟进反馈')
+  const okPlan = p => p && p.length >= 6 && !/^[A-Za-z]\s/.test(p) && !EXCLUDE.test(p) && !AUTO_RUN.test(p);
+  const planSrc = (buddy.plans.find(okPlan) || (okPlan(nextTopic) ? nextTopic : '') || '完成当日遗留事项并跟进反馈')
     .replace(/（[^）]*）?/g, '')
     .replace(/[，、；：\s]+$/, '')
     .trim();
