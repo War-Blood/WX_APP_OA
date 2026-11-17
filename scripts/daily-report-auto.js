@@ -142,6 +142,19 @@ function collectBuddy(dirs, date) {
 }
 
 /**
+ * 还原 DSH 会话目录名里的 ~XX 编码（GBK 字节）
+ * @param {string} s - 目录名
+ * @returns {string} 可读名
+ */
+function decodeLabel(s) {
+  if (!s.includes('~')) return s;
+  // DSH 把非 ASCII 目录名编码成 ~XXXX（UTF-16 码元）
+  return s.replace(/(?:~[0-9A-Fa-f]{4})+/g, m =>
+    m.split('~').filter(Boolean).map(h => String.fromCharCode(parseInt(h, 16))).join('')
+  );
+}
+
+/**
  * 拆分多帧 zstd
  * @param {Buffer} buf - 原始字节
  * @returns {Buffer[]} 帧数组
@@ -185,7 +198,7 @@ function collectSessions(date) {
       try {
         text = splitFrames(fs.readFileSync(file)).map(b => b.toString('utf8')).join('');
       } catch { continue; }
-      const rawName = proj.replace(/^--/, '').replace(/--$/, '');
+      const rawName = decodeLabel(proj.replace(/^--/, '').replace(/--$/, ''));
       let label = rawName.split('-').pop();
       if (label === 'Work') label = 'AI-Work';
       for (const line of text.split(/\r?\n/)) {
@@ -218,7 +231,8 @@ function compose(items, max) {
   let len = 0;
   for (const raw of items) {
     // 过长的条目去掉括号里的批次号等细节
-    const it = raw.length > 32 ? raw.replace(/（[^）]{4,}）/g, '') : raw;
+    let it = raw.replace(/（(关键|重要|本轮新增|新增|续|补充|待定)）/g, '');
+    if (it.length > 32) it = it.replace(/（[^）]{4,}）/g, '');
     const add = (parts.length ? 1 : 0) + it.length;
     if (len + add + 1 > max) continue;
     parts.push(it);
@@ -242,7 +256,15 @@ async function main() {
   const buddy = collectBuddy(dirs, date);
   const sessions = collectSessions(date);
 
-  const all = [...new Set([...buddy.items, ...sessions])].filter(t => !EXCLUDE.test(t));
+  // 近似去重：同一项目下前 6 个字相同视为同一件事
+  const seen = new Set();
+  const all = [...new Set([...buddy.items, ...sessions])].filter(t => {
+    if (EXCLUDE.test(t)) return false;
+    const key = t.replace(/^[^·]*·/, '').slice(0, 6);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   if (all.length === 0) {
     console.log('当日无日志与会话记录，跳过: ' + date);
     return;
@@ -256,11 +278,17 @@ async function main() {
     if (!fs.existsSync(nf)) continue;
     try {
       const line = fs.readFileSync(nf, 'utf8').split(/\r?\n/).find(l => /^#{2,3}\s+(.+)$/.test(l.trim()));
-      if (line) { nextTopic = line.trim().replace(/^#{2,3}\s+/, '').replace(/^\d+[.、)]\s*/, ''); break; }
+      if (line) {
+        const t = line.trim().replace(/^#{2,3}\s+/, '').replace(/^\d+[.、)]\s*/, '').replace(/（[^）]*）/g, '');
+        if (t.length >= 8 && !/^[A-Za-z]\s/.test(t)) { nextTopic = t; break; }
+      }
     } catch { /* ignore */ }
   }
-  const planSrc = buddy.plans.find(p => !EXCLUDE.test(p)) || nextTopic || '完成当日遗留事项并跟进反馈';
-  const plan = planSrc.slice(0, MAX_PLAN - 1) + '。';
+  const planSrc = (buddy.plans.find(p => !EXCLUDE.test(p)) || nextTopic || '完成当日遗留事项并跟进反馈')
+    .replace(/（[^）]*）?/g, '')
+    .replace(/[，、；：\s]+$/, '')
+    .trim();
+  const plan = (planSrc || '完成当日遗留事项并跟进反馈').slice(0, MAX_PLAN - 1) + '。';
 
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   const cacheFile = path.join(CACHE_DIR, date + '.json');
