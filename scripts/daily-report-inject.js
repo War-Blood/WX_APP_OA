@@ -67,6 +67,14 @@ function today() {
 }
 
 /**
+ * 当前时间戳（上海时区，YYYY-MM-DD HH:mm:ss）
+ * @returns {string} 时间字符串
+ */
+function nowStamp() {
+  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
  * 日报入库行
  * @param {number} userId - 用户 ID
  * @param {string} date - 报告日期
@@ -76,7 +84,7 @@ function today() {
  */
 function buildRow(userId, date, c, submitter) {
   const isToday = date === today();
-  const stamp = isToday ? null : date + ' 18:00:00';
+  const stamp = isToday ? nowStamp() : date + ' 18:00:00';
   return {
     user_id: userId,
     report_date: date,
