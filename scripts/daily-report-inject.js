@@ -154,8 +154,10 @@ async function main() {
 
   console.log('用户: ' + submitter + ' (id=' + opts.user + ')  区间: ' + opts.from + ' ~ ' + opts.to);
   console.log('工作日 ' + workdays.length + ' 天 | 新增 ' + toInsert.length + ' | 覆盖 ' + toUpdate.length + ' | 缺内容 ' + missing.length);
-  for (const r of toInsert) console.log('  + ' + r.report_date + '  ' + r.today_work.length + '字  ' + r.today_work);
-  for (const r of toUpdate) console.log('  ~ ' + r.report_date + '  ' + r.today_work.length + '字  ' + r.today_work);
+  // 正文上限 100 字（超出仅告警，不截断，便于人工判断）
+  const mark = (r) => r.report_date + '  ' + r.today_work.length + '字' + (r.today_work.length > 100 ? ' ⚠️超100字' : '');
+  for (const r of toInsert) console.log('  + ' + mark(r) + '  ' + r.today_work);
+  for (const r of toUpdate) console.log('  ~ ' + mark(r) + '  ' + r.today_work);
   if (missing.length > 0) console.log('未处理: ' + missing.join(', '));
 
   if (!opts.apply) {
