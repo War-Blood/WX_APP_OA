@@ -213,6 +213,8 @@ function collectSessions(date) {
         if (ev.time < start || ev.time >= end) continue;
         let title = String((ev.data && ev.data.title) || '').replace(/\s+/g, ' ').trim();
         if (title.length < 4 || EXCLUDE.test(title)) continue;
+        // 会话标题是路径/文件名的跳过（例如 "@C:\\...\\数据源"）
+        if (/^@/.test(title) || /[A-Za-z]:\\/.test(title)) continue;
         // 会话标题常被截断在半句，取最后一个顿号/逗号前的主干
         if (title.length >= 12) {
           const cut = Math.max(title.lastIndexOf('，'), title.lastIndexOf('、'));
