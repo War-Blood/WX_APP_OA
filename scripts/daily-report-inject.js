@@ -2,22 +2,22 @@
 'use strict';
 
 /**
- * @file 日报注入器 — 按 OA 出勤日历把工作日报直接写入 daily_reports（不经过小程序/接口）。
+ * @file 日报注入器 — 按 OA 出勤日历把工作日报写入 daily_reports。
  *
- * 流程：company_schedules 取工作日 → 读内容（--content JSON）→ 幂等校验 → INSERT / UPDATE
+ * 生产库在**内网 172.15.20.20 的 oa-mysql 容器**（11-05 隧道迁移后），云服务器 3306 是冻结的旧库。
+ * 因此默认推荐 --ssh srv：通过 SSH 进容器执行 SQL，并强制 utf8mb4（否则中文按 latin1 落库会翻倍）。
  *
  * 用法：
- *   node scripts/daily-report-inject.js --user 6 --from 2026-11-01 --to 2026-11-17 --content scripts/daily-report-nov.json
- *   node scripts/daily-report-inject.js ... --apply            # 仅补缺失日期
- *   node scripts/daily-report-inject.js ... --apply --update   # 已存在也覆盖正文
+ *   node scripts/daily-report-inject.js --ssh srv --user 6 --from 2026-11-01 --to 2026-11-16 --content scripts/daily-report-nov.json
+ *   加 --apply 写入；加 --update 覆盖已存在日期
  */
 
 const path = require('path');
 const fs = require('fs');
+const { execFileSync } = require('child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
-process.chdir(path.join(REPO_ROOT, 'backend'));
-const db = require(path.join(REPO_ROOT, 'backend', 'src', 'common', 'config', 'database'));
+const REMOTE = 'set -a; . <(docker exec oa-backend printenv | grep "^OA_DB_"); set +a; docker exec -i -e MYSQL_PWD="$OA_DB_PASSWORD" oa-mysql mysql --default-character-set=utf8mb4 -u"$OA_DB_USER" -N -B "$OA_DB_NAME"';
 
 const OFFICE = {
   project: '公司日报',
@@ -30,7 +30,7 @@ const OFFICE = {
 
 /**
  * 打印错误并退出
- * @param {string} message - 错误描述
+ * @param {string} message - 描述
  * @returns {void}
  */
 function die(message) {
@@ -39,29 +39,30 @@ function die(message) {
 }
 
 /**
- * 解析命令行参数
- * @param {string[]} argv - 参数数组
- * @returns {Object} 参数对象
+ * 解析参数
+ * @param {string[]} argv - 参数
+ * @returns {Object} 配置
  */
 function parseArgs(argv) {
-  const opts = { user: 0, from: '', to: '', content: '', apply: false, update: false, help: false };
+  const o = { user: 0, from: '', to: '', content: '', ssh: '', apply: false, update: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const v = () => { const x = argv[++i]; if (x === undefined) die('参数缺少取值: ' + a); return x; };
-    if (a === '--user') opts.user = Number(v());
-    else if (a === '--from') opts.from = v();
-    else if (a === '--to') opts.to = v();
-    else if (a === '--content') opts.content = v();
-    else if (a === '--apply') opts.apply = true;
-    else if (a === '--update') opts.update = true;
-    else if (a === '--help' || a === '-h') opts.help = true;
+    if (a === '--user') o.user = Number(v());
+    else if (a === '--from') o.from = v();
+    else if (a === '--to') o.to = v();
+    else if (a === '--content') o.content = v();
+    else if (a === '--ssh') o.ssh = v();
+    else if (a === '--apply') o.apply = true;
+    else if (a === '--update') o.update = true;
+    else if (a === '--help' || a === '-h') o.help = true;
     else die('未知参数: ' + a);
   }
-  return opts;
+  return o;
 }
 
 /**
- * 当前日期（上海时区）
+ * 当前日期（上海）
  * @returns {string} YYYY-MM-DD
  */
 function today() {
@@ -69,119 +70,104 @@ function today() {
 }
 
 /**
- * 当前时间戳（上海时区，YYYY-MM-DD HH:mm:ss）
- * @returns {string} 时间字符串
+ * 生成 SQL 字面量
+ * @param {*} v - 值
+ * @returns {string} SQL 片段
  */
-function nowStamp() {
-  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+function lit(v) {
+  if (v === null || v === undefined) return 'NULL';
+  if (typeof v === 'number') return String(v);
+  return "'" + String(v).replace(/'/g, "''") + "'";
 }
 
 /**
- * 日报入库行
- * @param {number} userId - 用户 ID
- * @param {string} date - 报告日期
- * @param {Object} c - 内容 { today, tomorrow, issues, coordination }
- * @param {string} submitter - 提交人姓名
- * @returns {Object} 字段对象
+ * 通过 SSH 执行 SQL
+ * @param {string} host - SSH 主机别名
+ * @param {string} sql - SQL 文本
+ * @returns {string} 输出
  */
-function buildRow(userId, date, c, submitter) {
-  const isToday = date === today();
-  const stamp = isToday ? nowStamp() : date + ' 18:00:00';
-  return {
-    user_id: userId,
-    report_date: date,
-    report_type: OFFICE.reportType,
-    project: OFFICE.project,
-    area: OFFICE.area,
-    today_work_type: OFFICE.todayWorkType,
-    today_work: c.today,
-    tomorrow_plan: c.tomorrow || null,
-    issues: c.issues || null,
-    content: c.coordination || null,
-    status: OFFICE.status,
-    timeliness: OFFICE.timeliness,
-    submitter_name: submitter,
-    worker_count: 0,
-    submitted_at: stamp,
-    created_at: stamp,
-    updated_at: stamp,
-  };
+function mysql(host, sql) {
+  try {
+    return execFileSync('ssh', ['-o', 'BatchMode=yes', host, REMOTE], { input: sql, encoding: 'utf8' });
+  } catch (e) {
+    die('SSH 执行失败: ' + (e.stderr || e.message).toString().slice(0, 300));
+  }
 }
 
 async function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  if (opts.help || !opts.user || !opts.from || !opts.to) {
-    console.log('用法: node scripts/daily-report-inject.js --user <id> --from <YYYY-MM-DD> --to <YYYY-MM-DD> [--content <json>] [--apply] [--update]');
+  const o = parseArgs(process.argv.slice(2));
+  if (o.help || !o.user || !o.from || !o.to) {
+    console.log('用法: node scripts/daily-report-inject.js --ssh <host> --user <id> --from <YYYY-MM-DD> --to <YYYY-MM-DD> [--content <json>] [--apply] [--update]');
     return;
   }
+  if (!o.ssh) die('必须指定 --ssh <host>（生产库在内网容器；本地 backend/.env 指向的是迁移前旧库）');
 
-  const userRows = await db.query('SELECT id, nickname FROM users WHERE id = ?', [opts.user]);
-  if (userRows.length === 0) die('用户不存在: ' + opts.user);
-  const submitter = userRows[0].nickname;
+  const content = o.content
+    ? JSON.parse(fs.readFileSync(path.resolve(REPO_ROOT, o.content), 'utf8'))
+    : {};
+  if (!content || Object.keys(content).length === 0) die('缺少内容文件: --content');
 
-  let content = {};
-  if (opts.content) {
-    const file = path.resolve(REPO_ROOT, opts.content);
-    if (!fs.existsSync(file)) die('内容文件不存在: ' + file);
-    content = JSON.parse(fs.readFileSync(file, 'utf8'));
-  }
+  const nick = mysql(o.ssh, 'SELECT nickname FROM users WHERE id = ' + Number(o.user) + ';').trim();
+  if (!nick) die('用户不存在: ' + o.user);
 
-  const workdays = await db.query(
-    "SELECT DATE_FORMAT(schedule_date,'%Y-%m-%d') d FROM company_schedules WHERE status = 'work' AND schedule_date BETWEEN ? AND ? ORDER BY schedule_date",
-    [opts.from, opts.to]
-  );
-  const existing = await db.query(
-    "SELECT DATE_FORMAT(report_date,'%Y-%m-%d') d FROM daily_reports WHERE user_id = ? AND report_date BETWEEN ? AND ? AND deleted_at IS NULL",
-    [opts.user, opts.from, opts.to]
-  );
-  const has = new Set(existing.map(r => r.d));
+  const workdays = mysql(o.ssh,
+    "SELECT DATE_FORMAT(schedule_date,'%Y-%m-%d') FROM company_schedules WHERE status='work' AND schedule_date BETWEEN " +
+    lit(o.from) + ' AND ' + lit(o.to) + ' ORDER BY schedule_date;'
+  ).split(/\r?\n/).filter(Boolean);
 
-  const toInsert = [];
-  const toUpdate = [];
+  const existing = new Set(mysql(o.ssh,
+    "SELECT DATE_FORMAT(report_date,'%Y-%m-%d') FROM daily_reports WHERE user_id=" + Number(o.user) +
+    ' AND report_date BETWEEN ' + lit(o.from) + ' AND ' + lit(o.to) + ' AND deleted_at IS NULL;'
+  ).split(/\r?\n/).filter(Boolean));
+
+  const inserts = [];
+  const updates = [];
   const missing = [];
 
-  for (const { d } of workdays) {
+  for (const d of workdays) {
     if (d > today()) { missing.push(d + '(未来)'); continue; }
     const c = content[d];
-    if (!c || !c.today) {
-      if (!has.has(d)) missing.push(d + '(无内容)');
-      continue;
-    }
-    const row = buildRow(opts.user, d, c, submitter);
-    if (has.has(d)) { if (opts.update) toUpdate.push(row); }
-    else toInsert.push(row);
+    if (!c || !c.today) { if (!existing.has(d)) missing.push(d + '(无内容)'); continue; }
+    const stamp = d + ' 18:00:00';
+    const row = {
+      user_id: o.user, report_date: d, report_type: OFFICE.reportType, project: OFFICE.project,
+      area: OFFICE.area, today_work_type: OFFICE.todayWorkType, today_work: c.today,
+      tomorrow_plan: c.tomorrow || null, issues: c.issues || null, content: c.coordination || null,
+      status: OFFICE.status, timeliness: OFFICE.timeliness, submitter_name: nick,
+      worker_count: 0, submitted_at: stamp, created_at: stamp, updated_at: stamp,
+    };
+    if (existing.has(d)) { if (o.update) updates.push(row); }
+    else inserts.push(row);
   }
 
-  console.log('用户: ' + submitter + ' (id=' + opts.user + ')  区间: ' + opts.from + ' ~ ' + opts.to);
-  console.log('工作日 ' + workdays.length + ' 天 | 新增 ' + toInsert.length + ' | 覆盖 ' + toUpdate.length + ' | 缺内容 ' + missing.length);
-  // 正文上限 100 字（超出仅告警，不截断，便于人工判断）
-  const mark = (r) => r.report_date + '  ' + r.today_work.length + '字' + (r.today_work.length > 100 ? ' ⚠️超100字' : '');
-  for (const r of toInsert) console.log('  + ' + mark(r) + '  ' + r.today_work);
-  for (const r of toUpdate) console.log('  ~ ' + mark(r) + '  ' + r.today_work);
-  if (missing.length > 0) console.log('未处理: ' + missing.join(', '));
+  const mark = r => r.report_date + '  ' + r.today_work.length + '字' + (r.today_work.length > 100 ? ' ⚠️超100字' : '');
+  console.log('用户: ' + nick + ' (id=' + o.user + ')  ' + o.from + ' ~ ' + o.to + '  @' + o.ssh);
+  console.log('工作日 ' + workdays.length + ' | 新增 ' + inserts.length + ' | 覆盖 ' + updates.length + ' | 缺内容 ' + missing.length);
+  for (const r of inserts) console.log('  + ' + mark(r) + '  ' + r.today_work);
+  for (const r of updates) console.log('  ~ ' + mark(r) + '  ' + r.today_work);
+  if (missing.length) console.log('未处理: ' + missing.join(', '));
 
-  if (!opts.apply) {
-    console.log('\n预览模式，未写库。确认后加 --apply。');
-    return;
+  if (!o.apply) { console.log('\n预览模式，未写库。确认后加 --apply。'); return; }
+
+  const stmts = ['SET NAMES utf8mb4;'];
+  if (inserts.length) {
+    const cols = Object.keys(inserts[0]);
+    stmts.push('INSERT INTO daily_reports (' + cols.join(',') + ') VALUES\n' +
+      inserts.map(r => '(' + cols.map(c => lit(r[c])).join(',') + ')').join(',\n') + ';');
+  }
+  for (const r of updates) {
+    stmts.push('UPDATE daily_reports SET ' +
+      ['report_type','project','area','today_work_type','today_work','tomorrow_plan','issues','content','status','timeliness','submitter_name','worker_count']
+        .map(c => c + '=' + lit(r[c])).join(', ') +
+      ", updated_at='" + r.report_date + " 18:00:00' WHERE user_id=" + o.user + ' AND report_date=' + lit(r.report_date) + ';');
   }
 
-  let changed = 0;
-  for (const row of toInsert) {
-    const cols = Object.keys(row);
-    const sql = 'INSERT INTO daily_reports (' + cols.join(',') + ') VALUES (' + cols.map(() => '?').join(',') + ')';
-    try { await db.query(sql, cols.map(k => row[k])); changed++; }
-    catch (e) { console.error('  ✗ INSERT ' + row.report_date + ' ' + e.message); }
+  if (stmts.length > 1) {
+    mysql(o.ssh, stmts.join('\n') + '\n');
+    console.log('\n写入/更新 ' + (inserts.length + updates.length) + ' 条');
+  } else {
+    console.log('\n无变更');
   }
-  for (const row of toUpdate) {
-    try {
-      await db.query(
-        "UPDATE daily_reports SET report_type=?, project=?, area=?, today_work_type=?, today_work=?, tomorrow_plan=?, issues=?, content=?, status=?, timeliness=?, submitter_name=?, worker_count=?, updated_at=? WHERE user_id=? AND report_date=? AND deleted_at IS NULL",
-        [row.report_type, row.project, row.area, row.today_work_type, row.today_work, row.tomorrow_plan, row.issues, row.content, row.status, row.timeliness, row.submitter_name, row.worker_count, nowStamp(), row.user_id, row.report_date]
-      );
-      changed++;
-    } catch (e) { console.error('  ✗ UPDATE ' + row.report_date + ' ' + e.message); }
-  }
-  console.log('\n写入/更新 ' + changed + ' 条');
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error('FATAL', e.message); process.exit(1); });
