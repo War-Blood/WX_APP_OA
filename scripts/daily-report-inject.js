@@ -4,11 +4,12 @@
 /**
  * @file 日报注入器 — 按 OA 出勤日历把工作日报直接写入 daily_reports（不经过小程序/接口）。
  *
- * 流程：company_schedules 取工作日 → 读内容（--content JSON 优先，其次任务日志/git）→ 幂等校验 → INSERT
+ * 流程：company_schedules 取工作日 → 读内容（--content JSON）→ 幂等校验 → INSERT / UPDATE
  *
  * 用法：
- *   node scripts/daily-report-inject.js --user 6 --from 2026-11-01 --to 2026-11-17          # 预览
- *   node scripts/daily-report-inject.js --user 6 --from 2026-11-01 --to 2026-11-17 --apply  # 落库
+ *   node scripts/daily-report-inject.js --user 6 --from 2026-11-01 --to 2026-11-17 --content scripts/daily-report-nov.json
+ *   node scripts/daily-report-inject.js ... --apply            # 仅补缺失日期
+ *   node scripts/daily-report-inject.js ... --apply --update   # 已存在也覆盖正文
  */
 
 const path = require('path');
@@ -43,7 +44,7 @@ function die(message) {
  * @returns {Object} 参数对象
  */
 function parseArgs(argv) {
-  const opts = { user: 0, from: '', to: '', content: '', apply: false, help: false };
+  const opts = { user: 0, from: '', to: '', content: '', apply: false, update: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const v = () => { const x = argv[++i]; if (x === undefined) die('参数缺少取值: ' + a); return x; };
@@ -52,6 +53,7 @@ function parseArgs(argv) {
     else if (a === '--to') opts.to = v();
     else if (a === '--content') opts.content = v();
     else if (a === '--apply') opts.apply = true;
+    else if (a === '--update') opts.update = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else die('未知参数: ' + a);
   }
@@ -109,7 +111,7 @@ function buildRow(userId, date, c, submitter) {
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help || !opts.user || !opts.from || !opts.to) {
-    console.log('用法: node scripts/daily-report-inject.js --user <id> --from <YYYY-MM-DD> --to <YYYY-MM-DD> [--content <json>] [--apply]');
+    console.log('用法: node scripts/daily-report-inject.js --user <id> --from <YYYY-MM-DD> --to <YYYY-MM-DD> [--content <json>] [--apply] [--update]');
     return;
   }
 
@@ -134,23 +136,26 @@ async function main() {
   );
   const has = new Set(existing.map(r => r.d));
 
-  const rows = [];
-  const skipped = [];
+  const toInsert = [];
+  const toUpdate = [];
   const missing = [];
 
   for (const { d } of workdays) {
     if (d > today()) { missing.push(d + '(未来)'); continue; }
-    if (has.has(d)) { skipped.push(d); continue; }
     const c = content[d];
-    if (!c || !c.today) { missing.push(d + '(无内容)'); continue; }
-    rows.push(buildRow(opts.user, d, c, submitter));
+    if (!c || !c.today) {
+      if (!has.has(d)) missing.push(d + '(无内容)');
+      continue;
+    }
+    const row = buildRow(opts.user, d, c, submitter);
+    if (has.has(d)) { if (opts.update) toUpdate.push(row); }
+    else toInsert.push(row);
   }
 
   console.log('用户: ' + submitter + ' (id=' + opts.user + ')  区间: ' + opts.from + ' ~ ' + opts.to);
-  console.log('工作日 ' + workdays.length + ' 天 | 待写 ' + rows.length + ' | 已存在跳过 ' + skipped.length + ' | 缺内容 ' + missing.length);
-  for (const r of rows) {
-    console.log('  ' + r.report_date + '  今日 ' + r.today_work.length + ' 字 | 明日 ' + (r.tomorrow_plan || '').length + ' 字  ' + r.today_work);
-  }
+  console.log('工作日 ' + workdays.length + ' 天 | 新增 ' + toInsert.length + ' | 覆盖 ' + toUpdate.length + ' | 缺内容 ' + missing.length);
+  for (const r of toInsert) console.log('  + ' + r.report_date + '  ' + r.today_work.length + '字  ' + r.today_work);
+  for (const r of toUpdate) console.log('  ~ ' + r.report_date + '  ' + r.today_work.length + '字  ' + r.today_work);
   if (missing.length > 0) console.log('未处理: ' + missing.join(', '));
 
   if (!opts.apply) {
@@ -158,18 +163,23 @@ async function main() {
     return;
   }
 
-  let inserted = 0;
-  for (const row of rows) {
+  let changed = 0;
+  for (const row of toInsert) {
     const cols = Object.keys(row);
     const sql = 'INSERT INTO daily_reports (' + cols.join(',') + ') VALUES (' + cols.map(() => '?').join(',') + ')';
-    try {
-      await db.query(sql, cols.map(k => row[k]));
-      inserted++;
-    } catch (e) {
-      console.error('  ✗ ' + row.report_date + ' ' + e.message);
-    }
+    try { await db.query(sql, cols.map(k => row[k])); changed++; }
+    catch (e) { console.error('  ✗ INSERT ' + row.report_date + ' ' + e.message); }
   }
-  console.log('\n已写入 ' + inserted + ' 条');
+  for (const row of toUpdate) {
+    try {
+      await db.query(
+        "UPDATE daily_reports SET report_type=?, project=?, area=?, today_work_type=?, today_work=?, tomorrow_plan=?, issues=?, content=?, status=?, timeliness=?, submitter_name=?, worker_count=?, updated_at=? WHERE user_id=? AND report_date=? AND deleted_at IS NULL",
+        [row.report_type, row.project, row.area, row.today_work_type, row.today_work, row.tomorrow_plan, row.issues, row.content, row.status, row.timeliness, row.submitter_name, row.worker_count, nowStamp(), row.user_id, row.report_date]
+      );
+      changed++;
+    } catch (e) { console.error('  ✗ UPDATE ' + row.report_date + ' ' + e.message); }
+  }
+  console.log('\n写入/更新 ' + changed + ' 条');
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error('FATAL', e.message); process.exit(1); });
